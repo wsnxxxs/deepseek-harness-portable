@@ -1,12 +1,13 @@
-# DeepSeek Harness Desktop v1.5.2
+# DeepSeek Harness Desktop v1.5.3
 
-Windows x64 桌面版 · 2026-08-22
+Windows x64 桌面版 · 2026-08-23
 
-v1.5.2 是继 v1.5.1 之后的 bug 修复版本。
+v1.5.3 是继 v1.5.2 之后的功能与 bug 修复版本。
 
 ## 重大功能
 
 - **学习模式大幅升级**：新增交互式教学图示、理解检查和会话内学习路线，并支持无障碍使用与会话恢复。
+- **已归档聊天管理**：可在设置中浏览已归档会话、恢复会话或永久删除会话。
 
 ## 视觉能力与内核
 
@@ -17,10 +18,11 @@ v1.5.2 是继 v1.5.1 之后的 bug 修复版本。
 
 - **支持粘贴最大 32 MiB 的图片，并优化桌面菜单操作响应。**
 - **修复 Linux deb 包权限和可执行文件命名问题；安装 deb 后现在可直接使用 `dsh` 命令启动。**
+- **选择当前工作区不再触发不必要的重启，桌面菜单改用更清晰且统一的图标。**
 
 ## 组件版本
 
-- 分发：1.5.2
+- 分发：1.5.3
 - 桌面外壳：0.1.0-shell.2
 - 运行时内核：0.1.1-rc.2
 
@@ -28,13 +30,14 @@ v1.5.2 是继 v1.5.1 之后的 bug 修复版本。
 
 ## English Release Notes
 
-Windows x64 desktop release · 2026-08-22
+Windows x64 desktop release · 2026-08-23
 
-v1.5.2 is a bug-fix release following v1.5.1.
+v1.5.3 is a feature and bug-fix release following v1.5.2.
 
 ### Major Features
 
 - **Learning Mode overhaul**: added interactive teaching visuals, understanding checks, and session-scoped learning routes, with accessible presentation and session recovery.
+- **Archived chats management**: browse archived conversations in Settings, restore them, or permanently delete them.
 
 ### Vision and Kernel
 
@@ -45,10 +48,11 @@ v1.5.2 is a bug-fix release following v1.5.1.
 
 - **Allow pasted images up to 32 MiB and improve desktop menu action responsiveness.**
 - **Fix Linux deb permissions and executable naming; installing the deb now registers the `dsh` command.**
+- **Selecting the current workspace no longer triggers an unnecessary restart, and the desktop menu now uses clearer, consistent icons.**
 
 ### Component Versions
 
-- Distribution: 1.5.2
+- Distribution: 1.5.3
 - Desktop Shell: 0.1.0-shell.2
 - Runtime Kernel: 0.1.1-rc.2
 
@@ -61,6 +65,6 @@ v1.5.2 is a bug-fix release following v1.5.1.
 The final portable ZIP and Setup installer SHA-256 values are recorded in `SHA256SUMS.txt` and attached to the GitHub Release.
 
 ```text
-F7D6A4EA39A28CFA39A62A368065FEFE9B606EC1960A22BAEF0AB575D455CF9B *DeepSeek-Harness-1.5.2-win32-x64.zip
-14AB785B2C96AEA4D8E05DD9DAC246A01446A6FE02A42500143BD73345ECA1D2 *DeepSeek-Harness-Setup-1.5.2-win32-x64.exe
+268513B278C6EFCF4AF22566D7557B6024BD31319E2FBCD59CD5F23BA2D9CE75 *DeepSeek-Harness-1.5.3-win32-x64.zip
+54020CE9DA452C5FECCF875E1EF2C1419B7C6799ED36C4CA5206F92AB8343F55 *DeepSeek-Harness-Setup-1.5.3-win32-x64.exe
 ```
