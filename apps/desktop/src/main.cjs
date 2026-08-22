@@ -6,10 +6,8 @@ const {
   fsyncSync,
   mkdirSync,
   openSync,
-  readdirSync,
   readFileSync,
   renameSync,
-  rmSync,
   statSync,
   unlinkSync,
   watch,
@@ -22,7 +20,6 @@ const { readLocalePreference } = require('./desktop-locale-store.cjs')
 const { countSectionBadges, mergeReleaseHistory, normalizeReleaseNotes, normalizeReleaseNotesHistory } = require('./release-notes.cjs')
 const { findPortableRoot } = require('./update-path.cjs')
 const { evaluateUpdateLaunch } = require('./update-transaction.cjs')
-const { buildUpdaterArguments, launchDetachedPowerShell, resolveUpdaterEntrypoint } = require('./update-launcher.cjs')
 const { ensureUnifiedDshHome } = require('./workspace-service.cjs')
 const { readConfigStore, updateConfigStore } = require('./config-store.cjs')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
@@ -36,15 +33,9 @@ const {
 const {
   GITHUB_MIRROR_PREFIXES,
   compareVersions,
-  downloadWithFallback,
-  extractStagingPackage,
   fetchJson,
-  fetchText,
-  hashFile,
   isValidSemver,
   mirrorUrls,
-  normalizeSha256,
-  parseSha256Sums,
 } = require('./update-client.cjs')
 const {
   PORTABLE_RELEASE_REPO,
@@ -54,17 +45,6 @@ const {
   DEFAULT_WINDOW_BOUNDS,
   restoreWindowBounds,
 } = require('./window-state.cjs')
-const {
-  clearUpdateStatus,
-  isActiveUpdateStatus,
-  isSupersededByCurrentVersion,
-  readUpdateStatus,
-  reconcileUpdateStatus,
-  statusNeedsNotice,
-  statusPath,
-  updateStatusKey,
-  writeUpdateStatus,
-} = require('./update-status.cjs')
 
 const APP_NAME = 'DeepSeek Harness'
 const RELEASE_MANIFEST_NAME = 'release-manifest.json'
@@ -93,10 +73,10 @@ const HARNESS_HEALTH_INTERVAL_MS = 10_000
 const HARNESS_HEALTH_MAX_INTERVAL_MS = 60_000
 const HARNESS_HEALTH_TIMEOUT_MS = 3_000
 const HARNESS_HEALTH_FAILURE_THRESHOLD = 3
-// Automatic background update checks are throttled to once per day; manual
-// checks from the menu are never throttled.
+// Automatic release checks are throttled to once per day; manual checks from
+// the menu are never throttled. The desktop shell only reports availability;
+// it never downloads or replaces the installed application.
 const AUTO_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
-const SUPPORTS_IN_APP_PORTABLE_UPDATE = process.platform === 'win32'
 const DISPLAY_DESKTOP_WINDOWS = shouldDisplayDesktopWindows()
 
 if (!DISPLAY_DESKTOP_WINDOWS) {
@@ -120,9 +100,6 @@ let rendererFirstPaintWaiters = []
 let lastStartupLog = ''
 let inAppNotice
 let queuedReleaseNotesContext
-let portableUpdateTask
-let preparedPortableUpdate
-let resumedPortableUpdate = false
 let boundsSaveTimer
 let healthTimer
 let healthProbePromise
@@ -1226,79 +1203,6 @@ function normalizePortableRelease(value) {
   }
 }
 
-function releaseDownloadUrls(release) {
-  const normalized = normalizePortableRelease(release)
-  const directUrl = normalized.assetUrl || safeHttpsUrl(
-    `https://github.com/${PORTABLE_RELEASE_REPO}/releases/download/${encodeURIComponent(normalized.tagName)}/${encodeURIComponent(normalized.assetName || releaseAssetName(normalized.version) || '')}`,
-  )
-  return mirrorUrls(directUrl, GITHUB_MIRROR_PREFIXES)
-}
-
-async function resolvePortableChecksum(release) {
-  const normalized = normalizePortableRelease(release)
-  const fromAsset = normalizeSha256(normalized.assetDigest)
-  if (fromAsset) return fromAsset
-  if (!normalized.assetName) throw new Error(desktopText('update.missingAssetName'))
-
-  const tag = encodeURIComponent(normalized.tagName)
-  const checksumUrls = [
-    ...mirrorUrls(`https://raw.githubusercontent.com/${PORTABLE_RELEASE_REPO}/${tag}/SHA256SUMS.txt`, GITHUB_MIRROR_PREFIXES),
-    ...mirrorUrls(`https://github.com/${PORTABLE_RELEASE_REPO}/releases/download/${tag}/SHA256SUMS.txt`, GITHUB_MIRROR_PREFIXES),
-    ...mirrorUrls(`https://raw.githubusercontent.com/${PORTABLE_RELEASE_REPO}/main/SHA256SUMS.txt`, GITHUB_MIRROR_PREFIXES),
-  ]
-  return Promise.any(checksumUrls.map(async url => {
-    const checksum = parseSha256Sums(await fetchText(url), normalized.assetName)
-    if (!checksum) throw new Error(`No SHA-256 entry for ${normalized.assetName}`)
-    return checksum
-  }))
-}
-
-function sendUpdateState(payload = {}) {
-  sendRenderer('desktop:update-state', {
-    state: payload.state || '',
-    stage: payload.stage || '',
-    label: payload.label || '',
-    progress: Number.isFinite(payload.progress) ? payload.progress : undefined,
-    targetVersion: payload.targetVersion || '',
-  })
-}
-
-function writeDesktopUpdateStatus({ state, stage, message, fromVersion, targetVersion, packagePath, sha256 }) {
-  const status = writeUpdateStatus(app.getPath('userData'), {
-    state,
-    fromVersion,
-    targetVersion,
-    stage,
-    message,
-    packagePath,
-    sha256,
-    processId: process.pid,
-  })
-  sendUpdateState({ state, stage, label: message, targetVersion })
-  return status
-}
-
-/**
- * Drop a stale failed/interrupted update status before a fresh update,
- * retry, or manual check, so the next status write starts clean. The retry
- * action clears unconditionally (it restarts the whole flow); the other
- * actions only clear terminal failures, leaving a ready/verifying status
- * alone. Best-effort by design: a status read or remove failure must never
- * block the update action it precedes.
- * @param force - clear any status, not only failed/interrupted states.
- */
-function clearUpdateStatusForRetry(force = false) {
-  try {
-    const userDataPath = app.getPath('userData')
-    const currentStatus = readUpdateStatus(userDataPath)
-    if (force || currentStatus?.state === 'failed' || currentStatus?.state === 'interrupted') {
-      clearUpdateStatus(userDataPath)
-    }
-  } catch {
-    // Swallow status I/O failures: cleanup is best-effort and the update action must proceed regardless.
-  }
-}
-
 async function queryLatestVersion(options = {}) {
   const apiUrl = `https://api.github.com/repos/${PORTABLE_RELEASE_REPO}/releases/latest`
   const rawReleaseNotesUrl = `https://raw.githubusercontent.com/${PORTABLE_RELEASE_REPO}/main/apps/desktop/src/release-notes.json`
@@ -1472,62 +1376,6 @@ function saveReleaseHistory(history) {
   }
 }
 
-async function getCurrentUpdateStatus() {
-  const userDataPath = app.getPath('userData')
-  const current = readUpdateStatus(userDataPath)
-  if (current === undefined) return undefined
-  const localVersion = getLocalVersion()
-  const superseded = typeof isSupersededByCurrentVersion === 'function'
-    && isSupersededByCurrentVersion(current, localVersion, compareVersions)
-  if (superseded || (current.targetVersion && current.targetVersion !== localVersion && (current.state === 'completed' || current.state === 'rolled-back'))) {
-    if (current.packagePath) {
-      try { rmSync(current.packagePath, { force: true }) } catch {}
-    }
-    if (current.stagingPath) {
-      try { rmSync(current.stagingPath, { recursive: true, force: true }) } catch {}
-    }
-    if (typeof clearUpdateStatus === 'function') clearUpdateStatus(userDataPath)
-    return undefined
-  }
-
-  if (current.state === 'ready' && preparedPortableUpdate === undefined
-      && current.packagePath && current.sha256) {
-    let valid = false
-    try {
-      valid = existsSync(current.packagePath)
-        && (await hashFile(current.packagePath)) === current.sha256
-    } catch {
-      valid = false
-    }
-    if (valid) {
-      const stagingValid = Boolean(current.stagingPath && existsSync(current.stagingPath))
-      preparedPortableUpdate = {
-        packagePath: current.packagePath,
-        stagingPath: stagingValid ? current.stagingPath : '',
-        sha256: current.sha256,
-        targetVersion: current.targetVersion,
-        release: undefined,
-      }
-      resumedPortableUpdate = true
-      return current
-    }
-  }
-
-  // A resumed or freshly prepared ready package must stay ready across
-  // repeated reads; reconciling would see the (dead) shell PID that wrote
-  // the status before the restart and wrongly mark the update interrupted.
-  if (current.state === 'ready' && preparedPortableUpdate !== undefined
-      && preparedPortableUpdate.packagePath === current.packagePath) {
-    return current
-  }
-
-  const reconciled = reconcileUpdateStatus(current)
-  if (updateStatusKey(reconciled) !== updateStatusKey(current)) {
-    return writeUpdateStatus(userDataPath, reconciled)
-  }
-  return reconciled
-}
-
 async function buildReleaseNotesData(context = {}, options = {}) {
   const localInfo = getLocalReleaseInfo()
   const localRelease = normalizeReleaseNotes({
@@ -1572,7 +1420,6 @@ async function buildReleaseNotesData(context = {}, options = {}) {
 
   return {
     mode: context.mode || 'history',
-    portableUpdateSupported: SUPPORTS_IN_APP_PORTABLE_UPDATE,
     offline,
     currentVersion: localInfo.distributionVersion,
     localInfo,
@@ -1581,7 +1428,6 @@ async function buildReleaseNotesData(context = {}, options = {}) {
     updateAvailable,
     sourceErrors,
     error: checkError || (offline ? sourceErrors.portable : undefined),
-    updateStatus: await getCurrentUpdateStatus(),
     selectedVersion: context.selectedVersion
       || (context.mode === 'update' ? latestRelease.version : currentRelease.version),
     history,
@@ -1598,327 +1444,12 @@ function openExternalSafe(value) {
   }
 }
 
-function markVersionSeen(version) {
-  if (typeof version === 'string' && version.trim() !== '') updateConfig({ lastSeenVersion: version.trim() })
-}
-
-function markUpdateStatusSeen(status) {
-  const key = updateStatusKey(status)
-  if (key !== '') updateConfig({ lastAcknowledgedUpdateStatus: key })
-}
-
 function isMainRenderer(sender) {
   return window !== undefined && !window.isDestroyed() && window.webContents.id === sender.id
 }
 
 function isSplashRenderer(sender) {
   return splashWindow !== undefined && !splashWindow.isDestroyed() && splashWindow.webContents.id === sender.id
-}
-
-function updateNoticeKind(status) {
-  if (status?.state === 'failed') return 'failed'
-  if (status?.state === 'interrupted') return 'interrupted'
-  if (status?.state === 'rolled-back') return 'rolled-back'
-  return 'updated'
-}
-
-async function promptPortableUpdateRestart(prepared) {
-  if (!prepared || prepared !== preparedPortableUpdate) return
-  const result = await dialog.showMessageBox(visibleDialogParent(), {
-    type: 'question',
-    buttons: [desktopText('update.restartNow'), desktopText('update.later')],
-    defaultId: 0,
-    cancelId: 1,
-    title: desktopText('update.readyTitle'),
-    message: desktopText('update.readyMessage', { version: prepared.targetVersion }),
-    detail: desktopText('update.readyDetail'),
-  })
-  if (prepared !== preparedPortableUpdate) return
-  if (result.response !== 0) {
-    sendUpdateState({
-      state: 'ready',
-      stage: 'ready',
-      label: desktopText('update.readyWaiting'),
-      progress: 100,
-      targetVersion: prepared.targetVersion,
-    })
-    return
-  }
-  try {
-    await ensurePreparedUpdateStaging(prepared)
-  } catch (error) {
-    const message = errorMessage(error)
-    writeDesktopUpdateStatus({
-      state: 'failed',
-      stage: 'extract',
-      message,
-      fromVersion: getLocalVersion(),
-      targetVersion: prepared.targetVersion,
-    })
-    sendUpdateState({ state: 'failed', stage: 'extract', label: message, targetVersion: prepared.targetVersion })
-    void dialog.showMessageBox(visibleDialogParent(), {
-      type: 'error',
-      title: desktopText('update.updaterUnavailable'),
-      message,
-    })
-    return
-  }
-  sendUpdateState({ state: 'replacing', stage: 'launch', label: desktopText('update.replacing'), targetVersion: prepared.targetVersion })
-  if (!triggerPortableUpdate(prepared.targetVersion, prepared.packagePath, prepared.sha256, prepared.stagingPath)) {
-    sendUpdateState({ state: 'ready', stage: 'ready', label: desktopText('update.updaterUnavailable'), progress: 100, targetVersion: prepared.targetVersion })
-  }
-}
-
-async function ensurePreparedUpdateStaging(prepared) {
-  const root = findPortableRoot(__dirname)
-  if (root === undefined) throw new Error(desktopText('update.portableRootMissing'))
-  if (prepared.stagingPath && existsSync(prepared.stagingPath)) {
-    resolveUpdaterEntrypoint({ root, stagingPath: prepared.stagingPath })
-    return prepared.stagingPath
-  }
-
-  if (!prepared.packagePath || !existsSync(prepared.packagePath)) {
-    throw new Error('The verified update package is no longer available.')
-  }
-  if (prepared.stagingPath) {
-    try { rmSync(prepared.stagingPath, { recursive: true, force: true }) } catch {}
-  }
-  const safeVersion = String(prepared.targetVersion || 'latest').replace(/[^0-9A-Za-z._-]/g, '_')
-  const tempRoot = join(app.getPath('temp'), 'deepseek-harness-updates')
-  mkdirSync(tempRoot, { recursive: true })
-  const stagingRoot = join(tempRoot, `staging-${safeVersion}-${Date.now()}`)
-  prepared.stagingPath = await extractStagingPackage({
-    zipPath: prepared.packagePath,
-    stagingDestination: stagingRoot,
-    expectedVersion: prepared.targetVersion,
-    appRoot: root,
-  })
-  resolveUpdaterEntrypoint({ root, stagingPath: prepared.stagingPath })
-  writeDesktopUpdateStatus({
-    state: 'ready',
-    stage: 'ready',
-    message: desktopText('update.verifiedWaiting'),
-    fromVersion: getLocalVersion(),
-    targetVersion: prepared.targetVersion,
-    packagePath: prepared.packagePath,
-    stagingPath: prepared.stagingPath,
-    sha256: prepared.sha256,
-  })
-  return prepared.stagingPath
-}
-
-async function preparePortableUpdate(targetVersion, release) {
-  const root = findPortableRoot(__dirname)
-  if (root === undefined) throw new Error(desktopText('update.portableRootMissing'))
-
-  const normalizedRelease = normalizePortableRelease(release)
-  const fromVersion = getLocalVersion()
-  const effectiveTarget = normalizedRelease.version || targetVersion || 'latest'
-  let packagePath
-  let stagingPath = ''
-  let completed = false
-  let currentStage = 'check'
-
-  try {
-    writeDesktopUpdateStatus({
-      state: 'checking',
-      stage: 'check',
-      message: desktopText('update.preparing'),
-      fromVersion,
-      targetVersion: effectiveTarget,
-    })
-    const sha256 = await resolvePortableChecksum(normalizedRelease)
-    currentStage = 'download'
-    const tempRoot = join(app.getPath('temp'), 'deepseek-harness-updates')
-    mkdirSync(tempRoot, { recursive: true })
-    const safeVersion = effectiveTarget.replace(/[^0-9A-Za-z.-]/g, '_')
-    packagePath = join(tempRoot, `DeepSeek-Harness-${safeVersion}-${Date.now()}.zip`)
-    const downloadUrls = releaseDownloadUrls(normalizedRelease)
-    let lastProgressAt = 0
-    writeDesktopUpdateStatus({
-      state: 'downloading',
-      stage: 'download',
-      message: desktopText('update.downloading'),
-      fromVersion,
-      targetVersion: effectiveTarget,
-    })
-    await downloadWithFallback(downloadUrls, packagePath, {
-      timeoutMs: 60_000,
-      onAttempt: url => {
-        let host = url
-        try { host = new URL(url).host } catch {}
-        sendUpdateState({
-          state: 'downloading',
-          stage: 'download',
-          label: desktopText('update.downloadingFrom', { host }),
-          targetVersion: effectiveTarget,
-        })
-      },
-      onProgress: ({ receivedBytes, totalBytes }) => {
-        const now = Date.now()
-        if (now - lastProgressAt < 200 && totalBytes > 0 && receivedBytes < totalBytes) return
-        lastProgressAt = now
-        const progress = totalBytes > 0
-          ? Math.min(99, Math.round(receivedBytes / totalBytes * 100))
-          : undefined
-        sendUpdateState({
-          state: 'downloading',
-          stage: 'download',
-          label: progress === undefined
-            ? desktopText('update.downloading')
-            : desktopText('update.downloadingProgress', { progress }),
-          progress,
-          targetVersion: effectiveTarget,
-        })
-      },
-    })
-
-    currentStage = 'verify'
-    writeDesktopUpdateStatus({
-      state: 'verifying',
-      stage: 'verify',
-      message: desktopText('update.verifying'),
-      fromVersion,
-      targetVersion: effectiveTarget,
-    })
-    const actualSha256 = await hashFile(packagePath)
-    if (actualSha256 !== sha256) {
-      throw new Error(desktopText('update.checksumFailed', { expected: sha256, actual: actualSha256 }))
-    }
-
-    currentStage = 'extract'
-    writeDesktopUpdateStatus({
-      state: 'extracting',
-      stage: 'extract',
-      message: desktopText('release.processing'),
-      fromVersion,
-      targetVersion: effectiveTarget,
-    })
-    sendUpdateState({
-      state: 'extracting',
-      stage: 'extract',
-      label: desktopText('release.processing'),
-      progress: undefined,
-      targetVersion: effectiveTarget,
-    })
-
-    const stagingRoot = join(tempRoot, `staging-${safeVersion}-${Date.now()}`)
-    stagingPath = await extractStagingPackage({
-      zipPath: packagePath,
-      stagingDestination: stagingRoot,
-      expectedVersion: effectiveTarget,
-      appRoot: root,
-    })
-
-    preparedPortableUpdate = {
-      packagePath,
-      stagingPath,
-      sha256,
-      targetVersion: effectiveTarget,
-      release: normalizedRelease,
-    }
-    completed = true
-    writeDesktopUpdateStatus({
-      state: 'ready',
-      stage: 'ready',
-      message: desktopText('update.verifiedWaiting'),
-      fromVersion,
-      targetVersion: effectiveTarget,
-      packagePath,
-      stagingPath,
-      sha256,
-    })
-    sendUpdateState({ state: 'ready', stage: 'ready', label: desktopText('update.readyWaiting'), progress: 100, targetVersion: effectiveTarget })
-    await promptPortableUpdateRestart(preparedPortableUpdate)
-  } catch (error) {
-    if (packagePath && !completed) {
-      try { rmSync(packagePath, { force: true }) } catch {}
-    }
-    if (stagingPath && !completed) {
-      try { rmSync(stagingPath, { recursive: true, force: true }) } catch {}
-    }
-    const message = errorMessage(error)
-    writeDesktopUpdateStatus({
-      state: 'failed',
-      stage: currentStage,
-      message,
-      fromVersion,
-      targetVersion: effectiveTarget,
-    })
-    showInAppNotice({
-      kind: 'failed',
-      currentVersion: fromVersion,
-      release: normalizedRelease,
-      updateStatus: { state: 'failed', message },
-    })
-  }
-}
-
-async function confirmAndStartPortableUpdate(sender, targetVersion) {
-  let currentStatus = await getCurrentUpdateStatus()
-  if (currentStatus?.state === 'ready') {
-    resumedPortableUpdate = false
-    if (preparedPortableUpdate !== undefined) {
-      await promptPortableUpdateRestart(preparedPortableUpdate)
-      return
-    }
-    writeUpdateStatus(app.getPath('userData'), {
-      ...currentStatus,
-      state: 'interrupted',
-      stage: 'interrupted',
-      message: desktopText('update.readyPackageLost'),
-      updatedAt: new Date().toISOString(),
-      processId: 0,
-    })
-    if (currentStatus.packagePath) {
-      try { rmSync(currentStatus.packagePath, { force: true }) } catch {}
-    }
-    currentStatus = undefined
-  }
-  if (currentStatus !== undefined && isActiveUpdateStatus(currentStatus)) {
-    sendUpdateState({ state: currentStatus.state, stage: currentStatus.stage, label: currentStatus.message || desktopText('update.inProgress'), targetVersion: currentStatus.targetVersion })
-    return
-  }
-
-  let release = releaseNotesContext.update
-  if (!release || !release.version || (targetVersion && compareVersions(release.version, targetVersion) !== 0)) {
-    try {
-      release = await queryLatestVersion()
-    } catch (error) {
-      sendUpdateState({ state: 'failed', stage: 'check', label: desktopText('update.informationFailed', { error: errorMessage(error) }), targetVersion })
-      return
-    }
-  }
-  release = normalizePortableRelease(release)
-  const effectiveTarget = release.version || targetVersion || 'latest'
-  if (!SUPPORTS_IN_APP_PORTABLE_UPDATE) {
-    openExternalSafe(release.releaseUrl || `https://github.com/${PORTABLE_RELEASE_REPO}/releases`)
-    sendUpdateState({
-      state: 'manual',
-      stage: 'manual',
-      label: desktopText('update.manualDownload'),
-      targetVersion: effectiveTarget,
-    })
-    return
-  }
-  const result = await dialog.showMessageBox(visibleDialogParent(), {
-    type: 'question',
-    buttons: [desktopText('update.confirmDownload'), desktopText('storage.cancel')],
-    defaultId: 0,
-    cancelId: 1,
-    title: desktopText('update.confirmTitle'),
-    message: desktopText('update.confirmMessage', { version: effectiveTarget }),
-    detail: desktopText('update.confirmDetail'),
-  })
-  if (result.response !== 0) {
-    sendUpdateState({ state: 'idle', stage: '', label: '', targetVersion: effectiveTarget })
-    return
-  }
-  if (portableUpdateTask !== undefined) return
-  sendUpdateState({ state: 'checking', stage: 'check', label: desktopText('update.prepareDownload'), targetVersion: effectiveTarget })
-  portableUpdateTask = preparePortableUpdate(effectiveTarget, release)
-    .finally(() => { portableUpdateTask = undefined })
-  void portableUpdateTask
 }
 
 function registerReleaseNotesIpc() {
@@ -1982,10 +1513,6 @@ function registerReleaseNotesIpc() {
     }
     if (action.type === 'about') {
       openInAppReleaseNotes({ mode: 'about' })
-      return
-    }
-    if (action.type === 'rollback') {
-      void triggerRollback()
       return
     }
     if (action.type === 'choose-workspace') {
@@ -2066,19 +1593,7 @@ function registerReleaseNotesIpc() {
       return
     }
 
-    if (action.type === 'update') {
-      clearUpdateStatusForRetry()
-      const targetVersion = typeof action.targetVersion === 'string' && action.targetVersion.trim() !== ''
-        ? action.targetVersion.trim()
-        : (releaseNotesContext.update?.version || inAppNotice?.release?.version || '')
-      void confirmAndStartPortableUpdate(event.sender, targetVersion)
-      return
-    }
-
-    if (action.type === 'retry-update') {
-      clearUpdateStatusForRetry(true)
-      preparedPortableUpdate = undefined
-      resumedPortableUpdate = false
+    if (action.type === 'retry-check') {
       void checkForUpdates(true)
       return
     }
@@ -2098,132 +1613,6 @@ function openInAppReleaseNotes(context = {}) {
   showWindow()
   releaseNotesContext = { ...context }
   queueOrSendReleaseNotes(releaseNotesContext)
-}
-
-async function showUpdateNoticeIfNeeded() {
-  const localInfo = getLocalReleaseInfo()
-  const current = localInfo.distributionVersion
-  const config = readConfig()
-  const updateStatus = await getCurrentUpdateStatus()
-  if (resumedPortableUpdate) {
-    resumedPortableUpdate = false
-    showInAppNotice({
-      kind: 'ready',
-      currentVersion: current,
-      release: localInfo.releaseNotes,
-      updateStatus,
-    })
-    return
-  }
-  if (updateStatus !== undefined && statusNeedsNotice(updateStatus, config.lastAcknowledgedUpdateStatus)) {
-    markUpdateStatusSeen(updateStatus)
-    showInAppNotice({
-      kind: updateNoticeKind(updateStatus),
-      currentVersion: current,
-      release: localInfo.releaseNotes,
-      updateStatus,
-    })
-    return
-  }
-  const lastSeen = config.lastSeenVersion
-  if (typeof lastSeen !== 'string' || lastSeen.trim() === '') {
-    markVersionSeen(current)
-    return
-  }
-  if (!isValidSemver(current) || !isValidSemver(lastSeen)) {
-    markVersionSeen(current)
-    return
-  }
-  if (compareVersions(current, lastSeen) <= 0) return
-  markVersionSeen(current)
-  showInAppNotice({
-    kind: 'updated',
-    currentVersion: current,
-    release: localInfo.releaseNotes,
-  })
-}
-
-function triggerPortableUpdate(targetVersion, packagePath, expectedSha256, stagingPath) {
-  if (!SUPPORTS_IN_APP_PORTABLE_UPDATE) {
-    openExternalSafe(`https://github.com/${PORTABLE_RELEASE_REPO}/releases`)
-    return false
-  }
-  const root = findPortableRoot(__dirname)
-  if (root !== undefined) {
-    const userDataPath = app.getPath('userData')
-    const fromVersion = getLocalVersion()
-    const startedAt = new Date().toISOString()
-    writeUpdateStatus(userDataPath, {
-      state: 'starting',
-      fromVersion,
-      targetVersion,
-      stage: 'launch',
-      message: 'Portable updater is starting.',
-      startedAt,
-      updatedAt: startedAt,
-      processId: 0,
-    })
-    try {
-      // Run the updater shipped inside the already verified staging tree. An
-      // older installed updater may contain the very rollback bug this release
-      // is intended to repair, or its runtime may already be partially deleted.
-      const updaterEntrypoint = resolveUpdaterEntrypoint({ root, stagingPath })
-      const updaterArgs = buildUpdaterArguments({
-        scriptPath: updaterEntrypoint.scriptPath,
-        appRoot: updaterEntrypoint.appRoot,
-        statusFile: statusPath(userDataPath),
-        fromVersion,
-        targetVersion,
-        packagePath,
-        expectedSha256,
-        stagingPath,
-        enginePid: runtimeSupervisor.pid,
-        shellPid: process.pid,
-      })
-      const launchResult = launchDetachedPowerShell({
-        root,
-        scriptPath: updaterEntrypoint.scriptPath,
-        args: updaterArgs,
-        onLaunch: () => writeUpdateStatus(userDataPath, {
-          state: 'starting',
-          fromVersion,
-          targetVersion,
-          stage: 'launch',
-          message: 'Portable updater started.',
-          // On Windows this is the transient cmd.exe bootstrap PID. update.ps1
-          // replaces it with the real PowerShell PID as soon as it starts.
-          processId: 0,
-        }),
-        onError: error => {
-          writeUpdateStatus(userDataPath, {
-            state: 'failed',
-            fromVersion,
-            targetVersion,
-            stage: 'launch',
-            message: errorMessage(error),
-            processId: 0,
-          })
-        },
-        quit: () => {
-          if (!quitting) app.quit()
-        },
-      })
-      return launchResult.started
-    } catch (error) {
-      writeUpdateStatus(userDataPath, {
-        state: 'failed',
-        fromVersion,
-        targetVersion,
-        stage: 'launch',
-        message: errorMessage(error),
-        processId: 0,
-      })
-      return false
-    }
-  } else {
-    openExternalSafe(`https://github.com/${PORTABLE_RELEASE_REPO}/releases`)
-    return false
-  }
 }
 
 function showAvailableUpdateNotice(latestInfo, currentVersion, force = false) {
@@ -2255,7 +1644,6 @@ async function checkForUpdates(manual = true) {
   }
 
   if (release.updateAvailable) {
-    if (manual) clearUpdateStatusForRetry()
     showAvailableUpdateNotice(portableRelease, localInfo.distributionVersion, manual)
   }
 
@@ -2266,109 +1654,6 @@ async function checkForUpdates(manual = true) {
       selectedVersion: localInfo.distributionVersion,
       update: release.updateAvailable ? portableRelease : undefined,
       sourceErrors,
-    })
-  }
-}
-
-async function triggerRollback() {
-  if (!SUPPORTS_IN_APP_PORTABLE_UPDATE) {
-    openExternalSafe(`https://github.com/${PORTABLE_RELEASE_REPO}/releases`)
-    return
-  }
-  const root = findPortableRoot(__dirname)
-  if (root === undefined) {
-    void dialog.showMessageBox(visibleDialogParent(), {
-      type: 'warning',
-      title: desktopText('update.rollbackFailedTitle'),
-      message: desktopText('update.rollbackMissingRoot'),
-    })
-    return
-  }
-  const updatePs1 = join(root, 'update.ps1')
-  if (!existsSync(updatePs1)) {
-    void dialog.showMessageBox(visibleDialogParent(), {
-      type: 'warning',
-      title: desktopText('update.rollbackFailedTitle'),
-      message: desktopText('update.rollbackMissingScript'),
-    })
-    return
-  }
-
-  const result = await dialog.showMessageBox(visibleDialogParent(), {
-    type: 'question',
-    buttons: [desktopText('update.confirmRollback'), desktopText('storage.cancel')],
-    defaultId: 0,
-    cancelId: 1,
-    title: desktopText('update.confirmRollbackTitle'),
-    message: desktopText('update.confirmRollbackMessage'),
-    detail: desktopText('update.confirmRollbackDetail'),
-  })
-  if (result.response !== 0) return
-
-  const userDataPath = app.getPath('userData')
-  const fromVersion = getLocalVersion()
-  const startedAt = new Date().toISOString()
-  writeUpdateStatus(userDataPath, {
-    state: 'starting',
-    fromVersion,
-    targetVersion: '',
-    stage: 'rollback',
-    message: 'Rollback updater is starting.',
-    startedAt,
-    updatedAt: startedAt,
-    processId: 0,
-  })
-
-  try {
-    const launchResult = launchDetachedPowerShell({
-      root,
-      scriptPath: updatePs1,
-      args: buildUpdaterArguments({
-        scriptPath: updatePs1,
-        rollback: true,
-        statusFile: statusPath(userDataPath),
-        relaunchAfterRollback: true,
-        enginePid: runtimeSupervisor.pid,
-        shellPid: process.pid,
-      }),
-      onLaunch: () => writeUpdateStatus(userDataPath, {
-        state: 'starting',
-        fromVersion,
-        targetVersion: '',
-        stage: 'rollback',
-        message: 'Rollback updater started.',
-        processId: 0,
-      }),
-      onError: error => {
-        writeUpdateStatus(userDataPath, {
-          state: 'failed',
-          fromVersion,
-          targetVersion: '',
-          stage: 'rollback',
-          message: errorMessage(error),
-          processId: 0,
-        })
-      },
-      quit: () => {
-        if (!quitting) app.quit()
-      },
-    })
-    if (!launchResult.started) {
-      throw launchResult.error || new Error('Rollback updater did not start.')
-    }
-  } catch (error) {
-    writeUpdateStatus(userDataPath, {
-      state: 'failed',
-      fromVersion,
-      targetVersion: '',
-      stage: 'rollback',
-      message: errorMessage(error),
-      processId: 0,
-    })
-    void dialog.showMessageBox(visibleDialogParent(), {
-      type: 'error',
-      title: desktopText('update.rollbackStartFailedTitle'),
-      message: errorMessage(error),
     })
   }
 }
@@ -2410,6 +1695,7 @@ function menuItems() {
     { label: desktopText('menu.restartHarness'), accelerator: 'CmdOrCtrl+Shift+R', click: () => { void requestHarnessRestart() } },
     { label: desktopText('menu.openBrowser'), click: () => { void openWebUiInBrowser() } },
     { type: 'separator' },
+    { label: desktopText('menu.checkUpdates'), click: () => { void checkForUpdates(true) } },
     { label: desktopText('menu.aboutAndUpdates'), click: () => { openInAppReleaseNotes({ mode: 'history' }) } },
     { type: 'separator' },
     { label: desktopText('menu.quit'), accelerator: process.platform === 'darwin' ? 'Command+Q' : 'Alt+F4', click: () => app.quit() },
@@ -2425,43 +1711,6 @@ function rebuildMenus() {
     { role: 'viewMenu' },
     { role: 'windowMenu' },
   ]))
-}
-
-// 24-hour cleanup threshold prevents deleting packages currently used by in-flight
-// background PowerShell updaters while guaranteeing orphaned downloads get purged.
-const UPDATE_TEMP_CLEANUP_AGE_MS = 24 * 60 * 60 * 1000
-
-function sweepStaleUpdateArtifacts() {
-  try {
-    const tempDir = app.getPath('temp')
-    const now = Date.now()
-    const active = new Set([preparedPortableUpdate?.packagePath].filter(Boolean))
-    const isStale = path => {
-      try {
-        return now - statSync(path).mtimeMs > UPDATE_TEMP_CLEANUP_AGE_MS
-      } catch {
-        return false
-      }
-    }
-    const tempRoot = join(tempDir, 'deepseek-harness-updates')
-    if (existsSync(tempRoot)) {
-      for (const entry of readdirSync(tempRoot, { withFileTypes: true })) {
-        const p = join(tempRoot, entry.name)
-        if (entry.isFile() && entry.name.toLowerCase().endsWith('.zip') && !active.has(p) && isStale(p)) {
-          try { rmSync(p, { force: true }) } catch {}
-        }
-      }
-    }
-    for (const entry of readdirSync(tempDir, { withFileTypes: true })) {
-      const p = join(tempDir, entry.name)
-      if (entry.isFile() && /^DeepSeek-Harness-.*\.zip$/i.test(entry.name) && isStale(p)) {
-        try { rmSync(p, { force: true }) } catch {}
-      }
-      if (entry.isDirectory() && entry.name.startsWith('dsh-update-') && isStale(p)) {
-        try { rmSync(p, { recursive: true, force: true }) } catch {}
-      }
-    }
-  } catch {}
 }
 
 async function createApp() {
@@ -2574,8 +1823,6 @@ async function createApp() {
 
   setTimeout(() => {
     void (async () => {
-      await showUpdateNoticeIfNeeded()
-      sweepStaleUpdateArtifacts()
       const config = readConfig()
       const lastCheckAt = Date.parse(config.lastAutoUpdateCheckAt)
       if (Number.isFinite(lastCheckAt) && Date.now() - lastCheckAt < AUTO_UPDATE_CHECK_INTERVAL_MS) return

@@ -27,7 +27,7 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 ## 为什么选择 DeepSeek Harness Desktop？
 
-上游 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 主要面向 POSIX Shell 与容器环境。本分发版增加原生 Electron 外壳、平台运行时适配、可验证的发布打包和便携更新链路；对上游的适配集中在受审查补丁和 Cordis 扩展点中，避免散落修改。
+上游 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 主要面向 POSIX Shell 与容器环境。本分发版增加原生 Electron 外壳、平台运行时适配、可验证的发布打包和手动发布流程；对上游的适配集中在受审查补丁和 Cordis 扩展点中，避免散落修改。
 
 应用自带 Electron/Node.js runtime，用户数据保存在应用目录之外，并提供工作区选择、更新诊断、插件市场、视觉工具和交互式学习预设等桌面集成功能。
 
@@ -35,9 +35,9 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 | 平台 | 安装包 | 极简模式 Shell | 更新方式 | 重要要求 |
 | --- | --- | --- | --- | --- |
-| Windows x64 | Setup 或便携 ZIP | 通过 WSL 使用 Bash | 应用内校验下载、重启和回滚 | 默认 WSL 发行版可用且包含 Bash |
-| macOS Apple Silicon | DMG | 通过 POSIX PTY 使用原生 `/bin/bash` | 打开发布页，手动替换 | 当前 DMG 未签名且未公证 |
-| Linux x64 | AppImage 或 deb | 通过 POSIX PTY 使用原生 `/bin/bash` | 打开发布页，手动替换 | 沙箱模式需要可用的 bwrap/Landlock 后端 |
+| Windows x64 | Setup 或便携 ZIP | 通过 WSL 使用 Bash | 检查新版本并打开发布页手动安装 | 默认 WSL 发行版可用且包含 Bash |
+| macOS Apple Silicon | DMG | 通过 POSIX PTY 使用原生 `/bin/bash` | 检查新版本并打开发布页手动安装 | 当前 DMG 未签名且未公证 |
+| Linux x64 | AppImage 或 deb | 通过 POSIX PTY 使用原生 `/bin/bash` | 检查新版本并打开发布页手动安装 | 沙箱模式需要可用的 bwrap/Landlock 后端 |
 
 安装包已包含应用 runtime，普通用户无需安装 Node.js 或 pnpm。开发构建要求见[构建与发布](#构建与发布)。
 
@@ -53,7 +53,7 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 - 内置原生 Electron 桌面外壳与 DeepSeek Harness Web runtime，在回环地址启动。
 - 支持工作区选择、浏览器模式、托盘/应用菜单、更新历史、关于信息和诊断导出。
-- Windows 支持应用内检查更新、下载进度、SHA-256 校验、重启确认和回滚；Linux/macOS 提供发布页手动下载流程。
+- 支持版本检查、紧凑的新版本提示和发布页入口；桌面外壳不会下载或替换应用文件。
 - 原生侧边栏 Logo 集成桌面菜单、系统主题同步、Windows 11 Mica/标题栏样式、macOS 原生菜单、分阶段启动过渡，以及适配多显示器的窗口状态记忆。
 - 极简模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY；Linux 沙箱模式遵循上游 bwrap/Landlock 失败关闭策略。
 - 预装可移除的插件市场，支持 GitHub 分页搜索、一键安装、插件更新管理和 Agent 市场工具。
@@ -123,8 +123,8 @@ Linux AppImage 和 deb 包内含原生 Electron runtime 与桌面入口；deb �
 - Windows 使用 `start-web.cmd`（或 `启动网页版.bat`），Linux 使用 `start-web.sh`，通过内置 Electron/Node runtime 启动网页版，无需安装系统 Node.js。
 - Windows 的 `dsh.cmd` 提供同样的网页版入口、内置插件管理 CLI，并支持分发版子命令：`dsh update`、`dsh desktop`、`dsh trust`。
 - 桌面托盘菜单提供“检查更新”“更新日志”和“关于”。
-- 检测到 Windows 新版本时，桌面外壳会在应用内显示下载与校验进度，完成后再询问是否重启。Linux/macOS 使用同一个菜单打开发布页，由用户手动下载最新 AppImage/deb 或 DMG；应用不会自行替换安装目录。
-- 更新通知以标题栏下方的轻量横幅显示，可按版本选择“不再提示”；“更新日志”和“关于”在卡片式更新中心内打开。具体行为详见[发布说明](RELEASE_NOTES.zh.md)。
+- 检测到新版本时，桌面外壳只在标题栏下方显示轻量提示，并按需打开发布页。应用不会下载、替换或回滚安装目录，用户需要手动安装新版本。
+- 新版本提示可按版本选择“不再提示”；“更新日志”和“关于”在卡片式发布信息面板内打开。具体产品历史见[发布说明](RELEASE_NOTES.zh.md)。
 
 ## 常见问题
 
@@ -140,8 +140,8 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 **我的数据存在哪里？**
 在 `%USERPROFILE%\.dsh`（或 `$DSH_HOME`），位于应用目录之外。见[用户数据与API密钥](#用户数据与api密钥)。
 
-**更新检查失败了怎么办？**
-更新中心会显示错误状态和重试入口，不会阻塞主界面。Windows 也可以直接运行便携版更新器：`dsh update`、`在线更新.bat` 或 `update.ps1`；Linux/macOS 请打开发布页手动下载最新平台产物。
+**版本检查失败了怎么办？**
+发布信息面板会显示错误状态和重试入口，不会阻塞主界面。你也可以打开项目发布页，手动下载最新平台产物。Windows 便携版用户仍可直接运行独立更新器：`dsh update`、`在线更新.bat` 或 `update.ps1`。
 
 **macOS 极简模式需要 WSL 或 Docker 吗？**
 不需要。Apple Silicon macOS 上，极简模式通过原生 POSIX PTY 和 `/bin/bash` 运行，并使用 macOS runtime 的原生进程与沙箱支持。

@@ -27,7 +27,7 @@ DeepSeek Harness Desktop is a community Windows x64, macOS Apple Silicon, and Li
 
 ## Why DeepSeek Harness Desktop?
 
-Upstream [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) is primarily designed for POSIX shells and containerized environments. This distribution adds a native Electron shell, platform-specific runtime adapters, verified release packaging, and a portable update path. Upstream adaptations remain isolated behind reviewed patches and Cordis extension points.
+Upstream [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) is primarily designed for POSIX shells and containerized environments. This distribution adds a native Electron shell, platform-specific runtime adapters, verified release packaging, and a manual release path. Upstream adaptations remain isolated behind reviewed patches and Cordis extension points.
 
 The packaged application includes its own Electron/Node.js runtime, stores user data outside the application directory, and provides desktop integrations such as workspace selection, update diagnostics, the plugin marketplace, vision tools, and the Interactive Learning preset.
 
@@ -35,9 +35,9 @@ The packaged application includes its own Electron/Node.js runtime, stores user 
 
 | Platform | Package | Minimal shell | Update behavior | Important requirement |
 | --- | --- | --- | --- | --- |
-| Windows x64 | Setup or portable ZIP | Bash through WSL | In-app verified download, restart, and rollback | A working default WSL distribution with Bash |
-| macOS Apple Silicon | DMG | Native `/bin/bash` through a POSIX PTY | Opens the release page for manual replacement | Current DMG is unsigned and not notarized |
-| Linux x64 | AppImage or deb | Native `/bin/bash` through a POSIX PTY | Opens the release page for manual replacement | Sandboxed modes require a usable bwrap/Landlock backend |
+| Windows x64 | Setup or portable ZIP | Bash through WSL | Checks for releases and opens the release page for manual installation | A working default WSL distribution with Bash |
+| macOS Apple Silicon | DMG | Native `/bin/bash` through a POSIX PTY | Checks for releases and opens the release page for manual installation | Current DMG is unsigned and not notarized |
+| Linux x64 | AppImage or deb | Native `/bin/bash` through a POSIX PTY | Checks for releases and opens the release page for manual installation | Sandboxed modes require a usable bwrap/Landlock backend |
 
 Packages include the application runtime; users do not need to install Node.js or pnpm. Build prerequisites are listed separately under [Build and release](#build-and-release).
 
@@ -53,7 +53,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 - Bundled native Electron desktop shell with the built-in DeepSeek Harness Web runtime, served on the loopback address.
 - Workspace selection, browser mode, tray/app menu, update history, About, and diagnostics export.
-- Windows in-app update checks with download progress, SHA-256 verification, restart confirmation, and rollback; Linux/macOS release-page download flow.
+- Release checks with a compact new-version notice and a release-page link; application files are never downloaded or replaced by the desktop shell.
 - Native sidebar logo and system theme sync, Windows 11 Mica/title-bar styling, native macOS menus, a staged startup splash, and persisted multi-monitor-safe window bounds.
 - Minimal mode uses WSL Bash on Windows and the native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandbox-capable modes use bwrap or fail-closed Landlock according to the upstream policy.
 - Preinstalled, removable plugin marketplace with paginated GitHub search, one-click installation, update management, and agent-facing market tools.
@@ -123,8 +123,8 @@ Linux AppImage and deb packages contain the native Electron runtime and desktop 
 - Windows `start-web.cmd` (or `启动网页版.bat`) and Linux `start-web.sh` start the Web surface through the embedded Electron/Node runtime; no system Node.js installation is required.
 - Windows `dsh.cmd` provides the same web entry plus the embedded plugin-management CLI and distribution subcommands: `dsh update`, `dsh desktop`, `dsh trust`.
 - The desktop tray menu provides **Check for Updates**, **Release Notes**, and **About**.
-- When a new Windows release is found, the desktop shell downloads and verifies it in-app with progress, then asks before restarting. Linux and macOS open the release page and require a manual AppImage/deb or DMG download; they do not self-replace the running installation.
-- Update notices appear as a transient banner below the title bar and can be suppressed per version; Release Notes and About open in a card-style Update Hub. See the [release notes](RELEASE_NOTES.md) for the details of these behaviors.
+- When a new release is found, the desktop shell shows a transient notice and opens the release page on request. It never downloads, replaces, or rolls back the installed application; users install the new package manually.
+- Release notices can be suppressed per version; Release Notes and About open in a card-style release information panel. See the [release notes](RELEASE_NOTES.md) for the product history.
 
 ## FAQ
 
@@ -140,8 +140,8 @@ No. Desktop mode, browser/Web mode, the DSH plugin CLI, and pnpm all use the Nod
 **Where is my data stored?**
 Under `%USERPROFILE%\.dsh` (or `$DSH_HOME`), outside the application directory. See [User data and API key](#user-data-and-api-key).
 
-**An update check failed — what now?**
-The Update Hub shows an error state with a retry action instead of blocking the main window. On Windows you can also run the portable updater directly: `dsh update`, `在线更新.bat`, or `update.ps1`. On Linux/macOS, open the release page and download the latest platform artifact manually.
+**A release check failed — what now?**
+The release information panel shows an error state with a retry action and does not block the main window. You can also open the project release page and download the latest platform artifact manually. Windows portable users may still run the standalone updater directly: `dsh update`, `在线更新.bat`, or `update.ps1`.
 
 **Does macOS Minimal mode require WSL or Docker?**
 No. On Apple Silicon, Minimal mode uses the native POSIX PTY and `/bin/bash`, with the macOS runtime's native process and sandbox support.

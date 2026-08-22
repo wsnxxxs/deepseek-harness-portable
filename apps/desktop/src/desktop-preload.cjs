@@ -94,8 +94,6 @@ if (!isSplashDocument) {
     expandedVersions: new Set(),
     expansionSeedKey: '',
     modalReturnFocus: undefined,
-    updateState: '',
-    updateProgress: undefined,
     shellState: undefined,
   }
 
@@ -306,63 +304,23 @@ if (!isSplashDocument) {
     state.expansionSeedKey = seedKey
   }
 
-  function formatBytes(value) {
-    const bytes = Number(value)
-    if (!Number.isFinite(bytes) || bytes <= 0) return ''
-    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1) + ' MB'
-  }
-
-  function renderProgress(status) {
-    const value = Number.isFinite(status?.progress) ? Math.max(0, Math.min(100, Number(status.progress))) : undefined
-    return '<div class="dsh-update-progress" role="group" aria-label="' + escapeHtml(desktopText('release.progressAria')) + '"><div class="dsh-progress-track"><span class="dsh-progress-fill' + (value === undefined ? ' indeterminate' : '') + '"' + (value === undefined ? '' : ' style="width:' + value + '%"') + '></span></div><span class="dsh-progress-label" role="status">' + (value === undefined ? escapeHtml(desktopText('release.processing')) : value + '%') + '</span></div>'
-  }
-
-  function renderPortableUpdateCard() {
+  function renderReleaseCheckCard() {
     const data = state.data || {}
-    const persisted = data.updateStatus || {}
-    const live = state.updateProgress || {}
-    const rawState = live.state || persisted.state || (data.updateAvailable ? 'available' : 'idle')
-    const targetVersion = live.targetVersion || persisted.targetVersion || data.latestRelease?.version || ''
-    const update = data.latestRelease || data.currentRelease || {}
-    const manualDownload = data.portableUpdateSupported === false
-    const message = live.label || live.message || persisted.message || state.updateState
-    const busy = ['starting', 'checking', 'downloading', 'verifying', 'extracting', 'replacing'].includes(rawState)
-    const ready = rawState === 'ready'
-    const failed = rawState === 'failed' || rawState === 'interrupted'
-    const completed = rawState === 'completed' || rawState === 'updated'
-    const size = formatBytes(update.assetSize)
-    const versionLabel = targetVersion ? 'v' + escapeHtml(targetVersion) : escapeHtml(desktopText('release.currentVersion'))
+    const update = data.latestRelease || {}
+    const versionLabel = update.version ? 'v' + escapeHtml(update.version) : escapeHtml(desktopText('release.currentVersion'))
     const button = (action, label, kind = 'primary', extra = '') => '<button class="dsh-button ' + kind + '" type="button" data-action="' + action + '"' + extra + '>' + escapeHtml(label) + '</button>'
-    const rollbackButton = manualDownload ? '' : button('desktop-rollback', desktopText('release.rollback'), 'ghost')
 
     if (state.modalLoading) return '<div class="dsh-loading">' + escapeHtml(desktopText('release.loadingLocal')) + '</div>'
-    if (data.error) return '<section class="dsh-hero-card dsh-hero-card-error" role="alert"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.unavailableKicker')) + '</span><strong>' + escapeHtml(desktopText('release.unavailableTitle')) + '</strong><small>' + escapeHtml(data.error) + '</small></div><div class="dsh-hero-actions">' + button('retry-update', desktopText('release.retry'), 'secondary') + '</div></section>'
-    if (failed) {
-      const retryButtons = (data.updateAvailable
-        ? button('update', desktopText(manualDownload ? 'release.openDownloadPage' : 'release.downloadNow'), 'primary') + button('retry-update', desktopText('release.retry'), 'secondary')
-        : button('retry-update', desktopText('release.retry'), 'secondary')
-      ) + rollbackButton
-      return '<section class="dsh-hero-card dsh-hero-card-error" role="alert"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(rawState === 'interrupted' ? desktopText('release.failedInterrupted') : desktopText('release.transactionError')) + '</span><strong>' + escapeHtml(message || desktopText('release.failedFallback')) + '</strong><small>' + escapeHtml(desktopText('release.targetVersion', { version: versionLabel })) + '</small></div><div class="dsh-hero-actions">' + retryButtons + '</div></section>'
+    if (data.error) return '<section class="dsh-hero-card dsh-hero-card-error" role="alert"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.unavailableKicker')) + '</span><strong>' + escapeHtml(desktopText('release.unavailableTitle')) + '</strong><small>' + escapeHtml(data.error) + '</small></div><div class="dsh-hero-actions">' + button('retry-check', desktopText('release.retry'), 'secondary') + '</div></section>'
+    if (data.updateAvailable) {
+      const releaseUrl = update.releaseUrl || ''
+      return '<section class="dsh-hero-card dsh-hero-card-available" role="status" aria-live="polite"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.foundNew')) + '</span><strong>' + escapeHtml(desktopText('release.availableTitle', { version: versionLabel })) + '</strong><small>' + escapeHtml(desktopText('release.availableDetail')) + '</small></div><div class="dsh-hero-actions">' + button('open-release-page', desktopText('release.openReleasePage'), 'primary', ' data-url="' + escapeHtml(releaseUrl) + '"') + '</div></section>'
     }
-    if (completed && targetVersion === (data.currentVersion || '')) return '<section class="dsh-hero-card dsh-hero-card-success" role="status"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.completed')) + '</span><strong>' + escapeHtml(desktopText('release.updatedTo', { version: versionLabel })) + '</strong><small>' + escapeHtml(message || desktopText('release.healthPassed')) + '</small></div><div class="dsh-hero-actions">' + rollbackButton + '</div></section>'
-    if (rawState === 'rolled-back') return '<section class="dsh-hero-card dsh-hero-card-success" role="status"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.rollbackKicker')) + '</span><strong>' + escapeHtml(desktopText('release.rolledBackTo', { version: versionLabel })) + '</strong><small>' + escapeHtml(message || desktopText('release.rollbackDetail')) + '</small></div></section>'
-    if (rawState === 'idle' && !data.updateAvailable) return '<section class="dsh-hero-card dsh-hero-card-neutral" role="status"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.portableChannel')) + '</span><strong>' + escapeHtml(desktopText('release.latestVersion', { version: data.currentVersion || '—' })) + '</strong><small>' + escapeHtml(data.sourceErrors?.portable || (data.offline ? desktopText('release.offline') : desktopText('release.noUpdate'))) + '</small></div></section>'
-
-    const title = ready
-      ? desktopText('release.readyTitle', { version: versionLabel })
-      : (busy ? desktopText('release.busyTitle', { version: versionLabel }) : desktopText('release.availableTitle', { version: versionLabel }))
-    const detail = ready
-      ? desktopText('release.readyDetail')
-      : (busy ? (message || desktopText('release.busyDetail')) : desktopText('release.availableDetail') + (size ? ' · ' + size : ''))
-    const action = ready
-      ? button('update', desktopText(manualDownload ? 'release.openDownloadPage' : 'release.restartUpdate'))
-      : (busy ? button('update', desktopText('release.updating'), 'secondary', ' disabled') : button('update', desktopText(manualDownload ? 'release.openDownloadPage' : 'release.downloadNow')))
-    return '<section class="dsh-hero-card ' + (ready ? 'dsh-hero-card-ready' : (busy ? 'dsh-hero-card-progress' : 'dsh-hero-card-available')) + '" role="status" aria-live="polite"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(ready ? desktopText('release.verifiedKicker') : (busy ? desktopText('release.transactionEngine') : desktopText('release.foundNew'))) + '</span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(detail) + '</small>' + (busy ? renderProgress({ ...persisted, ...live }) : '') + '</div><div class="dsh-hero-actions">' + action + '</div></section>'
+    return '<section class="dsh-hero-card dsh-hero-card-neutral" role="status"><div class="dsh-hero-copy"><span class="dsh-status-kicker">' + escapeHtml(desktopText('release.portableChannel')) + '</span><strong>' + escapeHtml(desktopText('release.latestVersion', { version: data.currentVersion || '—' })) + '</strong><small>' + escapeHtml(data.sourceErrors?.portable || (data.offline ? desktopText('release.offline') : desktopText('release.noUpdate'))) + '</small></div></section>'
   }
 
   function renderHeroCard() {
-    return '<div class="dsh-update-channels">' + renderPortableUpdateCard() + '</div>'
+    return '<div class="dsh-update-channels">' + renderReleaseCheckCard() + '</div>'
   }
 
   function renderModalContent() {
@@ -412,50 +370,14 @@ if (!isSplashDocument) {
       ? '<div class="dsh-action-toast" role="status">' + escapeHtml(state.actionMessage) + '</div>'
       : ''
     if (!notice) return actionMarkup
+    if (notice.kind !== 'available') return actionMarkup
     const release = notice.release || {}
-    const status = notice.updateStatus || {}
-    const isAvailable = notice.kind === 'available'
-    const isProblem = notice.kind === 'failed' || notice.kind === 'interrupted'
-    const isRolledBack = notice.kind === 'rolled-back'
-    const isReady = notice.kind === 'ready'
-    let title
-    let desc
-    let actionLabel
-    let action
-    if (isAvailable) {
-      title = desktopText('release.availableTitle', { version: 'v' + (release.version || '—') })
-      desc = desktopText('release.openFeaturesDescription')
-      actionLabel = desktopText('release.openFeatures')
-      action = 'open-release-notes'
-    } else if (isProblem) {
-      title = notice.kind === 'failed' ? desktopText('release.updateFailed') : desktopText('release.failedInterrupted')
-      desc = status.message || desktopText('release.failedFallback')
-      actionLabel = desktopText('release.retry')
-      action = 'retry-update'
-    } else if (isReady) {
-      const readyVersion = status.targetVersion || release.version || notice.currentVersion || '—'
-      title = desktopText('release.readyTitle', { version: 'v' + readyVersion })
-      desc = status.message || desktopText('release.readyDetail')
-      actionLabel = desktopText('release.restartUpdate')
-      action = 'update'
-    } else if (isRolledBack) {
-      const rollbackVersion = status.targetVersion || release.version || notice.currentVersion || '—'
-      title = '↺ ' + desktopText('release.rolledBackTo', { version: 'v' + rollbackVersion })
-      desc = status.message || desktopText('release.rollbackDetail')
-      actionLabel = desktopText('release.openFeatures')
-      action = 'open-release-notes'
-    } else {
-      title = '🎉 ' + desktopText('release.updatedTo', { version: 'v' + (release.version || notice.currentVersion || '—') })
-      desc = desktopText('release.historyDescription')
-      actionLabel = desktopText('release.openFeatures')
-      action = 'open-release-notes'
-    }
-    const version = status.targetVersion || release.version || notice.currentVersion || ''
-    const neverButton = isReady
-      ? ''
-      : '<button class="dsh-button ghost dsh-notice-never" data-action="notice-dismiss-forever" data-version="' + escapeHtml(version) + '"' + (version ? '' : ' disabled') + '>' + escapeHtml(desktopText('release.never')) + '</button>'
-    const releaseUrl = isKernelAvailable ? ' data-release-url="' + escapeHtml(release.releaseUrl || '') + '"' : ''
-    return actionMarkup + '<section class="dsh-notice" role="status"><div class="dsh-notice-icon">' + logoMarkup('dsh-notice-logo') + '</div><div class="dsh-notice-copy"><strong>' + escapeHtml(title) + '</strong><span>' + escapeHtml(desc) + '</span></div><button class="dsh-button primary" data-action="' + action + '"' + releaseUrl + '>' + escapeHtml(actionLabel) + '</button>' + neverButton + '<button class="dsh-notice-dismiss" data-action="notice-dismiss" aria-label="' + escapeHtml(desktopText('release.closeNotice')) + '">×</button></section>'
+    const version = release.version || notice.currentVersion || ''
+    const title = desktopText('release.availableTitle', { version: 'v' + (release.version || '—') })
+    const desc = desktopText('release.availableDetail')
+    const releaseUrl = escapeHtml(release.releaseUrl || '')
+    const neverButton = '<button class="dsh-button ghost dsh-notice-never" data-action="notice-dismiss-forever" data-version="' + escapeHtml(version) + '"' + (version ? '' : ' disabled') + '>' + escapeHtml(desktopText('release.never')) + '</button>'
+    return actionMarkup + '<section class="dsh-notice" role="status"><div class="dsh-notice-icon">' + logoMarkup('dsh-notice-logo') + '</div><div class="dsh-notice-copy"><strong>' + escapeHtml(title) + '</strong><span>' + escapeHtml(desc) + '</span></div><button class="dsh-button primary" data-action="open-release-page" data-url="' + releaseUrl + '">' + escapeHtml(desktopText('release.openReleasePage')) + '</button>' + neverButton + '<button class="dsh-notice-dismiss" data-action="notice-dismiss" aria-label="' + escapeHtml(desktopText('release.closeNotice')) + '">×</button></section>'
   }
 
   function showActionMessage(message) {
@@ -606,7 +528,7 @@ if (!isSplashDocument) {
     const position = state.menuPosition || defaultMenuPosition()
     const positionMarkup = ' style="--dsh-menu-left:' + escapeHtml(position.left) + 'px;--dsh-menu-top:' + escapeHtml(position.top) + 'px"'
     const shellLabel = shellEnvironmentLabel()
-    const hasUpdate = Boolean(state.data?.updateAvailable || state.notice?.kind === 'available' || state.updateProgress)
+    const hasUpdate = Boolean(state.data?.updateAvailable || state.notice?.kind === 'available')
     const updateDot = hasUpdate ? '<span class="dsh-menu-dot" title="' + escapeHtml(desktopText('release.foundNew')) + '">●</span>' : ''
 
     const isRecentOpen = state.menuSubmenu === 'workspaces'
@@ -636,6 +558,7 @@ if (!isSplashDocument) {
       '<button class="dsh-menu-item dsh-menu-item-expandable' + (isMaintenanceOpen ? ' is-expanded' : '') + '" data-action="desktop-toggle-maintenance" role="menuitem" aria-expanded="' + (isMaintenanceOpen ? 'true' : 'false') + '"><span>' + MENU_ICONS.advanced + '</span><strong>' + escapeHtml(desktopText('menu.maintenance')) + '</strong>' + (!state.shellState?.available && state.shellState?.native !== true && state.shellState !== undefined ? '<span class="dsh-menu-warn">⚠️</span>' : '') + MENU_ICONS.expandChevron + '</button>' +
       maintenanceSubmenu +
       '<div class="dsh-menu-separator"></div>' +
+      '<button class="dsh-menu-item" data-action="desktop-check-updates" role="menuitem"><span>' + MENU_ICONS.refresh + '</span><strong>' + escapeHtml(desktopText('menu.checkUpdates')) + '</strong></button>' +
       '<button class="dsh-menu-item" data-action="desktop-about-and-updates" role="menuitem"><span>' + MENU_ICONS.about + '</span><strong>' + escapeHtml(desktopText('menu.aboutAndUpdates')) + '</strong>' + updateDot + '</button>' +
       '</div>'
   }
@@ -994,6 +917,12 @@ if (!isSplashDocument) {
       void openModal(context)
       return
     }
+    if (action === 'open-release-page') {
+      const url = target.dataset.url || state.notice?.release?.releaseUrl || state.data?.latestRelease?.releaseUrl
+      dismissNotice()
+      if (url) sendAction('open-url', { url })
+      return
+    }
     if (action === 'modal-close') {
       closeModal()
       return
@@ -1002,24 +931,10 @@ if (!isSplashDocument) {
       toggleReleaseAccordion(target.dataset.version)
       return
     }
-    if (action === 'retry-update') {
+    if (action === 'retry-check') {
       dismissNotice()
-      state.updateProgress = undefined
-      state.updateState = desktopText('update.prepareDownload')
       render()
-      sendAction('retry-update')
-      return
-    }
-    if (action === 'desktop-rollback') {
-      sendMenuAction('rollback')
-      return
-    }
-    if (action === 'update') {
-      const version = state.data?.latestRelease?.version || state.notice?.release?.version || ''
-      const ready = state.updateProgress?.state === 'ready' || state.data?.updateStatus?.state === 'ready'
-      state.updateState = ready ? desktopText('release.restartUpdate') : desktopText('update.prepareDownload')
-      render()
-      sendAction('update', { targetVersion: version })
+      sendAction('retry-check')
       return
     }
     if (action === 'show-about') {
@@ -1333,19 +1248,6 @@ if (!isSplashDocument) {
   ipcRenderer.on('desktop:release-notes:reload', () => {
     if (state.modalOpen) void openModal(state.modalContext)
   })
-  ipcRenderer.on('desktop:update-state', (_event, update) => {
-    state.updateState = update?.label || ''
-    state.updateProgress = update?.state === 'idle'
-      ? undefined
-      : (update && typeof update === 'object' ? {
-          state: update.state || '',
-          stage: update.stage || '',
-          progress: Number.isFinite(update.progress) ? update.progress : undefined,
-          targetVersion: update.targetVersion || '',
-        } : undefined)
-    render()
-  })
-
   shadow.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest('[data-action]') : undefined
     if (!target) return

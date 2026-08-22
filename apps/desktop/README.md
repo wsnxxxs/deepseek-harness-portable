@@ -9,10 +9,10 @@ This workspace package builds the native Electron desktop shell for DeepSeek Har
 - Starts the packaged dsh Web runtime on 127.0.0.1.
 - Remembers the selected workspace in Electron user data.
 - Keeps user data under the official DSH_HOME root, %USERPROFILE%\.dsh by default.
-- Provides tray and application menu actions for workspace, browser mode, updates, release notes, and About.
+- Provides tray and application menu actions for workspace, browser mode, release checks, release notes, and About.
 - Fetches release notes from GitHub or the configured mirror, with cached and bundled offline fallback.
-- Downloads and verifies Windows portable updates in-app with progress before asking the user to restart; Linux/macOS open the release page for manual AppImage/deb or DMG download.
-- Shows update availability in a compact, centered banner below the title bar; it auto-destroys after seven seconds or dismissal, supports per-version suppression, and keeps the full release history in a centered card-style Update Hub.
+- Shows release availability in a compact, centered banner below the title bar; it auto-destroys after seven seconds or dismissal, supports per-version suppression, and opens the release page for manual installation.
+- The desktop shell never downloads, replaces, or rolls back the installed application. Windows portable users can still use the standalone updater scripts when they explicitly choose to do so.
 - Fuses the native sidebar logo with the desktop menu: expanded left click opens the menu, while collapsed left click expands the sidebar and right click opens the menu.
 - Uses a Windows 11 Mica title-bar overlay where supported, native macOS title/menu behavior, system theme synchronization, startup splash, and persisted multi-monitor-safe window bounds.
 - Runs Minimal mode through WSL Bash on Windows and native `/bin/bash` through a POSIX PTY on Linux/macOS; Linux sandbox-capable modes retain the upstream bwrap/Landlock fail-closed chain.

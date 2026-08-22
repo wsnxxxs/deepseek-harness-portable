@@ -28,6 +28,8 @@ test('maps system locales to the supported Chinese and English choices', () => {
 test('returns complete locale-specific messages with substitutions', () => {
   assert.equal(messageForLocale('zh', 'menu.checkUpdates'), '检查更新')
   assert.equal(messageForLocale('en', 'menu.checkUpdates'), 'Check for Updates')
+  assert.equal(messageForLocale('zh', 'release.openReleasePage'), '打开发布页面')
+  assert.equal(messageForLocale('en', 'release.openReleasePage'), 'Open Release Page')
   assert.equal(messageForLocale('zh', 'menu.maintenance'), '高级设置')
   assert.equal(messageForLocale('en', 'menu.maintenance'), 'Advanced Settings')
   assert.equal(messageForLocale('zh', 'menu.copyDiagnostics'), '复制错误日志')
