@@ -1084,6 +1084,7 @@ async function switchWorkspace(path, parentWindow = visibleDialogParent()) {
     })
     return false
   }
+  if (targetPath === workspace()) return true
   if (!await confirmWorkspaceSwitch(targetPath, parentWindow)) return false
   saveWorkspace(targetPath)
   await requestHarnessRestart()

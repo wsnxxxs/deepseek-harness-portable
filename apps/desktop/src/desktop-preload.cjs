@@ -400,21 +400,22 @@ if (!isSplashDocument) {
   }
 
   const MENU_ICONS = {
-    workspace: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5L8 2.5l5.5 4v6.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-6.5z"/><path d="M6 14v-4.5h4V14"/></svg>',
-    recentWorkspaces: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.8l1.4 1.5H12.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7z"/><polyline points="7.5 7 9.5 8.5 7.5 10"/></svg>',
-    refresh: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9L2.5 13.5"/><polyline points="2.5 9.5 2.5 13.5 6.5 13.5"/></svg>',
-    restart: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9L13.5 2.5"/><polyline points="13.5 6.5 13.5 2.5 9.5 2.5"/></svg>',
-    browser: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4"/><polyline points="9.5 2.5 13.5 2.5 13.5 6.5"/><line x1="6.5" y1="9.5" x2="13.5" y2="2.5"/></svg>',
-    advanced: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2.5" y1="4" x2="13.5" y2="4"/><circle cx="5.5" cy="4" r="1.75" fill="currentColor"/><line x1="2.5" y1="8" x2="13.5" y2="8"/><circle cx="10.5" cy="8" r="1.75" fill="currentColor"/><line x1="2.5" y1="12" x2="13.5" y2="12"/><circle cx="6.5" cy="12" r="1.75" fill="currentColor"/></svg>',
-    terminal: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><polyline points="5 6 7.5 8 5 10"/><line x1="9" y1="10.5" x2="11.5" y2="10.5"/></svg>',
-    log: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2H4a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5V6L9 2z"/><polyline points="9 2 9 6 13 6"/><line x1="5.5" y1="8.5" x2="10.5" y2="8.5"/><line x1="5.5" y1="11" x2="9" y2="11"/></svg>',
-    resetCache: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 0 1 3.5 11.5M2.5 8A5.5 5.5 0 0 1 12.5 4.5"/><polyline points="2.5 12 3.5 11.5 4 13.5"/><polyline points="13.5 4 12.5 4.5 12 2.5"/><line x1="6" y1="6" x2="10" y2="10"/><line x1="10" y1="6" x2="6" y2="10"/></svg>',
-    about: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="11.5"/><circle cx="8" cy="4.75" r="0.75" fill="currentColor"/></svg>',
+    workspace: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4a1.5 1.5 0 0 1 1.5-1.5h2.7l1.5 1.5H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5V4z"/></svg>',
+    recentWorkspaces: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><polyline points="8 4.75 8 8 10.5 9.5"/></svg>',
+    refresh: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3v4.5H9"/><path d="M13.1 9.5a5.5 5.5 0 1 1-1.2-4.7L13.5 7.5"/></svg>',
+    restart: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 2.5v3.5H10"/><path d="M2.5 7.5A5.5 5.5 0 0 1 13 5.5l.5.5"/><path d="M2.5 13.5v-3.5H6"/><path d="M13.5 8.5A5.5 5.5 0 0 1 3 10.5l-.5-.5"/></svg>',
+    browser: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v3.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 12.5v-7A1.5 1.5 0 0 1 3.5 4H7"/><polyline points="10 2.5 13.5 2.5 13.5 6"/><line x1="6.5" y1="9.5" x2="13.5" y2="2.5"/></svg>',
+    advanced: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2.5" y1="5" x2="4.5" y2="5"/><circle cx="6" cy="5" r="1.5"/><line x1="7.5" y1="5" x2="13.5" y2="5"/><line x1="2.5" y1="11" x2="9" y2="11"/><circle cx="10.5" cy="11" r="1.5"/><line x1="12" y1="11" x2="13.5" y2="11"/></svg>',
+    updates: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><polyline points="5.5 7.5 8 5 10.5 7.5"/><line x1="8" y1="5" x2="8" y2="11"/></svg>',
+    about: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><line x1="8" y1="7.5" x2="8" y2="11.5"/><line x1="8" y1="4.75" x2="8" y2="4.75"/></svg>',
+    terminal: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><polyline points="5 6 7 8 5 10"/><line x1="9" y1="10" x2="11" y2="10"/></svg>',
+    log: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.5H4a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 4 13.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5L9 2.5z"/><polyline points="9 2.5 9 6.5 13 6.5"/><line x1="5.5" y1="9" x2="10.5" y2="9"/><line x1="5.5" y1="11" x2="8.5" y2="11"/></svg>',
+    resetCache: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 0 1 3.5 11.5M2.5 8A5.5 5.5 0 0 1 12.5 4.5"/><polyline points="2.5 12 3.5 11.5 4 13.5"/><polyline points="13.5 4 12.5 4.5 12 2.5"/><line x1="6" y1="6" x2="10" y2="10"/><line x1="10" y1="6" x2="6" y2="10"/></svg>',
     expandChevron: '<svg class="dsh-menu-expand" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>',
-    check: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/></svg>',
-    folder: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.8l1.4 1.5H12.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7z"/></svg>',
-    trash: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M4.5 4.5v8a1.5 1.5 0 0 0 1.5 1.5h4a1.5 1.5 0 0 0 1.5-1.5v-8"/></svg>',
-    dot: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.5" fill="currentColor"/></svg>',
+    check: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/></svg>',
+    folder: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4a1.5 1.5 0 0 1 1.5-1.5h2.7l1.5 1.5H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5V4z"/></svg>',
+    trash: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M4.5 4.5v8a1.5 1.5 0 0 0 1.5 1.5h4a1.5 1.5 0 0 0 1.5-1.5v-8"/></svg>',
+    dot: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>',
   }
 
   function renderRecentWorkspaceItems() {
@@ -558,7 +559,7 @@ if (!isSplashDocument) {
       '<button class="dsh-menu-item dsh-menu-item-expandable' + (isMaintenanceOpen ? ' is-expanded' : '') + '" data-action="desktop-toggle-maintenance" role="menuitem" aria-expanded="' + (isMaintenanceOpen ? 'true' : 'false') + '"><span>' + MENU_ICONS.advanced + '</span><strong>' + escapeHtml(desktopText('menu.maintenance')) + '</strong>' + (!state.shellState?.available && state.shellState?.native !== true && state.shellState !== undefined ? '<span class="dsh-menu-warn">⚠️</span>' : '') + MENU_ICONS.expandChevron + '</button>' +
       maintenanceSubmenu +
       '<div class="dsh-menu-separator"></div>' +
-      '<button class="dsh-menu-item" data-action="desktop-check-updates" role="menuitem"><span>' + MENU_ICONS.refresh + '</span><strong>' + escapeHtml(desktopText('menu.checkUpdates')) + '</strong></button>' +
+      '<button class="dsh-menu-item" data-action="desktop-check-updates" role="menuitem"><span>' + MENU_ICONS.updates + '</span><strong>' + escapeHtml(desktopText('menu.checkUpdates')) + '</strong></button>' +
       '<button class="dsh-menu-item" data-action="desktop-about-and-updates" role="menuitem"><span>' + MENU_ICONS.about + '</span><strong>' + escapeHtml(desktopText('menu.aboutAndUpdates')) + '</strong>' + updateDot + '</button>' +
       '</div>'
   }
@@ -889,8 +890,7 @@ if (!isSplashDocument) {
       return
     }
     if (action === 'desktop-open-browser') {
-      closeMenu()
-      window.open(window.location.href, '_blank')
+      sendMenuAction('open-browser')
       return
     }
     if (action === 'health-reconnect') {
@@ -966,8 +966,8 @@ if (!isSplashDocument) {
     .dsh-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 7px 9px; border: 0; border-radius: 7px; color: #263a5a; background: transparent; cursor: pointer; text-align: left; font: 12px/1.2 inherit; -webkit-app-region: no-drag; }
     .dsh-menu-item:hover { color: #1d5ebf; background: #eaf2ff; }
     .dsh-menu-item.is-focused { color: #1d5ebf; background: #eaf2ff; outline: 2px solid rgba(52, 127, 242, .24); outline-offset: -2px; }
-    .dsh-menu-item span { display: inline-grid; place-items: center; width: 17px; height: 17px; color: #5b80b8; font-size: 14px; flex-shrink: 0; }
-    .dsh-menu-item span svg { display: block; width: 14px; height: 14px; }
+    .dsh-menu-item span { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; min-width: 16px; color: #5b80b8; font-size: 14px; flex-shrink: 0; }
+    .dsh-menu-item span svg { display: block; width: 16px; height: 16px; flex-shrink: 0; }
     .dsh-menu-item:hover span, .dsh-menu-item.is-focused span { color: #1d5ebf; }
     .dsh-menu-item strong { font-weight: 600; }
     .dsh-menu-item kbd { margin-left: auto; padding: 2px 5px; border: 1px solid rgba(116, 138, 171, .22); border-radius: 4px; color: #6e8099; background: rgba(220, 230, 245, .55); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
