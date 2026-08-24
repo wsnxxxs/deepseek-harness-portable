@@ -1,28 +1,28 @@
-# DeepSeek Harness Desktop v1.5.3
+# DeepSeek Harness Desktop v1.5.4
 
-Windows x64 桌面版 · 2026-08-23
+Windows x64 桌面版 · 2026-08-24
 
-v1.5.3 是继 v1.5.2 之后的功能与 bug 修复版本。
+v1.5.4 是继 v1.5.3 之后的功能与 bug 修复版本。
 
 ## 重大功能
 
-- **学习模式大幅升级**：新增交互式教学图示、理解检查和会话内学习路线，并支持无障碍使用与会话恢复。
-- **已归档聊天管理**：可在设置中浏览已归档会话、恢复会话或永久删除会话。
+- **Learning 视觉系统升级**：改进公式、图表、曲线、时间线、场景和回忆卡片的视觉呈现，减少拥挤并提供更清晰的标签和反馈布局。
+- **使用量设置页**：新增持久化 token 汇总、按模型明细、活跃度历史和会话耗时统计。
+- **会话兼容性增强**：安全处理旧版可选事件，并在冷会话中补齐使用量投影。
 
-## 视觉能力与内核
+## 运行时与兼容性
 
-- **原生图片理解**：支持图片的模型可直接处理图片，文本模型继续通过 Vision Bridge 获得图片理解能力。
-- **内核升级**：更新至 DeepSeek Harness 0.1.1-rc.2，并新增支持图片输入的 `deepseek-v4-flash-vision-exp` 模型。
+- **原生目录选择和索引**现在覆盖 Windows 与 WSL 兼容环境。
+- **运行时元数据兼容**：恢复、压缩及打包升级过程中继续保留旧版可选事件的安全处理。
 
 ## 问题修复
 
-- **支持粘贴最大 32 MiB 的图片，并优化桌面菜单操作响应。**
-- **修复 Linux deb 包权限和可执行文件命名问题；安装 deb 后现在可直接使用 `dsh` 命令启动。**
-- **选择当前工作区不再触发不必要的重启，桌面菜单改用更清晰且统一的图标。**
+- **刷新 Learning 客户端构建产物，并补充视觉布局和回忆反馈回归覆盖。**
+- **列出使用量投影加入前创建的会话时，也能继续提供持久化的使用量数据。**
 
 ## 组件版本
 
-- 分发：1.5.3
+- 分发：1.5.4
 - 桌面外壳：0.1.0-shell.2
 - 运行时内核：0.1.1-rc.2
 
@@ -30,29 +30,29 @@ v1.5.3 是继 v1.5.2 之后的功能与 bug 修复版本。
 
 ## English Release Notes
 
-Windows x64 desktop release · 2026-08-23
+Windows x64 desktop release · 2026-08-24
 
-v1.5.3 is a feature and bug-fix release following v1.5.2.
+v1.5.4 is a feature and bug-fix release following v1.5.3.
 
 ### Major Features
 
-- **Learning Mode overhaul**: added interactive teaching visuals, understanding checks, and session-scoped learning routes, with accessible presentation and session recovery.
-- **Archived chats management**: browse archived conversations in Settings, restore them, or permanently delete them.
+- **Learning Mode visual system**: improved formula, graph, plot, timeline, scene, and recall visuals with clearer labels, less crowding, and feedback-aware layouts.
+- **Usage settings**: added durable token summaries, per-model breakdowns, activity history, and session timing in Settings.
+- **Session compatibility**: added safe handling for optional legacy events and hydration for usage projections on cold sessions.
 
-### Vision and Kernel
+### Runtime and Compatibility
 
-- **Native image understanding**: image-capable models receive images directly, while text-only models continue to use the Vision Bridge fallback.
-- **Kernel update**: updated to DeepSeek Harness 0.1.1-rc.2, including the image-capable `deepseek-v4-flash-vision-exp` model.
+- **Native directory picking and indexing** now cover Windows and WSL-compatible environments.
+- **Runtime metadata compatibility** keeps optional legacy events safe across resume, compaction, and packaged upgrades.
 
 ### Fixes
 
-- **Allow pasted images up to 32 MiB and improve desktop menu action responsiveness.**
-- **Fix Linux deb permissions and executable naming; installing the deb now registers the `dsh` command.**
-- **Selecting the current workspace no longer triggers an unnecessary restart, and the desktop menu now uses clearer, consistent icons.**
+- **Refresh generated Learning client bundles and add regression coverage for visual layout and recall feedback.**
+- **Keep durable usage projections available when listing sessions created before the usage projection was introduced.**
 
 ### Component Versions
 
-- Distribution: 1.5.3
+- Distribution: 1.5.4
 - Desktop Shell: 0.1.0-shell.2
 - Runtime Kernel: 0.1.1-rc.2
 
@@ -60,11 +60,13 @@ v1.5.3 is a feature and bug-fix release following v1.5.2.
 
 ## 校验和与安全 / Checksums and security
 
-最终便携 ZIP 和 Setup 安装包的 SHA-256 值记录在 `SHA256SUMS.txt`，并作为 GitHub Release 附件发布。
+最终 Windows 便携 ZIP、Setup 安装包以及 Linux AppImage/deb 的 SHA-256 值记录在 `SHA256SUMS.txt`，并作为 GitHub Release 附件发布。
 
-The final portable ZIP and Setup installer SHA-256 values are recorded in `SHA256SUMS.txt` and attached to the GitHub Release.
+The final Windows portable ZIP, Setup installer, and Linux AppImage/deb SHA-256 values are recorded in `SHA256SUMS.txt` and attached to the GitHub Release.
 
 ```text
-D9C5868BC462C2F77FD986C90C84AC04CC8D1FED99D44806B3549041CF112106 *DeepSeek-Harness-1.5.3-win32-x64.zip
-86A2FDB6C69085B05F69A1688BA414CD155A888A8F8143FE65871953A1984FA8 *DeepSeek-Harness-Setup-1.5.3-win32-x64.exe
+86F18BC4C004F816AEE9B527DFD17478DBE1F317C1ED64A25C30F91CBC933A21 *DeepSeek-Harness-1.5.4-win32-x64.zip
+B93E39B5B7CEB9356D441F2C0C96D10285F9F2BC60CDC0FEEAF2AA9A38B1B7A3 *DeepSeek-Harness-Setup-1.5.4-win32-x64.exe
+125623E4B8B16F241CB91E3DC3A8267C5E2F589413F4A13E777B14C7F01A31AC *DeepSeek-Harness-1.5.4-linux-x64.AppImage
+F27EDE74991F16DFA80B27E25AA4E6CF7E61D36860A99F23E7FFE173D5CCDBE0 *DeepSeek-Harness-1.5.4-linux-x64.deb
 ```

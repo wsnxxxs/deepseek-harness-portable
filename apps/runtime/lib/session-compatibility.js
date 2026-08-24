@@ -12,8 +12,10 @@ export function registerPortableSessionCompatibility() {
 }
 /** Register every required event understood by the packaged runtime before persistence can read. */
 export function registerPackagedSessionCompatibility() {
-    // Learning state is required durable data. Register it; never downgrade it
-    // to an ignorable event merely to make an older startup path accept it.
+    // Learning state is registered for strict validation/folding when the package
+    // is present. Writers also mark this log-only projection ignorable so a host
+    // can resume a session before a lazily loaded Learning package registers it;
+    // the persistence reader retains the event for a later fold.
     registerInteractiveLearningSessionCompatibility();
     registerPortableSessionCompatibility();
 }
