@@ -10,6 +10,7 @@ const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
 const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
 const VISUAL_PROTOCOL_V4 = "dsh-learning/visual@4";
 const VISUAL_RESULT_PROTOCOL_V4 = "dsh-learning/visual-result@4";
+const RECALL_FEEDBACK_PROTOCOL_V1 = "dsh-learning/recall-feedback@1";
 const CHECKPOINT_PROTOCOL = "dsh-learning/checkpoint@1";
 const CHECKPOINT_RESULT_PROTOCOL = "dsh-learning/checkpoint-result@1";
 const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
@@ -52,7 +53,9 @@ const MATH_BINARY_OPERATORS = [
 	"sub",
 	"mul",
 	"div",
-	"pow"
+	"pow",
+	"min",
+	"max"
 ];
 const MATH_UNARY_OPERATORS = [
 	"neg",
@@ -60,11 +63,25 @@ const MATH_UNARY_OPERATORS = [
 	"sqrt",
 	"sin",
 	"cos",
+	"tan",
+	"atan",
 	"exp",
 	"log",
-	"sigmoid"
+	"sigmoid",
+	"relu",
+	"leaky_relu",
+	"step",
+	"normpdf",
+	"floor",
+	"ceil"
 ];
 const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
+/** A learner's explicit recall interaction, sent from the visual Client to Host. */
+const LEARNING_RECALL_STATUSES = [
+	"revealed",
+	"mastered",
+	"review"
+];
 /** A stable, actionable protocol rejection surfaced to the tool call. */
 var LearningProtocolError = class extends Error {
 	issues;
@@ -87,6 +104,13 @@ function text(value, path, issues, max = 8e3) {
 		return false;
 	}
 	if (value.length > max) issues.push(`${path} exceeds ${String(max)} characters`);
+	return true;
+}
+function boundedIdentity(value, path, issues, max = 512) {
+	if (typeof value !== "string" || value.length === 0 || value.length > max || value.trim() !== value || /[\u0000-\u001F\u007F]/u.test(value)) {
+		issues.push(`${path} must be a non-empty bounded identity`);
+		return false;
+	}
 	return true;
 }
 function finite(value, path, issues) {
@@ -1913,6 +1937,25 @@ function parseLearningVisualResultV4(value) {
 	if (issues.length > 0) throw new LearningProtocolError(issues);
 	return value;
 }
+/** Parse the small Client → Host recall bridge payload. */
+function parseLearningRecallFeedbackV1(value) {
+	const issues = [];
+	if (!record(value)) throw new LearningProtocolError(["recall feedback must be an object"]);
+	onlyKeys(value, [
+		"protocol",
+		"sessionId",
+		"callId",
+		"cardId",
+		"status"
+	], "recallFeedback", issues);
+	if (value.protocol !== "dsh-learning/recall-feedback@1") issues.push(`recallFeedback.protocol must be ${RECALL_FEEDBACK_PROTOCOL_V1}`);
+	boundedIdentity(value.sessionId, "recallFeedback.sessionId", issues);
+	boundedIdentity(value.callId, "recallFeedback.callId", issues);
+	boundedIdentity(value.cardId, "recallFeedback.cardId", issues, 128);
+	if (!LEARNING_RECALL_STATUSES.includes(value.status)) issues.push(`recallFeedback.status must be one of ${LEARNING_RECALL_STATUSES.join(", ")}`);
+	if (issues.length > 0) throw new LearningProtocolError(issues);
+	return value;
+}
 function parseLearningVisualResultV3(value) {
 	const issues = [];
 	if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
@@ -1923,4 +1966,4 @@ function parseLearningVisualResultV3(value) {
 	return value;
 }
 //#endregion
-export { parseLearningCheckpointResultV1 as A, VISUAL_PROTOCOL_V3 as C, isLearningCheckpointDisplayTextSafe as D, VISUAL_RESULT_PROTOCOL_V4 as E, parseLearningVisualResultV4 as F, parseLearningVisualV3 as I, parseLearningVisualV4 as L, parseLearningResponse as M, parseLearningResponseV2 as N, parseLearningActivity as O, parseLearningVisualResultV3 as P, TRANSPORT_PROTOCOL_V2 as S, VISUAL_RESULT_PROTOCOL_V3 as T, MAX_RESPONSE_BYTES as _, CHECKPOINT_TRANSPORT_PROTOCOL as a, RESPONSE_PROTOCOL_V2 as b, LEARNING_CHECKPOINT_KINDS as c, LearningProtocolError as d, MATH_BINARY_OPERATORS as f, MAX_MATH_NODES as g, MAX_MATH_DEPTH as h, CHECKPOINT_RESULT_PROTOCOL as i, parseLearningCheckpointV1 as j, parseLearningActivityV2 as k, LEARNING_VISUAL_KINDS_V4 as l, MAX_ACTIVITY_BYTES as m, ACTIVITY_PROTOCOL_V2 as n, LEARNING_ACTIVITY_KINDS as o, MATH_UNARY_OPERATORS as p, CHECKPOINT_PROTOCOL as r, LEARNING_CHECKPOINT_EVIDENCE_KINDS as s, ACTIVITY_PROTOCOL as t, LEARNING_VISUAL_STATUSES as u, MAX_VISUAL_MATH_DEPTH as v, VISUAL_PROTOCOL_V4 as w, TRANSPORT_PROTOCOL as x, RESPONSE_PROTOCOL as y };
+export { parseLearningActivity as A, parseLearningVisualV4 as B, TRANSPORT_PROTOCOL as C, VISUAL_RESULT_PROTOCOL_V3 as D, VISUAL_PROTOCOL_V4 as E, parseLearningResponse as F, parseLearningResponseV2 as I, parseLearningVisualResultV3 as L, parseLearningCheckpointResultV1 as M, parseLearningCheckpointV1 as N, VISUAL_RESULT_PROTOCOL_V4 as O, parseLearningRecallFeedbackV1 as P, parseLearningVisualResultV4 as R, RESPONSE_PROTOCOL_V2 as S, VISUAL_PROTOCOL_V3 as T, MAX_MATH_NODES as _, CHECKPOINT_TRANSPORT_PROTOCOL as a, RECALL_FEEDBACK_PROTOCOL_V1 as b, LEARNING_CHECKPOINT_KINDS as c, LEARNING_VISUAL_STATUSES as d, LearningProtocolError as f, MAX_MATH_DEPTH as g, MAX_ACTIVITY_BYTES as h, CHECKPOINT_RESULT_PROTOCOL as i, parseLearningActivityV2 as j, isLearningCheckpointDisplayTextSafe as k, LEARNING_RECALL_STATUSES as l, MATH_UNARY_OPERATORS as m, ACTIVITY_PROTOCOL_V2 as n, LEARNING_ACTIVITY_KINDS as o, MATH_BINARY_OPERATORS as p, CHECKPOINT_PROTOCOL as r, LEARNING_CHECKPOINT_EVIDENCE_KINDS as s, ACTIVITY_PROTOCOL as t, LEARNING_VISUAL_KINDS_V4 as u, MAX_RESPONSE_BYTES as v, TRANSPORT_PROTOCOL_V2 as w, RESPONSE_PROTOCOL as x, MAX_VISUAL_MATH_DEPTH as y, parseLearningVisualV3 as z };

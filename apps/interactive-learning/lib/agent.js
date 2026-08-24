@@ -1,5 +1,5 @@
-import { n as routeLearningTurn, r as LEARNING_INTENT_POLICY } from "./teaching-route-BMSuwJeo.js";
-import { E as VISUAL_RESULT_PROTOCOL_V4, L as parseLearningVisualV4, c as LEARNING_CHECKPOINT_KINDS, d as LearningProtocolError, f as MATH_BINARY_OPERATORS, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningCheckpointV1, p as MATH_UNARY_OPERATORS, r as CHECKPOINT_PROTOCOL, s as LEARNING_CHECKPOINT_EVIDENCE_KINDS, u as LEARNING_VISUAL_STATUSES, w as VISUAL_PROTOCOL_V4 } from "./protocol-UIlmeaAM.js";
+import { n as routeLearningTurn, r as LEARNING_INTENT_POLICY } from "./teaching-route-BeSRfzkX.js";
+import { B as parseLearningVisualV4, E as VISUAL_PROTOCOL_V4, N as parseLearningCheckpointV1, O as VISUAL_RESULT_PROTOCOL_V4, c as LEARNING_CHECKPOINT_KINDS, d as LEARNING_VISUAL_STATUSES, f as LearningProtocolError, i as CHECKPOINT_RESULT_PROTOCOL, m as MATH_UNARY_OPERATORS, p as MATH_BINARY_OPERATORS, r as CHECKPOINT_PROTOCOL, s as LEARNING_CHECKPOINT_EVIDENCE_KINDS } from "./protocol-vCKjmTCQ.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 //#region lib/types/teaching-policy.js
 /**
@@ -21,7 +21,7 @@ const LEARNING_TEACHING_POLICY = [
 	"Each response makes one cognitive move: a minimum explanation plus one concrete example, contrast, or parallel step. Ask at most one focused learner question, and only with a scaffold that makes productive reasoning possible. Never send an empty “what do you think?” prompt or hide a second question in a visual.",
 	"Use observable evidence only. Name what the learner actually said or did. For a correct response, preserve the correct part and raise difficulty slightly; for a partial or wrong response, isolate the precise error, add new information, and offer a nearby retry. A concept gap needs the concept; a procedure gap needs a distinct parallel example; a notation gap needs symbols decoded; a prerequisite gap needs the missing rule first.",
 	"Never repeat a hint, analogy, question, or explanation fingerprint. When the learner says “I don’t understand”, shrink the concept or change representation and add new information; do not paraphrase the same move. “I heard it” is not mastery: require an explanation, prediction, or application in a fresh situation.",
-	"Stop after independent fresh transfer. State the concrete evidence and offer, but do not force, a next step. Do not manufacture another question, checkpoint, praise loop, or plan step after transfer. A plan is tentative and never a completion checklist.",
+	"Stop after independent fresh transfer, or after a sufficiently confident, correct, independent explanation/attempt that fully resolves the current segment. State the concrete evidence and offer, but do not force, a next step. The latter may end the segment while mastery remains emerging; do not label it transfer automatically without explicit fresh-context evidence. Honor an explicit learner correction to this tentative state, and always honor a request to stop questioning. Do not manufacture another question, checkpoint, praise loop, or plan step after completion. A plan is tentative and never a completion checklist.",
 	"Ordinary conversation is the default. Use a visual only when one relationship is materially clearer by seeing or manipulating it; use a checkpoint only when the learner's response will change the next move. Both are optional and non-blocking on the ordinary text path. In the move ontology the checkpoint is a reflective pause: the wire-compatible `learning_checkpoint` tool is the sole deliberate user wait, and skip/cancel/failure must return to ordinary conversation without withholding teaching. Load the interactive-teaching Skill when detailed diagnosis, pressure, integrity, visual, or supplied-source guidance is needed.",
 	"Keep academic-integrity limits for observable assessed work only. Never invent facts, citations, source anchors, learner evidence, or confidence; correct mistakes plainly.",
 	"The `learning_state_update` state is tentative and session-local. Update it only after a substantive observable change. Low-confidence evidence may guide support but cannot establish mastery; only sufficiently confident, correct, independent learner evidence can do so. Use phase, last explanation/question, learner-response assessment, current misconception, next move, and move fingerprint to choose a different next move; do not narrate these fields to the learner."
@@ -152,6 +152,7 @@ function required(schema) {
 	};
 }
 const requiredExpression = required(mathExpressionSchema(4));
+const mathExpressionDescription = "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
 const identifier = {
 	type: "string",
 	description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -."
@@ -236,7 +237,10 @@ const curveSeries = {
 			type: "string",
 			required: true
 		},
-		expression: requiredExpression,
+		expression: {
+			...requiredExpression,
+			description: mathExpressionDescription
+		},
 		tone,
 		stroke
 	}
@@ -372,7 +376,10 @@ const plotContent = {
 						type: "string",
 						required: true
 					},
-					expression: requiredExpression,
+					expression: {
+						...requiredExpression,
+						description: mathExpressionDescription
+					},
 					digits: { type: "integer" },
 					suffix: { type: "string" }
 				}
@@ -1574,7 +1581,8 @@ const learnerStateEvent = {
 				"repair",
 				"transfer",
 				"complete"
-			]
+			],
+			description: "Set complete only when the learner explicitly asks to stop the current questioning or the segment is genuinely complete; this does not claim transfer mastery."
 		},
 		explanationSummary: { type: "string" },
 		question: { type: "string" },
@@ -1603,7 +1611,8 @@ const learnerStateEvent = {
 				"repair",
 				"transfer",
 				"complete"
-			]
+			],
+			description: "Use complete with phase=complete when the learner asks not to be quizzed further; do not upgrade mastery unless this is an explicit user correction."
 		},
 		moveFingerprint: { type: "string" },
 		anchors: {
@@ -1710,7 +1719,8 @@ const learnerStateCorrection = {
 				"unseen",
 				"emerging",
 				"transfer"
-			]
+			],
+			description: "For action=correct only: honor the learner’s explicit correction to this tentative mastery hypothesis."
 		},
 		evidence: {
 			type: "array",
@@ -1729,7 +1739,8 @@ const learnerStateCorrection = {
 				"repair",
 				"transfer",
 				"complete"
-			]
+			],
+			description: "For an explicit request to stop questioning, set phase=complete without changing mastery to transfer."
 		},
 		lastExplanationSummary: { oneOf: [{ type: "string" }, { type: "null" }] },
 		lastQuestion: { oneOf: [{ type: "string" }, { type: "null" }] },
@@ -1758,7 +1769,8 @@ const learnerStateCorrection = {
 				"repair",
 				"transfer",
 				"complete"
-			]
+			],
+			description: "Pair nextMove=complete with phase=complete when the learner asks not to be quizzed further; mastery changes only when explicitly corrected."
 		},
 		moveFingerprint: { oneOf: [{ type: "string" }, { type: "null" }] },
 		lastMove: {
@@ -2007,11 +2019,11 @@ function disposeDynamicTeachingTools(key) {
 }
 function dynamicToolTarget(services, exec) {
 	const candidate = exec.agent;
-	return typeof candidate?.id === "string" && candidate.ctx?.tools !== void 0 ? candidate.ctx.tools : services.tools;
+	return candidate?.ctx?.tools !== void 0 ? candidate.ctx.tools : services.tools;
 }
 function dynamicToolKey(_services, exec) {
 	const candidate = exec.agent;
-	return typeof candidate?.id === "string" && candidate.ctx?.tools !== void 0 ? candidate : GLOBAL_DYNAMIC_TOOL_KEY;
+	return candidate?.ctx?.tools !== void 0 ? candidate : GLOBAL_DYNAMIC_TOOL_KEY;
 }
 function assertSingleCheckpointInModelStep(exec) {
 	const agent = exec.agent;
@@ -2059,7 +2071,7 @@ function apply(ctx) {
 	});
 	services.tools.register(closeParameterRoot(defineTool({
 		name: "learning_visual_select",
-		description: "Use only when a visual will materially clarify one relationship. Select one native kind, state its teaching purpose, and bind it to at least one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation.",
+		description: "Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to at least one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation.",
 		parameters: visualSelectorParameters,
 		output: {
 			schema: visualSelectorOutput,
@@ -2152,9 +2164,9 @@ function apply(ctx) {
 		description: [
 			"Internal, immediate, non-rich session-state update from concrete observable evidence in the current learner message, learner action, or supplied source.",
 			"Call only when the observation substantively changes the next teaching move; never call mechanically every turn and never infer a hidden trait, personality, emotion, or learning style.",
-			"Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset.",
-			"plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer.",
-			"The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata.",
+			"Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset. Honor an explicit mastery correction. If the learner merely asks not to be quizzed further, correct phase=complete and nextMove=complete without inventing transfer.",
+			"plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer or a sufficiently confident complete explanation/attempt.",
+			"The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata. If a retry races with another update, only an exact replay or a safe additive observation may be merged; corrections, resets, and replacement updates remain strict.",
 			"Assistant visual and checkpoint moves are recorded automatically; do not duplicate them here. This tool performs no user wait and must not replace ordinary conversation."
 		].join(" "),
 		parameters: {

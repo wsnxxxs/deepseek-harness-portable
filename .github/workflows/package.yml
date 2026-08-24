@@ -40,6 +40,12 @@ jobs:
           sudo chmod 4755 "$electron_sandbox"
       - run: test "$(node -p 'process.platform + "-" + process.arch')" = linux-x64
       - run: pnpm run desktop:package:linux
+      - name: Verify current Linux release names
+        shell: bash
+        run: |
+          version="$(node -p "require('./apps/desktop/package.json').distributionVersion")"
+          test -f "dist-desktop/electron/verified/linux-x64/DeepSeek-Harness-${version}-linux-x64.AppImage"
+          test -f "dist-desktop/electron/verified/linux-x64/DeepSeek-Harness-${version}-linux-x64.deb"
       - uses: actions/upload-artifact@v4
         with:
           name: verified-linux-x64

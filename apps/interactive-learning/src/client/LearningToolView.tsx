@@ -39,7 +39,7 @@ import {
 import { envelopeOf, LearningInteraction, type LearningQuestionWait } from './LearningComposer.tsx'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
-import { emitLearningCallLifecycle } from './lifecycle.ts'
+import { emitLearningCallLifecycle, emitLearningUiLifecycle } from './lifecycle.ts'
 import { LearningVisual } from './LearningVisual.tsx'
 import { LearningVisualV4, type LearningVisualV4Labels } from './visuals/index.tsx'
 import type { LearningLocaleKey } from './locales.ts'
@@ -608,6 +608,16 @@ export function LearningToolView({ block, inspect, t, useSession, sessionId }: L
         visual={definition}
         storageKey={`${String(sessionId)}:${callId ?? 'visual'}`}
         labels={labels}
+        onRecallStatusChange={(cardId, status) => {
+          if (callId === undefined) return
+          emitLearningUiLifecycle({
+            name: 'learning.recall.rated',
+            sessionId: String(sessionId),
+            callId,
+            cardId,
+            status,
+          })
+        }}
       />
     )
   }

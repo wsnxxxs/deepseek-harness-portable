@@ -1,6 +1,6 @@
 import { Context, Service } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type LearningVisualStatusV4, type LearningCheckpointResultV1, type LearningCheckpointV1, type LearningActivityV2, type LearningActivityV1, type LearningQuestionV2, type LearningRevealV2, type LearningResponseV2, type LearningResponseV1 } from './protocol.ts';
+import { type LearningVisualStatusV4, type LearningRecallFeedbackV1, type LearningCheckpointResultV1, type LearningCheckpointV1, type LearningActivityV2, type LearningActivityV1, type LearningQuestionV2, type LearningRevealV2, type LearningResponseV2, type LearningResponseV1 } from './protocol.ts';
 import { type LearnerState, type LearnerStateCorrection, type LearnerStateEvent, type ObservableLearnerEvent } from './learner-state.ts';
 export declare const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
 export declare const DEFAULT_LEARNING_WAIT_TIMEOUT_MS: number;
@@ -56,6 +56,11 @@ export interface LearningStateUpdateResult {
     status: 'updated' | 'corrected' | 'reset';
     revision: number;
 }
+export interface LearningRecallFeedbackResult {
+    status: 'recorded' | 'ignored';
+    observationId?: string;
+    reason?: 'session-unavailable';
+}
 export type LearningLifecycleEventName = 'learning.call.stream_started' | 'learning.call.args_completed' | 'learning.protocol.validated' | 'learning.wait.registered' | 'learning.ui.presented' | 'learning.answer.accepted' | 'learning.reveal.received' | 'learning.animation.started' | 'learning.animation.finished' | 'learning.continue.accepted' | 'learning.wait.resolved' | 'learning.model.next_step_started';
 export interface LearningLifecycleEvent {
     name: LearningLifecycleEventName;
@@ -78,6 +83,8 @@ export declare class LearningActivityBroker extends Service {
     private readonly checkpointReceipts;
     private readonly pendingCheckpointSessions;
     private readonly pendingCheckpointWaits;
+    /** Current Host agent for the session-scoped Client recall bridge. */
+    private readonly activeAgents;
     private readonly learnerStates;
     private readonly observers;
     private disposed;
@@ -92,7 +99,10 @@ export declare class LearningActivityBroker extends Service {
     learnerState(agent: Agent): LearnerState;
     /** Render only the bounded, model-facing projection of the current state. */
     learnerStateTranscript(agent: Agent, maxTokens?: number): string;
-    /** CAS mutation used exclusively by the internal, immediate state tool. */
+    /** CAS mutation used exclusively by the internal, immediate state tool.
+     * Exact replays and a small set of additive observations may rebase once;
+     * replacement, correction, and reset operations remain strict CAS writes.
+     */
     updateLearnerState(request: LearningStateUpdateRequest): LearningStateUpdateResult;
     /** Subscribe to answer-free lifecycle metadata. */
     observe(listener: (event: LearningLifecycleEvent) => void): () => void;
@@ -115,6 +125,12 @@ export declare class LearningActivityBroker extends Service {
      * @returns whether the learner can actually see this visual.
      */
     recordVisual(agent: Agent | undefined, callId: string): LearningVisualStatusV4;
+    /**
+     * Record an explicit RecallDeck self-rating as low-confidence, unknown
+     * evidence. A self-rating is useful review intent, but it is not proof of
+     * correctness, independence, or transfer mastery.
+     */
+    recordRecallFeedback(feedback: LearningRecallFeedbackV1): LearningRecallFeedbackResult;
     private recordCheckpointOutcome;
     /** Optional V4.1 path: one answer-free checkpoint, independent of V2 lessons. */
     presentCheckpoint(request: PresentLearningCheckpointRequest): Promise<LearningCheckpointResultV1>;

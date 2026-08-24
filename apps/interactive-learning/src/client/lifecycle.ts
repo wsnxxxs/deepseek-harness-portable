@@ -5,6 +5,10 @@ export type LearningUiLifecycleName =
   | 'learning.animation.started'
   | 'learning.animation.finished'
   | 'learning.continue.accepted'
+  /** Explicit retrieval-practice interaction; bridged to Host by client/index. */
+  | 'learning.recall.rated'
+
+export type LearningRecallUiStatus = 'revealed' | 'mastered' | 'review'
 
 export interface LearningUiLifecycleEvent {
   name: LearningUiLifecycleName
@@ -13,6 +17,9 @@ export interface LearningUiLifecycleEvent {
   seq?: number
   storageKey?: string
   callId?: string
+  sessionId?: string
+  cardId?: string
+  status?: LearningRecallUiStatus
 }
 
 type Listener = (event: LearningUiLifecycleEvent) => void

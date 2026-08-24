@@ -15,8 +15,10 @@ import {
   parseLearningCheckpointV1,
   parseLearningActivity,
   parseLearningActivityV2,
+  parseLearningRecallFeedbackV1,
   parseLearningResponseV2,
   type LearningVisualStatusV4,
+  type LearningRecallFeedbackV1,
   type LearningCheckpointResultV1,
   type LearningCheckpointSkippedReasonV1,
   type LearningCheckpointCancelledReasonV1,
@@ -48,9 +50,9 @@ import {
 } from './learner-state.ts'
 import { registerInteractiveLearningSessionCompatibility } from './bootstrap.ts'
 
-// Defensive Host-entry registration. Portable boot gets the stronger ordering
-// guarantee from the pre-boot preset/bootstrap import; external Hosts must
-// import the public bootstrap before constructing persistence/agent-loop.
+// Register eagerly when the package is present. Persisted snapshots are also
+// optional log projections, so the compatibility path can retain older/newer
+// snapshots even when a Host attaches this package after session loading.
 registerInteractiveLearningSessionCompatibility()
 
 export const INTERACTIVE_LEARNING_PACKAGE = '@dsh-portable/interactive-learning'
@@ -58,6 +60,16 @@ export const DEFAULT_LEARNING_WAIT_TIMEOUT_MS = 5 * 60_000
 export const DEFAULT_LEARNING_CHECKPOINT_TIMEOUT_MS = 5 * 60_000
 
 type LearningAbortReason = 'session-aborted' | 'client-response-timeout' | 'plugin-disposed'
+
+type RecallRpcConnection = {
+  rpc: {
+    handle(
+      channel: string,
+      handler: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>,
+      options: { authority: 'trusted-host' },
+    ): () => Promise<void>
+  }
+}
 
 class LearningWaitAbort extends Error {
   constructor(readonly reason: LearningAbortReason) {
@@ -124,6 +136,12 @@ export type LearningStateUpdateRequest =
 export interface LearningStateUpdateResult {
   status: 'updated' | 'corrected' | 'reset'
   revision: number
+}
+
+export interface LearningRecallFeedbackResult {
+  status: 'recorded' | 'ignored'
+  observationId?: string
+  reason?: 'session-unavailable'
 }
 
 interface CheckpointCallRecord {
@@ -207,6 +225,23 @@ function learnerObservationId(prefix: string, ...parts: string[]): string {
   return `${prefix}:${digest}`
 }
 
+/**
+ * A stale state-tool call may still be safe to apply when it is one additive
+ * observation. Corrections, resets, and replacement-style route/list writes
+ * remain strict CAS operations because replaying them could overwrite newer
+ * learner state.
+ */
+function isSafeStaleLearnerStateUpdate(event: ObservableLearnerStateUpdate): boolean {
+  switch (event.type) {
+    case 'prior_knowledge_observed':
+      return event.level === undefined && event.items !== undefined && event.mode !== 'replace'
+    case 'source_anchors_observed':
+      return event.mode !== 'replace'
+    default:
+      return false
+  }
+}
+
 function snapshotCheckpoint(value: LearningCheckpointV1): LearningCheckpointV1 {
   const parsed = parseLearningCheckpointV1(value)
   return {
@@ -278,9 +313,15 @@ function checkpointFallbackSubmission(
 ): LearningCheckpointResultV1 | undefined {
   let response: { text: string } | { optionId: string } | { number: number } | undefined
   if (checkpoint.kind === 'single_choice') {
-    // Labels are presentation-only and need not be unique. Only the stable
-    // protocol id may cross back into the result contract.
-    const option = checkpoint.options?.find(candidate => candidate.id === custom)
+    // Rich clients submit the stable id directly. A plain terminal/provider
+    // may only return what the learner typed, though, so accept an exact
+    // visible label when it identifies one option. Duplicate labels stay
+    // ambiguous and continue to use the ordinary skipped fallback.
+    const byId = checkpoint.options?.find(candidate => candidate.id === custom)
+    const normalizeLabel = (value: string): string => value.normalize('NFKC').replace(/\s+/gu, ' ').trim().toLowerCase()
+    const normalizedCustom = normalizeLabel(custom)
+    const byLabel = checkpoint.options?.filter(candidate => normalizeLabel(candidate.label) === normalizedCustom) ?? []
+    const option = byId ?? (byLabel.length === 1 ? byLabel[0] : undefined)
     if (option !== undefined) response = { optionId: option.id }
   } else if (checkpoint.kind === 'numeric') {
     const number = Number(custom)
@@ -311,6 +352,8 @@ export class LearningActivityBroker extends Service {
     session: Agent['session']
     controller: AbortController
   }>()
+  /** Current Host agent for the session-scoped Client recall bridge. */
+  private readonly activeAgents = new Map<string, { agent: Agent; session: Agent['session'] }>()
   private readonly learnerStates = new Map<string, LearnerStateCacheRecord>()
   private readonly observers = new Set<(event: LearningLifecycleEvent) => void>()
   private disposed = false
@@ -331,6 +374,7 @@ export class LearningActivityBroker extends Service {
       this.checkpointReceipts.clear()
       this.pendingCheckpointSessions.clear()
       this.pendingCheckpointWaits.clear()
+      this.activeAgents.clear()
       this.learnerStates.clear()
       this.observers.clear()
     }, 'interactive-learning: abort pending activities')
@@ -341,6 +385,45 @@ export class LearningActivityBroker extends Service {
     ctx.on('session/disposed', session => {
       this.abortPendingCheckpointSession(session)
       this.dropLearnerState(session)
+    })
+
+    // Generic Connection is already the Host↔Client RPC carrier. Keep the
+    // recall endpoint package-private and let the broker enforce session
+    // ownership before recording any learner evidence.
+    ctx.inject(['connection'], (connectionCtx) => {
+      const connection = connectionCtx.get('connection') as RecallRpcConnection | undefined
+      if (connection === undefined) return
+      connectionCtx.effect(() => connection.rpc.handle(
+        '/interactive-learning',
+        async (endpoint: string, payload: unknown) => {
+          if (endpoint !== 'recall/feedback') {
+            return {
+              ok: false,
+              error: {
+                code: 'bad-request',
+                message: 'unknown interactive-learning RPC endpoint',
+                details: { issues: [] },
+              },
+            }
+          }
+          try {
+            const feedback = parseLearningRecallFeedbackV1(payload)
+            return { ok: true, value: this.recordRecallFeedback(feedback) }
+          } catch (cause) {
+            return {
+              ok: false,
+              error: {
+                code: 'bad-request',
+                message: cause instanceof Error ? cause.message : String(cause),
+                details: { issues: [] },
+              },
+            }
+          }
+        },
+        { authority: 'trusted-host' },
+      ),
+        'interactive-learning: recall feedback rpc',
+      )
     })
   }
 
@@ -380,13 +463,36 @@ export class LearningActivityBroker extends Service {
     return renderLearnerStateTranscript(this.learnerState(agent), { maxTokens })
   }
 
-  /** CAS mutation used exclusively by the internal, immediate state tool. */
+  /** CAS mutation used exclusively by the internal, immediate state tool.
+   * Exact replays and a small set of additive observations may rebase once;
+   * replacement, correction, and reset operations remain strict CAS writes.
+   */
   updateLearnerState(request: LearningStateUpdateRequest): LearningStateUpdateResult {
-    const current = this.learnerState(request.agent)
+    let current = this.learnerState(request.agent)
     if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision < 0) {
       throw new TypeError('expectedRevision must be a non-negative safe integer')
     }
     if (current.revision !== request.expectedRevision) {
+      // A retried tool call can arrive after its own event was already
+      // committed. Reducing it against the latest snapshot verifies the
+      // fingerprint and turns that exact replay into an acknowledgement.
+      // Conflicting reuse of an observation id still throws from the reducer.
+      if (request.action === 'update'
+        && current.appliedEventIds.some(item => item.id === request.event.observation.id)) {
+        const replay = reduceLearnerState(current, request.event)
+        if (replay === current) return { status: 'updated', revision: current.revision }
+      }
+      if (request.action === 'update' && isSafeStaleLearnerStateUpdate(request.event)) {
+        // The event was not present in the latest fence. Only list additions
+        // without lifecycle side effects enter this path. Evidence and failed
+        // moves can change phase/nextMove, so they remain strict CAS writes.
+        const rebased = reduceLearnerState(current, request.event)
+        if (pedagogicalStateFingerprint(rebased) === pedagogicalStateFingerprint(current)) {
+          throw new Error('learning_state_update requires a substantive observable state change')
+        }
+        this.appendLearnerState(request.agent, rebased, 'update')
+        return { status: 'updated', revision: rebased.revision }
+      }
       throw new Error(
         `Learner state revision changed: expected ${request.expectedRevision}, current ${current.revision}`,
       )
@@ -447,6 +553,7 @@ export class LearningActivityBroker extends Service {
 
   private dropLearnerState(session: { id: unknown }): void {
     const sessionId = String(session.id)
+    if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId)
     if (this.learnerStates.get(sessionId)?.session === session) {
       this.learnerStates.delete(sessionId)
     }
@@ -485,6 +592,7 @@ export class LearningActivityBroker extends Service {
     session.append(
       LEARNER_STATE_SESSION_EVENT_TYPE,
       createLearnerStateSnapshotEvent(state, reason),
+      { ignorable: true },
     )
     this.learnerStates.set(String(session.id), {
       session,
@@ -520,6 +628,7 @@ export class LearningActivityBroker extends Service {
     const stableCallId = boundedIdentity(callId, 'callId')
     if (!this.hasRichClient()) return 'unavailable'
     if (agent === undefined) return 'ready'
+    this.activeAgents.set(String(agent.session.id), { agent, session: agent.session })
     this.recordAutomaticEvents(agent, [{
       type: 'assistant_move_observed',
       move: 'visual',
@@ -531,6 +640,55 @@ export class LearningActivityBroker extends Service {
       moveFingerprint: `visual:${stableCallId}`,
     }])
     return 'ready'
+  }
+
+  /**
+   * Record an explicit RecallDeck self-rating as low-confidence, unknown
+   * evidence. A self-rating is useful review intent, but it is not proof of
+   * correctness, independence, or transfer mastery.
+   */
+  recordRecallFeedback(feedback: LearningRecallFeedbackV1): LearningRecallFeedbackResult {
+    if (this.disposed) return { status: 'ignored', reason: 'session-unavailable' }
+    let active = this.activeAgents.get(feedback.sessionId)
+    if (active === undefined) {
+      // A replayed deck may be opened after the original visual call. Prefer
+      // the live registry's exact session identity before treating it as an
+      // unknown client report.
+      const recovered = this.ctx.get('agents')?.get(feedback.sessionId as Agent['id'])
+      if (recovered !== undefined) {
+        active = { agent: recovered, session: recovered.session }
+        this.activeAgents.set(feedback.sessionId, active)
+      }
+    }
+    if (active === undefined || String(active.session.id) !== feedback.sessionId) {
+      return { status: 'ignored', reason: 'session-unavailable' }
+    }
+    const observationId = learnerObservationId(
+      'recall',
+      feedback.sessionId,
+      feedback.callId,
+      feedback.cardId,
+      feedback.status,
+    )
+    const summary = feedback.status === 'revealed'
+      ? `Recall card ${feedback.cardId} answer was revealed; no correctness was established.`
+      : `Recall card ${feedback.cardId} marked ${feedback.status}; self-rating is unverified.`
+    this.recordAutomaticEvents(active.agent, [{
+      type: 'learner_evidence_observed',
+      evidence: {
+        kind: 'attempt',
+        summary,
+        confidence: 'low',
+        correctness: 'unknown',
+        independence: 'unknown',
+      },
+      observation: {
+        id: observationId,
+        source: 'learner-action',
+        summary,
+      },
+    }])
+    return { status: 'recorded', observationId }
   }
 
   private recordCheckpointOutcome(

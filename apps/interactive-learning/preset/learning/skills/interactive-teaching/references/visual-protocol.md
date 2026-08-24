@@ -8,7 +8,7 @@ Keep titles concise, descriptions action-oriented, and fallback Markdown equival
 
 Plots accept static points, polylines, bars, and computed curves. They may contain one to three bounded parameters and parameter-derived metrics.
 
-Expressions are JSON math ASTs. Leaves are `constant` and `variable`; binary operations are `add`, `sub`, `mul`, `div`, and `pow`; unary operations are `neg`, `abs`, `sqrt`, `sin`, `cos`, `exp`, `log`, and `sigmoid`. Curve expressions may use `x` and declared parameter ids. Metric expressions may use declared parameters but not `x`.
+Expressions are JSON math ASTs. Leaves are `constant` and `variable`; binary operations are `add`, `sub`, `mul`, `div`, `pow`, `min`, and `max`; unary operations include `neg`, `abs`, `sqrt`, `sin`, `cos`, `tan`, `atan`, `exp`, `log`, `sigmoid`, `relu`, `leaky_relu`, `step`, `normpdf`, `floor`, and `ceil`. `leaky_relu` uses a 0.01 negative slope, `step` switches at zero, and `normpdf` is the standard normal density; compose arithmetic nodes for other normal distributions. Curve expressions may use `x` and declared parameter ids. Metric expressions may use declared parameters but not `x`.
 
 The logistic curve σ(β₀ + β₁x):
 
@@ -48,3 +48,6 @@ Use explicit, stable axis ranges. Use dashed or dotted strokes as well as labels
 - `formula_steps`: expressions are LaTeX display math without dollar delimiters, not executable code; every transition remains pedagogically and algebraically valid.
 - `study_map`: concepts reference a section and declared prerequisite concepts; anchors mirror the source.
 - `recall_deck`: answers and hints are source-grounded; tags are short and useful for interleaving.
+  Reveal and mastered/review clicks are persisted locally and may be mirrored to
+  Host as low-confidence, unverified session observations; never treat a
+  self-rating as correctness or transfer evidence.

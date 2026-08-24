@@ -7,6 +7,8 @@ import { DEFAULT_TONES, type RendererProps, type Scene2DContent, type SelectedIt
 import { elementState } from '../state/visual-state.ts'
 import { useContainerWidth, useRovingFocus } from '../state/hooks.ts'
 import { chartGeometry, scaleX, scaleY } from '../layout/chart-geometry.ts'
+import { measureText } from '../layout/text-metrics.ts'
+import { polygonLabelAnchor, type LabelRect } from '../layout/scene-labels.ts'
 import shell from '../styles/shell.module.css'
 import css from '../styles/plot.module.css'
 
@@ -30,6 +32,56 @@ function segmentLabelAnchor(x1: number, y1: number, x2: number, y2: number): { x
   }
 }
 
+function sceneElementBounds(
+  element: Scene2DContent['elements'][number],
+  content: Scene2DContent,
+  geometry: ReturnType<typeof chartGeometry>,
+): LabelRect {
+  const x = (value: number): number => scaleX(value, content.xAxis, geometry)
+  const y = (value: number): number => scaleY(value, content.yAxis, geometry)
+  if (element.type === 'point') {
+    const cx = x(element.x)
+    const cy = y(element.y)
+    const radius = element.size ?? 6
+    return { x1: cx - radius, y1: cy - radius, x2: cx + radius, y2: cy + radius }
+  }
+  if (element.type === 'segment' || element.type === 'arrow') {
+    const x1 = x(element.x1)
+    const y1 = y(element.y1)
+    const x2 = x(element.x2)
+    const y2 = y(element.y2)
+    return { x1: Math.min(x1, x2) - 4, y1: Math.min(y1, y2) - 4, x2: Math.max(x1, x2) + 4, y2: Math.max(y1, y2) + 4 }
+  }
+  if (element.type === 'circle') {
+    const cx = x(element.cx)
+    const cy = y(element.cy)
+    const rx = Math.abs(x(element.cx + element.r) - cx)
+    const ry = Math.abs(y(element.cy + element.r) - cy)
+    return { x1: cx - rx, y1: cy - ry, x2: cx + rx, y2: cy + ry }
+  }
+  if (element.type === 'rect') {
+    const x1 = x(element.x)
+    const x2 = x(element.x + element.width)
+    const y1 = y(element.y)
+    const y2 = y(element.y + element.height)
+    return { x1: Math.min(x1, x2), y1: Math.min(y1, y2), x2: Math.max(x1, x2), y2: Math.max(y1, y2) }
+  }
+  if (element.type === 'polygon') {
+    const points = element.points.map(point => ({ x: x(point.x), y: y(point.y) }))
+    return {
+      x1: Math.min(...points.map(point => point.x)),
+      y1: Math.min(...points.map(point => point.y)),
+      x2: Math.max(...points.map(point => point.x)),
+      y2: Math.max(...points.map(point => point.y)),
+    }
+  }
+  if (element.type !== 'label') return { x1: 0, y1: 0, x2: 0, y2: 0 }
+  const cx = x(element.x)
+  const cy = y(element.y)
+  const halfWidth = (measureText(element.text, 12) + 8) / 2
+  return { x1: cx - halfWidth, y1: cy - 9, x2: cx + halfWidth, y2: cy + 9 }
+}
+
 export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent>) {
   const labels = useVisualLabels()
   const id = useId()
@@ -38,6 +90,10 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
   const [selected, setSelected] = useState<SelectedItem | undefined>()
   const xTicks = useMemo(() => ticks(content.xAxis.min, content.xAxis.max), [content.xAxis.max, content.xAxis.min])
   const yTicks = useMemo(() => ticks(content.yAxis.min, content.yAxis.max), [content.yAxis.max, content.yAxis.min])
+  const elementBounds = useMemo(
+    () => new Map(content.elements.map(element => [element.id, sceneElementBounds(element, content, geometry)])),
+    [content, geometry],
+  )
   const zeroX = content.xAxis.min <= 0 && content.xAxis.max >= 0 ? scaleX(0, content.xAxis, geometry) : undefined
   const zeroY = content.yAxis.min <= 0 && content.yAxis.max >= 0 ? scaleY(0, content.yAxis, geometry) : undefined
 
@@ -128,11 +184,18 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
                 return <g key={element.id} {...common}><rect className={css.sceneShape} x={x} y={y} width={width} height={height} rx="3" />{element.label === undefined ? null : <text className={css.shapeLabel} x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
               }
               if (element.type === 'polygon') {
-                const points = element.points.map(point => `${scaleX(point.x, content.xAxis, geometry)},${scaleY(point.y, content.yAxis, geometry)}`).join(' ')
-                const center = element.points.reduce((total, point) => ({ x: total.x + point.x / element.points.length, y: total.y + point.y / element.points.length }), { x: 0, y: 0 })
-                // Below the centroid: any diagonal drawn through the shape passes
-                // straight across it, and its own label would sit on top.
-                return <g key={element.id} {...common}><polygon className={css.sceneShape} points={points} />{element.label === undefined ? null : <text className={css.shapeLabel} x={scaleX(center.x, content.xAxis, geometry)} y={scaleY(center.y, content.yAxis, geometry) + 18} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
+                const pixelPoints = element.points.map(point => ({ x: scaleX(point.x, content.xAxis, geometry), y: scaleY(point.y, content.yAxis, geometry) }))
+                const points = pixelPoints.map(point => `${point.x},${point.y}`).join(' ')
+                const anchor = element.label === undefined ? undefined : polygonLabelAnchor(
+                  pixelPoints,
+                  element.label,
+                  content.elements
+                    .filter(other => other.id !== element.id)
+                    .map(other => elementBounds.get(other.id))
+                    .filter((bounds): bounds is LabelRect => bounds !== undefined),
+                  { left: geometry.left, right: geometry.left + geometry.plotWidth, top: geometry.top, bottom: geometry.top + geometry.plotHeight },
+                )
+                return <g key={element.id} {...common}><polygon className={css.sceneShape} points={points} />{anchor === undefined ? null : <text className={css.shapeLabel} x={anchor.x} y={anchor.y} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
               }
               if (element.type === 'label') return <g key={element.id} {...common}><text className={css.sceneText} x={scaleX(element.x, content.xAxis, geometry)} y={scaleY(element.y, content.yAxis, geometry)} textAnchor="middle" dominantBaseline="middle">{element.text}</text></g>
               return null

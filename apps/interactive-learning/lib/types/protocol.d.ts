@@ -9,6 +9,7 @@ export declare const VISUAL_PROTOCOL_V3: "dsh-learning/visual@3";
 export declare const VISUAL_RESULT_PROTOCOL_V3: "dsh-learning/visual-result@3";
 export declare const VISUAL_PROTOCOL_V4: "dsh-learning/visual@4";
 export declare const VISUAL_RESULT_PROTOCOL_V4: "dsh-learning/visual-result@4";
+export declare const RECALL_FEEDBACK_PROTOCOL_V1: "dsh-learning/recall-feedback@1";
 export declare const CHECKPOINT_PROTOCOL: "dsh-learning/checkpoint@1";
 export declare const CHECKPOINT_RESULT_PROTOCOL: "dsh-learning/checkpoint-result@1";
 export declare const CHECKPOINT_TRANSPORT_PROTOCOL: "dsh-learning/checkpoint-wait@1";
@@ -21,8 +22,8 @@ export declare const MAX_RESPONSE_BYTES: number;
 export declare const MAX_MATH_DEPTH = 8;
 export declare const MAX_MATH_NODES = 64;
 export declare const MAX_VISUAL_MATH_DEPTH = 4;
-export declare const MATH_BINARY_OPERATORS: readonly ["add", "sub", "mul", "div", "pow"];
-export declare const MATH_UNARY_OPERATORS: readonly ["neg", "abs", "sqrt", "sin", "cos", "exp", "log", "sigmoid"];
+export declare const MATH_BINARY_OPERATORS: readonly ["add", "sub", "mul", "div", "pow", "min", "max"];
+export declare const MATH_UNARY_OPERATORS: readonly ["neg", "abs", "sqrt", "sin", "cos", "tan", "atan", "exp", "log", "sigmoid", "relu", "leaky_relu", "step", "normpdf", "floor", "ceil"];
 export type LearningActivityKind = typeof LEARNING_ACTIVITY_KINDS[number];
 export type LearningAction = 'submit' | 'skip' | 'cancel';
 export type LearningJson = null | boolean | number | string | LearningJson[] | {
@@ -37,11 +38,11 @@ export type MathExpressionV1 = {
     op: 'variable';
     name: string;
 } | {
-    op: 'add' | 'sub' | 'mul' | 'div' | 'pow';
+    op: typeof MATH_BINARY_OPERATORS[number];
     left: MathExpressionV1;
     right: MathExpressionV1;
 } | {
-    op: 'neg' | 'abs' | 'sqrt' | 'sin' | 'cos' | 'exp' | 'log' | 'sigmoid';
+    op: typeof MATH_UNARY_OPERATORS[number];
     value: MathExpressionV1;
 };
 export interface ParameterDefinitionV1 {
@@ -656,6 +657,18 @@ export interface LearningVisualResultV4 {
 }
 export declare const LEARNING_VISUAL_STATUSES: readonly ["ready", "unavailable"];
 export type LearningVisualStatusV4 = typeof LEARNING_VISUAL_STATUSES[number];
+/** A learner's explicit recall interaction, sent from the visual Client to Host. */
+export declare const LEARNING_RECALL_STATUSES: readonly ["revealed", "mastered", "review"];
+export type LearningRecallStatusV1 = typeof LEARNING_RECALL_STATUSES[number];
+export interface LearningRecallFeedbackV1 {
+    protocol: typeof RECALL_FEEDBACK_PROTOCOL_V1;
+    /** Session identity is part of the wire key; Host still checks it is active. */
+    sessionId: string;
+    /** The semantic visual call that owns the card. */
+    callId: string;
+    cardId: string;
+    status: LearningRecallStatusV1;
+}
 /** A stable, actionable protocol rejection surfaced to the tool call. */
 export declare class LearningProtocolError extends Error {
     readonly issues: readonly string[];
@@ -686,6 +699,8 @@ export declare function parseLearningVisualV3(value: unknown): LearningVisualV3;
 /** Validate the semantic, model-facing visual protocol while retaining V3 replay separately. */
 export declare function parseLearningVisualV4(value: unknown): LearningVisualV4;
 export declare function parseLearningVisualResultV4(value: unknown): LearningVisualResultV4;
+/** Parse the small Client → Host recall bridge payload. */
+export declare function parseLearningRecallFeedbackV1(value: unknown): LearningRecallFeedbackV1;
 export declare function parseLearningVisualResultV3(value: unknown): LearningVisualResultV3;
 export {};
 //# sourceMappingURL=protocol.d.ts.map

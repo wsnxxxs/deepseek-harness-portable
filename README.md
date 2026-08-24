@@ -174,9 +174,16 @@ On a fresh clone, initialize the source workspace once:
 
     pnpm run desktop:bootstrap
 
+When generated `lib`/`dist` artifacts already exist, daily feature work can
+refresh only the desktop runtime dependency closure with:
+
+    pnpm run desktop:bootstrap:dev
+
+This faster mode is not a replacement for the full dependency set required by
+a from-scratch kernel build or release package.
+
 After that, package on the matching native host. Packaging runs the real capability probes, writes the measured mode catalog and file inventory, retests the manifest-bearing application bytes, creates the platform containers, and finally writes an immutable verified bundle:
 
-    pnpm install
     pnpm run desktop:package:win
 
 The verified Windows bundle is written to `dist-desktop/verified/win32-x64/`. Publishing is a separate copy-only operation and requires that directory explicitly:

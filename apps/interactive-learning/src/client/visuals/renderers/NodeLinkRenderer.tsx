@@ -24,7 +24,7 @@ import { toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type NodeLinkContent, type RendererProps, type SelectedItem } from '../core/types.ts'
 import { graphEmphasis } from '../state/graph-state.ts'
 import { useContainerWidth, useRovingFocus } from '../state/hooks.ts'
-import { EDGE_LABEL_FONT_SIZE, EDGE_LABEL_LINE_HEIGHT, edgeLabelRadius } from '../layout/edge-labels.ts'
+import { EDGE_LABEL_FONT_SIZE, EDGE_LABEL_LINE_HEIGHT, edgeLabelBox, edgeLabelRadius } from '../layout/edge-labels.ts'
 import { edgeRoutes } from '../layout/graph-edges.ts'
 import { graphLayout, NODE_FONT_SIZE } from '../layout/graph-layout.ts'
 import shell from '../styles/shell.module.css'
@@ -116,6 +116,23 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
               const tone = toneAt(edge.tone, edgeIndex)
               const state = emphasis.state(edge.id)
               const label = route.label
+              const connection = labelTemplate(labels.connection, {
+                from: nodeById.get(edge.from)?.label ?? edge.from,
+                to: nodeById.get(edge.to)?.label ?? edge.to,
+              })
+              // Dense graphs keep their resting frame quiet, but every edge
+              // still needs to explain itself without requiring a click. The
+              // tooltip uses the routed chip position when one exists and a
+              // stable midpoint for unlabeled edges. The existing click path
+              // remains responsible for the full detail panel.
+              const tooltipText = `${edge.label ?? connection}${edge.detail === undefined ? '' : ` · ${edge.detail}`}`
+              const tooltipBox = edgeLabelBox(tooltipText)
+              const tooltipAnchor = label === undefined
+                ? {
+                    x: ((layout.nodes.get(edge.from)?.x ?? 0) + (layout.nodes.get(edge.to)?.x ?? 0)) / 2,
+                    y: ((layout.nodes.get(edge.from)?.y ?? 0) + (layout.nodes.get(edge.to)?.y ?? 0)) / 2,
+                  }
+                : { x: label.x, y: label.y }
               return (
                 <g
                   key={edge.id}
@@ -131,6 +148,7 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                   onClick={() => selectEdge(edge, tone)}
                   {...roving.itemProps(edge.id, () => selectEdge(edge, tone))}
                 >
+                  <title>{tooltipText}</title>
                   <path className={css.edgeVisible} d={route.path} markerEnd={edge.directed === true ? `url(#${id}-arrow-${tone})` : undefined} />
                   <path className={css.edgeHit} d={route.path} />
                   {label === undefined ? null : (
@@ -148,6 +166,31 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                             key={line + String(lineIndex)}
                             x={label.x}
                             y={label.y - ((label.lines.length - 1) * EDGE_LABEL_LINE_HEIGHT) / 2 + lineIndex * EDGE_LABEL_LINE_HEIGHT}
+                          >{line}</tspan>
+                        ))}
+                      </text>
+                    </g>
+                  )}
+                  {!denseEdges ? null : (
+                    <g
+                      className={css.edgeTooltip}
+                      role="tooltip"
+                      aria-hidden="true"
+                      transform={`translate(${tooltipAnchor.x} ${tooltipAnchor.y})`}
+                    >
+                      <rect
+                        x={-tooltipBox.width / 2}
+                        y={-tooltipBox.height / 2}
+                        width={tooltipBox.width}
+                        height={tooltipBox.height}
+                        rx={edgeLabelRadius(tooltipBox)}
+                      />
+                      <text textAnchor="middle" dominantBaseline="middle" fontSize={EDGE_LABEL_FONT_SIZE}>
+                        {tooltipBox.lines.map((line, lineIndex) => (
+                          <tspan
+                            key={line + String(lineIndex)}
+                            x="0"
+                            y={-((tooltipBox.lines.length - 1) * EDGE_LABEL_LINE_HEIGHT) / 2 + lineIndex * EDGE_LABEL_LINE_HEIGHT}
                           >{line}</tspan>
                         ))}
                       </text>

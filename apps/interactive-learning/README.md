@@ -7,8 +7,10 @@ schemas and prompts.
 ## Architecture
 
 - The package root provides the `learningActivities` Host broker and registers
-  the required `learning/state` session-event discriminator before persisted
-  Learning sessions can be loaded. It registers no model-visible tools.
+  the `learning/state` session-event discriminator for strict validation when
+  attached. Snapshots are also marked `ignorable`, so a host may restore a
+  session before this optional package is lazily loaded; the event remains in
+  the log for a later fold. It registers no model-visible tools.
 - `./agent` is mounted only by the Learning preset. Its initial model-facing
   catalog contains the compact `learning_visual_select`, silent
   `learning_state_update`, and optional `learning_checkpoint_select` tools.
@@ -94,7 +96,10 @@ The production path is explicit and auditable:
    learner action; it never implies correctness, independence, progress, or
    mastery.
 3. Every accepted update appends a strict, identity-free full snapshot as the
-   required `learning/state` session event. Unknown required events fail closed.
+   `learning/state` session event with `ignorable: true`. Hosts that load a
+   session before the Learning package is lazily attached can retain and resume
+   the log; once the package is attached, the snapshot is still folded and
+   validated normally.
 4. Before every subsequent model step, the dynamic prompt context folds the
    durable events and renders a bounded 100–300-token tentative summary.
 
@@ -104,9 +109,15 @@ diverges independently. Reset appends a cleared snapshot and advances the
 revision, so a late asynchronous update cannot resurrect prior state. Disposal
 drops only the process-local fold cache. This is not a cross-session learner
  profile, personality model, learning-style classifier, or long-term mastery
- record. A learner correction is supplied in ordinary conversation and is
- accepted only as a correction—not as self-certified mastery. Low-confidence
- evidence remains useful for choosing support but cannot promote mastery.
+ record. A mastery claim in an ordinary message is not promoted automatically;
+ when the learner explicitly corrects this tentative state, however, `correct`
+ honors the mastery override and retains its user-correction provenance.
+ Low-confidence evidence remains useful for choosing support but cannot promote
+ mastery automatically. A medium-or-higher-confidence, correct, independent explanation or complete attempt may
+ end the current teaching segment while mastery remains `emerging`; automatic
+ inference promotes `transfer` only from explicit fresh-context evidence. If the learner
+ simply wants to stop being quizzed, mark `phase` and `nextMove` as `complete`
+ in the correction without fabricating transfer evidence.
 
 ## Session-scoped learning route
 
@@ -126,8 +137,9 @@ hypothesis rather than a contract:
   step id, so demonstrated progress is never erased.
 - The model context carries the objective and the current step only, never the
   whole list, so the route cannot be read back as a checklist to march through.
-- Demonstrated transfer ends the segment however many steps remain; an
-  unfinished route is never a reason to continue.
+- Demonstrated transfer, or a medium-or-higher-confidence complete explanation/attempt,
+  ends the segment however many steps remain; an unfinished route is never a
+  reason to continue.
 - A learning-boundary reset clears the route with the rest of the state.
 
 ## Optional reflective pause (wire-compatible checkpoint protocol v1)
@@ -168,7 +180,11 @@ and must never become a per-turn Continue ceremony.
 - `timeline` for historical events, discoveries, phases, and eras;
 - `formula_steps` for derivations, algebraic transformations, and proof chains;
 - `study_map` for anchored sections, prerequisites, and concept roles in reference material;
-- `recall_deck` for hinted active-recall cards with local review state.
+- `recall_deck` for hinted active-recall cards. Reveal and mastered/review
+  actions keep local replay state and, when the Host bridge is available, are
+  recorded as unverified session-scoped learner observations.
+  Resetting the deck clears only the local badges; it does not erase Host
+  observations.
 
 Any kind can add local sequence frames that progressively focus declared ids.
 The controls remain exploratory and never replace the ordinary conversation
@@ -188,10 +204,14 @@ renderer. It does not flatten a whole source into one mega-graph or mechanically
 turn every attachment into flashcards.
 
 Curves use a closed recursive mathematical AST. Supported leaves are
-`constant` and `variable`; binary operators are `add`, `sub`, `mul`, `div`, and
-`pow`; unary operators are `neg`, `abs`, `sqrt`, `sin`, `cos`, `exp`, `log`, and
-the numerically stable `sigmoid`. Curve variables are `x` plus declared
-parameter ids. Metrics may use declared parameters but not `x`.
+`constant` and `variable`; binary operators are `add`, `sub`, `mul`, `div`,
+`pow`, `min`, and `max`; unary operators include trigonometric (`sin`, `cos`,
+`tan`, `atan`), activation (`relu`, `leaky_relu`, `step`, and numerically stable
+`sigmoid`), probability (`normpdf`), and basic (`neg`, `abs`, `sqrt`, `exp`,
+`log`, `floor`, `ceil`) functions. Curve variables are `x` plus declared
+parameter ids. `leaky_relu` uses a 0.01 negative slope, `step` switches at zero,
+and `normpdf` is the standard normal density; other normal distributions can be
+composed with arithmetic nodes. Metrics may use declared parameters but not `x`.
 
 The model schema and runtime parser share the same expression-depth limit.
 Unknown fields, undeclared variables, non-finite values, excessive payloads,

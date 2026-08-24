@@ -43,19 +43,26 @@ const VISUAL_RENDERER_REGISTRY: RendererRegistry = {
   recall_deck: RecallDeckRenderer,
 }
 
-function RegisteredVisual({ content, focus, storageKey }: RendererProps) {
+function RegisteredVisual({ content, focus, storageKey, onRecallStatusChange }: RendererProps) {
   const Renderer = VISUAL_RENDERER_REGISTRY[content.kind] as ComponentType<RendererProps>
-  return <Renderer content={content} focus={focus} storageKey={storageKey} />
+  return <Renderer
+    content={content}
+    focus={focus}
+    storageKey={storageKey}
+    onRecallStatusChange={onRecallStatusChange}
+  />
 }
 
 export function LearningVisualV4({
   visual,
   storageKey,
   labels: suppliedLabels,
+  onRecallStatusChange,
 }: {
   visual: LearningVisualV4Definition
   storageKey?: string
   labels?: Partial<LearningVisualV4Labels>
+  onRecallStatusChange?: (cardId: string, status: 'revealed' | 'mastered' | 'review') => void
 }) {
   const titleId = useId()
   const descriptionId = useId()
@@ -96,7 +103,12 @@ export function LearningVisualV4({
           <SequenceController sequence={visual.sequence} frameIndex={frameIndex} onFrameChange={setFrameIndex} />
         )}
         <VisualErrorBoundary key={`${visual.protocol}:${visual.title}:${visual.content.kind}`} fallbackMarkdown={visual.fallbackMarkdown} labels={labels}>
-          <RegisteredVisual content={visual.content} focus={focus} storageKey={storageKey} />
+          <RegisteredVisual
+            content={visual.content}
+            focus={focus}
+            storageKey={storageKey}
+            onRecallStatusChange={onRecallStatusChange}
+          />
         </VisualErrorBoundary>
       </section>
     </VisualLabelsProvider>

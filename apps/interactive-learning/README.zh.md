@@ -6,8 +6,9 @@ standing prompt 保持不变。
 
 ## 架构
 
-- 包根提供 `learningActivities` Host broker，并在加载持久化 Learning 会话前注册
-  必需的 `learning/state` session event 类型；它不注册任何模型可见工具。
+- 包根提供 `learningActivities` Host broker，并在挂载后为 `learning/state` 注册严格
+  校验所需的 session event 类型。快照同时标记为 `ignorable`，因此宿主可以在该可选
+  包懒加载前恢复 session，事件会保留在日志中供后续 fold；它不注册任何模型可见工具。
 - `./agent` 只由 Learning preset 挂载，初始模型目录包含紧凑的
   `learning_visual_select`、静默的 `learning_state_update` 和可选的
   `learning_checkpoint_select`。standing policy 只来自
@@ -66,17 +67,22 @@ learner evidence 可以是 `correct`、`partial`、`incorrect` 或未知；parti
    模型才可调用内部 `learning_state_update`，不能机械地每轮调用。
 2. visual 完成与 checkpoint 终态只写入 Host 能确定观察到的事实。仅“提交”只证明发生
    了 learner action，绝不自动代表正确、独立、取得进展或掌握。
-3. 每次有效更新都会把去除 session identity 的严格完整快照追加为必需的
-   `learning/state` 事件；未知的必需事件会 fail closed。
+3. 每次有效更新都会把去除 session identity 的严格完整快照追加为带
+   `ignorable: true` 的 `learning/state` 事件。宿主即使在 Learning 包懒加载
+   之前恢复 session，也会保留该事件；包加载后仍会正常 fold 和校验快照。
 4. 每个后续 model step 前，动态 prompt context 都会重新 fold 持久事件，并生成
    100–300 token 的有界 tentative summary。
 
 快照不携带 session id。刷新和 resume 会 fold 同一日志；fork 会把继承快照重新绑定
 到新 identity，之后各自独立变化。Reset 追加清空后的新 revision，因此旧异步结果
 不能复活之前的状态；dispose 只清理进程内 fold cache。这不是跨会话用户画像、人格或
-“学习风格”分类，也不是长期掌握度。学习者可在普通对话中纠正状态，但自称掌握不能
-替代独立正确证据。低置信度证据可以帮助选择支架，但不能提升 mastery；只有置信度
-足够、正确且独立的 learner evidence 才可以。
+“学习风格”分类，也不是长期掌握度。普通消息中的自称掌握不会自动变成证据；但当学习者
+明确纠正这项暂定状态时，`correct` 会尊重其 `mastery` 修正并保留用户纠正来源。低置信度
+证据可以帮助选择支架，但不能自动提升 mastery；只有置信度足够、正确且独立的 learner
+evidence 才可以。中等及以上置信度、正确且独立的完整解释或实现
+尝试可以结束当前教学片段，但 mastery 仍保持 `emerging`；自动推断时只有明确的新情境
+迁移证据才可提升为 `transfer`。如果学习者只是明确要求停止被提问，纠正时将 `phase` 和
+`nextMove` 设为 `complete` 即可，不要伪造 transfer 证据。
 
 ## Session 内学习路线
 
@@ -92,7 +98,8 @@ learner evidence 可以是 `correct`、`partial`、`incorrect` 或未知；parti
 - 修订路线会保留同一步骤 id 上已经取得的 `evidenced`，不会抹掉已证明的进展。
 - 注入模型的上下文只包含目标和当前这一步，不列出整张清单——路线因此无法被当成
   待办事项逐条推进。
-- 已展示迁移即结束该学习片段，无论路线还剩几步；未走完的路线永远不是继续的理由。
+- 已展示迁移，或中等及以上置信度的完整解释/实现尝试，即结束该学习片段，无论路线还剩几步；
+  未走完的路线永远不是继续的理由。
 - reset 会连同路线一起清空。
 
 ## 可选 Reflective Pause（兼容 checkpoint protocol v1）
@@ -124,7 +131,9 @@ learner evidence 可以是 `correct`、`partial`、`incorrect` 或未知；parti
 - `timeline`：历史事件、发现过程、阶段和年代；
 - `formula_steps`：公式推导、代数变换与逐步证明；
 - `study_map`：带章节/页码锚点、先修关系和概念角色的参考材料导览；
-- `recall_deck`：带提示、揭示和本地复习状态的主动回忆卡片。
+- `recall_deck`：带提示和揭示的主动回忆卡片；揭示及 mastered/review
+  操作会保留本地回放状态，并在 Host 桥接可用时记录为当前会话内、未验证的学习者观察。
+  重置卡组只清除本地标记，不会删除 Host 观察记录。
 
 任一类型都可加入仅聚焦已声明 id 的本地步骤序列。交互只用于探索，不会接管普通
 对话输入框。渲染器提供可见标题、键盘可访问的对象检查、响应式布局、结构化文字
@@ -139,8 +148,11 @@ learner evidence 可以是 `correct`、`partial`、`incorrect` 或未知；parti
 材料压成一张巨型关系图，也不会未经请求就机械转换成卡片。
 
 曲线使用封闭的递归数学 AST。叶节点为 `constant`、`variable`；二元运算为 `add`、
-`sub`、`mul`、`div`、`pow`；一元运算为 `neg`、`abs`、`sqrt`、`sin`、`cos`、
-`exp`、`log` 和数值稳定的 `sigmoid`。曲线可引用 `x` 与已声明参数；指标只能引用
+`sub`、`mul`、`div`、`pow`、`min`、`max`；一元运算包含三角函数 `sin`、`cos`、
+`tan`、`atan`，激活函数 `relu`、`leaky_relu`、`step`、数值稳定的 `sigmoid`，
+概率函数 `normpdf`，以及基础函数 `neg`、`abs`、`sqrt`、`exp`、`log`、`floor`、
+`ceil`。`leaky_relu` 的负半轴斜率固定为 0.01，`step` 在零点切换，`normpdf`
+表示标准正态密度；其他均值和标准差可用算术节点组合。曲线可引用 `x` 与已声明参数；指标只能引用
 参数，不能引用 `x`。
 
 模型 schema 与运行时 parser 共享相同的表达式深度限制。未知字段、未声明变量、

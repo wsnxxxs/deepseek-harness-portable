@@ -422,7 +422,56 @@ export const TEACHING_EVAL_CASES: readonly TeachingEvalCase[] = [
 ] as const
 
 function normalized(value: string): string {
-  return value.trim().toLocaleLowerCase('en-US')
+  return value.trim().normalize('NFKC').toLocaleLowerCase('en-US')
+}
+
+/**
+ * Offline grading should check for the learner-facing idea, not one exact
+ * English spelling. The aliases are deliberately small and tied to the
+ * rubric vocabulary; they are not a general-purpose semantic grader.
+ */
+const CONTINUATION_TERM_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  paris: ['巴黎'],
+  slope: ['斜率'],
+  descend: ['descending', 'downward', 'falls', 'fall', '下降', '下落', '向下'],
+  negative: ['负', '負', '负斜率', '負斜率'],
+  queue: ['队列', '佇列'],
+  array: ['数组', '陣列'],
+  linked: ['链表', '鏈結串列'],
+  connection: ['连接', '連接', '连线', '連線'],
+  layer: ['层', '層'],
+  limit: ['极限', '極限'],
+  vector: ['向量'],
+  chronology: ['时间顺序', '時間順序', '时间线', '時間線', '年代'],
+  derivation: ['推导', '推導', '导出', '導出'],
+  section: ['章节', '章', '节', '節'],
+  recall: ['主动回忆', '主動回憶', '回忆', '回憶', '闪卡', '閃卡'],
+  complete: ['完成', '结束', '結束', '告一段落'],
+}
+
+function englishStem(value: string): string {
+  const word = value.toLocaleLowerCase('en-US')
+  if (word.length > 5 && word.endsWith('ing')) return word.slice(0, -3)
+  if (word.length > 4 && word.endsWith('ed')) return word.slice(0, -2)
+  if (word.length > 4 && word.endsWith('es')) return word.slice(0, -2)
+  if (word.length > 3 && word.endsWith('s')) return word.slice(0, -1)
+  return word
+}
+
+function continuationEvidence(text: string, term: string): boolean {
+  const source = normalized(text)
+  const expected = normalized(term)
+  const variants = [expected, ...(CONTINUATION_TERM_ALIASES[expected] ?? [])].map(normalized)
+  if (variants.some(variant => variant !== '' && source.includes(variant))) return true
+
+  // Handle ordinary inflections without asking an offline evaluator to infer
+  // open-ended semantics. This also keeps “descends” and “descending” useful.
+  const sourceWords = source.match(/[a-z]+/g) ?? []
+  return variants.some(variant => {
+    const expectedWords = variant.match(/^[a-z]+$/) ? [variant] : []
+    return expectedWords.length === 1
+      && sourceWords.some(word => englishStem(word) === englishStem(expectedWords[0]!))
+  })
 }
 
 export function gradeTeachingCandidate(
@@ -439,14 +488,14 @@ export function gradeTeachingCandidate(
   for (const term of scenario.requiredContinuationTerms) {
     checks.push({
       name: `continuation:${term}`,
-      passed: text.includes(normalized(term)),
-      detail: `continuation must contain evidence term ${JSON.stringify(term)}`,
+      passed: continuationEvidence(text, term),
+      detail: `continuation must contain evidence for ${JSON.stringify(term)} (including simple language variants)`,
     })
   }
   if (scenario.responseEvidence !== undefined) {
     checks.push({
       name: 'uses-learner-response',
-      passed: text.includes(normalized(scenario.responseEvidence)),
+      passed: continuationEvidence(text, scenario.responseEvidence),
       detail: `continuation must explicitly use learner evidence ${JSON.stringify(scenario.responseEvidence)}`,
     })
   }

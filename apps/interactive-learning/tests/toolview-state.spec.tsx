@@ -81,6 +81,20 @@ describe('learner-owned visual state survives unrelated re-renders', () => {
     expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('1.5')
   })
 
+  it('restores the revealed formula step on a visual replay', () => {
+    const visual = parseLearningVisualV4(visualV4Catalog.powerRuleDerivation)
+    const view = render(<ToolView {...props(visual, 'call_formula_replay')} />)
+
+    fireEvent.click(screen.getByRole('button', { name: en.visualRevealNextFormulaStep }))
+    fireEvent.click(screen.getByRole('button', { name: en.visualRevealNextFormulaStep }))
+    expect(screen.getByText('Step 3 / 4')).toBeTruthy()
+    view.unmount()
+
+    render(<ToolView {...props(visual, 'call_formula_replay')} />)
+    expect(screen.getByText('Step 3 / 4')).toBeTruthy()
+    expect(screen.getByText('约去公因子')).toBeTruthy()
+  })
+
   it('rewinds to the initial frame only when the sequence itself changes', () => {
     const visual = parseLearningVisualV4(visualV4Catalog.fullyConnectedNetwork)
     const view = render(<ToolView {...props(visual, 'call_swap')} />)

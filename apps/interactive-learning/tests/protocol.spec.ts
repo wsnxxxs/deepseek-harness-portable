@@ -3,7 +3,10 @@ import {
   ACTIVITY_PROTOCOL,
   ACTIVITY_PROTOCOL_V2,
   LEARNING_VISUAL_KINDS_V4,
+  MATH_BINARY_OPERATORS,
+  MATH_UNARY_OPERATORS,
   MAX_ACTIVITY_BYTES,
+  RECALL_FEEDBACK_PROTOCOL_V1,
   RESPONSE_PROTOCOL,
   RESPONSE_PROTOCOL_V2,
   TRANSPORT_PROTOCOL_V2,
@@ -19,6 +22,7 @@ import {
   parseLearningVisualV4,
   parseLearningResponse,
   parseLearningResponseV2,
+  parseLearningRecallFeedbackV1,
   type LearningQuestionV2,
   type LearningRevealV2,
 } from '../src/protocol.ts'
@@ -39,6 +43,7 @@ import {
   processActivity,
   visualV4Catalog,
 } from './fixtures.ts'
+import { evaluateMathExpression } from '../src/math-expression.ts'
 
 describe('Learning Activity Protocol v1', () => {
   it('accepts all three closed activity kinds', () => {
@@ -255,6 +260,25 @@ describe('non-blocking Learning Visual Protocol v3', () => {
 })
 
 describe('semantic Learning Visual Protocol v4', () => {
+  it('accepts the extended math vocabulary used by activation and statistics plots', () => {
+    expect(MATH_BINARY_OPERATORS).toEqual(['add', 'sub', 'mul', 'div', 'pow', 'min', 'max'])
+    expect(MATH_UNARY_OPERATORS).toContain('relu')
+    expect(MATH_UNARY_OPERATORS).toContain('normpdf')
+    const visual = structuredClone(visualV4Catalog.derivativePlot)
+    if (visual.content.kind !== 'plot') throw new Error('fixture mismatch')
+    visual.content.series[0] = {
+      ...visual.content.series[0],
+      expression: {
+        op: 'max',
+        left: { op: 'relu', value: { op: 'tan', value: { op: 'variable', name: 'x' } } },
+        right: { op: 'normpdf', value: { op: 'variable', name: 'x' } },
+      },
+    }
+    expect(() => parseLearningVisualV4(visual)).not.toThrow()
+    expect(evaluateMathExpression({ op: 'leaky_relu', value: { op: 'constant', value: -2 } }, {})).toBeCloseTo(-0.02)
+    expect(evaluateMathExpression({ op: 'step', value: { op: 'constant', value: 0 } }, {})).toBe(1)
+  })
+
   it('accepts every native content kind and all three relation variants', () => {
     const parsed = Object.values(visualV4Catalog).map(visual => parseLearningVisualV4(visual))
     expect(parsed.map(visual => visual.content.kind)).toEqual([
@@ -400,5 +424,31 @@ describe('semantic Learning Visual Protocol v4', () => {
   it('pins the V4 visual and immediate-ready result protocol literals', () => {
     expect(VISUAL_PROTOCOL_V4).toBe('dsh-learning/visual@4')
     expect(VISUAL_RESULT_PROTOCOL_V4).toBe('dsh-learning/visual-result@4')
+  })
+})
+
+describe('RecallDeck Host feedback protocol', () => {
+  it('accepts bounded session/visual/card identity and rejects malformed ratings', () => {
+    expect(parseLearningRecallFeedbackV1({
+      protocol: RECALL_FEEDBACK_PROTOCOL_V1,
+      sessionId: 'session-a',
+      callId: 'call-visual-1',
+      cardId: 'card_gradient',
+      status: 'review',
+    })).toMatchObject({ status: 'review', cardId: 'card_gradient' })
+    expect(() => parseLearningRecallFeedbackV1({
+      protocol: RECALL_FEEDBACK_PROTOCOL_V1,
+      sessionId: 'session-a',
+      callId: 'call-visual-1',
+      cardId: 'card_gradient',
+      status: 'incorrect',
+    })).toThrow(/status must be one of/)
+    expect(() => parseLearningRecallFeedbackV1({
+      protocol: RECALL_FEEDBACK_PROTOCOL_V1,
+      sessionId: 'other\nagent',
+      callId: 'call-visual-1',
+      cardId: 'card_gradient',
+      status: 'mastered',
+    })).toThrow(/bounded identity/)
   })
 })

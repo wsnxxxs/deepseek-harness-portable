@@ -8,7 +8,7 @@ import shell from '../styles/shell.module.css'
 import css from '../styles/recall.module.css'
 
 type RecallStage = 'prompt' | 'hint' | 'answer'
-type RecallStatus = 'mastered' | 'review'
+export type RecallStatus = 'mastered' | 'review'
 
 function initialRecallState(content: RecallDeckContent, storageKey: string | undefined): {
   index: number
@@ -34,7 +34,7 @@ function initialRecallState(content: RecallDeckContent, storageKey: string | und
   return initial
 }
 
-export function RecallDeckRenderer({ content, focus, storageKey }: RendererProps<RecallDeckContent>) {
+export function RecallDeckRenderer({ content, focus, storageKey, onRecallStatusChange }: RendererProps<RecallDeckContent>) {
   const labels = useVisualLabels()
   const initial = useMemo(() => initialRecallState(content, storageKey), [content, storageKey])
   const [cardIndex, setCardIndex] = useState(initial.index)
@@ -63,11 +63,21 @@ export function RecallDeckRenderer({ content, focus, storageKey }: RendererProps
     setStage('prompt')
   }
   const reset = (): void => { setCardIndex(0); setStage('prompt'); setStatuses({}) }
-  const mark = (status: RecallStatus): void => setStatuses(value => ({ ...value, [current.id]: status }))
+  const mark = (status: RecallStatus): void => {
+    setStatuses(value => ({ ...value, [current.id]: status }))
+    // The local sessionStorage projection keeps replay usable without a Host;
+    // this optional sink is the durable, session-scoped observation path.
+    onRecallStatusChange?.(current.id, status)
+  }
   const masteredCount = Object.values(statuses).filter(status => status === 'mastered').length
   const reviewCount = Object.values(statuses).filter(status => status === 'review').length
   const status = statuses[current.id]
-  const revealNext = (): void => setStage(value => value === 'prompt' && current.hint !== undefined ? 'hint' : 'answer')
+  const revealNext = (): void => {
+    if (stage !== 'answer' && (stage === 'hint' || current.hint === undefined)) {
+      onRecallStatusChange?.(current.id, 'revealed')
+    }
+    setStage(value => value === 'prompt' && current.hint !== undefined ? 'hint' : 'answer')
+  }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.target !== event.currentTarget) return
     if (event.key === 'ArrowLeft') { event.preventDefault(); move(-1) }

@@ -16,6 +16,7 @@ export {
 } from './learn-intent.ts'
 export {
   LearningActivityBroker,
+  type LearningRecallFeedbackResult,
   type LearningStateUpdateRequest,
   type LearningStateUpdateResult,
   type ObservableLearnerStateUpdate,
@@ -70,6 +71,8 @@ export type {
   LearningFormulaStepsV4,
   LearningStudyMapV4,
   LearningRecallDeckV4,
+  LearningRecallFeedbackV1,
+  LearningRecallStatusV1,
   LearningVisualResultV4,
 } from './protocol.ts'
 export {

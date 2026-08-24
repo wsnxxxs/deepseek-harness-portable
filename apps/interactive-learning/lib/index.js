@@ -1,6 +1,6 @@
-import { a as LEARNER_STATE_SESSION_EVENT_TYPE, c as createLearnerStateSnapshotEvent, d as parseLearnerStateSnapshotEvent, f as reduceLearnerState, g as serializeLearnerStateSnapshot, h as resetLearnerState, i as LEARNER_STATE_PROTOCOL, l as foldLearnerStateSession, m as renderLearnerStateTranscript, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as MAX_FAILED_MOVES, p as registerLearningSessionEventType, r as LEARNER_STATE_EVENT_PROTOCOL, s as createInitialLearnerState, t as registerInteractiveLearningSessionCompatibility, u as hydrateLearnerStateSnapshot } from "./bootstrap-BHgqQhEx.js";
-import { a as classifyLearnIntent, i as LEARN_INTENT, n as routeLearningTurn, o as isLearnIntent, r as LEARNING_INTENT_POLICY, s as isLearningBoundary, t as routeLearningRequest } from "./teaching-route-BMSuwJeo.js";
-import { A as parseLearningCheckpointResultV1, N as parseLearningResponseV2, O as parseLearningActivity, S as TRANSPORT_PROTOCOL_V2, a as CHECKPOINT_TRANSPORT_PROTOCOL, b as RESPONSE_PROTOCOL_V2, d as LearningProtocolError, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningCheckpointV1, k as parseLearningActivityV2, m as MAX_ACTIVITY_BYTES, y as RESPONSE_PROTOCOL } from "./protocol-UIlmeaAM.js";
+import { a as LEARNER_STATE_SESSION_EVENT_TYPE, c as createLearnerStateSnapshotEvent, d as parseLearnerStateSnapshotEvent, f as reduceLearnerState, g as serializeLearnerStateSnapshot, h as resetLearnerState, i as LEARNER_STATE_PROTOCOL, l as foldLearnerStateSession, m as renderLearnerStateTranscript, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as MAX_FAILED_MOVES, p as registerLearningSessionEventType, r as LEARNER_STATE_EVENT_PROTOCOL, s as createInitialLearnerState, t as registerInteractiveLearningSessionCompatibility, u as hydrateLearnerStateSnapshot } from "./bootstrap-BE-8d8_G.js";
+import { a as classifyLearnIntent, i as LEARN_INTENT, n as routeLearningTurn, o as isLearnIntent, r as LEARNING_INTENT_POLICY, s as isLearningBoundary, t as routeLearningRequest } from "./teaching-route-BeSRfzkX.js";
+import { A as parseLearningActivity, I as parseLearningResponseV2, M as parseLearningCheckpointResultV1, N as parseLearningCheckpointV1, P as parseLearningRecallFeedbackV1, S as RESPONSE_PROTOCOL_V2, a as CHECKPOINT_TRANSPORT_PROTOCOL, f as LearningProtocolError, h as MAX_ACTIVITY_BYTES, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningActivityV2, w as TRANSPORT_PROTOCOL_V2, x as RESPONSE_PROTOCOL } from "./protocol-vCKjmTCQ.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
@@ -113,6 +113,19 @@ function pedagogicalStateFingerprint(state) {
 function learnerObservationId(prefix, ...parts) {
 	return `${prefix}:${createHash("sha256").update(JSON.stringify(parts)).digest("hex")}`;
 }
+/**
+* A stale state-tool call may still be safe to apply when it is one additive
+* observation. Corrections, resets, and replacement-style route/list writes
+* remain strict CAS operations because replaying them could overwrite newer
+* learner state.
+*/
+function isSafeStaleLearnerStateUpdate(event) {
+	switch (event.type) {
+		case "prior_knowledge_observed": return event.level === void 0 && event.items !== void 0 && event.mode !== "replace";
+		case "source_anchors_observed": return event.mode !== "replace";
+		default: return false;
+	}
+}
 function snapshotCheckpoint(value) {
 	const parsed = parseLearningCheckpointV1(value);
 	return {
@@ -163,7 +176,11 @@ function checkpointFallbackResult(checkpointId, outcome) {
 function checkpointFallbackSubmission(checkpoint, checkpointId, custom) {
 	let response;
 	if (checkpoint.kind === "single_choice") {
-		const option = checkpoint.options?.find((candidate) => candidate.id === custom);
+		const byId = checkpoint.options?.find((candidate) => candidate.id === custom);
+		const normalizeLabel = (value) => value.normalize("NFKC").replace(/\s+/gu, " ").trim().toLowerCase();
+		const normalizedCustom = normalizeLabel(custom);
+		const byLabel = checkpoint.options?.filter((candidate) => normalizeLabel(candidate.label) === normalizedCustom) ?? [];
+		const option = byId ?? (byLabel.length === 1 ? byLabel[0] : void 0);
 		if (option !== void 0) response = { optionId: option.id };
 	} else if (checkpoint.kind === "numeric") {
 		const number = Number(custom);
@@ -192,6 +209,8 @@ var LearningActivityBroker = class extends Service {
 	checkpointReceipts = /* @__PURE__ */ new Map();
 	pendingCheckpointSessions = /* @__PURE__ */ new Map();
 	pendingCheckpointWaits = /* @__PURE__ */ new Map();
+	/** Current Host agent for the session-scoped Client recall bridge. */
+	activeAgents = /* @__PURE__ */ new Map();
 	learnerStates = /* @__PURE__ */ new Map();
 	observers = /* @__PURE__ */ new Set();
 	disposed = false;
@@ -211,6 +230,7 @@ var LearningActivityBroker = class extends Service {
 			this.checkpointReceipts.clear();
 			this.pendingCheckpointSessions.clear();
 			this.pendingCheckpointWaits.clear();
+			this.activeAgents.clear();
 			this.learnerStates.clear();
 			this.observers.clear();
 		}, "interactive-learning: abort pending activities");
@@ -221,6 +241,36 @@ var LearningActivityBroker = class extends Service {
 		ctx.on("session/disposed", (session) => {
 			this.abortPendingCheckpointSession(session);
 			this.dropLearnerState(session);
+		});
+		ctx.inject(["connection"], (connectionCtx) => {
+			const connection = connectionCtx.get("connection");
+			if (connection === void 0) return;
+			connectionCtx.effect(() => connection.rpc.handle("/interactive-learning", async (endpoint, payload) => {
+				if (endpoint !== "recall/feedback") return {
+					ok: false,
+					error: {
+						code: "bad-request",
+						message: "unknown interactive-learning RPC endpoint",
+						details: { issues: [] }
+					}
+				};
+				try {
+					const feedback = parseLearningRecallFeedbackV1(payload);
+					return {
+						ok: true,
+						value: this.recordRecallFeedback(feedback)
+					};
+				} catch (cause) {
+					return {
+						ok: false,
+						error: {
+							code: "bad-request",
+							message: cause instanceof Error ? cause.message : String(cause),
+							details: { issues: [] }
+						}
+					};
+				}
+			}, { authority: "trusted-host" }), "interactive-learning: recall feedback rpc");
 		});
 	}
 	/** Diagnostics/test seam; no activity payloads or learner answers are exposed. */
@@ -253,11 +303,31 @@ var LearningActivityBroker = class extends Service {
 	learnerStateTranscript(agent, maxTokens = 300) {
 		return renderLearnerStateTranscript(this.learnerState(agent), { maxTokens });
 	}
-	/** CAS mutation used exclusively by the internal, immediate state tool. */
+	/** CAS mutation used exclusively by the internal, immediate state tool.
+	* Exact replays and a small set of additive observations may rebase once;
+	* replacement, correction, and reset operations remain strict CAS writes.
+	*/
 	updateLearnerState(request) {
-		const current = this.learnerState(request.agent);
+		let current = this.learnerState(request.agent);
 		if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision < 0) throw new TypeError("expectedRevision must be a non-negative safe integer");
-		if (current.revision !== request.expectedRevision) throw new Error(`Learner state revision changed: expected ${request.expectedRevision}, current ${current.revision}`);
+		if (current.revision !== request.expectedRevision) {
+			if (request.action === "update" && current.appliedEventIds.some((item) => item.id === request.event.observation.id)) {
+				if (reduceLearnerState(current, request.event) === current) return {
+					status: "updated",
+					revision: current.revision
+				};
+			}
+			if (request.action === "update" && isSafeStaleLearnerStateUpdate(request.event)) {
+				const rebased = reduceLearnerState(current, request.event);
+				if (pedagogicalStateFingerprint(rebased) === pedagogicalStateFingerprint(current)) throw new Error("learning_state_update requires a substantive observable state change");
+				this.appendLearnerState(request.agent, rebased, "update");
+				return {
+					status: "updated",
+					revision: rebased.revision
+				};
+			}
+			throw new Error(`Learner state revision changed: expected ${request.expectedRevision}, current ${current.revision}`);
+		}
 		if (request.action === "reset") {
 			this.abortPendingCheckpointSession(request.agent.session);
 			const state = resetLearnerState(current);
@@ -308,6 +378,7 @@ var LearningActivityBroker = class extends Service {
 	}
 	dropLearnerState(session) {
 		const sessionId = String(session.id);
+		if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId);
 		if (this.learnerStates.get(sessionId)?.session === session) this.learnerStates.delete(sessionId);
 		for (const [key, record] of this.checkpointCalls) if (record.session === session) this.checkpointCalls.delete(key);
 		for (const [key, record] of this.checkpointReceipts) if (record.session === session) this.checkpointReceipts.delete(key);
@@ -330,7 +401,7 @@ var LearningActivityBroker = class extends Service {
 	}
 	appendLearnerState(agent, state, reason) {
 		const session = agent.session;
-		session.append(LEARNER_STATE_SESSION_EVENT_TYPE, createLearnerStateSnapshotEvent(state, reason));
+		session.append(LEARNER_STATE_SESSION_EVENT_TYPE, createLearnerStateSnapshotEvent(state, reason), { ignorable: true });
 		this.learnerStates.set(String(session.id), {
 			session,
 			eventCount: session.events.length,
@@ -359,6 +430,10 @@ var LearningActivityBroker = class extends Service {
 		const stableCallId = boundedIdentity(callId, "callId");
 		if (!this.hasRichClient()) return "unavailable";
 		if (agent === void 0) return "ready";
+		this.activeAgents.set(String(agent.session.id), {
+			agent,
+			session: agent.session
+		});
 		this.recordAutomaticEvents(agent, [{
 			type: "assistant_move_observed",
 			move: "visual",
@@ -370,6 +445,53 @@ var LearningActivityBroker = class extends Service {
 			moveFingerprint: `visual:${stableCallId}`
 		}]);
 		return "ready";
+	}
+	/**
+	* Record an explicit RecallDeck self-rating as low-confidence, unknown
+	* evidence. A self-rating is useful review intent, but it is not proof of
+	* correctness, independence, or transfer mastery.
+	*/
+	recordRecallFeedback(feedback) {
+		if (this.disposed) return {
+			status: "ignored",
+			reason: "session-unavailable"
+		};
+		let active = this.activeAgents.get(feedback.sessionId);
+		if (active === void 0) {
+			const recovered = this.ctx.get("agents")?.get(feedback.sessionId);
+			if (recovered !== void 0) {
+				active = {
+					agent: recovered,
+					session: recovered.session
+				};
+				this.activeAgents.set(feedback.sessionId, active);
+			}
+		}
+		if (active === void 0 || String(active.session.id) !== feedback.sessionId) return {
+			status: "ignored",
+			reason: "session-unavailable"
+		};
+		const observationId = learnerObservationId("recall", feedback.sessionId, feedback.callId, feedback.cardId, feedback.status);
+		const summary = feedback.status === "revealed" ? `Recall card ${feedback.cardId} answer was revealed; no correctness was established.` : `Recall card ${feedback.cardId} marked ${feedback.status}; self-rating is unverified.`;
+		this.recordAutomaticEvents(active.agent, [{
+			type: "learner_evidence_observed",
+			evidence: {
+				kind: "attempt",
+				summary,
+				confidence: "low",
+				correctness: "unknown",
+				independence: "unknown"
+			},
+			observation: {
+				id: observationId,
+				source: "learner-action",
+				summary
+			}
+		}]);
+		return {
+			status: "recorded",
+			observationId
+		};
 	}
 	recordCheckpointOutcome(request, result, fence) {
 		const agent = request.agent;

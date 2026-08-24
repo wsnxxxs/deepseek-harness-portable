@@ -85,6 +85,28 @@
   transition: opacity var(--lx-motion-fast) var(--lx-easing);
 }
 
+/* Dense graphs use one small, focused tooltip instead of revealing a chip for
+   every edge the pointer happens to cross. It is inside the edge's hit target,
+   so mouse and keyboard focus share exactly the same affordance. */
+.edgeTooltip {
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--lx-motion-fast) var(--lx-easing);
+}
+
+.edgeTooltip rect {
+  fill: var(--lx-surface-base);
+  stroke: var(--visual-tone);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.edgeTooltip text {
+  fill: var(--lx-label-primary);
+  font-weight: var(--lx-weight-medium);
+}
+
 /* A dense graph shows only the labels that are currently meaningful. `related`
    is deliberately excluded: in a fully connected layer every edge leaving the
    focused nodes is related, and drawing twelve chips in one column is the same
@@ -97,10 +119,12 @@
 .graphSvg[data-dense-edges] .edgeLabel,
 .edgeGroup[data-crowded] .edgeLabel { opacity: 0; }
 
-.graphSvg[data-dense-edges] .edgeGroup:hover .edgeLabel,
-.graphSvg[data-dense-edges] .edgeGroup:focus-visible .edgeLabel,
-.graphSvg[data-dense-edges] .edgeGroup[data-selected] .edgeLabel,
-.graphSvg[data-dense-edges] .edgeGroup[data-visual-state="current"] .edgeLabel,
+.graphSvg[data-dense-edges] .edgeGroup:hover .edgeTooltip,
+.graphSvg[data-dense-edges] .edgeGroup:focus-visible .edgeTooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
 .edgeGroup[data-crowded]:hover .edgeLabel,
 .edgeGroup[data-crowded]:focus-visible .edgeLabel,
 .edgeGroup[data-crowded][data-selected] .edgeLabel,

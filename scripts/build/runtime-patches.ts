@@ -27,11 +27,15 @@ const { patchAppBootProfileRuntimeFallback } = require('../../patches/dsh-app-bo
 const { patchSessionPortableEventMetadata } = require('../../patches/dsh-session-portable-event-metadata.js') as {
   patchSessionPortableEventMetadata(source: string): string
 }
+const { patchDirectoryPickerAuto } = require('../../patches/dsh-host-directory-picker-auto-index.js') as {
+  patchDirectoryPickerAuto(source: string): string
+}
 
 export {
   patchAppBootProfileRuntimeFallback,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
+  patchDirectoryPickerAuto,
   patchSessionPortableEventMetadata,
 }
 
@@ -101,6 +105,7 @@ async function applyDefinition(
 export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Promise<readonly PatchAttestation[]> {
   const definitions = await loadPatchManifest(resolve(options.root, 'patches/manifest.yml'))
   const directoryPicker = definitionById(definitions, 'directory-picker-electron-ipc')
+  const directoryPickerAuto = definitionById(definitions, 'directory-picker-wsl-platform')
   const appBoot = definitionById(definitions, 'app-boot-profile-runtime-fallback')
   const portableSession = definitionById(definitions, 'portable-session-event-metadata')
   const marketplace = definitionById(definitions, 'marketplace-self-update-fallback')
@@ -110,6 +115,9 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
     applyDefinition(options, directoryPicker, {
       'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js': () => directoryIndex,
       'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/worker.cjs': patchDirectoryPickerWorker,
+    }),
+    applyDefinition(options, directoryPickerAuto, {
+      'node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js': patchDirectoryPickerAuto,
     }),
     applyDefinition(options, appBoot, {
       'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js': patchAppBootProfileRuntimeFallback,

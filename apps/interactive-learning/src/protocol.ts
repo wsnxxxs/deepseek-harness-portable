@@ -10,6 +10,7 @@ export const VISUAL_PROTOCOL_V3 = 'dsh-learning/visual@3' as const
 export const VISUAL_RESULT_PROTOCOL_V3 = 'dsh-learning/visual-result@3' as const
 export const VISUAL_PROTOCOL_V4 = 'dsh-learning/visual@4' as const
 export const VISUAL_RESULT_PROTOCOL_V4 = 'dsh-learning/visual-result@4' as const
+export const RECALL_FEEDBACK_PROTOCOL_V1 = 'dsh-learning/recall-feedback@1' as const
 export const CHECKPOINT_PROTOCOL = 'dsh-learning/checkpoint@1' as const
 export const CHECKPOINT_RESULT_PROTOCOL = 'dsh-learning/checkpoint-result@1' as const
 export const CHECKPOINT_TRANSPORT_PROTOCOL = 'dsh-learning/checkpoint-wait@1' as const
@@ -48,8 +49,11 @@ export const MAX_RESPONSE_BYTES = 32 * 1024
 export const MAX_MATH_DEPTH = 8
 export const MAX_MATH_NODES = 64
 export const MAX_VISUAL_MATH_DEPTH = 4
-export const MATH_BINARY_OPERATORS = ['add', 'sub', 'mul', 'div', 'pow'] as const
-export const MATH_UNARY_OPERATORS = ['neg', 'abs', 'sqrt', 'sin', 'cos', 'exp', 'log', 'sigmoid'] as const
+export const MATH_BINARY_OPERATORS = ['add', 'sub', 'mul', 'div', 'pow', 'min', 'max'] as const
+export const MATH_UNARY_OPERATORS = [
+  'neg', 'abs', 'sqrt', 'sin', 'cos', 'tan', 'atan', 'exp', 'log', 'sigmoid',
+  'relu', 'leaky_relu', 'step', 'normpdf', 'floor', 'ceil',
+] as const
 
 export type LearningActivityKind = typeof LEARNING_ACTIVITY_KINDS[number]
 export type LearningAction = 'submit' | 'skip' | 'cancel'
@@ -60,8 +64,8 @@ export type LearningCheckpointEvidenceKindV1 = typeof LEARNING_CHECKPOINT_EVIDEN
 export type MathExpressionV1 =
   | { op: 'constant'; value: number }
   | { op: 'variable'; name: string }
-  | { op: 'add' | 'sub' | 'mul' | 'div' | 'pow'; left: MathExpressionV1; right: MathExpressionV1 }
-  | { op: 'neg' | 'abs' | 'sqrt' | 'sin' | 'cos' | 'exp' | 'log' | 'sigmoid'; value: MathExpressionV1 }
+  | { op: typeof MATH_BINARY_OPERATORS[number]; left: MathExpressionV1; right: MathExpressionV1 }
+  | { op: typeof MATH_UNARY_OPERATORS[number]; value: MathExpressionV1 }
 
 export interface ParameterDefinitionV1 {
   id: string
@@ -678,6 +682,20 @@ export const LEARNING_VISUAL_STATUSES = ['ready', 'unavailable'] as const
 
 export type LearningVisualStatusV4 = typeof LEARNING_VISUAL_STATUSES[number]
 
+/** A learner's explicit recall interaction, sent from the visual Client to Host. */
+export const LEARNING_RECALL_STATUSES = ['revealed', 'mastered', 'review'] as const
+export type LearningRecallStatusV1 = typeof LEARNING_RECALL_STATUSES[number]
+
+export interface LearningRecallFeedbackV1 {
+  protocol: typeof RECALL_FEEDBACK_PROTOCOL_V1
+  /** Session identity is part of the wire key; Host still checks it is active. */
+  sessionId: string
+  /** The semantic visual call that owns the card. */
+  callId: string
+  cardId: string
+  status: LearningRecallStatusV1
+}
+
 /** A stable, actionable protocol rejection surfaced to the tool call. */
 export class LearningProtocolError extends Error {
   readonly code = 'INVALID_LEARNING_ACTIVITY'
@@ -706,6 +724,15 @@ function text(value: unknown, path: string, issues: string[], max = 8_000): valu
     return false
   }
   if (value.length > max) issues.push(`${path} exceeds ${String(max)} characters`)
+  return true
+}
+
+function boundedIdentity(value: unknown, path: string, issues: string[], max = 512): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > max
+    || value.trim() !== value || /[\u0000-\u001F\u007F]/u.test(value)) {
+    issues.push(`${path} must be a non-empty bounded identity`)
+    return false
+  }
   return true
 }
 
@@ -2353,6 +2380,24 @@ export function parseLearningVisualResultV4(value: unknown): LearningVisualResul
   }
   if (issues.length > 0) throw new LearningProtocolError(issues)
   return value as unknown as LearningVisualResultV4
+}
+
+/** Parse the small Client → Host recall bridge payload. */
+export function parseLearningRecallFeedbackV1(value: unknown): LearningRecallFeedbackV1 {
+  const issues: string[] = []
+  if (!record(value)) throw new LearningProtocolError(['recall feedback must be an object'])
+  onlyKeys(value, ['protocol', 'sessionId', 'callId', 'cardId', 'status'], 'recallFeedback', issues)
+  if (value.protocol !== RECALL_FEEDBACK_PROTOCOL_V1) {
+    issues.push(`recallFeedback.protocol must be ${RECALL_FEEDBACK_PROTOCOL_V1}`)
+  }
+  boundedIdentity(value.sessionId, 'recallFeedback.sessionId', issues)
+  boundedIdentity(value.callId, 'recallFeedback.callId', issues)
+  boundedIdentity(value.cardId, 'recallFeedback.cardId', issues, 128)
+  if (!LEARNING_RECALL_STATUSES.includes(value.status as LearningRecallStatusV1)) {
+    issues.push(`recallFeedback.status must be one of ${LEARNING_RECALL_STATUSES.join(', ')}`)
+  }
+  if (issues.length > 0) throw new LearningProtocolError(issues)
+  return value as unknown as LearningRecallFeedbackV1
 }
 
 export function parseLearningVisualResultV3(value: unknown): LearningVisualResultV3 {

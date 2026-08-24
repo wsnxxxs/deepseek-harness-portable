@@ -58,7 +58,9 @@ window.__ModuleLoader__.load({
 			"sub",
 			"mul",
 			"div",
-			"pow"
+			"pow",
+			"min",
+			"max"
 		];
 		const MATH_UNARY_OPERATORS = [
 			"neg",
@@ -66,9 +68,17 @@ window.__ModuleLoader__.load({
 			"sqrt",
 			"sin",
 			"cos",
+			"tan",
+			"atan",
 			"exp",
 			"log",
-			"sigmoid"
+			"sigmoid",
+			"relu",
+			"leaky_relu",
+			"step",
+			"normpdf",
+			"floor",
+			"ceil"
 		];
 		const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
 		/** A stable, actionable protocol rejection surfaced to the tool call. */
@@ -2252,6 +2262,128 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/math-expression.ts
 		/**
+		* Compile a closed AST into a small closure tree once, so sampling a curve
+		* does not repeatedly dispatch through every AST node. This intentionally
+		* uses ordinary closures instead of `new Function`: the model payload remains
+		* data-only while the hot render path still gets one function call per sample.
+		*/
+		function compileMathExpression(expression) {
+			switch (expression.op) {
+				case "constant": return () => expression.value;
+				case "variable": return (bindings) => bindings[expression.name] ?? NaN;
+				case "add": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => left(bindings) + right(bindings);
+				}
+				case "sub": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => left(bindings) - right(bindings);
+				}
+				case "mul": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => left(bindings) * right(bindings);
+				}
+				case "div": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => left(bindings) / right(bindings);
+				}
+				case "pow": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => left(bindings) ** right(bindings);
+				}
+				case "min": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => Math.min(left(bindings), right(bindings));
+				}
+				case "max": {
+					const left = compileMathExpression(expression.left);
+					const right = compileMathExpression(expression.right);
+					return (bindings) => Math.max(left(bindings), right(bindings));
+				}
+				case "neg": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => -value(bindings);
+				}
+				case "abs": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.abs(value(bindings));
+				}
+				case "sqrt": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.sqrt(value(bindings));
+				}
+				case "sin": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.sin(value(bindings));
+				}
+				case "cos": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.cos(value(bindings));
+				}
+				case "tan": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.tan(value(bindings));
+				}
+				case "atan": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.atan(value(bindings));
+				}
+				case "exp": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.exp(value(bindings));
+				}
+				case "log": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.log(value(bindings));
+				}
+				case "sigmoid": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						if (result >= 0) return 1 / (1 + Math.exp(-result));
+						const exponential = Math.exp(result);
+						return exponential / (1 + exponential);
+					};
+				}
+				case "relu": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.max(0, value(bindings));
+				}
+				case "leaky_relu": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						return result >= 0 ? result : result * .01;
+					};
+				}
+				case "step": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => value(bindings) >= 0 ? 1 : 0;
+				}
+				case "normpdf": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						return Math.exp(-.5 * result * result) / Math.sqrt(2 * Math.PI);
+					};
+				}
+				case "floor": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.floor(value(bindings));
+				}
+				case "ceil": {
+					const value = compileMathExpression(expression.value);
+					return (bindings) => Math.ceil(value(bindings));
+				}
+			}
+		}
+		/**
 		* Evaluate the protocol's closed mathematical AST. The protocol validator
 		* bounds its depth and node count; this evaluator never executes source text.
 		*/
@@ -2264,11 +2396,15 @@ window.__ModuleLoader__.load({
 				case "mul": return evaluateMathExpression(expression.left, bindings) * evaluateMathExpression(expression.right, bindings);
 				case "div": return evaluateMathExpression(expression.left, bindings) / evaluateMathExpression(expression.right, bindings);
 				case "pow": return evaluateMathExpression(expression.left, bindings) ** evaluateMathExpression(expression.right, bindings);
+				case "min": return Math.min(evaluateMathExpression(expression.left, bindings), evaluateMathExpression(expression.right, bindings));
+				case "max": return Math.max(evaluateMathExpression(expression.left, bindings), evaluateMathExpression(expression.right, bindings));
 				case "neg": return -evaluateMathExpression(expression.value, bindings);
 				case "abs": return Math.abs(evaluateMathExpression(expression.value, bindings));
 				case "sqrt": return Math.sqrt(evaluateMathExpression(expression.value, bindings));
 				case "sin": return Math.sin(evaluateMathExpression(expression.value, bindings));
 				case "cos": return Math.cos(evaluateMathExpression(expression.value, bindings));
+				case "tan": return Math.tan(evaluateMathExpression(expression.value, bindings));
+				case "atan": return Math.atan(evaluateMathExpression(expression.value, bindings));
 				case "exp": return Math.exp(evaluateMathExpression(expression.value, bindings));
 				case "log": return Math.log(evaluateMathExpression(expression.value, bindings));
 				case "sigmoid": {
@@ -2277,6 +2413,18 @@ window.__ModuleLoader__.load({
 					const exponential = Math.exp(value);
 					return exponential / (1 + exponential);
 				}
+				case "relu": return Math.max(0, evaluateMathExpression(expression.value, bindings));
+				case "leaky_relu": {
+					const value = evaluateMathExpression(expression.value, bindings);
+					return value >= 0 ? value : value * .01;
+				}
+				case "step": return evaluateMathExpression(expression.value, bindings) >= 0 ? 1 : 0;
+				case "normpdf": {
+					const value = evaluateMathExpression(expression.value, bindings);
+					return Math.exp(-.5 * value * value) / Math.sqrt(2 * Math.PI);
+				}
+				case "floor": return Math.floor(evaluateMathExpression(expression.value, bindings));
+				case "ceil": return Math.ceil(evaluateMathExpression(expression.value, bindings));
 			}
 		}
 		//#endregion
@@ -4898,7 +5046,7 @@ window.__ModuleLoader__.load({
 		* far outside the declared y range is drawn entirely outside the clip. Both
 		* would otherwise leave the learner staring at an empty frame.
 		*/
-		function plotCurveRender(series, content, values, geometry) {
+		function plotCurveRender(series, content, values, geometry, yAxis, evaluate) {
 			const samples = content.xAxis.samples ?? 160;
 			const commands = [];
 			let drawing = false;
@@ -4906,7 +5054,7 @@ window.__ModuleLoader__.load({
 			let visible = false;
 			for (let index = 0; index < samples; index += 1) {
 				const x = interpolate(content.xAxis.min, content.xAxis.max, index / Math.max(1, samples - 1));
-				const y = evaluateMathExpression(series.expression, {
+				const y = evaluate({
 					...values,
 					x
 				});
@@ -4915,9 +5063,9 @@ window.__ModuleLoader__.load({
 					previousY = void 0;
 					continue;
 				}
-				if (y >= content.yAxis.min && y <= content.yAxis.max) visible = true;
+				if (y >= yAxis.min && y <= yAxis.max) visible = true;
 				const px = scaleX(x, content.xAxis, geometry);
-				const py = scaleY(y, content.yAxis, geometry);
+				const py = scaleY(y, yAxis, geometry);
 				if (previousY !== void 0 && Math.abs(previousY - py) > geometry.plotHeight * 2) drawing = false;
 				commands.push(`${drawing ? "L" : "M"}${px.toFixed(2)},${py.toFixed(2)}`);
 				drawing = true;
@@ -4929,11 +5077,42 @@ window.__ModuleLoader__.load({
 			};
 		}
 		/** Whether any declared point of a plotted series falls inside both axes. */
-		function pointsVisible(points, content) {
-			return points.some((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= content.xAxis.min && point.x <= content.xAxis.max && point.y >= content.yAxis.min && point.y <= content.yAxis.max);
+		function pointsVisible(points, content, yAxis) {
+			return points.some((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= content.xAxis.min && point.x <= content.xAxis.max && point.y >= yAxis.min && point.y <= yAxis.max);
 		}
-		function pointsPath(points, content, geometry) {
-			return points.map((point, index) => `${index === 0 ? "M" : "L"}${scaleX(point.x, content.xAxis, geometry).toFixed(2)},${scaleY(point.y, content.yAxis, geometry).toFixed(2)}`).join(" ");
+		function pointsPath(points, content, geometry, yAxis) {
+			return points.map((point, index) => `${index === 0 ? "M" : "L"}${scaleX(point.x, content.xAxis, geometry).toFixed(2)},${scaleY(point.y, yAxis, geometry).toFixed(2)}`).join(" ");
+		}
+		/** Keep the declared y range as the default, but reveal values that move
+		* outside it while a live parameter changes. A cap avoids a single
+		* asymptote flattening the entire chart. */
+		const AUTO_FIT_VALUE_LIMIT = 1e9;
+		function autoFitYAxis(content, values, compiledCurves) {
+			const samples = [];
+			for (const series of content.series) if (series.type === "curve" && (content.parameters?.length ?? 0) > 0) {
+				const evaluate = compiledCurves.get(series.id);
+				if (evaluate === void 0) continue;
+				const count = content.xAxis.samples ?? 160;
+				for (let index = 0; index < count; index += 1) {
+					const x = interpolate(content.xAxis.min, content.xAxis.max, index / Math.max(1, count - 1));
+					const y = evaluate({
+						...values,
+						x
+					});
+					if (Number.isFinite(y) && Math.abs(y) <= AUTO_FIT_VALUE_LIMIT) samples.push(y);
+				}
+			}
+			if (samples.length === 0) return content.yAxis;
+			const minimum = Math.min(content.yAxis.min, ...samples);
+			const maximum = Math.max(content.yAxis.max, ...samples);
+			if (minimum >= content.yAxis.min && maximum <= content.yAxis.max) return content.yAxis;
+			const span = Math.max(Number.EPSILON, maximum - minimum);
+			const padding = Math.max(Number.EPSILON, span * .08);
+			return {
+				...content.yAxis,
+				min: minimum - padding,
+				max: maximum + padding
+			};
 		}
 		function nearestPointValue(points, x) {
 			let nearest;
@@ -4966,8 +5145,15 @@ window.__ModuleLoader__.load({
 			const [values, setValues] = (0, react.useState)(() => initialParameterValues(content, storageKey));
 			const [hiddenSeries, setHiddenSeries] = (0, react.useState)(() => /* @__PURE__ */ new Set());
 			const [probeX, setProbeX] = (0, react.useState)();
+			const compiledCurves = (0, react.useMemo)(() => new Map(content.series.flatMap((series) => series.type === "curve" ? [[series.id, compileMathExpression(series.expression)]] : [])), [content.series]);
+			const compiledMetrics = (0, react.useMemo)(() => new Map((content.metrics ?? []).map((metric) => [metric.id, compileMathExpression(metric.expression)])), [content.metrics]);
+			const viewYAxis = (0, react.useMemo)(() => autoFitYAxis(content, values, compiledCurves), [
+				compiledCurves,
+				content,
+				values
+			]);
 			const xTicks = (0, react.useMemo)(() => ticks(content.xAxis.min, content.xAxis.max), [content.xAxis.max, content.xAxis.min]);
-			const yTicks = (0, react.useMemo)(() => ticks(content.yAxis.min, content.yAxis.max), [content.yAxis.max, content.yAxis.min]);
+			const yTicks = (0, react.useMemo)(() => ticks(viewYAxis.min, viewYAxis.max), [viewYAxis.max, viewYAxis.min]);
 			const parameters = content.parameters ?? [];
 			(0, react.useEffect)(() => {
 				if (storageKey === void 0 || typeof sessionStorage === "undefined") return;
@@ -4975,20 +5161,22 @@ window.__ModuleLoader__.load({
 					sessionStorage.setItem(`dsh-learning/visual@4:${storageKey}`, JSON.stringify(values));
 				} catch {}
 			}, [storageKey, values]);
-			const renders = (0, react.useMemo)(() => new Map(content.series.map((series) => [series.id, series.type === "curve" ? plotCurveRender(series, content, values, geometry) : {
+			const renders = (0, react.useMemo)(() => new Map(content.series.map((series) => [series.id, series.type === "curve" ? plotCurveRender(series, content, values, geometry, viewYAxis, compiledCurves.get(series.id) ?? ((bindings) => evaluateMathExpression(series.expression, bindings))) : {
 				path: void 0,
-				visible: pointsVisible(series.points, content)
+				visible: pointsVisible(series.points, content, viewYAxis)
 			}])), [
+				compiledCurves,
 				content,
 				geometry,
-				values
+				values,
+				viewYAxis
 			]);
 			const visibleSeries = content.series.filter((series) => !hiddenSeries.has(series.id));
 			const emptySeriesIds = new Set(content.series.filter((series) => renders.get(series.id)?.visible !== true).map((series) => series.id));
 			const nothingToSee = visibleSeries.length > 0 && visibleSeries.every((series) => emptySeriesIds.has(series.id));
 			const probeValues = probeX === void 0 ? [] : visibleSeries.flatMap((series) => {
 				let y;
-				if (series.type === "curve") y = evaluateMathExpression(series.expression, {
+				if (series.type === "curve") y = compiledCurves.get(series.id)?.({
 					...values,
 					x: probeX
 				});
@@ -5001,7 +5189,7 @@ window.__ModuleLoader__.load({
 					tone: series.tone
 				}];
 			});
-			const chartDescription = `${content.xAxis.label ?? "x"} ${formatNumber(content.xAxis.min)}–${formatNumber(content.xAxis.max)}; ${content.yAxis.label ?? "y"} ${formatNumber(content.yAxis.min)}–${formatNumber(content.yAxis.max)}; ${content.series.map((series) => series.label).join(", ")}${nothingToSee ? `. ${labels.noValuesInRange}` : ""}`;
+			const chartDescription = `${content.xAxis.label ?? "x"} ${formatNumber(content.xAxis.min)}–${formatNumber(content.xAxis.max)}; ${viewYAxis.label ?? "y"} ${formatNumber(viewYAxis.min)}–${formatNumber(viewYAxis.max)}; ${content.series.map((series) => series.label).join(", ")}${nothingToSee ? `. ${labels.noValuesInRange}` : ""}`;
 			const probeDescription = probeX === void 0 ? `${labels.chartProbeHint}. ${chartDescription}` : `x ${formatNumber(probeX)}。${probeValues.map((item) => `${item.label} ${formatNumber(item.y)}`).join("，")}`;
 			const updateProbeFromPointer = (event) => {
 				const rect = event.currentTarget.getBoundingClientRect();
@@ -5080,7 +5268,7 @@ window.__ModuleLoader__.load({
 						children: content.metrics.map((metric) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							"data-visual-id": metric.id,
 							"data-visual-state": elementState(metric.id, focus),
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: metric.label }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dd", { children: [formatNumber(evaluateMathExpression(metric.expression, values), metric.digits), metric.suffix ?? ""] })]
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: metric.label }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dd", { children: [formatNumber(compiledMetrics.get(metric.id)?.(values) ?? evaluateMathExpression(metric.expression, values), metric.digits), metric.suffix ?? ""] })]
 						}, metric.id))
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)(FigureViewport, {
@@ -5115,7 +5303,7 @@ window.__ModuleLoader__.load({
 										height: geometry.plotHeight
 									}),
 									yTicks.map((value) => {
-										const y = scaleY(value, content.yAxis, geometry);
+										const y = scaleY(value, viewYAxis, geometry);
 										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
 											className: plot_module_css_default.gridLine,
 											x1: geometry.left,
@@ -5168,19 +5356,19 @@ window.__ModuleLoader__.load({
 													"data-visual-state": state,
 													"data-visual-id": series.id,
 													"data-stroke": series.stroke ?? "solid",
-													d: pointsPath(series.points, content, geometry)
+													d: pointsPath(series.points, content, geometry, viewYAxis)
 												}, series.id);
 												if (series.type === "bars") {
 													const sortedXs = series.points.map((point) => scaleX(point.x, content.xAxis, geometry)).sort((a, b) => a - b);
 													const smallestGap = sortedXs.slice(1).reduce((gap, x, index) => Math.min(gap, x - (sortedXs[index] ?? x)), geometry.plotWidth / Math.max(1, sortedXs.length));
 													const barWidth = Math.max(6, Math.min(44, smallestGap * .68));
-													const zeroY = scaleY(Math.max(content.yAxis.min, Math.min(content.yAxis.max, 0)), content.yAxis, geometry);
+													const zeroY = scaleY(Math.max(viewYAxis.min, Math.min(viewYAxis.max, 0)), viewYAxis, geometry);
 													return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("g", {
 														"data-visual-id": series.id,
 														"data-visual-state": state,
 														children: series.points.map((point, pointIndex) => {
 															const x = scaleX(point.x, content.xAxis, geometry);
-															const y = scaleY(point.y, content.yAxis, geometry);
+															const y = scaleY(point.y, viewYAxis, geometry);
 															return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
 																className: plot_module_css_default.seriesBar,
 																"data-tone": tone,
@@ -5200,7 +5388,7 @@ window.__ModuleLoader__.load({
 														className: plot_module_css_default.seriesPoint,
 														"data-tone": tone,
 														cx: scaleX(point.x, content.xAxis, geometry),
-														cy: scaleY(point.y, content.yAxis, geometry),
+														cy: scaleY(point.y, viewYAxis, geometry),
 														r: "5",
 														children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("title", { children: point.label ?? `${series.label}: (${formatNumber(point.x)}, ${formatNumber(point.y)})` })
 													}, `${series.id}-${String(pointIndex)}`))
@@ -5217,7 +5405,7 @@ window.__ModuleLoader__.load({
 												className: plot_module_css_default.probePoint,
 												"data-tone": toneAt(item.tone, index),
 												cx: scaleX(probeX, content.xAxis, geometry),
-												cy: scaleY(item.y, content.yAxis, geometry),
+												cy: scaleY(item.y, viewYAxis, geometry),
 												r: "5"
 											}, item.id))
 										]
@@ -5235,7 +5423,7 @@ window.__ModuleLoader__.load({
 										y: geometry.top + geometry.plotHeight / 2,
 										textAnchor: "middle",
 										transform: `rotate(-90 14 ${geometry.top + geometry.plotHeight / 2})`,
-										children: content.yAxis.label ?? "y"
+										children: viewYAxis.label ?? "y"
 									})
 								]
 							}),
@@ -5940,7 +6128,7 @@ window.__ModuleLoader__.load({
 			x2: center.x + box.width / 2,
 			y2: center.y + box.height / 2
 		});
-		function overlapArea(a, b, margin) {
+		function overlapArea$1(a, b, margin) {
 			const x = Math.min(a.x2 + margin, b.x2) - Math.max(a.x1 - margin, b.x1);
 			const y = Math.min(a.y2 + margin, b.y2) - Math.max(a.y1 - margin, b.y1);
 			return x <= 0 || y <= 0 ? 0 : x * y;
@@ -5963,8 +6151,8 @@ window.__ModuleLoader__.load({
 				};
 				const rect = chipRect(point, box);
 				let cost = outsideCanvas(rect, layout) * 4;
-				for (const node of nodes) cost += overlapArea(rect, node, NODE_CLEARANCE);
-				for (const other of placed) cost += overlapArea(rect, other, LABEL_CLEARANCE);
+				for (const node of nodes) cost += overlapArea$1(rect, node, NODE_CLEARANCE);
+				for (const other of placed) cost += overlapArea$1(rect, other, LABEL_CLEARANCE);
 				if (cost === 0) return {
 					...box,
 					x: point.x,
@@ -6017,7 +6205,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/graph.module.css.mjs
-		const css$5 = ".HtX4sa_graphSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.HtX4sa_layerBand rect{fill:color-mix(in srgb, var(--lx-label-primary) 3%, transparent);stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.HtX4sa_layerLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeGroup,.HtX4sa_nodeGroup{cursor:pointer}.HtX4sa_edgeVisible{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.7px + var(--lx-vs-ring) * 1.1px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_edgeHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.HtX4sa_edgeGroup:hover .HtX4sa_edgeVisible,.HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeVisible,.HtX4sa_edgeGroup[data-selected] .HtX4sa_edgeVisible{stroke-opacity:1;stroke-width:3px}.HtX4sa_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel{pointer-events:none;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded] .HtX4sa_edgeLabel{opacity:0}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:hover .HtX4sa_edgeLabel,.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeLabel,.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup[data-selected] .HtX4sa_edgeLabel,.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup[data-visual-state=current] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded]:hover .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded]:focus-visible .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-selected] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-visual-state=current] .HtX4sa_edgeLabel{opacity:1}.HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-base) var(--lx-easing), stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .34);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeLabel{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeLabel,.HtX4sa_nodeGroup[data-visual-state=selected] .HtX4sa_nodeLabel{font-weight:var(--lx-weight-strong)}.HtX4sa_nodeGroup:hover .HtX4sa_nodeShape,.HtX4sa_nodeGroup:focus-visible .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.6px}.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeRing{stroke-opacity:.5}[data-stroke=dashed] .HtX4sa_edgeVisible{stroke-dasharray:9 6}[data-stroke=dotted] .HtX4sa_edgeVisible{stroke-dasharray:2 6}@media (prefers-reduced-motion:reduce){.HtX4sa_edgeVisible,.HtX4sa_edgeLabel,.HtX4sa_nodeShape,.HtX4sa_nodeRing{transition:none}}@media (forced-colors:active){.HtX4sa_nodeShape{fill:canvas;stroke:canvastext}.HtX4sa_edgeVisible{stroke:canvastext}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:highlight}}";
+		const css$5 = ".HtX4sa_graphSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.HtX4sa_layerBand rect{fill:color-mix(in srgb, var(--lx-label-primary) 3%, transparent);stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.HtX4sa_layerLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeGroup,.HtX4sa_nodeGroup{cursor:pointer}.HtX4sa_edgeVisible{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.7px + var(--lx-vs-ring) * 1.1px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_edgeHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.HtX4sa_edgeGroup:hover .HtX4sa_edgeVisible,.HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeVisible,.HtX4sa_edgeGroup[data-selected] .HtX4sa_edgeVisible{stroke-opacity:1;stroke-width:3px}.HtX4sa_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel{pointer-events:none;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.HtX4sa_edgeTooltip{pointer-events:none;opacity:0;visibility:hidden;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.HtX4sa_edgeTooltip rect{fill:var(--lx-surface-base);stroke:var(--visual-tone);stroke-width:1.2px;vector-effect:non-scaling-stroke}.HtX4sa_edgeTooltip text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded] .HtX4sa_edgeLabel{opacity:0}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:hover .HtX4sa_edgeTooltip,.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeTooltip{opacity:1;visibility:visible}.HtX4sa_edgeGroup[data-crowded]:hover .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded]:focus-visible .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-selected] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-visual-state=current] .HtX4sa_edgeLabel{opacity:1}.HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-base) var(--lx-easing), stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .34);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeLabel{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeLabel,.HtX4sa_nodeGroup[data-visual-state=selected] .HtX4sa_nodeLabel{font-weight:var(--lx-weight-strong)}.HtX4sa_nodeGroup:hover .HtX4sa_nodeShape,.HtX4sa_nodeGroup:focus-visible .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.6px}.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeRing{stroke-opacity:.5}[data-stroke=dashed] .HtX4sa_edgeVisible{stroke-dasharray:9 6}[data-stroke=dotted] .HtX4sa_edgeVisible{stroke-dasharray:2 6}@media (prefers-reduced-motion:reduce){.HtX4sa_edgeVisible,.HtX4sa_edgeLabel,.HtX4sa_nodeShape,.HtX4sa_nodeRing{transition:none}}@media (forced-colors:active){.HtX4sa_nodeShape{fill:canvas;stroke:canvastext}.HtX4sa_edgeVisible{stroke:canvastext}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:highlight}}";
 		const tagId$5 = "@dsh-portable/interactive-learning/graph.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$5) + "]") === null) {
 			const tag = document.createElement("style");
@@ -6031,6 +6219,7 @@ window.__ModuleLoader__.load({
 			"edgeGroup": "HtX4sa_edgeGroup",
 			"edgeHit": "HtX4sa_edgeHit",
 			"edgeLabel": "HtX4sa_edgeLabel",
+			"edgeTooltip": "HtX4sa_edgeTooltip",
 			"edgeVisible": "HtX4sa_edgeVisible",
 			"graphSvg": "HtX4sa_graphSvg",
 			"layerBand": "HtX4sa_layerBand",
@@ -6150,6 +6339,19 @@ window.__ModuleLoader__.load({
 									const tone = toneAt(edge.tone, edgeIndex);
 									const state = emphasis.state(edge.id);
 									const label = route.label;
+									const connection = labelTemplate(labels.connection, {
+										from: nodeById.get(edge.from)?.label ?? edge.from,
+										to: nodeById.get(edge.to)?.label ?? edge.to
+									});
+									const tooltipText = `${edge.label ?? connection}${edge.detail === void 0 ? "" : ` · ${edge.detail}`}`;
+									const tooltipBox = edgeLabelBox(tooltipText);
+									const tooltipAnchor = label === void 0 ? {
+										x: ((layout.nodes.get(edge.from)?.x ?? 0) + (layout.nodes.get(edge.to)?.x ?? 0)) / 2,
+										y: ((layout.nodes.get(edge.from)?.y ?? 0) + (layout.nodes.get(edge.to)?.y ?? 0)) / 2
+									} : {
+										x: label.x,
+										y: label.y
+									};
 									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
 										className: graph_module_css_default.edgeGroup,
 										"data-tone": tone,
@@ -6166,6 +6368,7 @@ window.__ModuleLoader__.load({
 										onClick: () => selectEdge(edge, tone),
 										...roving.itemProps(edge.id, () => selectEdge(edge, tone)),
 										children: [
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("title", { children: tooltipText }),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
 												className: graph_module_css_default.edgeVisible,
 												d: route.path,
@@ -6191,6 +6394,28 @@ window.__ModuleLoader__.load({
 													children: label.lines.map((line, lineIndex) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("tspan", {
 														x: label.x,
 														y: label.y - (label.lines.length - 1) * 15 / 2 + lineIndex * 15,
+														children: line
+													}, line + String(lineIndex)))
+												})]
+											}),
+											!denseEdges ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
+												className: graph_module_css_default.edgeTooltip,
+												role: "tooltip",
+												"aria-hidden": "true",
+												transform: `translate(${tooltipAnchor.x} ${tooltipAnchor.y})`,
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+													x: -tooltipBox.width / 2,
+													y: -tooltipBox.height / 2,
+													width: tooltipBox.width,
+													height: tooltipBox.height,
+													rx: edgeLabelRadius(tooltipBox)
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+													textAnchor: "middle",
+													dominantBaseline: "middle",
+													fontSize: 12,
+													children: tooltipBox.lines.map((line, lineIndex) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("tspan", {
+														x: "0",
+														y: -((tooltipBox.lines.length - 1) * 15) / 2 + lineIndex * 15,
 														children: line
 													}, line + String(lineIndex)))
 												})]
@@ -6271,6 +6496,89 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region src/client/visuals/layout/scene-labels.ts
+		/** Small geometry helpers for labels that sit outside scene_2d shapes. */
+		const LABEL_FONT_SIZE = 12;
+		const LABEL_LINE_HEIGHT = 17;
+		const LABEL_GAP = 12;
+		const labelRect = (center, text) => {
+			const width = measureText(text, LABEL_FONT_SIZE) + 8;
+			const height = LABEL_LINE_HEIGHT;
+			return {
+				x1: center.x - width / 2,
+				y1: center.y - height / 2,
+				x2: center.x + width / 2,
+				y2: center.y + height / 2
+			};
+		};
+		function overlapArea(a, b) {
+			return Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1)) * Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+		}
+		function outsideArea(rect, bounds) {
+			return Math.max(0, bounds.left - rect.x1) + Math.max(0, rect.x2 - bounds.right) + Math.max(0, bounds.top - rect.y1) + Math.max(0, rect.y2 - bounds.bottom);
+		}
+		/**
+		* Pick a polygon label position that has room around nearby geometry.
+		*
+		* The old fixed `centroid + 18px` rule only worked when the space below every
+		* polygon was empty. Candidates are tried above and below the shape first,
+		* then at the sides and finally inside it. A small overlap score keeps the
+		* helper deterministic while allowing a tight scene to remain labelled.
+		*/
+		function polygonLabelAnchor(points, text, occupied, bounds) {
+			if (points.length === 0) return {
+				x: (bounds.left + bounds.right) / 2,
+				y: (bounds.top + bounds.bottom) / 2
+			};
+			const minX = Math.min(...points.map((point) => point.x));
+			const maxX = Math.max(...points.map((point) => point.x));
+			const minY = Math.min(...points.map((point) => point.y));
+			const maxY = Math.max(...points.map((point) => point.y));
+			const center = points.reduce((total, point) => ({
+				x: total.x + point.x / points.length,
+				y: total.y + point.y / points.length
+			}), {
+				x: 0,
+				y: 0
+			});
+			const halfLabelWidth = (measureText(text, LABEL_FONT_SIZE) + 8) / 2;
+			const clampX = (x) => Math.max(bounds.left + halfLabelWidth, Math.min(bounds.right - halfLabelWidth, x));
+			const candidates = [
+				{
+					x: clampX(center.x),
+					y: maxY + LABEL_GAP + LABEL_LINE_HEIGHT / 2
+				},
+				{
+					x: clampX(center.x),
+					y: minY - LABEL_GAP - LABEL_LINE_HEIGHT / 2
+				},
+				{
+					x: clampX(maxX + LABEL_GAP + halfLabelWidth),
+					y: center.y
+				},
+				{
+					x: clampX(minX - LABEL_GAP - halfLabelWidth),
+					y: center.y
+				},
+				{
+					x: clampX(center.x),
+					y: center.y
+				}
+			];
+			let best = candidates[candidates.length - 1];
+			let bestScore = Number.POSITIVE_INFINITY;
+			for (const candidate of candidates) {
+				const rect = labelRect(candidate, text);
+				const score = outsideArea(rect, bounds) * 100 + occupied.reduce((total, other) => total + overlapArea(rect, other), 0);
+				if (score < bestScore) {
+					best = candidate;
+					bestScore = score;
+					if (score === 0) break;
+				}
+			}
+			return best;
+		}
+		//#endregion
 		//#region src/client/visuals/renderers/Scene2DRenderer.tsx
 		/** `scene_2d`: geometry, vectors, fields and annotated schematics on axes. */
 		/**
@@ -6291,6 +6599,84 @@ window.__ModuleLoader__.load({
 				y: (y1 + y2) / 2 + normalY * 13 * direction
 			};
 		}
+		function sceneElementBounds(element, content, geometry) {
+			const x = (value) => scaleX(value, content.xAxis, geometry);
+			const y = (value) => scaleY(value, content.yAxis, geometry);
+			if (element.type === "point") {
+				const cx = x(element.x);
+				const cy = y(element.y);
+				const radius = element.size ?? 6;
+				return {
+					x1: cx - radius,
+					y1: cy - radius,
+					x2: cx + radius,
+					y2: cy + radius
+				};
+			}
+			if (element.type === "segment" || element.type === "arrow") {
+				const x1 = x(element.x1);
+				const y1 = y(element.y1);
+				const x2 = x(element.x2);
+				const y2 = y(element.y2);
+				return {
+					x1: Math.min(x1, x2) - 4,
+					y1: Math.min(y1, y2) - 4,
+					x2: Math.max(x1, x2) + 4,
+					y2: Math.max(y1, y2) + 4
+				};
+			}
+			if (element.type === "circle") {
+				const cx = x(element.cx);
+				const cy = y(element.cy);
+				const rx = Math.abs(x(element.cx + element.r) - cx);
+				const ry = Math.abs(y(element.cy + element.r) - cy);
+				return {
+					x1: cx - rx,
+					y1: cy - ry,
+					x2: cx + rx,
+					y2: cy + ry
+				};
+			}
+			if (element.type === "rect") {
+				const x1 = x(element.x);
+				const x2 = x(element.x + element.width);
+				const y1 = y(element.y);
+				const y2 = y(element.y + element.height);
+				return {
+					x1: Math.min(x1, x2),
+					y1: Math.min(y1, y2),
+					x2: Math.max(x1, x2),
+					y2: Math.max(y1, y2)
+				};
+			}
+			if (element.type === "polygon") {
+				const points = element.points.map((point) => ({
+					x: x(point.x),
+					y: y(point.y)
+				}));
+				return {
+					x1: Math.min(...points.map((point) => point.x)),
+					y1: Math.min(...points.map((point) => point.y)),
+					x2: Math.max(...points.map((point) => point.x)),
+					y2: Math.max(...points.map((point) => point.y))
+				};
+			}
+			if (element.type !== "label") return {
+				x1: 0,
+				y1: 0,
+				x2: 0,
+				y2: 0
+			};
+			const cx = x(element.x);
+			const cy = y(element.y);
+			const halfWidth = (measureText(element.text, 12) + 8) / 2;
+			return {
+				x1: cx - halfWidth,
+				y1: cy - 9,
+				x2: cx + halfWidth,
+				y2: cy + 9
+			};
+		}
 		function Scene2DRenderer({ content, focus }) {
 			const labels = useVisualLabels();
 			const id = (0, react.useId)();
@@ -6299,6 +6685,7 @@ window.__ModuleLoader__.load({
 			const [selected, setSelected] = (0, react.useState)();
 			const xTicks = (0, react.useMemo)(() => ticks(content.xAxis.min, content.xAxis.max), [content.xAxis.max, content.xAxis.min]);
 			const yTicks = (0, react.useMemo)(() => ticks(content.yAxis.min, content.yAxis.max), [content.yAxis.max, content.yAxis.min]);
+			const elementBounds = (0, react.useMemo)(() => new Map(content.elements.map((element) => [element.id, sceneElementBounds(element, content, geometry)])), [content, geometry]);
 			const zeroX = content.xAxis.min <= 0 && content.xAxis.max >= 0 ? scaleX(0, content.xAxis, geometry) : void 0;
 			const zeroY = content.yAxis.min <= 0 && content.yAxis.max >= 0 ? scaleY(0, content.yAxis, geometry) : void 0;
 			const roving = useRovingFocus((0, react.useMemo)(() => content.elements.map((element) => element.id), [content.elements]));
@@ -6514,23 +6901,26 @@ window.__ModuleLoader__.load({
 										}, element.id);
 									}
 									if (element.type === "polygon") {
-										const points = element.points.map((point) => `${scaleX(point.x, content.xAxis, geometry)},${scaleY(point.y, content.yAxis, geometry)}`).join(" ");
-										const center = element.points.reduce((total, point) => ({
-											x: total.x + point.x / element.points.length,
-											y: total.y + point.y / element.points.length
-										}), {
-											x: 0,
-											y: 0
+										const pixelPoints = element.points.map((point) => ({
+											x: scaleX(point.x, content.xAxis, geometry),
+											y: scaleY(point.y, content.yAxis, geometry)
+										}));
+										const points = pixelPoints.map((point) => `${point.x},${point.y}`).join(" ");
+										const anchor = element.label === void 0 ? void 0 : polygonLabelAnchor(pixelPoints, element.label, content.elements.filter((other) => other.id !== element.id).map((other) => elementBounds.get(other.id)).filter((bounds) => bounds !== void 0), {
+											left: geometry.left,
+											right: geometry.left + geometry.plotWidth,
+											top: geometry.top,
+											bottom: geometry.top + geometry.plotHeight
 										});
 										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
 											...common,
 											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("polygon", {
 												className: plot_module_css_default.sceneShape,
 												points
-											}), element.label === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+											}), anchor === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
 												className: plot_module_css_default.shapeLabel,
-												x: scaleX(center.x, content.xAxis, geometry),
-												y: scaleY(center.y, content.yAxis, geometry) + 18,
+												x: anchor.x,
+												y: anchor.y,
 												textAnchor: "middle",
 												dominantBaseline: "middle",
 												children: element.label
@@ -6780,7 +7170,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/timeline.module.css.mjs
-		const css$3 = ".zYjJda_timelineCanvas{min-width:0;position:relative}.zYjJda_timelineAxis{border-radius:var(--lx-radius-pill);background:var(--lx-border-strong);height:2px;position:absolute;left:66px;right:66px}.zYjJda_timelineAxis:after{border-top:5px solid #0000;border-bottom:5px solid #0000;border-left:8px solid var(--lx-border-strong);content:\"\";position:absolute;top:-4px;right:-2px}.zYjJda_timelineEra,.zYjJda_timelineEvent{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), background-color var(--lx-motion-fast) var(--lx-easing)}.zYjJda_timelineEra{z-index:1;border-radius:var(--lx-radius-pill);min-height:24px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;position:absolute;overflow:hidden}.zYjJda_timelineEvent{z-index:2;gap:var(--lx-space-3xs);border-radius:var(--lx-radius-sm);width:128px;min-height:52px;padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;box-shadow:var(--lx-shadow-sm);display:grid;position:absolute;transform:translate(-50%)}.zYjJda_timelineEvent:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:10px;height:10px;position:absolute;left:calc(50% - 6px)}.zYjJda_timelineEvent:after{background:var(--visual-tone);content:\"\";width:1px;height:20px;position:absolute;left:50%}.zYjJda_timelineEvent[data-side=top]:before{bottom:-32px}.zYjJda_timelineEvent[data-side=top]:after{bottom:-22px}.zYjJda_timelineEvent[data-side=bottom]:before{top:-32px}.zYjJda_timelineEvent[data-side=bottom]:after{top:-22px}.zYjJda_timelineEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro)}.zYjJda_timelineEvent>strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-2xs);text-overflow:ellipsis;overflow:hidden}.zYjJda_timelineEra:hover,.zYjJda_timelineEvent:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.zYjJda_timelineEra[data-visual-state=current],.zYjJda_timelineEvent[data-visual-state=current]{border-color:var(--visual-tone);box-shadow:0 0 0 3px color-mix(in srgb, var(--visual-tone) 18%, transparent);border-width:2px}.zYjJda_timelineEraChips{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.zYjJda_eraChip{border-color:color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;justify-items:start;gap:0;display:inline-grid}.zYjJda_eraChip strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs)}.zYjJda_eraChip span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.zYjJda_timelineVertical{padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-md);gap:0;margin:0;list-style:none;display:grid}.zYjJda_timelineVertical li{border-left:2px solid color-mix(in srgb, var(--visual-tone) 46%, var(--lx-border-default));padding:0 0 var(--lx-space-lg) var(--lx-space-2xl);opacity:var(--lx-vs-alpha);position:relative}.zYjJda_timelineVertical li:last-child{padding-bottom:0}.zYjJda_timelineVertical li:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:9px;height:9px;position:absolute;top:15px;left:-6px}.zYjJda_verticalEvent{gap:var(--lx-space-3xs) var(--lx-space-lg);border-radius:var(--lx-radius-md);width:min(100%,620px);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;grid-template-columns:minmax(72px,auto) minmax(0,1fr);display:grid}.zYjJda_verticalEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.zYjJda_verticalEvent>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs)}.zYjJda_verticalEvent>small{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-column:1/-1}.zYjJda_timelineVertical li[data-visual-state=current]{border-left-color:var(--visual-tone);border-left-width:3px}@media (prefers-reduced-motion:reduce){.zYjJda_timelineEra,.zYjJda_timelineEvent{transition:none}}";
+		const css$3 = ".zYjJda_timelineCanvas{min-width:0;position:relative}.zYjJda_timelineAxis{border-radius:var(--lx-radius-pill);background:var(--lx-border-strong);height:2px;position:absolute;left:66px;right:66px}.zYjJda_timelineAxis:after{border-top:5px solid #0000;border-bottom:5px solid #0000;border-left:8px solid var(--lx-border-strong);content:\"\";position:absolute;top:-4px;right:-2px}.zYjJda_timelineEra,.zYjJda_timelineEvent{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), background-color var(--lx-motion-fast) var(--lx-easing)}.zYjJda_timelineEra{z-index:1;border-radius:var(--lx-radius-pill);min-height:24px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;position:absolute;overflow:hidden}.zYjJda_timelineEvent{z-index:2;box-sizing:border-box;gap:var(--lx-space-3xs);border-radius:var(--lx-radius-sm);width:128px;min-height:52px;padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;box-shadow:var(--lx-shadow-sm);display:grid;position:absolute;transform:translate(-50%)}.zYjJda_timelineEvent:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:10px;height:10px;position:absolute;left:calc(50% - 6px)}.zYjJda_timelineEvent:after{background:var(--visual-tone);content:\"\";width:1px;height:20px;position:absolute;left:50%}.zYjJda_timelineEvent[data-side=top]:before{bottom:-32px}.zYjJda_timelineEvent[data-side=top]:after{bottom:-22px}.zYjJda_timelineEvent[data-side=bottom]:before{top:-32px}.zYjJda_timelineEvent[data-side=bottom]:after{top:-22px}.zYjJda_timelineEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro)}.zYjJda_timelineEvent>strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-2xs);text-overflow:ellipsis;overflow-wrap:anywhere;overflow:hidden}.zYjJda_timelineEra:hover,.zYjJda_timelineEvent:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.zYjJda_timelineEra[data-visual-state=current],.zYjJda_timelineEvent[data-visual-state=current]{border-color:var(--visual-tone);box-shadow:0 0 0 3px color-mix(in srgb, var(--visual-tone) 18%, transparent);border-width:2px}.zYjJda_timelineEraChips{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.zYjJda_eraChip{border-color:color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;justify-items:start;gap:0;display:inline-grid}.zYjJda_eraChip strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs)}.zYjJda_eraChip span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.zYjJda_timelineVertical{padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-md);gap:0;margin:0;list-style:none;display:grid}.zYjJda_timelineVertical li{border-left:2px solid color-mix(in srgb, var(--visual-tone) 46%, var(--lx-border-default));padding:0 0 var(--lx-space-lg) var(--lx-space-2xl);opacity:var(--lx-vs-alpha);position:relative}.zYjJda_timelineVertical li:last-child{padding-bottom:0}.zYjJda_timelineVertical li:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:9px;height:9px;position:absolute;top:15px;left:-6px}.zYjJda_verticalEvent{gap:var(--lx-space-3xs) var(--lx-space-lg);border-radius:var(--lx-radius-md);width:min(100%,620px);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;grid-template-columns:minmax(72px,auto) minmax(0,1fr);display:grid}.zYjJda_verticalEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.zYjJda_verticalEvent>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs)}.zYjJda_verticalEvent>small{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-column:1/-1}.zYjJda_timelineVertical li[data-visual-state=current]{border-left-color:var(--visual-tone);border-left-width:3px}@media (prefers-reduced-motion:reduce){.zYjJda_timelineEra,.zYjJda_timelineEvent{transition:none}}";
 		const tagId$3 = "@dsh-portable/interactive-learning/timeline.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$3) + "]") === null) {
 			const tag = document.createElement("style");
@@ -6804,9 +7194,53 @@ window.__ModuleLoader__.load({
 		/** `timeline`: chronologies, phases and eras, horizontal or vertical. */
 		/** Vertical distance from the axis to the top of an upper-row event card. */
 		const CARD_OFFSET = 72;
+		/** Card width (128px) plus a small breathing room between neighbouring cards. */
+		const MIN_EVENT_GAP = 140;
+		const AXIS_INSET = 66;
+		/** One non-overlapping horizontal lane per era (the protocol caps eras at 8). */
+		function timelineEraTop(index) {
+			return 14 + index * 28;
+		}
 		function timelinePosition(event, index, count) {
 			if (event.position !== void 0) return Math.max(0, Math.min(1, event.position));
 			return count <= 1 ? .5 : index / (count - 1);
+		}
+		/**
+		* Resolve explicit positions that are too close to hold two event cards.
+		*
+		* The protocol's normalized positions are useful for showing long gaps, but
+		* they can legitimately put several milestones in the same small interval.
+		* Leaving those values untouched makes the fixed-width cards paint on top of
+		* each other. We preserve the order and spread only colliding centres; the
+		* canvas grows when the spread cannot fit, so the axis and era spans remain
+		* honest and the viewport can scroll on a narrow surface.
+		*/
+		function timelineEventLayout(content, containerWidth) {
+			const count = content.events.length;
+			const minimumWidth = 132 + Math.max(0, count - 1) * MIN_EVENT_GAP;
+			const baseWidth = Math.max(minimumWidth, Math.floor(containerWidth) - 2);
+			if (count === 0) return {
+				width: baseWidth,
+				positions: []
+			};
+			const ordered = content.events.map((event, index) => AXIS_INSET + timelinePosition(event, index, count) * (baseWidth - 132)).map((position, index) => ({
+				position,
+				index
+			})).sort((a, b) => a.position - b.position || a.index - b.index);
+			const resolved = new Array(count);
+			let previous = AXIS_INSET;
+			for (const [orderIndex, item] of ordered.entries()) {
+				const position = orderIndex === 0 ? Math.max(AXIS_INSET, item.position) : Math.max(item.position, previous + MIN_EVENT_GAP);
+				resolved[item.index] = position;
+				previous = position;
+			}
+			const width = baseWidth;
+			const overflow = Math.max(0, previous - (width - AXIS_INSET));
+			if (overflow > 0) for (let index = 0; index < resolved.length; index += 1) resolved[index] = Math.max(AXIS_INSET, (resolved[index] ?? AXIS_INSET) - overflow);
+			return {
+				width,
+				positions: resolved.map((position) => position ?? AXIS_INSET)
+			};
 		}
 		function TimelineRenderer({ content, focus }) {
 			const labels = useVisualLabels();
@@ -6872,15 +7306,13 @@ window.__ModuleLoader__.load({
 					})
 				]
 			});
-			const eventCount = content.events.length;
-			const minimumWidth = 120 + Math.max(0, eventCount - 1) * 136;
-			const width = Math.max(minimumWidth, Math.floor(containerWidth) - 2);
-			const eraRows = Math.min(4, eras.length);
+			const eventLayout = timelineEventLayout(content, containerWidth);
+			const width = eventLayout.width;
+			const eraRows = eras.length;
 			const eraLaneBottom = eras.length === 0 ? 0 : 14 + (eraRows - 1) * 28 + 26;
 			const axisY = Math.max(90, eraLaneBottom + 8 + CARD_OFFSET);
 			const height = axisY + 130;
-			const inset = 66;
-			const eventX = (event, index) => inset + timelinePosition(event, index, content.events.length) * (width - 132);
+			const eventX = (_event, index) => eventLayout.positions[index] ?? AXIS_INSET;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: shell_module_css_default.rendererStack,
 				role: "group",
@@ -6908,7 +7340,7 @@ window.__ModuleLoader__.load({
 									"data-visual-id": era.id,
 									style: {
 										left: Math.min(start, end),
-										top: 14 + index % 4 * 28,
+										top: timelineEraTop(index),
 										width: Math.max(48, Math.abs(end - start))
 									},
 									onClick: () => selectEra(era),
@@ -6967,10 +7399,26 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/visuals/renderers/FormulaStepsRenderer.tsx
 		/** `formula_steps`: a derivation revealed one justified transformation at a time. */
-		function FormulaStepsRenderer({ content, focus }) {
-			const labels = useVisualLabels();
-			const [revealedIndex, setRevealedIndex] = (0, react.useState)(0);
+		function initialRevealedIndex(content, storageKey) {
 			const lastIndex = content.steps.length - 1;
+			if (storageKey === void 0 || typeof sessionStorage === "undefined") return 0;
+			try {
+				const stored = JSON.parse(sessionStorage.getItem(`dsh-learning/visual@4:formula:${storageKey}`) ?? "{}");
+				return typeof stored.revealedIndex === "number" && Number.isInteger(stored.revealedIndex) ? Math.max(0, Math.min(lastIndex, stored.revealedIndex)) : 0;
+			} catch {
+				return 0;
+			}
+		}
+		function FormulaStepsRenderer({ content, focus, storageKey }) {
+			const labels = useVisualLabels();
+			const [revealedIndex, setRevealedIndex] = (0, react.useState)(() => initialRevealedIndex(content, storageKey));
+			const lastIndex = content.steps.length - 1;
+			(0, react.useEffect)(() => {
+				if (storageKey === void 0 || typeof sessionStorage === "undefined") return;
+				try {
+					sessionStorage.setItem(`dsh-learning/visual@4:formula:${storageKey}`, JSON.stringify({ revealedIndex }));
+				} catch {}
+			}, [revealedIndex, storageKey]);
 			(0, react.useEffect)(() => {
 				const focusedIndex = content.steps.findIndex((step) => focus.currentIds.has(step.id));
 				if (focusedIndex >= 0) setRevealedIndex((current) => Math.max(current, focusedIndex));
@@ -7287,7 +7735,7 @@ window.__ModuleLoader__.load({
 			} catch {}
 			return initial;
 		}
-		function RecallDeckRenderer({ content, focus, storageKey }) {
+		function RecallDeckRenderer({ content, focus, storageKey, onRecallStatusChange }) {
 			const labels = useVisualLabels();
 			const initial = (0, react.useMemo)(() => initialRecallState(content, storageKey), [content, storageKey]);
 			const [cardIndex, setCardIndex] = (0, react.useState)(initial.index);
@@ -7327,14 +7775,20 @@ window.__ModuleLoader__.load({
 				setStage("prompt");
 				setStatuses({});
 			};
-			const mark = (status) => setStatuses((value) => ({
-				...value,
-				[current.id]: status
-			}));
+			const mark = (status) => {
+				setStatuses((value) => ({
+					...value,
+					[current.id]: status
+				}));
+				onRecallStatusChange?.(current.id, status);
+			};
 			const masteredCount = Object.values(statuses).filter((status) => status === "mastered").length;
 			const reviewCount = Object.values(statuses).filter((status) => status === "review").length;
 			const status = statuses[current.id];
-			const revealNext = () => setStage((value) => value === "prompt" && current.hint !== void 0 ? "hint" : "answer");
+			const revealNext = () => {
+				if (stage !== "answer" && (stage === "hint" || current.hint === void 0)) onRecallStatusChange?.(current.id, "revealed");
+				setStage((value) => value === "prompt" && current.hint !== void 0 ? "hint" : "answer");
+			};
 			const onKeyDown = (event) => {
 				if (event.target !== event.currentTarget) return;
 				if (event.key === "ArrowLeft") {
@@ -7476,15 +7930,16 @@ window.__ModuleLoader__.load({
 			study_map: StudyMapRenderer,
 			recall_deck: RecallDeckRenderer
 		};
-		function RegisteredVisual({ content, focus, storageKey }) {
+		function RegisteredVisual({ content, focus, storageKey, onRecallStatusChange }) {
 			const Renderer = VISUAL_RENDERER_REGISTRY[content.kind];
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Renderer, {
 				content,
 				focus,
-				storageKey
+				storageKey,
+				onRecallStatusChange
 			});
 		}
-		function LearningVisualV4({ visual, storageKey, labels: suppliedLabels }) {
+		function LearningVisualV4({ visual, storageKey, labels: suppliedLabels, onRecallStatusChange }) {
 			const titleId = (0, react.useId)();
 			const descriptionId = (0, react.useId)();
 			const initialFrameIndex = visual.sequence === void 0 ? 0 : Math.max(0, visual.sequence.frames.findIndex((frame) => frame.id === visual.sequence?.initialFrameId));
@@ -7538,7 +7993,8 @@ window.__ModuleLoader__.load({
 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RegisteredVisual, {
 								content: visual.content,
 								focus,
-								storageKey
+								storageKey,
+								onRecallStatusChange
 							})
 						}, `${visual.protocol}:${visual.title}:${visual.content.kind}`)
 					]
@@ -7991,7 +8447,17 @@ window.__ModuleLoader__.load({
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningVisualV4, {
 					visual: definition,
 					storageKey: `${String(sessionId)}:${callId ?? "visual"}`,
-					labels
+					labels,
+					onRecallStatusChange: (cardId, status) => {
+						if (callId === void 0) return;
+						emitLearningUiLifecycle({
+							name: "learning.recall.rated",
+							sessionId: String(sessionId),
+							callId,
+							cardId,
+							status
+						});
+					}
 				});
 			}
 			if (definition.protocol === "dsh-learning/visual@3") {
@@ -8347,6 +8813,22 @@ window.__ModuleLoader__.load({
 				zh,
 				en
 			}), "interactive-learning: dictionaries");
+			ctx.inject(["connection"], (connectionCtx) => {
+				const connection = connectionCtx.get("connection");
+				if (connection === void 0) return;
+				connectionCtx.effect(() => subscribeLearningUiLifecycle((event) => {
+					if (event.name !== "learning.recall.rated" || event.sessionId === void 0 || event.callId === void 0 || event.cardId === void 0 || event.status === void 0) return;
+					connection.rpc.call("/interactive-learning", "recall/feedback", {
+						protocol: "dsh-learning/recall-feedback@1",
+						sessionId: event.sessionId,
+						callId: event.callId,
+						cardId: event.cardId,
+						status: event.status
+					}).then((result) => {
+						if (typeof result === "object" && result !== null && result.ok === false) return;
+					}).catch(() => {});
+				}), "interactive-learning: recall feedback bridge");
+			});
 			ctx.slots.inject("conversation.composer", () => ctx.slots.register({
 				name: "conversation.composer",
 				select: selectLearningActivity,

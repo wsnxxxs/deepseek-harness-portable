@@ -54,7 +54,16 @@ export interface LearningTurnRouteDecision extends LearningRouteDecision {
 const SHORT_LEARNING_REQUEST = /^(?:please\s+)?(?:teach\s+me|help\s+me\s+learn|learn|understand|get\s+to\s+know|walk\s+me\s+through|take\s+me\s+through)\b|^(?:学习|教我|了解|想学)\s*/i
 const EXPLICIT_BEGINNER = /(?:\b(?:from\s+scratch|from\s+zero|beginner|beginners|intro(?:duction)?|concept(?:ual)?\s+intro)\b|零基础|从零|入门|概念入门)/i
 const EXPLICIT_OVERVIEW = /\b(?:complete|full|comprehensive|structured|direct)\s+(?:overview|survey|summary)|\b(?:overview|survey)\b.*\b(?:directly|without\s+(?:asking|questions)|don['’]?t\s+(?:ask|quiz)|no\s+questions)|(?:完整|全面|结构化).*(?:概览|综述)|(?:直接讲|不要提问|别提问|不要先问)/i
-const SPECIFIC_LEARNING_GOAL = /(?:\b(?:why|how|difference|distinguish|compare|debug|apply|predict|explain|derive|implement)\b|练习|区别|为什么|如何|怎么|对比|调试|应用|预测|推导|实现)/i
+const SPECIFIC_LEARNING_GOAL = /(?:\b(?:why|how|difference|distinguish|compare|debug|apply|predict|explain|derive|implement)\b|练习|区别|为什么|如何|怎么|对比|调试|应用|预测|推导|实现|了解)/i
+const FOLLOW_UP_CUE = /^(?:what\s+if|suppose|if)\b|\b(?:again|that|this|it|same|still|more|further)\b|(?:再说一次|刚才|上面|这个|那个|继续|接着|还是不懂|还是不明白)/i
+const EXPLICIT_NEW_TOPIC = /^(?:please\s+)?(?:teach\s+me|learn|understand|explain|walk\s+me\s+through|get\s+to\s+know|take\s+me\s+through)\b|^(?:我想(?:要)?(?:学习|了解|理解)|学习|教我|了解|理解|讲解|解释)/i
+
+function mayStartNewTopic(text: string, intent: LearnIntentDecision): boolean {
+  if (intent.intent !== 'learn' || FOLLOW_UP_CUE.test(text)) return false
+  return intent.trigger === 'bare-concept'
+    || intent.trigger === 'definition'
+    || EXPLICIT_NEW_TOPIC.test(text)
+}
 
 /**
  * Classify only the first-turn shape. It deliberately does not infer a
@@ -118,7 +127,8 @@ export function routeLearningTurn(
   session: LearningRouteSession = { active: false },
 ): LearningTurnRouteDecision {
   const fresh = routeLearningRequest(text)
-  if (session.active && session.decision !== undefined && !isLearningBoundary(text)) {
+  if (session.active && session.decision !== undefined && !isLearningBoundary(text)
+    && !mayStartNewTopic(text, fresh.intent)) {
     return {
       ...session.decision,
       route: 'continue',

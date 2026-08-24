@@ -269,6 +269,8 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(Object.keys(parameters.properties ?? {}).sort()).toEqual([
       'kind', 'learnerAction', 'pairedQuestion', 'purpose',
     ])
+    expect(schemas.find(tool => tool.name === 'learning_visual_select')?.description)
+      .toContain('only output of the selector step')
     expect(JSON.stringify(parameters)).not.toContain('2 to 48 nodes')
 
     const missingSemanticConstraint = await ctx.tools.execute({
@@ -426,6 +428,88 @@ describe('non-blocking Learning Agent v4.1', () => {
 })
 
 describe('session-scoped learner-state Host wiring', () => {
+  it('rebases one stale additive observation but keeps replacement updates strict', async () => {
+    const ctx = await setupBroker(false)
+    const agent = stubAgent('state-cas-rebase')
+    const first = ctx.learningActivities.updateLearnerState({
+      action: 'update',
+      agent,
+      expectedRevision: 0,
+      event: {
+        type: 'learner_evidence_observed',
+        evidence: {
+          kind: 'transfer',
+          transferContext: 'fresh',
+          summary: 'Applied the queue invariant in a fresh scheduling case.',
+          correctness: 'correct',
+          independence: 'independent',
+        },
+        observation: {
+          id: 'cas-first-evidence',
+          source: 'learner-message',
+          summary: 'The learner transferred the queue invariant independently.',
+        },
+      },
+    })
+    expect(first).toEqual({ status: 'updated', revision: 1 })
+
+    const rebased = ctx.learningActivities.updateLearnerState({
+      action: 'update',
+      agent,
+      expectedRevision: 0,
+      event: {
+        type: 'source_anchors_observed',
+        anchors: ['queue invariant definition'],
+        observation: {
+          id: 'cas-source-anchor',
+          source: 'source-material',
+          summary: 'The source defines the queue invariant.',
+        },
+      },
+    })
+    expect(rebased).toEqual({ status: 'updated', revision: 2 })
+    expect(ctx.learningActivities.learnerState(agent)).toMatchObject({
+      mastery: 'transfer',
+      phase: 'complete',
+      nextMove: 'complete',
+    })
+
+    expect(() => ctx.learningActivities.updateLearnerState({
+      action: 'update',
+      agent,
+      expectedRevision: 0,
+      event: {
+        type: 'failed_move_observed',
+        failedMove: {
+          move: 'question',
+          fingerprint: 'queue-order-question-v1',
+          failureReason: 'no-progress',
+          summary: 'The previous question did not produce a usable prediction.',
+        },
+        observation: {
+          id: 'cas-failed-move',
+          source: 'learner-message',
+          summary: 'The learner remained stuck after the question.',
+        },
+      },
+    })).toThrow(/revision changed/)
+
+    expect(() => ctx.learningActivities.updateLearnerState({
+      action: 'update',
+      agent,
+      expectedRevision: 0,
+      event: {
+        type: 'goal_observed',
+        goal: 'A replacement goal',
+        observation: {
+          id: 'cas-replacement-goal',
+          source: 'learner-message',
+          summary: 'The learner changed the learning goal.',
+        },
+      },
+    })).toThrow(/revision changed/)
+  })
+
   it('folds ordinary evidence into the next prompt, auto-records tools, resets, and clears cache', async () => {
     const ctx = await setupBroker(false)
     await ctx.plugin(ToolRuntime)
@@ -818,6 +902,40 @@ describe('Learning checkpoint broker', () => {
     })
     expect(replay).toEqual(first)
     expect(ctx.learningActivities.pendingCount).toBe(0)
+  })
+
+  it('maps a terminal single-choice label back to its stable option id', async () => {
+    const ctx = await setupBroker(true)
+    const agent = stubAgent('terminal-choice-label')
+    registerRoot(ctx, agent)
+    ctx.userQuestions.registerProvider({
+      ask: async request => ({
+        answers: [{
+          id: request.questions[0]!.id,
+          selected: [],
+          // A non-rich provider may return the visible text instead of the
+          // JSON result envelope used by the Learning client.
+          custom: '  second   answer  ',
+        }],
+      }),
+    })
+
+    const result = await ctx.learningActivities.presentCheckpoint({
+      checkpoint: checkpoint({
+        kind: 'single_choice',
+        options: [
+          { id: 'first', label: 'First answer' },
+          { id: 'second', label: 'Second answer' },
+        ],
+      }),
+      agent,
+      callId: 'terminal-choice-label-call',
+    })
+
+    expect(result).toMatchObject({
+      status: 'submitted',
+      response: { optionId: 'second' },
+    })
   })
 
   it.each(['submitted', 'skipped', 'cancelled'] as const)(

@@ -20,6 +20,7 @@ describe('Learning first-turn routing', () => {
     ['I am a beginner; explain LLMs', 'teach-minimum'],
     ['从零开始教我 LLM', 'teach-minimum'],
     ['学习 LLM 的下一 token 预测', 'teach-minimum'],
+    ['我想了解快速排序', 'teach-minimum'],
     ['Help me understand why attention works', 'teach-minimum'],
     ['I always confuse precision and recall.', 'teach-minimum'],
   ] as const)('starts the minimum lesson when the route is clear: %s', (request, route) => {
@@ -67,6 +68,39 @@ describe('Learning first-turn routing', () => {
         reason: 'active-segment',
       })
     }
+  })
+
+  it('reclassifies a clear new topic instead of inheriting the old segment', () => {
+    const first = routeLearningTurn('Teach me gradient descent.')
+
+    expect(routeLearningTurn('What is SVM?', { active: true, decision: first })).toMatchObject({
+      route: 'teach-minimum',
+      reason: 'definition',
+      inherited: false,
+      segment: 'active',
+      intent: { trigger: 'definition' },
+    })
+    expect(routeLearningTurn('支持向量机', { active: true, decision: first })).toMatchObject({
+      route: 'calibrate',
+      inherited: false,
+      segment: 'active',
+      intent: { trigger: 'bare-concept' },
+    })
+  })
+
+  it('keeps a same-topic question and a what-if follow-up in the active segment', () => {
+    const first = routeLearningTurn('Teach me gradient descent.')
+
+    expect(routeLearningTurn('How does gradient descent work?', { active: true, decision: first })).toMatchObject({
+      route: 'continue',
+      inherited: true,
+      reason: 'active-segment',
+    })
+    expect(routeLearningTurn('What if C arrives next?', { active: true, decision: first })).toMatchObject({
+      route: 'continue',
+      inherited: true,
+      reason: 'active-segment',
+    })
   })
 
   it.each([

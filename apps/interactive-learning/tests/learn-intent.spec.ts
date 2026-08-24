@@ -18,6 +18,10 @@ describe('learn intent and trigger boundary', () => {
     ['Why does attention work?', 'conceptual-question'],
     ['What if C arrives next?', 'conceptual-question'],
     ['为什么负斜率会向下？', 'conceptual-question'],
+    ['我想了解快速排序', 'explicit-learning'],
+    ['如何理解反向传播', 'explicit-learning'],
+    ['teach me how compilers implement closures', 'explicit-learning'],
+    ['学习如何实现注意力机制的理论推导', 'explicit-learning'],
   ] as const)('recognizes %s as %s', (request, trigger) => {
     expect(classifyLearnIntent(request)).toMatchObject({ intent: 'learn', trigger })
     expect(isLearnIntent(request)).toBe(true)
@@ -27,6 +31,7 @@ describe('learn intent and trigger boundary', () => {
     ['Implement a binary search function.', 'coding-task'],
     ['Debug this Python stack trace.', 'coding-task'],
     ['Explain this code and tell me why it fails.', 'coding-task'],
+    ['Teach me how to implement a queue in TypeScript.', 'coding-task'],
     ['Translate this paragraph into Chinese.', 'translation-task'],
     ['What is the latest news about the election?', 'news-request'],
     ['Recommend a good textbook for topology.', 'resource-recommendation'],

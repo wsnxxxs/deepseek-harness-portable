@@ -55,6 +55,7 @@
   position: absolute;
   z-index: 2;
   display: grid;
+  box-sizing: border-box;
   width: 128px;
   min-height: 52px;
   transform: translateX(-50%);
@@ -99,12 +100,14 @@
 }
 
 .timelineEvent > strong {
+  min-width: 0;
   overflow: hidden;
   color: var(--lx-label-primary);
   font-size: var(--lx-text-2xs);
   font-weight: var(--lx-weight-medium);
   line-height: var(--lx-leading-2xs);
   text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .timelineEra:hover,

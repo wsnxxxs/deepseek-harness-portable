@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import {
   applyRuntimePatchLayer,
   patchAppBootProfileRuntimeFallback,
+  patchDirectoryPickerAuto,
   patchDirectoryPickerWorker,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
@@ -37,6 +38,14 @@ test('directory-picker worker patch adds a non-interactive versioned IPC probe',
   assert.match(output, /if \(!ipcProbe\) \(async \(\) => \{/)
   assert.match(output, /koffi\.decode\.string16/)
   assert.doesNotMatch(output, /process\.disconnect/)
+})
+
+test('directory-picker auto patch maps WSL to the Windows native backend', async () => {
+  const source = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js'), 'utf8')
+  const output = patchDirectoryPickerAuto(source)
+  assert.match(output, /function dshIsWsl\(\)/)
+  assert.match(output, /platform: process\.platform === "linux" && dshIsWsl\(\) \? "win32" : process\.platform/)
+  assert.equal(patchDirectoryPickerAuto(output), output)
 })
 
 test('app-boot patch resolves bare packages from profile then installed runtime', () => {
@@ -108,6 +117,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
   const paths = [
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/worker.cjs',
+    'node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js',
     'node_modules/@deepseek-ai/dsh-client-ui-settings-models/lib/client.js',
     'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
     'node_modules/@deepseek-ai/dsh-session/lib/index.js',
@@ -132,6 +142,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     assert.match(client, /data-portable-confirm-install/)
     assert.deepEqual(attestations.map(item => item.id), [
       'directory-picker-electron-ipc',
+      'directory-picker-wsl-platform',
       'app-boot-profile-runtime-fallback',
       'portable-session-event-metadata',
       'marketplace-self-update-fallback',

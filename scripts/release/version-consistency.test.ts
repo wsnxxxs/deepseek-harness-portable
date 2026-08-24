@@ -48,6 +48,12 @@ test('the approved product version is synchronized across release metadata and d
   assert.equal(notes.version, approvedReleaseVersion)
   assert.equal(notes.name, `DeepSeek Harness Desktop v${approvedReleaseVersion}`)
 
+  const expectedReleaseArtifacts = [
+    `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.AppImage`,
+    `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.deb`,
+    `DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`,
+    `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`,
+  ].sort()
   const requiredText = new Map<string, readonly string[]>([
     ['README.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`, `| Distribution | ${approvedReleaseVersion} |`]],
     ['README.zh.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`, `| 分发版本 | ${approvedReleaseVersion} |`]],
@@ -58,15 +64,19 @@ test('the approved product version is synchronized across release metadata and d
     ['RELEASE_NOTES.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `Distribution: ${approvedReleaseVersion}`, `Tag: v${approvedReleaseVersion}`]],
     ['RELEASE_NOTES.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `分发：${approvedReleaseVersion}`, `标签：v${approvedReleaseVersion}`]],
     ['RELEASE_NOTES.bilingual.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `分发：${approvedReleaseVersion}`, `Distribution: ${approvedReleaseVersion}`, `DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`, `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`]],
-    ['SHA256SUMS.txt', [`DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`, `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`]],
+    ['SHA256SUMS.txt', expectedReleaseArtifacts],
   ])
   for (const [path, needles] of requiredText) {
     const content = readText(path)
     for (const needle of needles) assert.ok(content.includes(needle), `${path} must contain ${needle}`)
   }
   const checksumLines = readText('SHA256SUMS.txt').trim().split(/\r?\n/)
-  assert.equal(checksumLines.length, 2)
-  for (const line of checksumLines) assert.match(line, /^[A-F0-9]{64} \*DeepSeek-Harness-(?:Setup-)?\d+\.\d+\.\d+-win32-x64\.(?:zip|exe)$/)
+  const checksumArtifacts = checksumLines.map(line => {
+    const match = /^([A-F0-9]{64}) \*(.+)$/.exec(line)
+    assert.ok(match, `invalid SHA256SUMS entry: ${line}`)
+    return match[2]!
+  }).sort()
+  assert.deepEqual(checksumArtifacts, expectedReleaseArtifacts)
 })
 
 test('Setup and packaging derive release identity from distributionVersion', () => {

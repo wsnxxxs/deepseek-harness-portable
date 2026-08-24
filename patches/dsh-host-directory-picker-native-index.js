@@ -2,6 +2,7 @@ import { DirectoryPicker } from "@deepseek-ai/dsh-host-directory-picker";
 import { runNativeCommand } from "@deepseek-ai/dsh-native-command";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { release as osRelease } from "node:os";
 //#region lib/types/win32-dialog-bindings.js
 const WM_CLOSE = 16;
 /**
@@ -221,6 +222,30 @@ function errorStderr(error) {
 function isMissingCommand(error) {
 	return errorCode(error) === "ENOENT";
 }
+function present(value) {
+	return value !== void 0 && value !== "";
+}
+/** WSL exposes a Linux process, but its Windows interop tools can open the host picker. */
+function isWsl(internals = {}) {
+	const env = internals.env ?? process.env;
+	if (present(env.WSL_DISTRO_NAME) || present(env.WSL_INTEROP)) return true;
+	return (internals.osRelease ?? osRelease)().toLowerCase().includes("microsoft");
+}
+const WSL_DIRECTORY_PICKER_COMMAND = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select Workspace Directory'; $dialog.UseDescriptionForTitle = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.SelectedPath) }; $dialog.Dispose()";
+async function pickWslDirectory(signal, run) {
+	const selectedWindowsPath = outputPath((await run("powershell.exe", [
+		"-NoLogo",
+		"-NoProfile",
+		"-NonInteractive",
+		"-STA",
+		"-Command",
+		WSL_DIRECTORY_PICKER_COMMAND
+	], signal)).stdout);
+	if (selectedWindowsPath === null) return null;
+	const selectedLinuxPath = outputPath((await run("wslpath", ["-u", selectedWindowsPath], signal)).stdout);
+	if (selectedLinuxPath === null) throw new Error("wslpath returned no POSIX directory path");
+	return selectedLinuxPath;
+}
 function rethrowIfAborted(signal, error) {
 	if (signal.aborted) throw error;
 }
@@ -246,6 +271,7 @@ async function pickNativeDirectory(signal, internals = {}) {
 	}
 	if (platform === "win32") return await (internals.pickWin32Dialog ?? pickWin32Directory)(signal);
 	if (platform === "linux") {
+		if (isWsl(internals)) return await pickWslDirectory(signal, run);
 		try {
 			return outputPath((await run("zenity", [
 				"--file-selection",
@@ -280,7 +306,8 @@ async function pickNativeDirectory(signal, internals = {}) {
 * with the `native` capability, opening one native OS chooser on the host
 * display per pick (macOS `osascript`, Linux Zenity with a KDialog fallback;
 * Windows opens the modern `IFileOpenDialog` in a spawned child process — a
-* koffi-driven COM conversation on the child's main thread). Only viable when
+* koffi-driven COM conversation on the child's main thread; WSL uses the
+* Windows FolderBrowserDialog and translates its result with `wslpath`). Only viable when
 * the operator sits at the host's screen; remote deployments compose the
 * browse backend instead.
 * @module @deepseek-ai/dsh-host-directory-picker-native

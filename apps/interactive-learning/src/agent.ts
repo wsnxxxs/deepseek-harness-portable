@@ -111,9 +111,11 @@ function required(schema: ValueSchemaSpec): ParameterPropertySpec {
   return { ...schema, required: true } as ParameterPropertySpec
 }
 
-// Shared with the runtime parser: enough for sigmoid(b0 + b1*x), still bounded.
+// Shared with the runtime parser: expressive enough for common activation and
+// statistics curves while remaining bounded by the visual AST depth.
 const expression = mathExpressionSchema(MAX_VISUAL_MATH_DEPTH)
 const requiredExpression = required(expression)
+const mathExpressionDescription = 'Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.'
 const identifier = {
   type: 'string',
   description: 'Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -.',
@@ -138,7 +140,7 @@ const curveSeries = { type: 'object', additionalProperties: false, properties: {
   type: { type: 'string', const: 'curve', required: true },
   id: { ...identifier, required: true },
   label: { type: 'string', required: true },
-  expression: requiredExpression,
+  expression: { ...requiredExpression, description: mathExpressionDescription },
   tone,
   stroke,
 } } as const
@@ -187,7 +189,7 @@ const plotContent = { type: 'object', additionalProperties: false, properties: {
     type: 'object', additionalProperties: false, properties: {
       id: { ...identifier, required: true },
       label: { type: 'string', required: true },
-      expression: requiredExpression,
+      expression: { ...requiredExpression, description: mathExpressionDescription },
       digits: { type: 'integer' },
       suffix: { type: 'string' },
     },
@@ -601,12 +603,20 @@ const learnerStateEvent = { type: 'object', additionalProperties: false, propert
   evidence: { ...learnerEvidenceInput },
   failedMove: { ...failedMove },
   move: { type: 'string', enum: ['none', 'explanation', 'example', 'question', 'guided_discovery', 'worked_example', 'reflective_pause', 'resource', 'repair', 'transfer', 'visual', 'checkpoint'] },
-  phase: { type: 'string', enum: ['orient', 'teach', 'practice', 'repair', 'transfer', 'complete'] },
+  phase: {
+    type: 'string',
+    enum: ['orient', 'teach', 'practice', 'repair', 'transfer', 'complete'],
+    description: 'Set complete only when the learner explicitly asks to stop the current questioning or the segment is genuinely complete; this does not claim transfer mastery.',
+  },
   explanationSummary: { type: 'string' },
   question: { type: 'string' },
   learnerResponseAssessment: { type: 'string', enum: ['correct', 'partial', 'incorrect', 'no-evidence'] },
   currentMisconception: { type: 'string' },
-  nextMove: { type: 'string', enum: ['calibrate', 'direct', 'explain', 'example', 'guided_discovery', 'worked_example', 'reflective_pause', 'resource', 'question', 'repair', 'transfer', 'complete'] },
+  nextMove: {
+    type: 'string',
+    enum: ['calibrate', 'direct', 'explain', 'example', 'guided_discovery', 'worked_example', 'reflective_pause', 'resource', 'question', 'repair', 'transfer', 'complete'],
+    description: 'Use complete with phase=complete when the learner asks not to be quizzed further; do not upgrade mastery unless this is an explicit user correction.',
+  },
   moveFingerprint: { type: 'string' },
   anchors: { type: 'array', items: { type: 'string' } },
 } } as const
@@ -626,15 +636,27 @@ const learnerStateCorrection = { type: 'object', additionalProperties: false, pr
   urgency: { type: 'string', enum: ['none', 'initial-blocker', 'later-pressure', 'unknown'] },
   supportLevel: { type: 'integer', enum: [0, 1, 2, 3, 4, 5] },
   assessmentContext: { type: 'string', enum: ['self-study', 'graded', 'unknown'] },
-  mastery: { type: 'string', enum: ['unseen', 'emerging', 'transfer'] },
+  mastery: {
+    type: 'string',
+    enum: ['unseen', 'emerging', 'transfer'],
+    description: 'For action=correct only: honor the learner’s explicit correction to this tentative mastery hypothesis.',
+  },
   evidence: { type: 'array', items: learnerEvidenceInput },
   failedMoves: { type: 'array', items: failedMove },
-  phase: { type: 'string', enum: ['orient', 'teach', 'practice', 'repair', 'transfer', 'complete'] },
+  phase: {
+    type: 'string',
+    enum: ['orient', 'teach', 'practice', 'repair', 'transfer', 'complete'],
+    description: 'For an explicit request to stop questioning, set phase=complete without changing mastery to transfer.',
+  },
   lastExplanationSummary: { oneOf: [{ type: 'string' }, { type: 'null' }] },
   lastQuestion: { oneOf: [{ type: 'string' }, { type: 'null' }] },
   learnerResponseAssessment: { type: 'string', enum: ['correct', 'partial', 'incorrect', 'no-evidence'] },
   currentMisconception: { oneOf: [{ type: 'string' }, { type: 'null' }] },
-  nextMove: { type: 'string', enum: ['calibrate', 'direct', 'explain', 'example', 'guided_discovery', 'worked_example', 'reflective_pause', 'resource', 'question', 'repair', 'transfer', 'complete'] },
+  nextMove: {
+    type: 'string',
+    enum: ['calibrate', 'direct', 'explain', 'example', 'guided_discovery', 'worked_example', 'reflective_pause', 'resource', 'question', 'repair', 'transfer', 'complete'],
+    description: 'Pair nextMove=complete with phase=complete when the learner asks not to be quizzed further; mastery changes only when explicitly corrected.',
+  },
   moveFingerprint: { oneOf: [{ type: 'string' }, { type: 'null' }] },
   lastMove: {
     type: 'string',
@@ -819,14 +841,14 @@ function disposeDynamicTeachingTools(key: object): void {
 
 function dynamicToolTarget(services: LearningAgentContext, exec: ToolRunContext): DynamicToolTarget {
   const candidate = exec.agent as (ToolRunContext['agent'] & { id?: unknown }) | undefined
-  return typeof candidate?.id === 'string' && candidate.ctx?.tools !== undefined
+  return candidate?.ctx?.tools !== undefined
     ? candidate.ctx.tools
     : services.tools
 }
 
 function dynamicToolKey(_services: LearningAgentContext, exec: ToolRunContext): object {
   const candidate = exec.agent as (ToolRunContext['agent'] & { id?: unknown }) | undefined
-  return typeof candidate?.id === 'string' && candidate.ctx?.tools !== undefined
+  return candidate?.ctx?.tools !== undefined
     ? candidate
     : GLOBAL_DYNAMIC_TOOL_KEY
 }
@@ -907,7 +929,7 @@ export function apply(ctx: Context): void {
 
   services.tools.register(closeParameterRoot(defineTool({
     name: 'learning_visual_select',
-    description: 'Use only when a visual will materially clarify one relationship. Select one native kind, state its teaching purpose, and bind it to at least one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation.',
+    description: 'Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to at least one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation.',
     parameters: visualSelectorParameters,
     output: {
       schema: visualSelectorOutput,
@@ -984,9 +1006,9 @@ export function apply(ctx: Context): void {
     description: [
       'Internal, immediate, non-rich session-state update from concrete observable evidence in the current learner message, learner action, or supplied source.',
       'Call only when the observation substantively changes the next teaching move; never call mechanically every turn and never infer a hidden trait, personality, emotion, or learning style.',
-      'Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset.',
-      'plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer.',
-      'The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata.',
+      'Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset. Honor an explicit mastery correction. If the learner merely asks not to be quizzed further, correct phase=complete and nextMove=complete without inventing transfer.',
+      'plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer or a sufficiently confident complete explanation/attempt.',
+      'The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata. If a retry races with another update, only an exact replay or a safe additive observation may be merged; corrections, resets, and replacement updates remain strict.',
       'Assistant visual and checkpoint moves are recorded automatically; do not duplicate them here. This tool performs no user wait and must not replace ordinary conversation.',
     ].join(' '),
     parameters: {

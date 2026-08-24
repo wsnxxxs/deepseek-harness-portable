@@ -1,7 +1,7 @@
 schemaVersion: 1
 patches:
   - id: directory-picker-electron-ipc
-    targets: [win32-x64]
+    targets: [win32-x64, linux-x64]
     files:
       - path: node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js
         guards:
@@ -11,6 +11,14 @@ patches:
         guards:
           - runFolderDialog
           - process.send
+  - id: directory-picker-wsl-platform
+    targets: ['*']
+    files:
+      - path: node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js
+        guards:
+          - resolveDirectoryPickerBackend
+          - 'platform: process.platform'
+          - hasLinuxChooserBinary
   - id: app-boot-profile-runtime-fallback
     targets: ['*']
     files:

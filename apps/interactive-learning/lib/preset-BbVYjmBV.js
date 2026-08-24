@@ -1,4 +1,4 @@
-import { t as registerInteractiveLearningSessionCompatibility } from "./bootstrap-BHgqQhEx.js";
+import { t as registerInteractiveLearningSessionCompatibility } from "./bootstrap-BE-8d8_G.js";
 import { fileURLToPath } from "node:url";
 //#region lib/types/preset.js
 registerInteractiveLearningSessionCompatibility();

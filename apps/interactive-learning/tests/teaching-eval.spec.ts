@@ -95,6 +95,16 @@ describe('non-blocking teaching behavior evaluation', () => {
     expect(verdicts.find(item => item.caseId === 'transfer-stop')?.passed).toBe(false)
   })
 
+  it('accepts simple inflections and Chinese equivalents in continuation evidence', () => {
+    const verdicts = gradeTeachingSuite([
+      ...OFFLINE_REFERENCE_CANDIDATES.filter(candidate => candidate.caseId !== 'adaptive-response' && candidate.caseId !== 'transfer-stop'),
+      { caseId: 'adaptive-response', activityKind: null, continuation: '负斜率会下降。', endedSegment: false },
+      { caseId: 'transfer-stop', activityKind: null, continuation: '这一段已经完成。', endedSegment: true },
+    ])
+    expect(verdicts.find(item => item.caseId === 'adaptive-response')?.passed).toBe(true)
+    expect(verdicts.find(item => item.caseId === 'transfer-stop')?.passed).toBe(true)
+  })
+
   it('keeps the single standing policy and reference-routing Skill aligned with the V4 semantic visual model', () => {
     const root = resolve(import.meta.dirname, '..')
     const agent = readFileSync(join(root, 'src/agent.ts'), 'utf8')

@@ -8,10 +8,32 @@ import { elementState } from '../state/visual-state.ts'
 import shell from '../styles/shell.module.css'
 import css from '../styles/formula.module.css'
 
-export function FormulaStepsRenderer({ content, focus }: RendererProps<FormulaStepsContent>) {
-  const labels = useVisualLabels()
-  const [revealedIndex, setRevealedIndex] = useState(0)
+function initialRevealedIndex(content: FormulaStepsContent, storageKey: string | undefined): number {
   const lastIndex = content.steps.length - 1
+  if (storageKey === undefined || typeof sessionStorage === 'undefined') return 0
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(`dsh-learning/visual@4:formula:${storageKey}`) ?? '{}') as { revealedIndex?: unknown }
+    return typeof stored.revealedIndex === 'number' && Number.isInteger(stored.revealedIndex)
+      ? Math.max(0, Math.min(lastIndex, stored.revealedIndex))
+      : 0
+  } catch {
+    // Corrupt optional UI state must not prevent replaying the canonical derivation.
+    return 0
+  }
+}
+
+export function FormulaStepsRenderer({ content, focus, storageKey }: RendererProps<FormulaStepsContent>) {
+  const labels = useVisualLabels()
+  const [revealedIndex, setRevealedIndex] = useState(() => initialRevealedIndex(content, storageKey))
+  const lastIndex = content.steps.length - 1
+  useEffect(() => {
+    if (storageKey === undefined || typeof sessionStorage === 'undefined') return
+    try {
+      sessionStorage.setItem(`dsh-learning/visual@4:formula:${storageKey}`, JSON.stringify({ revealedIndex }))
+    } catch {
+      // Persistence is optional; the derivation remains usable without it.
+    }
+  }, [revealedIndex, storageKey])
   useEffect(() => {
     const focusedIndex = content.steps.findIndex(step => focus.currentIds.has(step.id))
     if (focusedIndex >= 0) setRevealedIndex(current => Math.max(current, focusedIndex))

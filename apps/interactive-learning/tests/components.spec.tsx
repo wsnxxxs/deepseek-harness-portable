@@ -253,6 +253,35 @@ describe('non-blocking LearningVisual v3', () => {
 })
 
 describe('learning_visual tool-call replay', () => {
+  it('emits a Host-bridgeable recall rating with session, call, and card identity', () => {
+    const visual = visualV4Catalog.derivativeRecallDeck
+    const events: Array<{ name: string; sessionId?: string; callId?: string; cardId?: string; status?: string }> = []
+    const unsubscribe = subscribeLearningUiLifecycle(event => events.push(event))
+    render(
+      <ToolView
+        block={completedVisualV4Block(visual, 'call_recall_bridge')}
+        inspect={() => {}}
+        t={t}
+        sessionId="session_recall_bridge"
+        useSession={useEmptySession}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: en.visualShowHint }))
+    expect(events.filter(event => event.name === 'learning.recall.rated')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: en.visualShowAnswer }))
+    expect(events.filter(event => event.name === 'learning.recall.rated')).toHaveLength(1)
+    expect(events.at(-1)).toMatchObject({ status: 'revealed', cardId: 'power_rule' })
+    fireEvent.click(screen.getByRole('button', { name: en.visualReviewAgain }))
+    unsubscribe()
+    expect(events.at(-1)).toMatchObject({
+      name: 'learning.recall.rated',
+      sessionId: 'session_recall_bridge',
+      callId: 'call_recall_bridge',
+      cardId: 'power_rule',
+      status: 'review',
+    })
+  })
+
   it('shows a neutral running state only until arguments form a valid visual', () => {
     const events: string[] = []
     const unsubscribe = subscribeLearningUiLifecycle(event => events.push(event.name))

@@ -62,6 +62,7 @@ export type LearnerUrgency =
 export type LearnerSupportLevel = 0 | 1 | 2 | 3 | 4 | 5
 export type LearnerAssessmentContext = 'self-study' | 'graded' | 'unknown'
 export type LearnerMastery = 'unseen' | 'emerging' | 'transfer'
+export type LearnerMasteryBasis = 'evidence' | 'user-correction'
 export type LearnerPhase = 'orient' | 'teach' | 'practice' | 'repair' | 'transfer' | 'complete'
 export type LearnerResponseAssessment = 'correct' | 'partial' | 'incorrect' | 'no-evidence'
 export type LearnerNextMove =
@@ -207,6 +208,8 @@ export interface LearnerState {
   supportLevel: LearnerSupportLevel
   assessmentContext: LearnerAssessmentContext
   mastery: LearnerMastery
+  /** Why the current tentative mastery value is authoritative. */
+  masteryBasis: LearnerMasteryBasis
   evidence: readonly LearnerEvidence[]
   /** Bounded history of representations or hints that failed and why. */
   failedMoves: readonly LearnerFailedMove[]
@@ -381,8 +384,10 @@ declare module '@deepseek-ai/dsh-session/types' {
 }
 
 /**
- * Registers the required (non-ignorable) log event with persistence readers.
+ * Registers the Learning log event with persistence readers.
  * Startup owns calling this function; it is idempotent and does not append.
+ * Writers mark snapshots `ignorable: true` as a forward-compatible envelope
+ * fallback for hosts that restore before this optional package is attached.
  */
 export function registerLearningSessionEventType(): void {
   ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(LEARNER_STATE_SESSION_EVENT_TYPE)
@@ -411,6 +416,9 @@ const ASSESSMENT_CONTEXTS: ReadonlySet<string> = new Set<LearnerAssessmentContex
 ])
 const MASTERY_VALUES: ReadonlySet<string> = new Set<LearnerMastery>([
   'unseen', 'emerging', 'transfer',
+])
+const MASTERY_BASES: ReadonlySet<string> = new Set<LearnerMasteryBasis>([
+  'evidence', 'user-correction',
 ])
 const PHASE_VALUES: ReadonlySet<string> = new Set<LearnerPhase>([
   'orient', 'teach', 'practice', 'repair', 'transfer', 'complete',
@@ -705,6 +713,20 @@ function isIndependentlyCorrectEvidence(evidence: LearnerEvidence): boolean {
     && evidence.kind !== 'error'
 }
 
+/**
+ * Some learners demonstrate the target fully in an explanation or a complete
+ * attempt, but the model may reasonably classify that evidence as
+ * `explanation`/`attempt` instead of `transfer`. It is enough to finish this
+ * teaching segment when the evaluation is at least medium-confidence and
+ * independent;
+ * it is deliberately not enough to promote `mastery` to `transfer`, which
+ * still requires explicit fresh-context transfer evidence.
+ */
+function isSufficientForSegmentCompletion(evidence: LearnerEvidence): boolean {
+  return isIndependentlyCorrectEvidence(evidence)
+    && (evidence.kind === 'explanation' || evidence.kind === 'attempt')
+}
+
 function evidenceMastery(evidence: readonly LearnerEvidence[]): LearnerMastery {
   const independentlyCorrect = evidence.filter(isIndependentlyCorrectEvidence)
   if (independentlyCorrect.some(item =>
@@ -743,7 +765,10 @@ function boundEvidence(
   return freezeEvidence([support, ...recent.slice(-(MAX_LEARNER_EVIDENCE - 1))])
 }
 
-function assertMasteryEvidenceConsistency(state: Pick<LearnerState, 'mastery' | 'evidence'>): void {
+function assertMasteryEvidenceConsistency(
+  state: Pick<LearnerState, 'mastery' | 'masteryBasis' | 'evidence'>,
+): void {
+  if (state.masteryBasis === 'user-correction') return
   const supported = evidenceMastery(state.evidence)
   if (state.mastery === 'transfer' && supported !== 'transfer') {
     throw new TypeError('transfer mastery requires correct, independent learner transfer evidence')
@@ -771,6 +796,7 @@ export function createInitialLearnerState(sessionId: string): LearnerState {
     supportLevel: 0,
     assessmentContext: 'unknown',
     mastery: 'unseen',
+    masteryBasis: 'evidence',
     evidence: [],
     failedMoves: [],
     phase: 'orient',
@@ -832,16 +858,14 @@ function applyCorrection(
   }
   if (correction.mastery !== undefined) {
     const requested = assertEnum(correction.mastery, MASTERY_VALUES, 'mastery')
-    const ranks: Record<LearnerMastery, number> = { unseen: 0, emerging: 1, transfer: 2 }
-    if (ranks[requested] > ranks[state.mastery]) {
-      throw new TypeError('A user correction cannot upgrade mastery without evaluated independent evidence')
-    }
     next.mastery = requested
+    next.masteryBasis = 'user-correction'
   }
   if (correction.evidence !== undefined) {
     const normalized = correction.evidence.map(item => normalizeEvidence(item, observation))
     if (correction.mastery === undefined) {
       next.mastery = evidenceMastery(normalized)
+      next.masteryBasis = 'evidence'
     }
     next.evidence = boundEvidence(normalized, next.mastery)
   }
@@ -882,6 +906,12 @@ function applyCorrection(
   }
   if (correction.nextMove !== undefined) {
     next.nextMove = assertEnum(correction.nextMove, NEXT_MOVES, 'nextMove')
+  }
+  // A learner may explicitly end questioning without certifying transfer; an
+  // explicit transfer correction also completes the current segment.
+  if (next.mastery === 'transfer' || next.phase === 'complete' || next.nextMove === 'complete') {
+    next.phase = 'complete'
+    next.nextMove = 'complete'
   }
   if (Object.hasOwn(correction, 'moveFingerprint')) {
     next.moveFingerprint = normalizeOptionalText(correction.moveFingerprint, 'moveFingerprint') ?? null
@@ -1034,7 +1064,11 @@ export function reduceLearnerState(state: LearnerState, event: LearnerStateEvent
       break
     case 'learner_evidence_observed': {
       const evidence = normalizeEvidence(event.evidence, observation)
+      const observedMastery = evidenceMastery([evidence])
       next.mastery = masteryFromEvidence(state.mastery, [evidence])
+      next.masteryBasis = observedMastery !== 'unseen' && observedMastery === next.mastery
+        ? 'evidence'
+        : state.masteryBasis
       next.evidence = boundEvidence([...state.evidence, evidence], next.mastery)
       next.learnerResponseAssessment = evidence.correctness === 'correct'
         ? 'correct'
@@ -1052,6 +1086,11 @@ export function reduceLearnerState(state: LearnerState, event: LearnerStateEvent
       } else if (evidence.correctness === 'correct' && evidence.kind === 'transfer') {
         next.phase = next.mastery === 'transfer' ? 'complete' : 'practice'
         next.nextMove = next.mastery === 'transfer' ? 'complete' : 'transfer'
+      } else if (evidence.correctness === 'correct' && isSufficientForSegmentCompletion(evidence)) {
+        // A complete, independently evaluated explanation/attempt may end the
+        // current segment without pretending that it proved fresh transfer.
+        next.phase = 'complete'
+        next.nextMove = 'complete'
       } else if (evidence.correctness === 'correct') {
         next.phase = 'practice'
         next.nextMove = 'transfer'
@@ -1187,6 +1226,7 @@ const SNAPSHOT_KEYS = [
   'supportLevel',
   'assessmentContext',
   'mastery',
+  'masteryBasis',
   'evidence',
   'failedMoves',
   'phase',
@@ -1210,7 +1250,7 @@ const TEACHING_MEMORY_KEYS = [
   'nextMove',
   'moveFingerprint',
 ] as const
-const OPTIONAL_MEMORY_KEYS = [...TEACHING_MEMORY_KEYS, 'failedMoves'] as const
+const OPTIONAL_MEMORY_KEYS = [...TEACHING_MEMORY_KEYS, 'failedMoves', 'masteryBasis'] as const
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -1476,6 +1516,13 @@ export function parseLearnerStateSnapshot(value: unknown, expectedSessionId: str
       MASTERY_VALUES,
       'learner state snapshot mastery',
     ) as LearnerMastery,
+    masteryBasis: record.masteryBasis === undefined
+      ? 'evidence'
+      : assertEnum(
+          strictString(record.masteryBasis, 'learner state snapshot masteryBasis'),
+          MASTERY_BASES,
+          'learner state snapshot masteryBasis',
+        ) as LearnerMasteryBasis,
     evidence: parseSnapshotEvidence(record.evidence),
     failedMoves: record.failedMoves === undefined ? [] : parseSnapshotFailedMoves(record.failedMoves),
     phase: assertEnum(
@@ -1585,7 +1632,7 @@ function assertResetSnapshot(snapshot: LearnerState): void {
   const initial = createInitialLearnerState(snapshot.sessionId)
   const pedagogicalKeys = [
     'goal', 'requestKind', 'level', 'priorKnowledge', 'gap', 'misconceptions', 'readiness',
-    'progressSignal', 'urgency', 'supportLevel', 'assessmentContext', 'mastery', 'evidence',
+    'progressSignal', 'urgency', 'supportLevel', 'assessmentContext', 'mastery', 'masteryBasis', 'evidence',
     'failedMoves',
     'phase', 'lastExplanationSummary', 'lastQuestion', 'learnerResponseAssessment',
     'currentMisconception', 'nextMove', 'moveFingerprint',
@@ -1663,8 +1710,16 @@ function safeQuoted(value: string, maxCodePoints = 120): string {
     .replace(/&/g, '\\u0026')
 }
 
-function safeList(values: readonly string[]): string {
-  return `[${values.map(value => safeQuoted(value, 80)).join(', ')}]`
+function safeList(
+  values: readonly string[],
+  maxCodePoints = 80,
+  maxItems = values.length,
+): string {
+  // Keep the projection useful when one source heading or misconception is
+  // unusually long. A whole list is admitted as one transcript line, so an
+  // unbounded item could otherwise make the line fail the budget and discard
+  // the entire memory field.
+  return `[${values.slice(-maxItems).map(value => safeQuoted(value, maxCodePoints)).join(', ')}]`
 }
 
 /** A conservative tokenizer-free estimate suitable for enforcing a prompt budget. */
@@ -1726,6 +1781,9 @@ export function renderLearnerStateTranscript(
     { order: 120, priority: 100, text: `mastery: ${state.mastery}` },
   ]
   for (const line of core.sort((left, right) => right.priority - left.priority)) admit(line)
+  if (state.masteryBasis === 'user-correction') {
+    admit({ order: 121, priority: 100, text: 'mastery_basis: user-correction' })
+  }
 
   if (state.goal === null) {
     admit({ order: 10, priority: 100, text: 'goal: unknown' })
@@ -1748,10 +1806,20 @@ export function renderLearnerStateTranscript(
     { order: 135, priority: 88, text: `response_assessment: ${state.learnerResponseAssessment}` },
   ]
   if (state.priorKnowledge.length) {
-    optional.push({ order: 40, priority: 65, text: `prior_knowledge: ${safeList(state.priorKnowledge)}` })
+    // Keep compact orientation memory beside the current move after long
+    // evidence and multi-step source-study turns fill the transcript budget.
+    optional.push({
+      order: 40,
+      priority: 100,
+      text: `prior_knowledge: ${safeList(state.priorKnowledge, 48, 3)}`,
+    })
   }
   if (state.misconceptions.length) {
-    optional.push({ order: 60, priority: 80, text: `misconceptions: ${safeList(state.misconceptions)}` })
+    optional.push({
+      order: 60,
+      priority: 102,
+      text: `misconceptions: ${safeList(state.misconceptions, 48, 3)}`,
+    })
   }
   if (state.currentMisconception !== null) {
     optional.push({ order: 61, priority: 94, text: `current_misconception: ${safeQuoted(state.currentMisconception, 48)}` })
@@ -1786,7 +1854,11 @@ export function renderLearnerStateTranscript(
     })
   })
   if (state.sourceAnchors.length) {
-    optional.push({ order: 300, priority: 60, text: `source_anchors: ${safeList(state.sourceAnchors)}` })
+    optional.push({
+      order: 300,
+      priority: 101,
+      text: `source_anchors: ${safeList(state.sourceAnchors, 56, 3)}`,
+    })
   }
   if (state.plan !== null) {
     // The route is projected as the objective plus the one current step, never

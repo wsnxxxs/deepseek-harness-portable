@@ -27,6 +27,7 @@ export type LearnerUrgency = 'none' | 'initial-blocker' | 'later-pressure' | 'un
 export type LearnerSupportLevel = 0 | 1 | 2 | 3 | 4 | 5;
 export type LearnerAssessmentContext = 'self-study' | 'graded' | 'unknown';
 export type LearnerMastery = 'unseen' | 'emerging' | 'transfer';
+export type LearnerMasteryBasis = 'evidence' | 'user-correction';
 export type LearnerPhase = 'orient' | 'teach' | 'practice' | 'repair' | 'transfer' | 'complete';
 export type LearnerResponseAssessment = 'correct' | 'partial' | 'incorrect' | 'no-evidence';
 export type LearnerNextMove = 'calibrate' | 'direct' | 'explain' | 'example' | 'guided_discovery' | 'worked_example' | 'reflective_pause' | 'resource' | 'question' | 'repair' | 'transfer' | 'complete';
@@ -123,6 +124,8 @@ export interface LearnerState {
     supportLevel: LearnerSupportLevel;
     assessmentContext: LearnerAssessmentContext;
     mastery: LearnerMastery;
+    /** Why the current tentative mastery value is authoritative. */
+    masteryBasis: LearnerMasteryBasis;
     evidence: readonly LearnerEvidence[];
     /** Bounded history of representations or hints that failed and why. */
     failedMoves: readonly LearnerFailedMove[];
@@ -279,8 +282,10 @@ declare module '@deepseek-ai/dsh-session/types' {
     }
 }
 /**
- * Registers the required (non-ignorable) log event with persistence readers.
+ * Registers the Learning log event with persistence readers.
  * Startup owns calling this function; it is idempotent and does not append.
+ * Writers mark snapshots `ignorable: true` as a forward-compatible envelope
+ * fallback for hosts that restore before this optional package is attached.
  */
 export declare function registerLearningSessionEventType(): void;
 export declare function createInitialLearnerState(sessionId: string): LearnerState;

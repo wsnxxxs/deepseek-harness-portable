@@ -25,6 +25,8 @@ export interface RendererProps<T extends VisualContent = VisualContent> {
   content: T
   focus: VisualFocus
   storageKey?: string
+  /** Optional Host-backed feedback sink for learner-owned recall ratings. */
+  onRecallStatusChange?: (cardId: string, status: 'revealed' | 'mastered' | 'review') => void
 }
 
 export interface Point {

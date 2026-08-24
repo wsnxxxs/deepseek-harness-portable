@@ -28,7 +28,10 @@ On a fresh clone, run `pnpm run desktop:bootstrap` once to initialize the pinned
 packages. The build and packaging commands then compile the Web runtime locally;
 they do not depend on an existing portable ZIP.
 
-    pnpm install
+When generated `lib`/`dist` artifacts already exist, daily feature work can use
+`pnpm run desktop:bootstrap:dev` to install only the desktop runtime closure.
+That faster mode does not cover a from-scratch kernel build or release package.
+
     pnpm run build
     pnpm run desktop:test
     pnpm run desktop:dev

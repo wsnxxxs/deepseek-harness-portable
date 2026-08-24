@@ -73,6 +73,7 @@ async function writeLearningStateFixture(root: string, cwd: string, id: SessionI
       seq: 0,
       time: 1,
       data: snapshot,
+      ignorable: true,
     }),
     '',
   ].join('\n')
@@ -180,7 +181,7 @@ test('packaged compatibility registers required Learning state before configured
     const agent = await waitFor(() => ctx.agents.get(id))
     const event = agent.session.events.find(item => item.type === LEARNER_STATE_SESSION_EVENT_TYPE)
     assert.ok(event, 'configured startup resume must retain the required Learning state event')
-    assert.equal(event.ignorable, undefined)
+    assert.equal(event.ignorable, true)
     const folded = foldLearnerStateSession(id, agent.session.events)
     assert.equal(folded.goal, 'Resume learning safely')
     assert.equal(folded.revision, 1)

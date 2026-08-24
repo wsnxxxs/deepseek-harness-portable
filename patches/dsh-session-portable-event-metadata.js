@@ -4,6 +4,7 @@
 function patchSessionPortableEventMetadata(source) {
   if (source.includes('...eventOpts?.ignorable === true ? { ignorable: true } : {}')) return source
   if (source.includes('...sessionEventOpts?.ignorable === true ? { ignorable: true } : {}')) return source
+  if (source.includes('...eventOpts !== void 0 && "ignorable" in eventOpts && eventOpts.ignorable === true ? { ignorable: true } : {}')) return source
 
   const marker = `\t\tconst surfaceOpts = opts[0];
 \t\tconst surfaceMetadata = {

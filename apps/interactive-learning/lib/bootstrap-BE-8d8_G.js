@@ -15,8 +15,10 @@ const MAX_FAILED_MOVES = 6;
 const DEFAULT_TRANSCRIPT_TOKEN_BUDGET = 300;
 const MAX_STORED_TEXT = 240;
 /**
-* Registers the required (non-ignorable) log event with persistence readers.
+* Registers the Learning log event with persistence readers.
 * Startup owns calling this function; it is idempotent and does not append.
+* Writers mark snapshots `ignorable: true` as a forward-compatible envelope
+* fallback for hosts that restore before this optional package is attached.
 */
 function registerLearningSessionEventType() {
 	KNOWN_SESSION_EVENT_TYPES.add(LEARNER_STATE_SESSION_EVENT_TYPE);
@@ -73,6 +75,7 @@ const MASTERY_VALUES = /* @__PURE__ */ new Set([
 	"emerging",
 	"transfer"
 ]);
+const MASTERY_BASES = /* @__PURE__ */ new Set(["evidence", "user-correction"]);
 const PHASE_VALUES = /* @__PURE__ */ new Set([
 	"orient",
 	"teach",
@@ -326,6 +329,18 @@ function assertEventSourceMatrix(event, observation) {
 function isIndependentlyCorrectEvidence(evidence) {
 	return (evidence.source === "learner-message" || evidence.source === "learner-action") && evidence.correctness === "correct" && evidence.independence === "independent" && evidence.confidence !== "low" && evidence.kind !== "error";
 }
+/**
+* Some learners demonstrate the target fully in an explanation or a complete
+* attempt, but the model may reasonably classify that evidence as
+* `explanation`/`attempt` instead of `transfer`. It is enough to finish this
+* teaching segment when the evaluation is at least medium-confidence and
+* independent;
+* it is deliberately not enough to promote `mastery` to `transfer`, which
+* still requires explicit fresh-context transfer evidence.
+*/
+function isSufficientForSegmentCompletion(evidence) {
+	return isIndependentlyCorrectEvidence(evidence) && (evidence.kind === "explanation" || evidence.kind === "attempt");
+}
 function evidenceMastery(evidence) {
 	const independentlyCorrect = evidence.filter(isIndependentlyCorrectEvidence);
 	if (independentlyCorrect.some((item) => item.kind === "transfer" && item.transferContext === "fresh")) return "transfer";
@@ -350,6 +365,7 @@ function boundEvidence(evidence, mastery) {
 	return freezeEvidence([support, ...recent.slice(-7)]);
 }
 function assertMasteryEvidenceConsistency(state) {
+	if (state.masteryBasis === "user-correction") return;
 	const supported = evidenceMastery(state.evidence);
 	if (state.mastery === "transfer" && supported !== "transfer") throw new TypeError("transfer mastery requires correct, independent learner transfer evidence");
 	if (state.mastery === "emerging" && supported === "unseen") throw new TypeError("emerging mastery requires correct, independent learner evidence");
@@ -372,6 +388,7 @@ function createInitialLearnerState(sessionId) {
 		supportLevel: 0,
 		assessmentContext: "unknown",
 		mastery: "unseen",
+		masteryBasis: "evidence",
 		evidence: [],
 		failedMoves: [],
 		phase: "orient",
@@ -402,18 +419,15 @@ function applyCorrection(state, correction, observation) {
 	if (correction.supportLevel !== void 0) next.supportLevel = normalizeSupportLevel(correction.supportLevel);
 	if (correction.assessmentContext !== void 0) next.assessmentContext = assertEnum(correction.assessmentContext, ASSESSMENT_CONTEXTS, "assessmentContext");
 	if (correction.mastery !== void 0) {
-		const requested = assertEnum(correction.mastery, MASTERY_VALUES, "mastery");
-		const ranks = {
-			unseen: 0,
-			emerging: 1,
-			transfer: 2
-		};
-		if (ranks[requested] > ranks[state.mastery]) throw new TypeError("A user correction cannot upgrade mastery without evaluated independent evidence");
-		next.mastery = requested;
+		next.mastery = assertEnum(correction.mastery, MASTERY_VALUES, "mastery");
+		next.masteryBasis = "user-correction";
 	}
 	if (correction.evidence !== void 0) {
 		const normalized = correction.evidence.map((item) => normalizeEvidence(item, observation));
-		if (correction.mastery === void 0) next.mastery = evidenceMastery(normalized);
+		if (correction.mastery === void 0) {
+			next.mastery = evidenceMastery(normalized);
+			next.masteryBasis = "evidence";
+		}
 		next.evidence = boundEvidence(normalized, next.mastery);
 	}
 	if (correction.failedMoves !== void 0) next.failedMoves = boundFailedMoves(correction.failedMoves.map((item, index) => normalizeFailedMove({
@@ -430,6 +444,10 @@ function applyCorrection(state, correction, observation) {
 	if (correction.learnerResponseAssessment !== void 0) next.learnerResponseAssessment = assertEnum(correction.learnerResponseAssessment, RESPONSE_ASSESSMENTS, "learnerResponseAssessment");
 	if (Object.hasOwn(correction, "currentMisconception")) next.currentMisconception = normalizeOptionalText(correction.currentMisconception, "currentMisconception") ?? null;
 	if (correction.nextMove !== void 0) next.nextMove = assertEnum(correction.nextMove, NEXT_MOVES, "nextMove");
+	if (next.mastery === "transfer" || next.phase === "complete" || next.nextMove === "complete") {
+		next.phase = "complete";
+		next.nextMove = "complete";
+	}
 	if (Object.hasOwn(correction, "moveFingerprint")) next.moveFingerprint = normalizeOptionalText(correction.moveFingerprint, "moveFingerprint") ?? null;
 	if (correction.lastMove !== void 0) next.lastMove = assertEnum(correction.lastMove, TEACHING_MOVES, "lastMove");
 	if (correction.sourceAnchors !== void 0) next.sourceAnchors = normalizeStringList(correction.sourceAnchors, 8, "sourceAnchors");
@@ -535,7 +553,9 @@ function reduceLearnerState(state, event) {
 			break;
 		case "learner_evidence_observed": {
 			const evidence = normalizeEvidence(event.evidence, observation);
+			const observedMastery = evidenceMastery([evidence]);
 			next.mastery = masteryFromEvidence(state.mastery, [evidence]);
+			next.masteryBasis = observedMastery !== "unseen" && observedMastery === next.mastery ? "evidence" : state.masteryBasis;
 			next.evidence = boundEvidence([...state.evidence, evidence], next.mastery);
 			next.learnerResponseAssessment = evidence.correctness === "correct" ? "correct" : evidence.correctness === "partial" ? "partial" : evidence.correctness === "incorrect" ? "incorrect" : "no-evidence";
 			if (evidence.correctness === "incorrect") {
@@ -547,6 +567,9 @@ function reduceLearnerState(state, event) {
 			} else if (evidence.correctness === "correct" && evidence.kind === "transfer") {
 				next.phase = next.mastery === "transfer" ? "complete" : "practice";
 				next.nextMove = next.mastery === "transfer" ? "complete" : "transfer";
+			} else if (evidence.correctness === "correct" && isSufficientForSegmentCompletion(evidence)) {
+				next.phase = "complete";
+				next.nextMove = "complete";
 			} else if (evidence.correctness === "correct") {
 				next.phase = "practice";
 				next.nextMove = "transfer";
@@ -644,6 +667,7 @@ const SNAPSHOT_KEYS = [
 	"supportLevel",
 	"assessmentContext",
 	"mastery",
+	"masteryBasis",
 	"evidence",
 	"failedMoves",
 	"phase",
@@ -667,7 +691,11 @@ const TEACHING_MEMORY_KEYS = [
 	"nextMove",
 	"moveFingerprint"
 ];
-const OPTIONAL_MEMORY_KEYS = [...TEACHING_MEMORY_KEYS, "failedMoves"];
+const OPTIONAL_MEMORY_KEYS = [
+	...TEACHING_MEMORY_KEYS,
+	"failedMoves",
+	"masteryBasis"
+];
 function asRecord(value, label) {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${label} must be an object`);
 	return value;
@@ -814,6 +842,7 @@ function parseLearnerStateSnapshot(value, expectedSessionId) {
 		supportLevel: normalizeSupportLevel(supportLevel),
 		assessmentContext: assertEnum(strictString(record.assessmentContext, "learner state snapshot assessmentContext"), ASSESSMENT_CONTEXTS, "learner state snapshot assessmentContext"),
 		mastery: assertEnum(strictString(record.mastery, "learner state snapshot mastery"), MASTERY_VALUES, "learner state snapshot mastery"),
+		masteryBasis: record.masteryBasis === void 0 ? "evidence" : assertEnum(strictString(record.masteryBasis, "learner state snapshot masteryBasis"), MASTERY_BASES, "learner state snapshot masteryBasis"),
 		evidence: parseSnapshotEvidence(record.evidence),
 		failedMoves: record.failedMoves === void 0 ? [] : parseSnapshotFailedMoves(record.failedMoves),
 		phase: assertEnum(strictString(record.phase ?? "orient", "learner state snapshot phase"), PHASE_VALUES, "learner state snapshot phase"),
@@ -897,6 +926,7 @@ function assertResetSnapshot(snapshot) {
 		"supportLevel",
 		"assessmentContext",
 		"mastery",
+		"masteryBasis",
 		"evidence",
 		"failedMoves",
 		"phase",
@@ -959,8 +989,8 @@ function safeQuoted(value, maxCodePoints = 120) {
 	const shortened = [...value].slice(0, maxCodePoints).join("");
 	return JSON.stringify(shortened).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
-function safeList(values) {
-	return `[${values.map((value) => safeQuoted(value, 80)).join(", ")}]`;
+function safeList(values, maxCodePoints = 80, maxItems = values.length) {
+	return `[${values.slice(-maxItems).map((value) => safeQuoted(value, maxCodePoints)).join(", ")}]`;
 }
 /** A conservative tokenizer-free estimate suitable for enforcing a prompt budget. */
 function estimateLearnerStateTokens(text) {
@@ -1024,6 +1054,11 @@ function renderLearnerStateTranscript(state, options = {}) {
 		}
 	];
 	for (const line of core.sort((left, right) => right.priority - left.priority)) admit(line);
+	if (state.masteryBasis === "user-correction") admit({
+		order: 121,
+		priority: 100,
+		text: "mastery_basis: user-correction"
+	});
 	if (state.goal === null) admit({
 		order: 10,
 		priority: 100,
@@ -1076,13 +1111,13 @@ function renderLearnerStateTranscript(state, options = {}) {
 	];
 	if (state.priorKnowledge.length) optional.push({
 		order: 40,
-		priority: 65,
-		text: `prior_knowledge: ${safeList(state.priorKnowledge)}`
+		priority: 100,
+		text: `prior_knowledge: ${safeList(state.priorKnowledge, 48, 3)}`
 	});
 	if (state.misconceptions.length) optional.push({
 		order: 60,
-		priority: 80,
-		text: `misconceptions: ${safeList(state.misconceptions)}`
+		priority: 102,
+		text: `misconceptions: ${safeList(state.misconceptions, 48, 3)}`
 	});
 	if (state.currentMisconception !== null) optional.push({
 		order: 61,
@@ -1122,8 +1157,8 @@ function renderLearnerStateTranscript(state, options = {}) {
 	});
 	if (state.sourceAnchors.length) optional.push({
 		order: 300,
-		priority: 60,
-		text: `source_anchors: ${safeList(state.sourceAnchors)}`
+		priority: 101,
+		text: `source_anchors: ${safeList(state.sourceAnchors, 56, 3)}`
 	});
 	if (state.plan !== null) {
 		const active = state.plan.steps.find((step) => step.status === "active");
@@ -1147,13 +1182,17 @@ function renderLearnerStateTranscript(state, options = {}) {
 //#endregion
 //#region lib/types/bootstrap.js
 /**
-* Earliest-load compatibility hook for the installable Learning package.
+* Compatibility hook for the installable Learning package.
 *
 * The portable runtime statically imports this package's preset entry before
-* boot and before persistence can load a session. Keep required session-event
+* boot and before persistence can load a session. Keep session-event
 * registration here so every Host/preset entry uses the same idempotent seam.
+* Learning snapshots are also written with the envelope's `ignorable` marker,
+* so a host that attaches this package lazily can still retain and fold them
+* after the import resolves. The Session reader keeps an exact compatibility
+* exception for older `learning/state` snapshots written before that marker.
 */
-/** Register the exact required Learning session event before persistence load. */
+/** Register the Learning session event for strict validation when the package is attached. */
 function registerInteractiveLearningSessionCompatibility() {
 	registerLearningSessionEventType();
 }

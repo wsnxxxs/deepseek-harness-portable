@@ -27,7 +27,10 @@
 `vendor/deepseek-harness` 源码 workspace；它提供构建所需的 `@deepseek-ai/*`
 包。之后构建和打包会在本地编译 Web runtime，不依赖已有便携 ZIP。
 
-    pnpm install
+如果工作区中已经存在生成好的 `lib`/`dist` 产物，日常功能开发可使用
+`pnpm run desktop:bootstrap:dev`，它只安装桌面运行时依赖闭包；该快速模式不覆盖
+从零构建 kernel 或发布安装包。
+
     pnpm run build
     pnpm run desktop:test
     pnpm run desktop:dev

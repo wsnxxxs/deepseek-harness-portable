@@ -174,9 +174,14 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 
     pnpm run desktop:bootstrap
 
+如果工作区中已经存在生成好的 `lib`/`dist` 产物，日常功能开发重新安装依赖时可只安装桌面运行时闭包：
+
+    pnpm run desktop:bootstrap:dev
+
+快速模式不替代从零构建 kernel 或发布安装包所需的完整依赖安装。
+
 之后必须在目标原生主机上打包。打包流程会执行真实能力探测、写入实测模式目录和文件清单、对含 manifest 的最终应用字节再次冒烟、生成平台容器，最后写出不可变的已验证 bundle：
 
-    pnpm install
     pnpm run desktop:package:win
 
 Windows 已验证 bundle 位于 `dist-desktop/verified/win32-x64/`。发布是独立的只复制操作，必须显式传入该目录：
