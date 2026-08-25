@@ -1,9 +1,23 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
+const { statSync } = require('node:fs')
 const { getLocaleMessages, localeFromSystem, messageForLocale, normalizePreference } = require('./desktop-locale.cjs')
 
 const DEEPSEEK_LOGO_DATA_URI = 'data:image/png;base64,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'
 
 const SPLASH_STATUSES = new Set(['engine', 'workspace', 'interface'])
+
+/** Resolve one renderer-owned File to its host path, or undefined when it has none. */
+function hostPathForFile(file) {
+  if (typeof webUtils?.getPathForFile === 'function') {
+    try {
+      const path = webUtils.getPathForFile(file)
+      if (typeof path === 'string' && path !== '') return path
+    } catch {
+      // Some browser-owned File objects do not expose an Electron path.
+    }
+  }
+  return typeof file?.path === 'string' && file.path !== '' ? file.path : undefined
+}
 const isSplashDocument = window.location.protocol === 'file:'
 
 const splashListeners = new Set()
@@ -63,6 +77,22 @@ contextBridge.exposeInMainWorld('deepSeekSplash', {
 contextBridge.exposeInMainWorld('deepSeekDesktop', {
   openReleaseNotes: context => ipcRenderer.send('desktop:release-notes:open', context || {}),
   showNotice: () => ipcRenderer.send('desktop:notice:show'),
+  getPathForFile: hostPathForFile,
+  // The renderer resolves a dropped folder to an `@path/` reference, which it
+  // can only do with the directory answer the filesystem gives here: a dropped
+  // directory and an empty file are indistinguishable from the File object.
+  getPathInfoForFile: file => {
+    const path = hostPathForFile(file)
+    if (path === undefined) return undefined
+    let isDirectory = false
+    try {
+      isDirectory = statSync(path).isDirectory()
+    } catch {
+      // Removed or unreadable between the drop and this call; a plain file
+      // reference stays correct for the agent to resolve or report.
+    }
+    return { path, isDirectory }
+  },
 })
 
 if (!isSplashDocument) {
@@ -91,8 +121,6 @@ if (!isSplashDocument) {
     noticeTimer: undefined,
     requestId: 0,
     modalRefreshing: false,
-    expandedVersions: new Set(),
-    expansionSeedKey: '',
     modalReturnFocus: undefined,
     shellState: undefined,
   }
@@ -266,22 +294,11 @@ if (!isSplashDocument) {
     if (!Array.isArray(releases) || releases.length === 0) return '<div class="dsh-empty-copy">' + escapeHtml(desktopText('release.noHistory')) + '</div>'
     // Keep the full history available to update detection and caching, but only
     // show the newest release in the release notes UI.
-    const latestRelease = releases[0]
-    ensureExpandedVersions([latestRelease])
-    return '<div class="dsh-timeline" aria-label="' + escapeHtml(desktopText('release.timelineAria')) + '">' + [latestRelease].map((release, index) => {
-      const version = String(release.version || '')
-      const current = version === state.data?.currentVersion
-      const expanded = state.expandedVersions.has(version)
-      const itemId = releaseElementId(version)
-      const bodyId = itemId + '-body'
-      const badges = renderReleaseBadges(release)
-      const chevronSvg = '<svg class="dsh-accordion-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>'
-      return '<article class="dsh-accordion-item ' + (current ? 'is-current ' : '') + (expanded ? 'is-expanded' : '') + '"><div class="dsh-release-node" aria-hidden="true"></div><button class="dsh-accordion-header" type="button" data-action="toggle-release" data-version="' + escapeHtml(version) + '" id="' + escapeHtml(itemId) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '" aria-controls="' + escapeHtml(bodyId) + '">' + chevronSvg + '<span class="dsh-release-heading"><span class="dsh-version">v' + escapeHtml(version) + '</span><span class="dsh-type">' + escapeHtml(releaseTypeLabel(release.releaseType)) + '</span>' + (current ? '<span class="dsh-current">' + escapeHtml(desktopText('release.current')) + '</span>' : (index === 0 ? '<span class="dsh-latest">' + escapeHtml(desktopText('release.latest')) + '</span>' : '')) + '</span><span class="dsh-release-badges">' + badges + '</span><time datetime="' + escapeHtml(release.publishedAt || '') + '">' + formatDate(release.publishedAt) + '</time></button><div class="dsh-accordion-body" id="' + escapeHtml(bodyId) + '" role="region" aria-labelledby="' + escapeHtml(itemId) + '"' + (expanded ? '' : ' hidden') + '>' + renderReleaseSections(release) + '</div></article>'
-    }).join('') + '</div>'
-  }
-
-  function releaseElementId(version) {
-    return 'dsh-release-' + encodeURIComponent(String(version || 'version')).replace(/%/g, '_')
+    const release = releases[0]
+    const version = String(release.version || '')
+    const current = version === state.data?.currentVersion
+    const badges = renderReleaseBadges(release)
+    return '<div class="dsh-timeline" aria-label="' + escapeHtml(desktopText('release.timelineAria')) + '"><article class="dsh-release-card ' + (current ? 'is-current' : '') + '"><div class="dsh-release-node" aria-hidden="true"></div><div class="dsh-release-header"><span class="dsh-release-heading"><span class="dsh-version">v' + escapeHtml(version) + '</span><span class="dsh-type">' + escapeHtml(releaseTypeLabel(release.releaseType)) + '</span>' + (current ? '<span class="dsh-current">' + escapeHtml(desktopText('release.current')) + '</span>' : '<span class="dsh-latest">' + escapeHtml(desktopText('release.latest')) + '</span>') + '</span><span class="dsh-release-badges">' + badges + '</span><time datetime="' + escapeHtml(release.publishedAt || '') + '">' + formatDate(release.publishedAt) + '</time></div><div class="dsh-release-body">' + renderReleaseSections(release) + '</div></article></div>'
   }
 
   function renderReleaseBadges(release) {
@@ -294,17 +311,6 @@ if (!isSplashDocument) {
     if (value === 'Minor') return desktopText('release.releaseTypeMinor')
     if (value === 'Patch' || !value) return desktopText('release.releaseTypePatch')
     return String(value)
-  }
-
-  function ensureExpandedVersions(releases) {
-    if (!Array.isArray(releases) || releases.length === 0) return
-    const latestVersion = String(releases[0]?.version || '')
-    const currentVersion = String(state.data?.currentVersion || '')
-    const seedKey = latestVersion + '|' + currentVersion
-    if (state.expansionSeedKey === seedKey) return
-    if (latestVersion) state.expandedVersions.add(latestVersion)
-    if (currentVersion) state.expandedVersions.add(currentVersion)
-    state.expansionSeedKey = seedKey
   }
 
   function renderReleaseCheckCard() {
@@ -776,14 +782,6 @@ if (!isSplashDocument) {
     if (returnFocus && typeof returnFocus.focus === 'function' && returnFocus.isConnected !== false) returnFocus.focus({ preventScroll: true })
   }
 
-  function toggleReleaseAccordion(version) {
-    const normalized = typeof version === 'string' ? version : ''
-    if (!normalized) return
-    if (state.expandedVersions.has(normalized)) state.expandedVersions.delete(normalized)
-    else state.expandedVersions.add(normalized)
-    render()
-  }
-
   async function openModal(context = { mode: 'history' }) {
     const wasOpen = state.modalOpen
     if (!wasOpen) state.modalReturnFocus = document.activeElement
@@ -930,10 +928,6 @@ if (!isSplashDocument) {
       closeModal()
       return
     }
-    if (action === 'toggle-release') {
-      toggleReleaseAccordion(target.dataset.version)
-      return
-    }
     if (action === 'retry-check') {
       dismissNotice()
       render()
@@ -1054,14 +1048,11 @@ if (!isSplashDocument) {
     .dsh-timeline::before { content: ""; position: absolute; left: 4px; top: 10px; bottom: 10px; width: 1px; background: rgba(71, 94, 129, .16); }
     .dsh-timeline { position: relative; padding-left: 20px; }
     .dsh-timeline::before { content: ""; position: absolute; left: 4px; top: 12px; bottom: 12px; width: 1px; background: rgba(71, 94, 129, .16); }
-    .dsh-accordion-item { position: relative; margin-bottom: 10px; border: 1px solid rgba(116, 138, 171, .18); border-radius: 10px; background: rgba(255, 255, 255, .5); overflow: hidden; transition: border-color .15s ease, background-color .15s ease; }
-    .dsh-accordion-item.is-expanded, .dsh-accordion-item.is-current { border-color: rgba(48, 123, 240, .28); background: transparent; }
+    .dsh-release-card { position: relative; margin-bottom: 10px; border: 1px solid rgba(116, 138, 171, .18); border-radius: 10px; background: rgba(255, 255, 255, .5); overflow: hidden; }
+    .dsh-release-card.is-current { border-color: rgba(48, 123, 240, .28); background: transparent; }
     .dsh-release-node { position: absolute; z-index: 1; left: -20px; top: 17px; width: 9px; height: 9px; border: 2px solid #a4b2c8; border-radius: 50%; background: #f9fbff; }
-    .dsh-accordion-item.is-current .dsh-release-node { border-color: #347ff2; background: #347ff2; box-shadow: 0 0 10px rgba(52, 127, 242, .45); }
-    .dsh-accordion-header { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 9px 12px; border: 0; color: inherit; background: transparent; cursor: pointer; text-align: left; font: inherit; }
-    .dsh-accordion-header:hover { background: rgba(234, 242, 255, .72); }
-    .dsh-accordion-chevron { flex: 0 0 12px; width: 12px; height: 12px; color: #6e85a8; transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
-    .dsh-accordion-item.is-expanded .dsh-accordion-chevron { transform: rotate(90deg); }
+    .dsh-release-card.is-current .dsh-release-node { border-color: #347ff2; background: #347ff2; box-shadow: 0 0 10px rgba(52, 127, 242, .45); }
+    .dsh-release-header { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 9px 12px; color: inherit; background: transparent; }
     .dsh-release-heading { min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .dsh-version { color: #1e2d44; font: 700 14px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
     .dsh-type, .dsh-current, .dsh-latest { display: inline-block; padding: 2px 7px; border-radius: 999px; color: #5371a0; background: #edf3fb; font-size: 10px; font-weight: 650; }
@@ -1072,8 +1063,8 @@ if (!isSplashDocument) {
     .dsh-badge.features { color: #267c58; background: #e3f5ed; }
     .dsh-badge.improvements { color: #a96b0c; background: #fff1d8; }
     .dsh-badge.fixes { color: #bd3e56; background: #fde8ed; }
-    .dsh-accordion-header time { flex: 0 0 auto; color: #94a1b5; font-size: 11px; }
-    .dsh-accordion-body { padding: 0 14px 14px 38px; border-top: 1px solid rgba(116, 138, 171, .15); animation: dsh-fade-in .18s ease; }
+    .dsh-release-header time { flex: 0 0 auto; color: #94a1b5; font-size: 11px; }
+    .dsh-release-body { padding: 0 14px 14px 38px; border-top: 1px solid rgba(116, 138, 171, .15); }
     .dsh-release-section { margin: 13px 0 0; }
     .dsh-release-section h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; color: #61738f; font-size: 11px; font-weight: 700; }
     .dsh-section-icon, .dsh-release-icon { display: inline-grid; place-items: center; flex: 0 0 auto; border-radius: 5px; font-size: 10px; font-weight: 800; }
@@ -1140,7 +1131,7 @@ if (!isSplashDocument) {
       .dsh-modal-tabs { border-color: rgba(170, 192, 228, .16); background: #18263d; }
       .dsh-tab { color: #8496b2; }
       .dsh-tab.active, .dsh-tab[aria-selected="true"] { color: #d5e5ff; background: #253b61; }
-      .dsh-eyebrow, .dsh-subtitle, .dsh-status-kicker, .dsh-accordion-header time, .dsh-empty-copy, .dsh-loading, .dsh-refreshing { color: #7f91ad; }
+      .dsh-eyebrow, .dsh-subtitle, .dsh-status-kicker, .dsh-release-header time, .dsh-empty-copy, .dsh-loading, .dsh-refreshing { color: #7f91ad; }
       .dsh-release-node { border-color: #647896; background: #18263d; }
       .dsh-type { color: #a9c2e9; background: #253652; }
       .dsh-current { color: #83d2ac; background: #1b3d31; }
@@ -1149,10 +1140,9 @@ if (!isSplashDocument) {
       .dsh-badge.features { color: #83d2ac; background: #1b3d31; }
       .dsh-badge.improvements { color: #f5c46e; background: #372a16; }
       .dsh-badge.fixes { color: #ff9aad; background: #3d1b24; }
-      .dsh-accordion-item { border-color: rgba(170, 192, 228, .16); background: rgba(25, 39, 62, .72); }
-      .dsh-accordion-item.is-expanded, .dsh-accordion-item.is-current { border-color: rgba(93, 157, 255, .36); background: transparent; }
-      .dsh-accordion-header:hover { background: #253b61; }
-      .dsh-accordion-body { border-color: rgba(170, 192, 228, .14); }
+      .dsh-release-card { border-color: rgba(170, 192, 228, .16); background: rgba(25, 39, 62, .72); }
+      .dsh-release-card.is-current { border-color: rgba(93, 157, 255, .36); background: transparent; }
+      .dsh-release-body { border-color: rgba(170, 192, 228, .14); }
       .dsh-release-item { color: #c0cee2; }
       .dsh-release-item strong { color: #e4edf9; }
       .dsh-release-icon { color: #9db0cd; background: #25344d; }
@@ -1187,8 +1177,8 @@ if (!isSplashDocument) {
       .dsh-hero-card { align-items: stretch; flex-direction: column; gap: 12px; }
       .dsh-hero-actions { justify-content: flex-start; }
       .dsh-release-badges { margin-left: 0; }
-      .dsh-accordion-header { align-items: flex-start; flex-wrap: wrap; }
-      .dsh-accordion-header time { margin-left: 20px; }
+      .dsh-release-header { align-items: flex-start; flex-wrap: wrap; }
+      .dsh-release-header time { margin-left: 20px; }
     }
     @media (max-height: 480px) {
       .dsh-modal-dialog { min-height: 260px; }
