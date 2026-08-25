@@ -63,3 +63,10 @@ v1.5.5 is a feature and bug-fix release following v1.5.4.
 最终 Windows 便携 ZIP、Setup 安装包以及 Linux AppImage/deb 的 SHA-256 值记录在 `SHA256SUMS.txt`，并作为 GitHub Release 附件发布。
 
 The final Windows portable ZIP, Setup installer, and Linux AppImage/deb SHA-256 values are recorded in `SHA256SUMS.txt` and attached to the GitHub Release.
+
+```text
+D7ECF2B3E077BC5D247E20D00443714B9FC0E24C0C7310BC7797F43890BB1022  *DeepSeek-Harness-1.5.5-win32-x64.zip
+554744E74560BB08AB710AEB4C90BB9B8EF0ABC35750E4DCAE5A5824AE355734  *DeepSeek-Harness-Setup-1.5.5-win32-x64.exe
+B8AC536A09CEE2DB4A1D5FFD4F519219B83DF81B064ED69BAC5FB3BC21A298FA  *DeepSeek-Harness-1.5.5-linux-x64.AppImage
+0560AB18276F421B7DA9FC467227824058ADBD0C363830F71B0DBD617B298E6F  *DeepSeek-Harness-1.5.5-linux-x64.deb
+```
