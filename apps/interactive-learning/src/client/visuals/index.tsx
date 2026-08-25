@@ -8,7 +8,7 @@
  * what has already been covered without each renderer re-deriving it.
  */
 import { useEffect, useId, useMemo, useState, type ComponentType } from 'react'
-import type { LearningVisualV4 as LearningVisualV4Definition } from '../../protocol.ts'
+import type { LearningVisualV4 as LearningVisualV4Definition } from '../../protocol-current.ts'
 import { learningScope } from '../tokens.ts'
 import {
   DEFAULT_LABELS,

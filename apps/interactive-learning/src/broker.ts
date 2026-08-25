@@ -2,21 +2,18 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-modules'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   UserQuestionService,
   UserQuestionError,
 } from '@deepseek-ai/dsh-user-questions'
 import {
   CHECKPOINT_RESULT_PROTOCOL,
-  RESPONSE_PROTOCOL_V2,
   RESPONSE_PROTOCOL,
   LearningProtocolError,
   parseLearningCheckpointResultV1,
   parseLearningCheckpointV1,
-  parseLearningActivity,
-  parseLearningActivityV2,
   parseLearningRecallFeedbackV1,
-  parseLearningResponseV2,
   type LearningVisualStatusV4,
   type LearningRecallFeedbackV1,
   type LearningCheckpointResultV1,
@@ -29,15 +26,20 @@ import {
   type LearningRevealV2,
   type LearningResponseV2,
   type LearningResponseV1,
-} from './protocol.ts'
+} from './protocol-current.ts'
 import {
   encodeLearningCheckpointDetail,
-  encodeLearningWaitDetail,
   learningCheckpointQuestionId,
-  learningWaitQuestionId,
-} from './transport.ts'
+} from './host-transport.ts'
+import type { LegacyLearningGate } from './legacy-gate.ts'
 import {
   LEARNER_STATE_SESSION_EVENT_TYPE,
+  LEARNING_SEGMENT_EVENT_PROTOCOL,
+  LEARNING_SEGMENT_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL,
+  LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRIC_KINDS,
+  LEARNING_CHECKPOINT_METRIC_STATUSES,
   createLearnerStateSnapshotEvent,
   foldLearnerStateSession,
   reduceLearnerState,
@@ -46,7 +48,11 @@ import {
   type LearnerState,
   type LearnerStateCorrection,
   type LearnerStateEvent,
+  type LearningSegmentAnchorEvent,
   type ObservableLearnerEvent,
+  type LearningCheckpointAggregate,
+  type LearningCheckpointMetricKind,
+  type LearningCheckpointMetricStatus,
 } from './learner-state.ts'
 import { registerInteractiveLearningSessionCompatibility } from './bootstrap.ts'
 
@@ -106,6 +112,8 @@ export interface PresentLearningCheckpointRequest {
   signal?: AbortSignal
   timeoutMs?: number
   callId: string
+  /** Client-side answer-free telemetry: whether a stored draft was restored. */
+  draftRecovered?: boolean
 }
 
 export type ObservableLearnerStateUpdate = Exclude<
@@ -183,11 +191,6 @@ export interface LearningLifecycleEvent {
   name: LearningLifecycleEventName; at: number; phase: 'question' | 'reveal'
   activityId: string; lessonToken: string; roundToken: string; seq: number; callId?: string
 }
-interface LessonState {
-  sessionId: string; lessonToken: string; roundToken: string; seq: number
-  status: 'question-pending' | 'awaiting-reveal' | 'reveal-pending' | 'ready-question'
-}
-
 function fallback(activityId: string, activity: LearningActivityV1, reason: string): LearningResponseV1 {
   return {
     protocol: RESPONSE_PROTOCOL,
@@ -337,14 +340,104 @@ function checkpointFallbackSubmission(
   }, { checkpointId, checkpoint }))
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/**
+ * Session events carry turn boundaries separately from `user/message`. Keep
+ * evidence tied to a turn that actually contained a direct human message;
+ * injected plugin context and assistant/tool messages never qualify.
+ */
+function realUserTurns(session: Pick<Agent['session'], 'events'>): Set<number> {
+  const turns = new Set<number>()
+  let openTurn: number | undefined
+  for (const event of session.events as readonly SessionEvent[]) {
+    if (event.type === 'turn/start') {
+      const turn = event.data.turn
+      openTurn = Number.isSafeInteger(turn) && turn >= 0 ? turn : undefined
+      continue
+    }
+    if (event.type === 'user/message') {
+      if (openTurn !== undefined && event.data.source.kind === 'user') turns.add(openTurn)
+      continue
+    }
+    if (event.type === 'turn/end' && openTurn === event.data.turn) openTurn = undefined
+  }
+  return turns
+}
+
+function assertRealUserTurn(session: Pick<Agent['session'], 'events'>, turn: number | undefined): number {
+  if (!Number.isSafeInteger(turn) || (turn as number) < 0) {
+    throw new TypeError('learner evidence requires a non-negative observation.turn')
+  }
+  if (!realUserTurns(session).has(turn as number)) {
+    throw new TypeError(`observation.turn ${String(turn)} is not a real user turn in this session`)
+  }
+  return turn as number
+}
+
+function assertTurnNumber(turn: number | undefined): number {
+  if (!Number.isSafeInteger(turn) || (turn as number) < 0) {
+    throw new TypeError('learning segment anchor requires a non-negative turn')
+  }
+  return turn as number
+}
+
+function latestRealUserTurn(session: Pick<Agent['session'], 'events'>): number | undefined {
+  const turns = realUserTurns(session)
+  return turns.size === 0 ? undefined : Math.max(...turns)
+}
+
+function emptyCheckpointAggregate(): LearningCheckpointAggregate {
+  return {
+    usageCount: 0,
+    kindCounts: Object.fromEntries(LEARNING_CHECKPOINT_METRIC_KINDS.map(kind => [kind, 0])) as Record<LearningCheckpointMetricKind, number>,
+    terminalCounts: Object.fromEntries(LEARNING_CHECKPOINT_METRIC_STATUSES.map(status => [status, 0])) as Record<LearningCheckpointMetricStatus, number>,
+    draftRecovery: { attempts: 0, hits: 0 },
+  }
+}
+
+function cloneCheckpointAggregate(value: LearningCheckpointAggregate): LearningCheckpointAggregate {
+  return {
+    usageCount: value.usageCount,
+    kindCounts: { ...value.kindCounts },
+    terminalCounts: { ...value.terminalCounts },
+    draftRecovery: { ...value.draftRecovery },
+  }
+}
+
+function latestCheckpointAggregate(session: Pick<Agent['session'], 'events'>): LearningCheckpointAggregate {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index]
+    if (event?.type !== LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE || !isRecord(event.data)) continue
+    const data = event.data as Record<string, unknown>
+    if (data.protocol !== LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL || !isRecord(data.aggregate)) continue
+    const aggregate = data.aggregate as Partial<LearningCheckpointAggregate>
+    if (typeof aggregate.usageCount !== 'number'
+      || !isRecord(aggregate.kindCounts)
+      || !isRecord(aggregate.terminalCounts)
+      || !isRecord(aggregate.draftRecovery)) continue
+    return {
+      usageCount: aggregate.usageCount,
+      kindCounts: { ...emptyCheckpointAggregate().kindCounts, ...aggregate.kindCounts } as Record<LearningCheckpointMetricKind, number>,
+      terminalCounts: { ...emptyCheckpointAggregate().terminalCounts, ...aggregate.terminalCounts } as Record<LearningCheckpointMetricStatus, number>,
+      draftRecovery: {
+        attempts: Number(aggregate.draftRecovery.attempts ?? 0),
+        hits: Number(aggregate.draftRecovery.hits ?? 0),
+      },
+    }
+  }
+  return emptyCheckpointAggregate()
+}
+
 /** Host-side V2 Question/Reveal coordinator; V1 is replay-only. */
 export class LearningActivityBroker extends Service {
   static inject = ['userQuestions']
 
   private readonly pendingActivities = new Map<AbortController, { reason?: LearningAbortReason }>()
-  private readonly lessons = new Map<string, LessonState>()
-  private readonly receipts = new Map<string, LearningResponseV2>()
-  private readonly gateCalls = new Map<string, Promise<LearningResponseV2>>()
+  private legacyGate: LegacyLearningGate | undefined
+  private legacyGatePromise: Promise<LegacyLearningGate> | undefined
   private readonly checkpointCalls = new Map<string, CheckpointCallRecord>()
   private readonly checkpointReceipts = new Map<string, CheckpointReceiptRecord>()
   private readonly pendingCheckpointSessions = new Map<string, string>()
@@ -362,14 +455,12 @@ export class LearningActivityBroker extends Service {
     super(ctx, 'learningActivities')
     ctx.effect(() => () => {
       this.disposed = true
+      this.legacyGate?.dispose()
       for (const [controller, state] of this.pendingActivities) {
         state.reason = 'plugin-disposed'
         controller.abort(new LearningWaitAbort(state.reason))
       }
       this.pendingActivities.clear()
-      this.lessons.clear()
-      this.receipts.clear()
-      this.gateCalls.clear()
       this.checkpointCalls.clear()
       this.checkpointReceipts.clear()
       this.pendingCheckpointSessions.clear()
@@ -429,7 +520,7 @@ export class LearningActivityBroker extends Service {
 
   /** Diagnostics/test seam; no activity payloads or learner answers are exposed. */
   get pendingCount(): number {
-    return this.pendingActivities.size
+    return this.pendingActivities.size + (this.legacyGate?.pendingCount ?? 0)
   }
 
   /** Diagnostics/test seam; state content remains private to its session. */
@@ -468,12 +559,90 @@ export class LearningActivityBroker extends Service {
     return renderLearnerStateTranscript(this.learnerState(agent), { maxTokens })
   }
 
+  /** Read the answer-free checkpoint aggregate for one session. */
+  checkpointMetrics(agent: Agent): LearningCheckpointAggregate {
+    return cloneCheckpointAggregate(latestCheckpointAggregate(agent.session))
+  }
+
+  /**
+   * Host-side route hook. The caller writes the already-classified active or
+   * closed boundary as a session-local, identity-free anchor, so refresh can
+   * restore the route without relying on a model-written `goal`.
+   */
+  recordLearningSegmentAnchor(
+    agent: Agent,
+    turn?: number,
+    segment: LearningSegmentAnchorEvent['segment'] = 'active',
+  ): void {
+    if (this.disposed) return
+    const session = agent.session
+    // The inbox claimed hook runs after turn/start but before user/message is
+    // appended. An explicit claimed turn is therefore host-owned provenance,
+    // while the no-argument convenience path still requires a real message.
+    const resolvedTurn = turn === undefined
+      ? assertRealUserTurn(session, latestRealUserTurn(session))
+      : assertTurnNumber(turn)
+    const prior = [...session.events].reverse().find(event => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+    if (prior?.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE
+      && prior.data.protocol === LEARNING_SEGMENT_EVENT_PROTOCOL
+      && prior.data.segment === segment
+      && prior.data.turn === resolvedTurn) return
+    session.append(
+      LEARNING_SEGMENT_SESSION_EVENT_TYPE,
+      {
+        protocol: LEARNING_SEGMENT_EVENT_PROTOCOL,
+        route: 'learn',
+        segment,
+        turn: resolvedTurn,
+      },
+      { ignorable: true },
+    )
+    const current = this.learnerStates.get(String(session.id))
+    if (current?.session === session) current.eventCount = session.events.length
+  }
+
+  /**
+   * Whether the latest host route anchor still denotes an active learning
+   * segment. An anchor survives a refresh, but it is retired once the learner
+   * has moved more than one real user turn past it without another learn
+   * anchor. The one-turn allowance covers the user message currently being
+   * claimed by the loop; injected context never advances this sequence.
+   */
+  learningSegmentActive(agent: Agent): boolean {
+    const state = this.learnerState(agent)
+    if (state.phase === 'complete' || state.nextMove === 'complete') return false
+
+    const anchorEvent = [...agent.session.events]
+      .reverse()
+      .find(event => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+    if (anchorEvent === undefined || !isRecord(anchorEvent.data)) return false
+    const anchor = anchorEvent.data as Partial<LearningSegmentAnchorEvent>
+    if (anchor.protocol !== LEARNING_SEGMENT_EVENT_PROTOCOL
+      || anchor.route !== 'learn'
+      || anchor.segment !== 'active'
+      || !Number.isSafeInteger(anchor.turn)
+      || (anchor.turn as number) < 0) return false
+
+    const turns = realUserTurns(agent.session)
+    const anchorTurn = anchor.turn as number
+    if (!turns.has(anchorTurn)) return false
+    return [...turns].filter(turn => turn > anchorTurn).length <= 1
+  }
+
   /** CAS mutation used exclusively by the internal, immediate state tool.
    * Exact replays and a small set of additive observations may rebase once;
    * replacement, correction, and reset operations remain strict CAS writes.
    */
   updateLearnerState(request: LearningStateUpdateRequest): LearningStateUpdateResult {
     let current = this.learnerState(request.agent)
+    // Evidence is the one learner-state input that can alter mastery. Verify
+    // its provenance against the live session before any CAS/replay branch.
+    if (request.action === 'update' && request.event.type === 'learner_evidence_observed') {
+      assertRealUserTurn(request.agent.session, request.event.observation.turn)
+    }
+    if (request.action === 'correct' && request.correction.evidence !== undefined) {
+      assertRealUserTurn(request.agent.session, request.observation.turn)
+    }
     if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision < 0) {
       throw new TypeError('expectedRevision must be a non-negative safe integer')
     }
@@ -556,6 +725,24 @@ export class LearningActivityBroker extends Service {
       .some((entry: { id: string }) => entry.id === INTERACTIVE_LEARNING_PACKAGE) === true
   }
 
+  /** Load the retired Question/Reveal coordinator only when its API is used. */
+  private async getLegacyGate(): Promise<LegacyLearningGate> {
+    if (this.legacyGate !== undefined) return this.legacyGate
+    if (this.legacyGatePromise !== undefined) return this.legacyGatePromise
+    this.legacyGatePromise = import('./legacy-gate.ts').then(({ LegacyLearningGate }) => {
+      const gate = new LegacyLearningGate({
+        ctx: this.ctx,
+        defaultTimeoutMs: DEFAULT_LEARNING_WAIT_TIMEOUT_MS,
+        hasRichClient: () => this.hasRichClient(),
+        emit: event => this.emit(event),
+      })
+      this.legacyGate = gate
+      if (this.disposed) gate.dispose()
+      return gate
+    })
+    return this.legacyGatePromise
+  }
+
   private dropLearnerState(session: { id: unknown }): void {
     const sessionId = String(session.id)
     if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId)
@@ -606,10 +793,40 @@ export class LearningActivityBroker extends Service {
     })
   }
 
+  private recordCheckpointMetrics(
+    agent: Agent,
+    kind: string,
+    status: string,
+    draftRecovered: boolean | undefined,
+  ): void {
+    if (!LEARNING_CHECKPOINT_METRIC_KINDS.includes(kind as LearningCheckpointMetricKind)
+      || !LEARNING_CHECKPOINT_METRIC_STATUSES.includes(status as LearningCheckpointMetricStatus)) return
+    const aggregate = latestCheckpointAggregate(agent.session)
+    aggregate.usageCount += 1
+    aggregate.kindCounts[kind as LearningCheckpointMetricKind] += 1
+    aggregate.terminalCounts[status as LearningCheckpointMetricStatus] += 1
+    if (draftRecovered !== undefined) {
+      aggregate.draftRecovery.attempts += 1
+      if (draftRecovered) aggregate.draftRecovery.hits += 1
+    }
+    agent.session.append(
+      LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
+      { protocol: LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, aggregate },
+      { ignorable: true },
+    )
+    const current = this.learnerStates.get(String(agent.session.id))
+    if (current?.session === agent.session) current.eventCount = agent.session.events.length
+  }
+
   private recordAutomaticEvents(agent: Agent, events: readonly LearnerStateEvent[]): void {
     try {
       let state = this.learnerState(agent)
-      for (const event of events) state = reduceLearnerState(state, event)
+      for (const event of events) {
+        if (event.type === 'learner_evidence_observed') {
+          assertRealUserTurn(agent.session, event.observation.turn)
+        }
+        state = reduceLearnerState(state, event)
+      }
       // Replayed observation ids reduce to the exact same state and must not
       // append another full snapshot.
       if (state !== this.learnerState(agent)) this.appendLearnerState(agent, state, 'update')
@@ -678,6 +895,7 @@ export class LearningActivityBroker extends Service {
     const summary = feedback.status === 'revealed'
       ? `Recall card ${feedback.cardId} answer was revealed; no correctness was established.`
       : `Recall card ${feedback.cardId} marked ${feedback.status}; self-rating is unverified.`
+    const turn = latestRealUserTurn(active.session)
     this.recordAutomaticEvents(active.agent, [{
       type: 'learner_evidence_observed',
       evidence: {
@@ -691,6 +909,7 @@ export class LearningActivityBroker extends Service {
         id: observationId,
         source: 'learner-action',
         summary,
+        ...(turn === undefined ? {} : { turn }),
       },
     }])
     return { status: 'recorded', observationId }
@@ -703,6 +922,7 @@ export class LearningActivityBroker extends Service {
   ): void {
     const agent = request.agent
     if (agent === undefined || fence === undefined || this.disposed) return
+    this.recordCheckpointMetrics(agent, request.checkpoint.kind, result.status, request.draftRecovered)
     try {
       const live = this.ctx.get('agents')?.get(agent.id)
       if (live !== agent || agent.session !== fence.session) return
@@ -741,6 +961,7 @@ export class LearningActivityBroker extends Service {
           id: `${observationBase}:evidence`,
           source: 'learner-action',
           summary: `The learner submitted the requested ${request.checkpoint.expectedEvidence} response.`,
+          turn: latestRealUserTurn(agent.session),
         },
       })
     }
@@ -899,11 +1120,26 @@ export class LearningActivityBroker extends Service {
       if (custom !== undefined && custom !== '') {
         let decoded: unknown
         try { decoded = JSON.parse(custom) as unknown } catch { decoded = undefined }
-        if (typeof decoded === 'object' && decoded !== null
-          && (decoded as { protocol?: unknown }).protocol === CHECKPOINT_RESULT_PROTOCOL) {
-          result = normalizeCheckpointResult(parseLearningCheckpointResultV1(decoded, { checkpointId, checkpoint }))
+        const envelope = isRecord(decoded) ? decoded : undefined
+        // The rich Client may wrap the model-visible result with answer-free
+        // UI metadata. Keep the metadata out of the protocol parser and the
+        // durable result; only carry the draft-recovery bit to aggregation.
+        const hasCheckpointEnvelope = envelope !== undefined && Object.hasOwn(envelope, 'checkpointResult')
+        const wrappedResult = hasCheckpointEnvelope && isRecord(envelope?.checkpointResult)
+          ? envelope.checkpointResult
+          : decoded
+        if (envelope !== undefined && isRecord(envelope.clientMeta)
+          && typeof envelope.clientMeta.draftRecovered === 'boolean') {
+          request.draftRecovered = envelope.clientMeta.draftRecovered
+        }
+        if (isRecord(wrappedResult)
+          && wrappedResult.protocol === CHECKPOINT_RESULT_PROTOCOL) {
+          result = normalizeCheckpointResult(parseLearningCheckpointResultV1(wrappedResult, { checkpointId, checkpoint }))
         } else {
-          result = checkpointFallbackSubmission(checkpoint, checkpointId, custom)
+          // Never reinterpret a malformed rich-client envelope as the
+          // learner's free-text answer; only legacy naked provider text gets
+          // that compatibility fallback.
+          result = (hasCheckpointEnvelope ? undefined : checkpointFallbackSubmission(checkpoint, checkpointId, custom))
             ?? fallback({ status: 'skipped', reason: 'provider-failure' })
         }
       } else result = fallback({ status: 'skipped', reason: 'provider-failure' })
@@ -969,230 +1205,16 @@ export class LearningActivityBroker extends Service {
 
   /** V2 live path: one call owns exactly one durable Question or Reveal wait. */
   async presentGate(request: PresentLearningGateRequest): Promise<LearningResponseV2> {
-    const callKey = request.callId === undefined || request.agent === undefined
-      ? undefined : `${String(request.agent.session.id)}:${request.callId}`
-    const prior = callKey === undefined ? undefined : this.gateCalls.get(callKey)
-    if (prior !== undefined) return prior
-    const pending = this.presentGateOnce(request)
-    if (callKey !== undefined) {
-      this.gateCalls.set(callKey, pending)
-      if (this.gateCalls.size > 1_024) {
-        const oldest = this.gateCalls.keys().next().value as string | undefined
-        if (oldest !== undefined) this.gateCalls.delete(oldest)
-      }
-    }
-    try {
-      return await pending
-    } catch (cause) {
-      if (callKey !== undefined) this.gateCalls.delete(callKey)
-      throw cause
-    }
+    const gate = await this.getLegacyGate()
+    return gate.present(request)
   }
 
-  private async presentGateOnce(request: PresentLearningGateRequest): Promise<LearningResponseV2> {
-    const activity = parseLearningActivityV2(request.activity)
-    const activityId = randomUUID()
-    const waitId = randomUUID()
-    const sessionId = request.agent === undefined ? '' : String(request.agent.session.id)
-    let lessonToken: string
-    let roundToken: string
-    let lesson: LessonState | undefined
-
-    if (activity.phase === 'question') {
-      if (activity.lessonToken === undefined) {
-        if (activity.seq !== 0) throw new LearningProtocolError(['a new lesson must start with activity.seq 0'])
-        for (const [tokenValue, active] of this.lessons) {
-          if (active.sessionId === sessionId) this.lessons.delete(tokenValue)
-        }
-        lessonToken = randomUUID()
-        roundToken = randomUUID()
-        if (sessionId !== '') {
-          lesson = { sessionId, lessonToken, roundToken, seq: activity.seq, status: 'question-pending' }
-          this.lessons.set(lessonToken, lesson)
-        }
-      } else {
-        lessonToken = activity.lessonToken
-        lesson = this.lessons.get(lessonToken)
-        if (lesson === undefined) throw new LearningProtocolError(['activity.lessonToken is not active'])
-        if (lesson.sessionId !== sessionId) throw new LearningProtocolError(['activity.lessonToken belongs to another session'])
-        if (lesson.status !== 'ready-question') throw new LearningProtocolError(['the previous reveal must resolve before the next question'])
-        if (activity.seq !== lesson.seq + 1) throw new LearningProtocolError(['activity.seq must advance by exactly one'])
-        roundToken = randomUUID()
-        lesson.seq = activity.seq
-        lesson.roundToken = roundToken
-        lesson.status = 'question-pending'
-      }
-    } else {
-      lessonToken = activity.lessonToken
-      roundToken = activity.roundToken
-      lesson = this.lessons.get(lessonToken)
-      if (lesson === undefined) throw new LearningProtocolError(['activity.lessonToken is not active'])
-      if (lesson.sessionId !== sessionId) throw new LearningProtocolError(['activity.lessonToken belongs to another session'])
-      if (lesson.status !== 'awaiting-reveal') throw new LearningProtocolError(['reveal is not valid in the current lesson state'])
-      if (lesson.seq !== activity.seq) throw new LearningProtocolError(['activity.seq does not match the answered question'])
-      if (lesson.roundToken !== roundToken) throw new LearningProtocolError(['activity.roundToken does not match the answered question'])
-      lesson.status = 'reveal-pending'
-    }
-
-    const eventBase = {
-      phase: activity.phase,
-      activityId,
-      lessonToken,
-      roundToken,
-      seq: activity.seq,
-      ...(request.callId === undefined ? {} : { callId: request.callId }),
-    } as const
-    if (activity.phase === 'reveal' || activity.lessonToken !== undefined) {
-      this.emit({ name: 'learning.model.next_step_started', ...eventBase })
-    }
-    this.emit({ name: 'learning.call.args_completed', ...eventBase })
-    this.emit({ name: 'learning.protocol.validated', ...eventBase })
-
-    const fallbackV2 = (reason: string, action: 'skip' | 'cancel' = 'skip'): LearningResponseV2 => activity.phase === 'question'
-      ? {
-          protocol: RESPONSE_PROTOCOL_V2, phase: 'question', activityId, lessonToken, roundToken,
-          seq: activity.seq, action, receiptId: randomUUID(),
-          interactionState: { reason, fallbackMarkdown: activity.fallbackMarkdown },
-        }
-      : {
-          protocol: RESPONSE_PROTOCOL_V2, phase: 'reveal', activityId, lessonToken, roundToken,
-          seq: activity.seq, action, animation: { completed: false }, receiptId: randomUUID(),
-          interactionState: { reason, fallbackMarkdown: activity.fallbackMarkdown },
-        }
-
-    let result: LearningResponseV2
-    if (!this.hasRichClient()) result = fallbackV2('client-capability-unavailable')
-    else if (request.agent === undefined) result = fallbackV2('agent-context-unavailable')
-    else {
-      const timeoutMs = request.timeoutMs ?? DEFAULT_LEARNING_WAIT_TIMEOUT_MS
-      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) result = fallbackV2('client-response-timeout')
-      else {
-        try {
-          result = await this.waitForV2({ request, activity, activityId, waitId, lessonToken, roundToken, eventBase, timeoutMs })
-        } catch (cause) {
-          this.lessons.delete(lessonToken)
-          throw cause
-        }
-      }
-    }
-
-    if (lesson !== undefined) {
-      if (result.action === 'cancel' || result.action === 'skip') this.lessons.delete(lessonToken)
-      else if (activity.phase === 'question') lesson.status = 'awaiting-reveal'
-      else lesson.status = 'ready-question'
-    }
-    this.emit({ name: 'learning.wait.resolved', ...eventBase })
-    return result
-  }
-
-  private async waitForV2(input: {
-    request: PresentLearningGateRequest
-    activity: LearningActivityV2
-    activityId: string
-    waitId: string
-    lessonToken: string
-    roundToken: string
-    eventBase: Omit<LearningLifecycleEvent, 'name' | 'at'>
-    timeoutMs: number
-  }): Promise<LearningResponseV2> {
-    const { request, activity, activityId, waitId, lessonToken, roundToken, eventBase, timeoutMs } = input
-    const controller = new AbortController()
-    const state: { reason?: LearningAbortReason } = {}
-    this.pendingActivities.set(controller, state)
-    const abortFromSession = (): void => {
-      state.reason = 'session-aborted'
-      controller.abort(new LearningWaitAbort(state.reason))
-    }
-    if (request.signal?.aborted === true) abortFromSession()
-    else request.signal?.addEventListener('abort', abortFromSession, { once: true })
-    const timer = setTimeout(() => {
-      state.reason = 'client-response-timeout'
-      controller.abort(new LearningWaitAbort(state.reason))
-    }, timeoutMs)
-    timer.unref?.()
-
-    const fallbackV2 = (reason: string, action: 'skip' | 'cancel' = 'skip'): LearningResponseV2 => activity.phase === 'question'
-      ? { protocol: RESPONSE_PROTOCOL_V2, phase: 'question', activityId, lessonToken, roundToken, seq: activity.seq, action, receiptId: randomUUID(), interactionState: { reason, fallbackMarkdown: activity.fallbackMarkdown } }
-      : { protocol: RESPONSE_PROTOCOL_V2, phase: 'reveal', activityId, lessonToken, roundToken, seq: activity.seq, action, animation: { completed: false }, receiptId: randomUUID(), interactionState: { reason, fallbackMarkdown: activity.fallbackMarkdown } }
-
-    try {
-      const questions = (this.ctx as Context & { userQuestions: UserQuestionService }).userQuestions
-      const ask = questions.ask({
-        questions: [{
-          id: learningWaitQuestionId(waitId),
-          question: activity.phase === 'question' ? activity.prompt : 'Review this reveal, then continue.',
-          detail: encodeLearningWaitDetail({
-            waitId, activityId, lessonToken, roundToken, seq: activity.seq, phase: activity.phase, activity,
-            ...(request.callId === undefined ? {} : { callId: request.callId }),
-          }),
-        }],
-        agent: request.agent as Agent,
-        signal: controller.signal,
-      })
-      this.emit({ name: 'learning.wait.registered', ...eventBase })
-      if (activity.phase === 'reveal') this.emit({ name: 'learning.reveal.received', ...eventBase })
-      const aborted = new Promise<never>((_resolve, reject) => {
-        if (controller.signal.aborted) reject(controller.signal.reason)
-        else controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true })
-      })
-      const answer = await Promise.race([ask, aborted])
-      const item = answer.answers[0]
-      const custom = item?.custom?.trim()
-      let response: LearningResponseV2
-      if (custom === undefined || custom === '') response = fallbackV2('user-skipped')
-      else {
-        let decoded: unknown
-        try { decoded = JSON.parse(custom) as unknown } catch { decoded = undefined }
-        if (typeof decoded === 'object' && decoded !== null
-          && (decoded as { protocol?: unknown }).protocol === RESPONSE_PROTOCOL_V2) {
-          response = parseLearningResponseV2(decoded, { activityId, phase: activity.phase, lessonToken, roundToken, seq: activity.seq })
-        } else if (activity.phase === 'question') {
-          response = {
-            protocol: RESPONSE_PROTOCOL_V2, phase: 'question', activityId, lessonToken, roundToken,
-            seq: activity.seq, action: 'submit', answer: { text: custom }, receiptId: randomUUID(),
-            interactionState: { renderer: 'markdown-fallback' },
-          }
-        } else response = fallbackV2('rich-client-required')
-      }
-      const prior = this.receipts.get(response.receiptId)
-      if (prior !== undefined) {
-        if (JSON.stringify(prior) !== JSON.stringify(response)) throw new LearningProtocolError(['response.receiptId was reused for different content'])
-        response = prior
-      } else {
-        this.receipts.set(response.receiptId, response)
-        if (this.receipts.size > 1_024) {
-          const oldest = this.receipts.keys().next().value as string | undefined
-          if (oldest !== undefined) this.receipts.delete(oldest)
-        }
-      }
-      if (activity.phase === 'question' && response.action === 'submit') {
-        this.emit({ name: 'learning.answer.accepted', ...eventBase })
-      } else if (activity.phase === 'reveal' && response.action === 'continue') {
-        this.emit({ name: 'learning.continue.accepted', ...eventBase })
-      }
-      return response
-    } catch (cause) {
-      if (cause instanceof LearningProtocolError) throw cause
-      if (cause instanceof LearningWaitAbort) return fallbackV2(cause.reason, cause.reason === 'client-response-timeout' ? 'skip' : 'cancel')
-      const code = cause instanceof UserQuestionError ? (cause as UserQuestionError & { code: string }).code : undefined
-      if (code === 'ASK_CANCELLED') return fallbackV2('user-cancelled', 'cancel')
-      if (code === 'ASK_ABORTED') {
-        const reason = state.reason ?? 'session-aborted'
-        return fallbackV2(reason, reason === 'client-response-timeout' ? 'skip' : 'cancel')
-      }
-      if (code === 'NO_PROVIDER' || code === 'DELEGATED_CALLER' || code === 'CALLER_NOT_LIVE') return fallbackV2(code.toLowerCase())
-      throw cause
-    } finally {
-      clearTimeout(timer)
-      request.signal?.removeEventListener('abort', abortFromSession)
-      this.pendingActivities.delete(controller)
-    }
-  }
 
 
 
   /** @deprecated V1 is accepted only for static legacy replay/fallback. */
   async present(request: PresentLearningActivityRequest): Promise<LearningResponseV1> {
+    const { parseLearningActivity } = await import('./legacy-protocol.ts')
     const activity = parseLearningActivity(request.activity)
     return fallback(randomUUID(), activity, 'legacy-replay-only')
   }

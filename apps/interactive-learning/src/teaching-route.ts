@@ -9,6 +9,7 @@
 import {
   classifyLearnIntent,
   isLearningBoundary,
+  type LearnIntentConfidence,
   type LearnIntentDecision,
 } from './learn-intent.ts'
 
@@ -37,6 +38,8 @@ export interface LearningRouteDecision {
     | 'active-segment'
     | 'direct'
   intent: LearnIntentDecision
+  /** Mirrors intent confidence for route-context consumers. */
+  confidence: LearnIntentConfidence
 }
 
 /** Session-local route memory. This is not learner state and is never a profile. */
@@ -50,6 +53,14 @@ export interface LearningTurnRouteDecision extends LearningRouteDecision {
   inherited: boolean
   /** Whether the resulting route keeps a learning segment open. */
   segment: 'active' | 'closed'
+}
+
+function routeDecision(
+  route: LearningRoute,
+  reason: LearningRouteDecision['reason'],
+  intent: LearnIntentDecision,
+): LearningRouteDecision {
+  return { route, reason, intent, confidence: intent.confidence }
 }
 
 const SHORT_LEARNING_REQUEST = /^(?:please\s+)?(?:teach\s+me|help\s+me\s+learn|learn|understand|get\s+to\s+know|walk\s+me\s+through|take\s+me\s+through)\b|^(?:学习|教我|了解|想学)\s*/i
@@ -76,50 +87,50 @@ export function routeLearningRequest(text: string): LearningRouteDecision {
   const normalized = text.replace(/\s+/g, ' ').trim()
   const intent = classifyLearnIntent(normalized)
   if (intent.intent !== 'learn') {
-    return { route: 'direct', reason: 'direct', intent }
+    return routeDecision('direct', 'direct', intent)
   }
   if (EXPLICIT_OVERVIEW.test(normalized)) {
-    return { route: 'overview', reason: 'explicit-overview', intent }
+    return routeDecision('overview', 'explicit-overview', intent)
   }
   if (intent.trigger === 'current-topic') {
-    return { route: 'overview', reason: 'current-or-contested', intent }
+    return routeDecision('overview', 'current-or-contested', intent)
   }
   if (INITIAL_TIME_PRESSURE.test(normalized) && CONCRETE_HELP_SHAPE.test(normalized)) {
-    return { route: 'direct', reason: 'initial-urgent-blocker', intent }
+    return routeDecision('direct', 'initial-urgent-blocker', intent)
   }
   if (SHORT_LEARNING_REQUEST.test(normalized)) {
     if (EXPLICIT_BEGINNER.test(normalized)) {
-      return { route: 'teach-minimum', reason: 'explicit-beginner', intent }
+      return routeDecision('teach-minimum', 'explicit-beginner', intent)
     }
     if (SPECIFIC_LEARNING_GOAL.test(normalized)) {
-      return { route: 'teach-minimum', reason: 'specific-goal', intent }
+      return routeDecision('teach-minimum', 'specific-goal', intent)
     }
-    return { route: 'calibrate', reason: 'short-learning-request', intent }
+    return routeDecision('calibrate', 'short-learning-request', intent)
   }
   if (EXPLICIT_BEGINNER.test(normalized)) {
-    return { route: 'teach-minimum', reason: 'explicit-beginner', intent }
+    return routeDecision('teach-minimum', 'explicit-beginner', intent)
   }
   switch (intent.trigger) {
     case 'definition':
-      return { route: 'teach-minimum', reason: 'definition', intent }
+      return routeDecision('teach-minimum', 'definition', intent)
     case 'bare-concept':
-      return { route: 'calibrate', reason: 'bare-concept', intent }
+      return routeDecision('calibrate', 'bare-concept', intent)
     case 'confusion-repair':
-      return { route: 'teach-minimum', reason: 'confusion-repair', intent }
+      return routeDecision('teach-minimum', 'confusion-repair', intent)
     case 'learning-path':
-      return { route: 'teach-minimum', reason: 'learning-path', intent }
+      return routeDecision('teach-minimum', 'learning-path', intent)
     case 'resource-creation':
-      return { route: 'direct', reason: 'resource-creation', intent }
+      return routeDecision('direct', 'resource-creation', intent)
     default:
       break
   }
   if (SPECIFIC_LEARNING_GOAL.test(normalized)) {
-    return { route: 'teach-minimum', reason: 'specific-goal', intent }
+    return routeDecision('teach-minimum', 'specific-goal', intent)
   }
   if (intent.trigger === 'explicit-learning') {
-    return { route: 'calibrate', reason: 'explicit-learning', intent }
+    return routeDecision('calibrate', 'explicit-learning', intent)
   }
-  return { route: 'direct', reason: 'direct', intent }
+  return routeDecision('direct', 'direct', intent)
 }
 
 /**
@@ -137,6 +148,7 @@ export function routeLearningTurn(
     const activeIntent: LearnIntentDecision = session.decision?.intent ?? {
       intent: 'learn',
       trigger: 'explicit-learning',
+      confidence: 'medium',
       reason: 'durable learner state indicates an active learning segment',
     }
     return {
@@ -144,6 +156,7 @@ export function routeLearningTurn(
       intent: activeIntent,
       route: 'continue',
       reason: 'active-segment',
+      confidence: session.decision?.confidence ?? activeIntent.confidence,
       inherited: true,
       segment: 'active',
     }

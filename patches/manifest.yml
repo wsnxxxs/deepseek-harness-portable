@@ -26,6 +26,14 @@ patches:
         guards:
           - mountRootInclude
           - HostResolvedRootInclude
+  - id: dsh-profile-stale-link-recovery
+    targets: ['*']
+    files:
+      - path: node_modules/@deepseek-ai/dsh/lib/bin.js
+        guards:
+          - parseDshArgs
+          - case "plugin"
+          - runPlugin
   - id: portable-session-event-metadata
     targets: ['*']
     files:

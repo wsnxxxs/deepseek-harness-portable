@@ -1,6 +1,6 @@
 /** `data_table`: typed records with local filtering, sorting and a linked chart. */
 import { useMemo, useState } from 'react'
-import type { LearningTableValueV4 } from '../../../protocol.ts'
+import type { LearningTableValueV4 } from '../../../protocol-current.ts'
 import { formatNumber, ticks, toneAt } from '../core/format.ts'
 import { SelectionSurface } from '../core/shell-parts.tsx'
 import type { DataTableContent, RendererProps } from '../core/types.ts'

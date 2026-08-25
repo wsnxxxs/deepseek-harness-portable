@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import type { LearningActivityKind } from '../protocol.ts'
+import type { LearningActivityKind } from '../protocol-current.ts'
 import type { ActivityRendererProps } from './types.ts'
 import { ParameterExplorer } from './ParameterExplorer.tsx'
 import { ProcessStepper } from './ProcessStepper.tsx'

@@ -82,6 +82,18 @@ describe('Learning first-turn routing', () => {
     })
   })
 
+  it('carries classifier confidence to route consumers', () => {
+    expect(routeLearningRequest('Galois theory')).toMatchObject({
+      route: 'calibrate',
+      confidence: 'low',
+      intent: { confidence: 'low' },
+    })
+    expect(routeLearningRequest('What is a queue?')).toMatchObject({
+      confidence: 'high',
+      intent: { confidence: 'high' },
+    })
+  })
+
   it('inherits short answers, confusion, pressure, and what-if follow-ups', () => {
     const first = routeLearningTurn('Teach me queues.')
     expect(first).toMatchObject({ segment: 'active', inherited: false, route: 'calibrate' })
@@ -168,5 +180,15 @@ describe('Learning first-turn routing', () => {
     const completed = routeLearningTurn('Got it.', { active: false })
     expect(active).toMatchObject({ segment: 'closed', inherited: false, route: 'direct' })
     expect(completed).toMatchObject({ segment: 'closed', inherited: false, route: 'direct' })
+  })
+
+  it.each(['hello there', '你好', 'Good morning'])('treats small talk as an active-segment boundary: %s', text => {
+    const first = routeLearningTurn('Teach me queues.')
+    expect(routeLearningTurn(text, { active: true, decision: first })).toMatchObject({
+      segment: 'closed',
+      inherited: false,
+      route: 'direct',
+      intent: { intent: 'not-learn', trigger: 'unknown' },
+    })
   })
 })

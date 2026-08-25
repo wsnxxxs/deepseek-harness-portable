@@ -8,6 +8,8 @@ Start with the relationship the learner needs to see. Choose the representation 
 
 Use for a quantitative relationship on axes: functions, measurements, distributions, rates, secants/tangents, and parameter sensitivity. Curves, points, polylines, and bars are available. Parameters are optional; add a slider only when changing the value is the lesson. Do not turn formula recall into an arbitrary exponent slider.
 
+Treat a slider as a teaching metaphor: the learner's hand is on the parameter. Recommend “先预测再拖动” / “predict first, then drag” so the learner commits to an expected change before manipulating it. A drag or self-rating is low-confidence evidence with unknown correctness, like recall self-rating; never silently record it as a correct answer, mastery, or transfer evidence.
+
 ### `node_link`
 
 Use when the question is “what connects to what?”: neural layers, trees, dependencies, generic processes, and concept topology. Use `layered` groups for neural networks and declare every actual edge. A 3→4→2 fully connected network has 12 + 8 = 20 edges. Prefer `state_transition` when events move a current state, and `causal_loop` when signed feedback and delays are the lesson.
@@ -87,7 +89,9 @@ Before calling the tool, verify:
 
 1. The visual answers the learner's actual gap.
 2. Its native kind matches the relationship, not merely the subject area.
-3. Interaction changes what the learner can notice.
-4. Labels carry meaning without relying on color.
-5. The prose remains useful if rendering fails.
-6. The payload is one coherent visual, not a dashboard of unrelated facts.
+3. One picture explains one relationship; remove extra panels, facts, or controls that do not serve that relationship.
+4. Interaction changes what the learner can notice.
+5. Labels carry meaning without relying on color.
+6. The prose remains useful if rendering fails.
+7. 完成后检查“视图是否等于直接给出答案”（is the view merely the direct answer?）；if it is, reduce scope or use prose.
+8. The payload is one coherent visual, not a dashboard of unrelated facts.

@@ -3,8 +3,6 @@ import {
   MAX_ACTIVITY_BYTES,
   TRANSPORT_PROTOCOL_V2,
   TRANSPORT_PROTOCOL,
-  parseLearningActivity,
-  parseLearningActivityV2,
   parseLearningCheckpointV1,
   type LearningActivityEnvelopeV1,
   type LearningActivityEnvelopeInputV1,
@@ -12,7 +10,8 @@ import {
   type LearningCheckpointWaitEnvelopeV1,
   type LearningWaitEnvelopeInputV2,
   type LearningWaitEnvelopeV2,
-} from './protocol.ts'
+} from './protocol-current.ts'
+import { parseLearningActivity, parseLearningActivityV2 } from './legacy-protocol.ts'
 
 const MARKER_PREFIX = '<!--dsh-learning/transport@1:'
 const MARKER_SUFFIX = '-->'

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PendingWait } from '@deepseek-ai/dsh-client-runtime/client'
@@ -13,7 +13,7 @@ import {
   type LearningWaitEnvelopeV2,
   type LearningResponseV2,
   type LearningResponseV1,
-} from '../protocol.ts'
+} from '../protocol-current.ts'
 import {
   decodeLearningCheckpointDetail,
   decodeLearningCheckpointQuestionId,
@@ -78,9 +78,16 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const responseInFlight = useRef<Promise<void> | null>(null)
+  const checkpointDraftRecovered = useRef(false)
+  const noteCheckpointDraftRecovery = useCallback((value: boolean) => {
+    checkpointDraftRecovered.current = value
+  }, [])
   if (envelope === undefined) return null
 
-  const send = (response: LearningResponseV1 | LearningResponseV2 | LearningCheckpointResultV1): Promise<void> => {
+  const send = (
+    response: LearningResponseV1 | LearningResponseV2 | LearningCheckpointResultV1,
+    checkpointMeta?: { draftRecovered: boolean },
+  ): Promise<void> => {
     // React state does not become visible until after the current event batch.
     // Share the exact promise so a double click, repeated keyboard event, or
     // StrictMode replay cannot submit two terminal receipts for one wait.
@@ -94,7 +101,13 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
         ok: true,
         value: {
           sessionId: matched.sessionId,
-          answer: { answers: [{ id: question.id, selected: [], custom: JSON.stringify(response) }] },
+          answer: { answers: [{
+            id: question.id,
+            selected: [],
+            custom: JSON.stringify(checkpointMeta === undefined
+              ? response
+              : { checkpointResult: response, clientMeta: checkpointMeta }),
+          }] },
         },
       })
       if (!accepted.accepted) throw new Error(accepted.reason)
@@ -116,13 +129,13 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
       receiptId: `receipt_${envelope.waitId}`,
     } as const
     const submit = async (response: LearningCheckpointResponseV1): Promise<void> => {
-      await send({ ...common, status: 'submitted', response })
+      await send({ ...common, status: 'submitted', response }, { draftRecovered: checkpointDraftRecovered.current })
     }
     const skip = async (): Promise<void> => {
-      await send({ ...common, status: 'skipped', reason: 'learner-skipped' })
+      await send({ ...common, status: 'skipped', reason: 'learner-skipped' }, { draftRecovered: checkpointDraftRecovered.current })
     }
     const cancel = async (): Promise<void> => {
-      await send({ ...common, status: 'cancelled', reason: 'learner-cancelled' })
+      await send({ ...common, status: 'cancelled', reason: 'learner-cancelled' }, { draftRecovered: checkpointDraftRecovered.current })
     }
     return (
       <LearningCheckpoint
@@ -133,6 +146,7 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
         onSubmit={submit}
         onSkip={skip}
         onCancel={cancel}
+        onDraftRecovery={noteCheckpointDraftRecovery}
         t={t}
       />
     )
@@ -150,7 +164,7 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
       seq: envelope.seq,
     } as const
     const storageKey = `${envelope.waitId}:${envelope.activityId}:${envelope.phase}:${envelope.seq}`
-    const submitAnswer = async (answer: import('../protocol.ts').LearningJson, interactionState: import('../protocol.ts').LearningJson) => {
+    const submitAnswer = async (answer: import('../protocol-current.ts').LearningJson, interactionState: import('../protocol-current.ts').LearningJson) => {
       await send({ ...common, phase: 'question', action: 'submit', answer, interactionState, receiptId: stableReceiptId })
     }
     const continueReveal = async (animation: { completed: true; reducedMotion?: boolean }) => {

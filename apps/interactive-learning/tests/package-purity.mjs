@@ -3,9 +3,10 @@ import { readFile, readdir } from 'node:fs/promises'
 import { basename, dirname, extname, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-// Require the first path-segment character so CSS such as `content:\"\"`
-// cannot be mistaken for a Windows drive path ending at an escaped quote.
-const WINDOWS_ABSOLUTE_PATH = /[A-Za-z]:[\\/]+[A-Za-z0-9_.-]/
+// Require two path segments so JSON-escaped source text such as `default:\n`
+// cannot be mistaken for a drive path. Build-machine paths always carry the
+// checkout hierarchy (for example `C:\\Users\\builder`).
+const WINDOWS_ABSOLUTE_PATH = /[A-Za-z]:[\\/]+[A-Za-z0-9_.-]+[\\/]+[A-Za-z0-9_.-]/
 const WINDOWS_FILE_URL = /file:\/\/[A-Za-z]:[\\/]/i
 const HASHED_CHUNK_NAME = /-[A-Za-z0-9_-]{8,16}\.js$/
 const RELATIVE_JS_REFERENCE = /["'](\.{1,2}\/[^"']+\.js)["']/g
@@ -197,6 +198,17 @@ export async function assertPublishedPathPurity(root, options = {}) {
   return { filesScanned: files.length }
 }
 
+/** Keep retired V1/V2 code outside the normal Host entry's eager imports. */
+export async function assertLegacyCompatibilityLazy(root) {
+  const contents = await readFile(resolve(root, 'index.js'), 'utf8')
+  const eagerImports = [...contents.matchAll(/^import\s+.*?from\s+["']([^"']+)["'];?$/gm)]
+    .map(match => match[1])
+    .filter(target => target.includes('legacy-gate-') || target.includes('legacy-protocol-'))
+  assert.deepEqual(eagerImports, [], `Host entry eagerly imports retired compatibility chunks:\n${eagerImports.join('\n')}`)
+  assert.match(contents, /import\(["']\.\/legacy-gate-[A-Za-z0-9_-]+\.js["']\)/)
+  assert.match(contents, /import\(["']\.\/legacy-protocol-[A-Za-z0-9_-]+\.js["']\)/)
+}
+
 const invokedPath = process.argv[1] === undefined ? undefined : pathToFileURL(resolve(process.argv[1])).href
 if (invokedPath === import.meta.url) {
   const target = process.argv[2]
@@ -208,6 +220,7 @@ if (invokedPath === import.meta.url) {
   const result = await assertPublishedPathPurity(target, {
     checkoutRoot: resolve(packageRoot, '..', '..'),
   })
+  await assertLegacyCompatibilityLazy(target)
   const reachability = await assertPublishedChunkReachability(target, { manifest })
-  console.log(JSON.stringify({ pathPurity: 'pass', ...result, reachability }, null, 2))
+  console.log(JSON.stringify({ pathPurity: 'pass', legacyCompatibility: 'lazy', ...result, reachability }, null, 2))
 }

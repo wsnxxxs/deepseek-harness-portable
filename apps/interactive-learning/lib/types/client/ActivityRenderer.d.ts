@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { LearningActivityKind } from '../protocol.ts';
+import type { LearningActivityKind } from '../protocol-current.ts';
 import type { ActivityRendererProps } from './types.ts';
 type TrustedActivityRenderer = ComponentType<ActivityRendererProps>;
 /**

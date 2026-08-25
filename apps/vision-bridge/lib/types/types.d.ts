@@ -18,12 +18,14 @@ export interface VisionConfig {
 }
 /** Validated arguments for the view_image tool. */
 export interface ViewImageArgs {
-    /** Path to a local image file (absolute, or relative to the session workspace). */
+    /** Path to a local image or PDF file (absolute, or relative to the session workspace). */
     path?: string;
     /** Opaque id of an image already referenced by the current session history. */
     attachmentId?: string;
     /** Optional custom instruction; defaults to describing the image contents. */
     prompt?: string;
+    /** 1-based page to render when `path` points to a PDF. Defaults to 1. */
+    page?: number;
 }
 /** Structured output returned by the view_image tool. */
 export interface ViewImageResult {
@@ -37,6 +39,10 @@ export interface ViewImageResult {
     path: string;
     /** Whether the analyzed image came from disk or the current session history. */
     source?: 'local' | 'history';
+    /** 1-based source PDF page when a local PDF was rendered for analysis. */
+    page?: number;
+    /** Total PDF page count when the local renderer could determine it. */
+    pageCount?: number;
     /** Durable id when `source` is `history`. */
     attachmentId?: string;
     /** Encoded image size in bytes. */

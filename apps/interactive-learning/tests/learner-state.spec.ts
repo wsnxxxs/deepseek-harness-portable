@@ -11,6 +11,8 @@ import {
   LEARNER_STATE_EVENT_PROTOCOL,
   LEARNER_STATE_PROTOCOL,
   LEARNER_STATE_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
+  LEARNING_SEGMENT_SESSION_EVENT_TYPE,
   MAX_APPLIED_EVENT_IDS,
   MAX_LEARNER_EVIDENCE,
   createInitialLearnerState,
@@ -136,6 +138,7 @@ describe('LearnerState reducer', () => {
         summary: 'Applied the invariant to a linked-list traversal.',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The answer named the invariant and applied it to the new traversal.',
         independence: 'independent',
       },
       observation: observation('fresh-transfer'),
@@ -148,6 +151,52 @@ describe('LearnerState reducer', () => {
     })
   })
 
+  it('requires turn provenance and justification for evaluated evidence', () => {
+    const initial = createInitialLearnerState('session-contract')
+    expect(() => reduceLearnerState(initial, {
+      type: 'learner_evidence_observed',
+      evidence: {
+        kind: 'prediction',
+        summary: 'A prediction without a justification.',
+        correctness: 'correct',
+        independence: 'independent',
+      },
+      observation: {
+        id: 'missing-turn', source: 'learner-message', summary: 'No turn.',
+      } as ObservableLearnerEvent,
+    })).toThrow(/requires observation.turn/)
+    expect(() => reduceLearnerState(initial, {
+      type: 'learner_evidence_observed',
+      evidence: {
+        kind: 'prediction',
+        summary: 'An evaluated prediction without a reason.',
+        correctness: 'correct',
+        independence: 'independent',
+      },
+      observation: observation('missing-justification'),
+    })).toThrow(/requires evidence.justification/)
+  })
+
+  it('needs two independent correct observations from different turns for emerging mastery', () => {
+    const event = (id: string, turn: number): LearnerStateEvent => ({
+      type: 'learner_evidence_observed',
+      evidence: {
+        kind: 'prediction',
+        summary: `Prediction ${id}`,
+        correctness: 'correct',
+        justification: 'The predicted state follows the stated invariant.',
+        independence: 'independent',
+      },
+      observation: observation(id, 'learner-message', `Prediction ${id}`, turn),
+    })
+    const first = reduceLearnerState(createInitialLearnerState('session-mastery-turns'), event('turn-1-a', 1))
+    expect(first.mastery).toBe('unseen')
+    const sameTurn = reduceLearnerState(first, event('turn-1-b', 1))
+    expect(sameTurn.mastery).toBe('unseen')
+    const secondTurn = reduceLearnerState(sameTurn, event('turn-2', 2))
+    expect(secondTurn.mastery).toBe('emerging')
+  })
+
   it('ends a segment after a complete medium-confidence explanation without claiming transfer', () => {
     const complete = reduceLearnerState(createInitialLearnerState('session-explanation-complete'), {
       type: 'learner_evidence_observed',
@@ -156,12 +205,13 @@ describe('LearnerState reducer', () => {
         summary: 'Explained the invariant and applied every branch of the implementation.',
         confidence: 'medium',
         correctness: 'correct',
+        justification: 'The explanation covered each branch of the implementation.',
         independence: 'independent',
       },
       observation: observation('complete-explanation'),
     })
     expect(complete).toMatchObject({
-      mastery: 'emerging',
+      mastery: 'unseen',
       phase: 'complete',
       nextMove: 'complete',
     })
@@ -231,6 +281,7 @@ describe('LearnerState reducer', () => {
           summary: 'Correctly identified the loop invariant',
           confidence: 'high',
           correctness: 'correct',
+          justification: 'The learner identified the loop invariant in their explanation.',
           independence: 'independent',
         },
         observation: observation('evidence-1', 'learner-message', 'Learner explained the invariant', 2),
@@ -259,7 +310,7 @@ describe('LearnerState reducer', () => {
       urgency: 'later-pressure',
       supportLevel: 3,
       assessmentContext: 'self-study',
-      mastery: 'emerging',
+      mastery: 'unseen',
       lastMove: 'visual',
       sourceAnchors: ['chapter-2#indices'],
       revision: 11,
@@ -294,6 +345,7 @@ describe('LearnerState reducer', () => {
         kind: 'error',
         summary: 'Repeated the same index/value confusion',
         correctness: 'incorrect',
+        justification: 'The response repeated the index/value confusion.',
         independence: 'independent',
       },
       observation: observation('error-1'),
@@ -306,11 +358,12 @@ describe('LearnerState reducer', () => {
         kind: 'prediction',
         summary: 'Predicted the next loop state',
         correctness: 'correct',
+        justification: 'The prediction matched the next state in the trace.',
         independence: 'independent',
       },
-      observation: observation('prediction-1'),
+      observation: observation('prediction-1', 'learner-message', 'Observed prediction-1', 2),
     })
-    expect(state.mastery).toBe('emerging')
+    expect(state.mastery).toBe('unseen')
 
     state = reduceLearnerState(state, {
       type: 'learner_evidence_observed',
@@ -319,11 +372,12 @@ describe('LearnerState reducer', () => {
         transferContext: 'same',
         summary: 'Applied the rule to another instance from the same worked context',
         correctness: 'correct',
+        justification: 'The same-context transfer matched the stated rule.',
         independence: 'independent',
       },
-      observation: observation('same-context-transfer', 'learner-action'),
+      observation: observation('same-context-transfer', 'learner-action', 'Observed same-context-transfer', 2),
     })
-    expect(state.mastery).toBe('emerging')
+    expect(state.mastery).toBe('unseen')
 
     state = reduceLearnerState(state, {
       type: 'learner_evidence_observed',
@@ -331,10 +385,11 @@ describe('LearnerState reducer', () => {
         kind: 'transfer',
         summary: 'Applied the invariant to a linked-list traversal',
         correctness: 'correct',
+        justification: 'The fresh traversal preserved the invariant.',
         independence: 'independent',
         transferContext: 'fresh',
       },
-      observation: observation('transfer-1', 'learner-action'),
+      observation: observation('transfer-1', 'learner-action', 'Observed transfer-1', 3),
     })
     expect(state.mastery).toBe('transfer')
     expect(state.evidence.at(-1)?.kind).toBe('transfer')
@@ -348,6 +403,7 @@ describe('LearnerState reducer', () => {
         summary: 'A low-confidence correct explanation',
         confidence: 'low',
         correctness: 'correct',
+        justification: 'The explanation was marked correct but remained low confidence.',
         independence: 'independent',
       },
       observation: observation('low-confidence-explanation'),
@@ -362,6 +418,7 @@ describe('LearnerState reducer', () => {
         summary: 'A low-confidence fresh transfer',
         confidence: 'low',
         correctness: 'correct',
+        justification: 'The fresh transfer was marked correct but remained low confidence.',
         independence: 'independent',
       },
       observation: observation('low-confidence-transfer', 'learner-action'),
@@ -376,6 +433,7 @@ describe('LearnerState reducer', () => {
         summary: 'A sufficiently confident fresh transfer',
         confidence: 'medium',
         correctness: 'correct',
+        justification: 'The fresh transfer was coherent and independently stated.',
         independence: 'independent',
       },
       observation: observation('medium-confidence-transfer', 'learner-action'),
@@ -390,6 +448,7 @@ describe('LearnerState reducer', () => {
         kind: 'explanation' as const,
         summary: 'Repeated the explanation after a full worked example',
         correctness: 'correct' as const,
+        justification: 'The learner repeated the explanation after the worked example.',
         independence: 'guided' as const,
       },
       {
@@ -421,6 +480,7 @@ describe('LearnerState reducer', () => {
         kind: 'transfer',
         summary: 'User edited the state panel to say this was mastered',
         correctness: 'correct',
+        justification: 'The claim came from a correction control rather than learner evidence.',
         independence: 'independent',
         transferContext: 'fresh',
       },
@@ -465,6 +525,7 @@ describe('LearnerState reducer', () => {
           kind: 'error',
           summary: `Repeated incorrect attempt ${index}`,
           correctness: 'incorrect',
+          justification: 'The attempt did not resolve the stated error.',
           independence: 'independent',
         },
         observation: observation(`incorrect-${index}`, 'learner-action'),
@@ -502,6 +563,7 @@ describe('LearnerState reducer', () => {
         kind: 'explanation',
         summary: 'Explained the direction but omitted the role of the intercept',
         correctness: 'partial',
+        justification: 'The response got the direction but omitted the intercept.',
         independence: 'independent',
       },
       observation: observation('partial-explanation', 'learner-message'),
@@ -576,12 +638,13 @@ describe('LearnerState reducer', () => {
         kind: 'explanation',
         summary: 'Explained the invariant without a hint',
         correctness: 'correct',
+        justification: 'The explanation stated the invariant without a hint.',
         independence: 'independent',
       },
       observation: observation('independent-correct', 'learner-action'),
     })
     expect(state.supportLevel).toBe(2)
-    expect(state.mastery).toBe('emerging')
+    expect(state.mastery).toBe('unseen')
 
     state = reduceLearnerState(state, {
       type: 'learner_evidence_observed',
@@ -590,6 +653,7 @@ describe('LearnerState reducer', () => {
         transferContext: 'fresh',
         summary: 'Applied the invariant in a fresh context without guidance',
         correctness: 'correct',
+        justification: 'The fresh-context response applied the invariant without guidance.',
         independence: 'independent',
       },
       observation: observation('fresh-transfer', 'learner-action'),
@@ -659,6 +723,7 @@ describe('LearnerState reducer', () => {
         kind: 'transfer',
         summary: 'Independently applied the invariant to a linked list',
         correctness: 'correct',
+        justification: 'The transfer applied the invariant to a linked list.',
         independence: 'independent',
         transferContext: 'fresh',
       },
@@ -671,6 +736,7 @@ describe('LearnerState reducer', () => {
           kind: 'error',
           summary: `Later unrelated error ${index}`,
           correctness: 'incorrect',
+          justification: 'The later response did not establish the invariant.',
           independence: 'independent',
         },
         observation: observation(`later-error-${index}`),
@@ -874,6 +940,7 @@ describe('lossless session-event snapshots', () => {
           summary: 'Predicted A leaves first',
           confidence: 'high',
           correctness: 'correct',
+          justification: 'The learner predicted the FIFO head before the reveal.',
           independence: 'independent',
         },
         observation: observation('prediction-1', 'learner-action', 'Selected A', 2),
@@ -932,9 +999,11 @@ describe('lossless session-event snapshots', () => {
         summary: 'Applied it elsewhere',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The snapshot claims a correct transfer for the malformed-field test.',
         independence: 'independent',
         transferContext: 'fresh',
         source: 'learner-action',
+        turn: 1,
         hiddenProfile: true,
       }],
     }, 'session-a')).toThrow(/unknown field: hiddenProfile/)
@@ -973,8 +1042,10 @@ describe('lossless session-event snapshots', () => {
         summary: 'A correct application in the same worked context',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The same-context response is correct but cannot establish fresh transfer.',
         independence: 'independent',
         source: 'learner-action',
+        turn: 1,
       }],
     }, 'session-a')).toThrow(/requires correct, independent learner transfer evidence/)
     expect(() => parseLearnerStateSnapshot({
@@ -984,8 +1055,10 @@ describe('lossless session-event snapshots', () => {
         summary: 'Missing context provenance',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The snapshot intentionally omits transfer context.',
         independence: 'independent',
         source: 'learner-action',
+        turn: 1,
       }],
     }, 'session-a')).toThrow(/missing required field: transferContext/)
     expect(() => parseLearnerStateSnapshot({
@@ -996,8 +1069,10 @@ describe('lossless session-event snapshots', () => {
         summary: 'Not a transfer event',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The snapshot intentionally adds a transfer-only field to an explanation.',
         independence: 'independent',
         source: 'learner-action',
+        turn: 1,
       }],
     }, 'session-a')).toThrow(/unknown field: transferContext/)
   })
@@ -1005,12 +1080,18 @@ describe('lossless session-event snapshots', () => {
   it('pins the log-only learning/state event protocol and reset semantics', () => {
     const knownTypes = KNOWN_SESSION_EVENT_TYPES as Set<string>
     const alreadyRegistered = knownTypes.has(LEARNER_STATE_SESSION_EVENT_TYPE)
+    const segmentAlreadyRegistered = knownTypes.has(LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+    const metricsAlreadyRegistered = knownTypes.has(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)
     try {
       registerLearningSessionEventType()
       registerLearningSessionEventType()
       expect(knownTypes.has(LEARNER_STATE_SESSION_EVENT_TYPE)).toBe(true)
+      expect(knownTypes.has(LEARNING_SEGMENT_SESSION_EVENT_TYPE)).toBe(true)
+      expect(knownTypes.has(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)).toBe(true)
     } finally {
       if (!alreadyRegistered) knownTypes.delete(LEARNER_STATE_SESSION_EVENT_TYPE)
+      if (!segmentAlreadyRegistered) knownTypes.delete(LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+      if (!metricsAlreadyRegistered) knownTypes.delete(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)
     }
 
     const updated = reduceLearnerState(createInitialLearnerState('session-a'), {
@@ -1207,6 +1288,7 @@ describe('compact V4.1 learner-state transcript', () => {
           summary: 'Confused i with values[i]',
           confidence: 'high',
           correctness: 'incorrect',
+          justification: 'The response confused the index with the stored value.',
           independence: 'independent',
         },
         observation: observation('evidence-error', 'learner-message', 'Learner confused index and value', 2),
@@ -1217,6 +1299,7 @@ describe('compact V4.1 learner-state transcript', () => {
           kind: 'explanation',
           summary: 'Correctly identified the loop invariant',
           correctness: 'correct',
+          justification: 'The learner stated the loop invariant correctly.',
           independence: 'independent',
         },
         observation: observation('evidence-explanation', 'learner-message', 'Learner explained invariant', 3),
@@ -1248,7 +1331,7 @@ describe('compact V4.1 learner-state transcript', () => {
       urgency: later-pressure
       support_need: 3/5
       assessment_context: self-study
-      mastery: emerging
+      mastery: unseen
       phase: practice
       next_move: complete
       response_assessment: correct
@@ -1361,12 +1444,14 @@ describe('compact V4.1 learner-state transcript', () => {
               transferContext: 'fresh',
               summary: `${'详细证据'.repeat(30)} ${index}`,
               correctness: 'correct',
+              justification: 'The transfer response supplied a coherent fresh-context reason.',
               independence: 'independent',
             }
           : {
               kind: 'explanation',
               summary: `${'详细证据'.repeat(30)} ${index}`,
               correctness: 'correct',
+              justification: 'The explanation response supplied a coherent reason.',
               independence: 'independent',
             },
         observation: observation(`long-${index}`),
@@ -1426,12 +1511,14 @@ describe('compact V4.1 learner-state transcript', () => {
               transferContext: 'fresh',
               summary: `证据${index}${'完整中文推理'.repeat(32)}`,
               correctness: 'correct',
+              justification: '这条迁移证据给出了完整的新情境理由。',
               independence: 'independent',
             }
           : {
               kind: 'explanation',
               summary: `证据${index}${'完整中文推理'.repeat(32)}`,
               correctness: 'correct',
+              justification: '这条解释证据给出了完整理由。',
               independence: 'independent',
             },
         observation: observation(`cjk-evidence-${index}`, 'learner-action'),

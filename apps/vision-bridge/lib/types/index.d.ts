@@ -2,10 +2,11 @@
  * Host-side Cordis plugin entrypoint for @dsh-portable/vision-bridge.
  *
  * The plugin contributes one explicit `view_image` tool that analyzes local
- * image files or re-analyzes durable images already referenced by the current
- * session. Everything underneath it — provider credentials, model capability,
- * durable image storage, retry and metering — belongs to the kernel services
- * this plugin injects, so there is no parallel endpoint or secret to configure.
+ * image files, renders local PDF pages, or re-analyzes durable images already
+ * referenced by the current session. Everything underneath it — provider
+ * credentials, model capability, durable image storage, retry and metering —
+ * belongs to the kernel services this plugin injects, so there is no parallel
+ * endpoint or secret to configure.
  * @module @dsh-portable/vision-bridge
  */
 import type { Context } from '@deepseek-ai/cordis';

@@ -19,6 +19,7 @@ import { decodeLearningCheckpointDetail } from '../src/transport.ts'
 import {
   LEARNER_STATE_EVENT_PROTOCOL,
   LEARNER_STATE_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
 } from '../src/learner-state.ts'
 import { parameterActivity, visualV4Catalog } from './fixtures.ts'
 
@@ -26,7 +27,18 @@ const testToolSignal = new AbortController().signal
 
 function stubAgent(id: string, events: readonly unknown[] = []): Agent {
   const agentId = id as Agent['id']
-  const log = [...events] as Array<{ type: string; seq: number; time: number; data: unknown }>
+  // Host evidence now requires a real user turn. Seed one compact turn for
+  // unit-test agents; individual route tests append later turns when they
+  // exercise refresh/claim sequencing.
+  const log = [
+    { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
+    {
+      type: 'user/message', seq: 1, time: 1,
+      data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'test input' }] },
+    },
+    { type: 'turn/end', seq: 2, time: 2, data: { turn: 1, reason: { kind: 'success' } } },
+    ...events,
+  ] as Array<{ type: string; seq: number; time: number; data: unknown }>
   const session = {
     id: agentId,
     header: { delegationDepth: 0 },
@@ -64,6 +76,15 @@ function checkpointCall(callId: string, step = 1): unknown {
 
 function registerRoot(ctx: Context, agent: Agent): void {
   ctx.agents.register(agent)
+}
+
+function appendRealUserTurn(agent: Agent, turn: number): void {
+  const session = agent.session as unknown as { append(type: string, data: unknown): unknown }
+  session.append('turn/start', { turn })
+  session.append('user/message', {
+    role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: `turn ${String(turn)}` }],
+  })
+  session.append('turn/end', { turn, reason: { kind: 'success' } })
 }
 
 async function selectVisual(ctx: Context, kind: string, agent?: Agent, callId = `select-visual-${kind}`): Promise<void> {
@@ -106,7 +127,7 @@ async function selectCheckpoint(
 function answerFor(
   request: AskUserQuestionRequest,
   status: LearningCheckpointResultV1['status'],
-  options: { response?: { text: string }; receiptId?: string } = {},
+  options: { response?: { text: string }; receiptId?: string; draftRecovered?: boolean } = {},
 ): { answers: Array<{ id: string; selected: string[]; custom: string }> } {
   const question = request.questions[0]!
   const envelope = decodeLearningCheckpointDetail(question.detail)
@@ -126,7 +147,10 @@ function answerFor(
         reason: status === 'skipped' ? 'learner-skipped' : 'learner-cancelled',
         receiptId: options.receiptId ?? `receipt-${status}`,
       }
-  return { answers: [{ id: question.id, selected: [], custom: JSON.stringify(result) }] }
+  const custom = options.draftRecovered === undefined
+    ? result
+    : { checkpointResult: result, clientMeta: { draftRecovered: options.draftRecovered } }
+  return { answers: [{ id: question.id, selected: [], custom: JSON.stringify(custom) }] }
 }
 
 async function setupBroker(richClient: boolean) {
@@ -253,6 +277,11 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(switched.sections.some(section => section.name === 'learning:policy')).toBe(false)
     expect(switched.contexts.find(context => context.name === 'learning:turn-route')?.text)
       .toContain('intent=not-learn; route=direct')
+    expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(false)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'learning/segment',
+      data: { route: 'learn', segment: 'closed', turn: 4 },
+    })
 
     disposeAgent()
   })
@@ -279,6 +308,8 @@ describe('non-blocking Learning Agent v4.1', () => {
         },
       },
     })
+    ctx.learningActivities.recordLearningSegmentAnchor(agent, 1)
+    appendRealUserTurn(agent, 2)
 
     ctx.emit('agent/inbox/claimed', {
       agent,
@@ -286,7 +317,7 @@ describe('non-blocking Learning Agent v4.1', () => {
         id: 'restored-route-answer',
         role: 'user',
         source: { kind: 'user' },
-        content: [{ type: 'text', text: 'A.' }],
+        content: [{ type: 'text', text: 'Continue explaining FIFO queues.' }],
       },
       turn: 2,
     } as never)
@@ -414,6 +445,20 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(plainTools).toContain('learning_state_update')
     expect(plainTools).not.toContain('learning_visual_select')
     expect(plainTools).not.toContain('learning_checkpoint_select')
+    const uncertainAgent = stubAgent('plain-client-uncertain-route')
+    const disposeUncertain = plain.agents.register(uncertainAgent)
+    plain.emit('agent/inbox/claimed', {
+      agent: uncertainAgent,
+      message: {
+        id: 'plain-client-uncertain-message', role: 'user', source: { kind: 'user' },
+        content: [{ type: 'text', text: 'Could you help with this?' }],
+      },
+      turn: 1,
+    } as never)
+    const uncertainAssembly = await plain.systemPrompt.assemble({ scope: uncertainAgent, agent: uncertainAgent })
+    expect(uncertainAssembly.contexts.find(item => item.name === 'learning:turn-route')?.text)
+      .toContain('Markdown table or compact ASCII structure')
+    disposeUncertain()
     disposePlain()
   })
 
@@ -646,6 +691,44 @@ describe('non-blocking Learning Agent v4.1', () => {
 })
 
 describe('session-scoped learner-state Host wiring', () => {
+  it('rejects missing or forged evidence turns before the reducer can persist them', async () => {
+    const wired = await setupBroker(false)
+    const agent = stubAgent('evidence-turn-contract')
+    const evidence = {
+      kind: 'prediction' as const,
+      summary: 'The learner predicted the next queue state.',
+      correctness: 'correct' as const,
+      justification: 'The predicted state follows FIFO.',
+      independence: 'independent' as const,
+    }
+    expect(() => wired.learningActivities.updateLearnerState({
+      action: 'update', agent, expectedRevision: 0,
+      event: {
+        type: 'learner_evidence_observed', evidence,
+        observation: { id: 'missing-turn', source: 'learner-message', summary: 'No turn.' },
+      } as never,
+    })).toThrow(/requires a non-negative observation.turn/)
+    expect(() => wired.learningActivities.updateLearnerState({
+      action: 'update', agent, expectedRevision: 0,
+      event: {
+        type: 'learner_evidence_observed', evidence,
+        observation: { id: 'forged-turn', source: 'learner-message', summary: 'Not a logged turn.', turn: 99 },
+      } as never,
+    })).toThrow(/not a real user turn/)
+  })
+
+  it('restores segment activity from a host anchor and expires after two unanchored turns', async () => {
+    const ctx = await setupBroker(false)
+    const agent = stubAgent('segment-anchor')
+    expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(false)
+    ctx.learningActivities.recordLearningSegmentAnchor(agent, 1)
+    expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(true)
+    appendRealUserTurn(agent, 2)
+    expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(true)
+    appendRealUserTurn(agent, 3)
+    expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(false)
+  })
+
   it('rebases one stale additive observation but keeps replacement updates strict', async () => {
     const ctx = await setupBroker(false)
     const agent = stubAgent('state-cas-rebase')
@@ -660,12 +743,14 @@ describe('session-scoped learner-state Host wiring', () => {
           transferContext: 'fresh',
           summary: 'Applied the queue invariant in a fresh scheduling case.',
           correctness: 'correct',
+          justification: 'The learner applied FIFO to the fresh scheduling case.',
           independence: 'independent',
         },
         observation: {
           id: 'cas-first-evidence',
           source: 'learner-message',
           summary: 'The learner transferred the queue invariant independently.',
+          turn: 1,
         },
       },
     })
@@ -779,7 +864,11 @@ describe('session-scoped learner-state Host wiring', () => {
       },
     })
     expect(agent.session.events.at(-1)?.data).not.toHaveProperty('snapshot.sessionId')
-    expect(await stateContext()).toContain('goal: "Understand FIFO queues"')
+    const incrementalContext = await stateContext()
+    expect(incrementalContext).toContain('Learner state (incremental projection for this turn)')
+    expect(incrementalContext).toContain('revision: 0 -> 1')
+    expect(incrementalContext).toContain('goal: "Understand FIFO queues"')
+    expect(incrementalContext).not.toContain('<learner_state')
 
     const stateEventsBeforeReplay = agent.session.events.filter(event => event.type === 'learning/state').length
     const replay = await ctx.tools.execute({
@@ -982,6 +1071,7 @@ describe('session-scoped learner-state Host wiring', () => {
       id,
       source: 'learner-message',
       summary,
+      turn: 1,
     })
 
     await applyEvent({
@@ -1036,12 +1126,14 @@ describe('session-scoped learner-state Host wiring', () => {
         summary: 'Applied FIFO correctly to a fresh printer-job example.',
         confidence: 'high',
         correctness: 'correct',
+        justification: 'The learner transferred FIFO correctly to a fresh printer-job case.',
         independence: 'independent',
       },
       observation: {
         id: 'field-transfer',
         source: 'learner-action',
         summary: 'The learner independently solved a fresh printer-job queue case.',
+        turn: 1,
       },
     }, 8)
     await applyEvent({
@@ -1162,7 +1254,9 @@ describe('Learning checkpoint broker', () => {
       const ctx = await setupBroker(true)
       const agent = stubAgent(`terminal-${status}`)
       registerRoot(ctx, agent)
-      const ask = vi.fn(async (request: AskUserQuestionRequest) => answerFor(request, status))
+      const ask = vi.fn(async (request: AskUserQuestionRequest) => answerFor(request, status, {
+        draftRecovered: status === 'submitted',
+      }))
       ctx.userQuestions.registerProvider({ ask })
 
       const result = await ctx.learningActivities.presentCheckpoint({
@@ -1177,6 +1271,12 @@ describe('Learning checkpoint broker', () => {
       const state = ctx.learningActivities.learnerState(agent)
       expect(state.lastMove).toBe('checkpoint')
       expect(state.progressSignal).toBe('unknown')
+      expect(ctx.learningActivities.checkpointMetrics(agent)).toMatchObject({
+        usageCount: 1,
+        kindCounts: { prediction: 1 },
+        terminalCounts: { [status]: 1 },
+        draftRecovery: { attempts: 1, hits: status === 'submitted' ? 1 : 0 },
+      })
       if (status === 'submitted') {
         expect(state.evidence.at(-1)).toMatchObject({
           kind: 'prediction',
@@ -1184,6 +1284,11 @@ describe('Learning checkpoint broker', () => {
           independence: 'unknown',
         })
         expect(state.mastery).toBe('unseen')
+        const metricEvents = agent.session.events
+          .filter(event => event.type === LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)
+        expect(metricEvents).toHaveLength(1)
+        expect(JSON.stringify(metricEvents)).not.toContain('B leaves first')
+        expect(JSON.stringify(metricEvents)).not.toContain('clientMeta')
       } else expect(state.evidence).toEqual([])
     },
   )
@@ -1324,7 +1429,8 @@ describe('Learning checkpoint broker', () => {
       mastery: 'unseen',
     })
     expect(agent.session.events.filter(event => event.type === 'learning/state')).toHaveLength(1)
-    expect(agent.session.events.at(-1)).toMatchObject({ data: { reason: 'reset' } })
+    expect(agent.session.events.filter(event => event.type === 'learning/state').at(-1))
+      .toMatchObject({ data: { reason: 'reset' } })
   })
 
   it('fences a disposed checkpoint from a replacement session object reusing the same id', async () => {

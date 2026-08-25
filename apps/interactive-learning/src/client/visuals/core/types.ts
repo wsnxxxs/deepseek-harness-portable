@@ -4,7 +4,7 @@
  * Extracted from the former single-file renderer so that layout, state and
  * each renderer can be read, tested and changed independently.
  */
-import type { LearningVisualV4 as LearningVisualV4Definition } from '../../../protocol.ts'
+import type { LearningVisualV4 as LearningVisualV4Definition } from '../../../protocol-current.ts'
 import type { VisualFocus } from '../state/visual-state.ts'
 
 export type VisualContent = LearningVisualV4Definition['content']

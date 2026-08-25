@@ -1,4 +1,4 @@
-import type { MathExpressionV1 } from './protocol.ts'
+import type { MathExpressionV1 } from './protocol-current.ts'
 
 /** Values available to a safe mathematical expression. */
 export type MathBindings = Readonly<Record<string, number>>

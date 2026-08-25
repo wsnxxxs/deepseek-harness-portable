@@ -1,5 +1,5 @@
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
-import type { LearningActivityV1, LearningJson, LearningResponseV1 } from '../protocol.ts';
+import type { LearningActivityV1, LearningJson, LearningResponseV1 } from '../protocol-current.ts';
 export interface ActivitySubmission {
     answer: LearningJson;
     interactionState: LearningJson;

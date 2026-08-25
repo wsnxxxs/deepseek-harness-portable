@@ -1,4 +1,4 @@
-import type { LearningVisualV4 } from './protocol.ts'
+import type { LearningVisualV4 } from './protocol-current.ts'
 import type { LearnIntent, LearnTrigger } from './learn-intent.ts'
 import type { LearningRoute } from './teaching-route.ts'
 

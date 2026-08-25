@@ -7,21 +7,58 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		//#region src/protocol.ts
-		/** Versioned, declarative protocol shared by the Host, Agent, and Client. */
-		const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
-		const RESPONSE_PROTOCOL = "dsh-learning/response@1";
-		const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
-		const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
-		const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
-		const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
-		const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
-		const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
+		//#region src/protocol-schema.ts
+		function schemaPath(path) {
+			return path === "" ? "value" : path;
+		}
+		function propertyPath(path, key) {
+			return path === "" ? key : `${path}.${key}`;
+		}
+		function isRecord(value) {
+			return typeof value === "object" && value !== null && !Array.isArray(value);
+		}
+		/**
+		* Validate the local schema DSL without pulling the host-only tool registry
+		* into the browser bundle. The same schema object is still passed to dsh-tools
+		* when the Host registers the model-facing tool.
+		*/
+		function validateSchemaValue(schema, value, path) {
+			if (schema.oneOf !== void 0) {
+				const matches = schema.oneOf.filter((branch) => validateSchemaValue(branch, value, path).length === 0).length;
+				return matches === 1 ? [] : [`"${schemaPath(path)}" must match exactly one oneOf branch (matched ${matches})`];
+			}
+			if (schema.type === void 0) return [];
+			if (schema.type === "object") {
+				if (!isRecord(value)) return [`"${schemaPath(path)}" must be an object`];
+				const properties = schema.properties ?? {};
+				const issues = [];
+				for (const [key, child] of Object.entries(properties)) {
+					const childPath = propertyPath(path, key);
+					if (child.required === true && (!Object.hasOwn(value, key) || value[key] === void 0)) {
+						issues.push(`missing required property "${childPath}"`);
+						continue;
+					}
+					if (Object.hasOwn(value, key) && value[key] !== void 0) issues.push(...validateSchemaValue(child, value[key], childPath));
+				}
+				if (schema.additionalProperties === false) {
+					for (const key of Object.keys(value)) if (!Object.hasOwn(properties, key)) issues.push(`"${propertyPath(path, key)}" is not a declared property (additionalProperties: false)`);
+				}
+				return issues;
+			}
+			if (schema.type === "array") {
+				if (!Array.isArray(value)) return [`"${schemaPath(path)}" must be an array`];
+				return schema.items === void 0 ? [] : value.flatMap((entry, index) => validateSchemaValue(schema.items, entry, `${path}[${index}]`));
+			}
+			if (!(schema.type === "null" ? value === null : schema.type === "number" ? typeof value === "number" && Number.isFinite(value) : schema.type === "integer" ? typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) : typeof value === schema.type)) return [`"${schemaPath(path)}" must be a ${schema.type}`];
+			if (schema.enum !== void 0 && !schema.enum.includes(value)) return [`"${schemaPath(path)}" must be one of ${JSON.stringify(schema.enum)}`];
+			if (Object.hasOwn(schema, "const") && value !== schema.const) return [`"${schemaPath(path)}" must be ${JSON.stringify(schema.const)}`];
+			return [];
+		}
 		const VISUAL_PROTOCOL_V4 = "dsh-learning/visual@4";
 		const VISUAL_RESULT_PROTOCOL_V4 = "dsh-learning/visual-result@4";
+		const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
 		const CHECKPOINT_PROTOCOL = "dsh-learning/checkpoint@1";
 		const CHECKPOINT_RESULT_PROTOCOL = "dsh-learning/checkpoint-result@1";
-		const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
 		const LEARNING_CHECKPOINT_KINDS = [
 			"free_text",
 			"single_choice",
@@ -53,13 +90,6 @@ window.__ModuleLoader__.load({
 			"field_2d",
 			"causal_loop"
 		];
-		const LEARNING_ACTIVITY_KINDS = [
-			"parameter_explorer",
-			"process_stepper",
-			"structure_compare"
-		];
-		const MAX_ACTIVITY_BYTES = 65536;
-		const MAX_RESPONSE_BYTES = 32768;
 		const MATH_BINARY_OPERATORS = [
 			"add",
 			"sub",
@@ -87,8 +117,2119 @@ window.__ModuleLoader__.load({
 			"floor",
 			"ceil"
 		];
-		const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
-		/** A stable, actionable protocol rejection surfaced to the tool call. */
+		const parameter = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					type: "string",
+					description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.",
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				min: {
+					type: "number",
+					required: true
+				},
+				max: {
+					type: "number",
+					required: true
+				},
+				step: {
+					type: "number",
+					required: true
+				},
+				initial: {
+					type: "number",
+					required: true
+				}
+			}
+		};
+		function mathExpressionSchema(depth) {
+			const leaves = [{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					op: {
+						type: "string",
+						const: "constant",
+						required: true
+					},
+					value: {
+						type: "number",
+						required: true
+					}
+				}
+			}, {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					op: {
+						type: "string",
+						const: "variable",
+						required: true
+					},
+					name: {
+						type: "string",
+						description: "Use x or one of this visual's parameter ids.",
+						required: true
+					}
+				}
+			}];
+			if (depth <= 1) return { oneOf: leaves };
+			const nested = mathExpressionSchema(depth - 1);
+			return { oneOf: [
+				...leaves,
+				{
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						op: {
+							type: "string",
+							enum: MATH_UNARY_OPERATORS,
+							required: true
+						},
+						value: {
+							...nested,
+							required: true
+						}
+					}
+				},
+				{
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						op: {
+							type: "string",
+							enum: MATH_BINARY_OPERATORS,
+							required: true
+						},
+						left: {
+							...nested,
+							required: true
+						},
+						right: {
+							...nested,
+							required: true
+						}
+					}
+				}
+			] };
+		}
+		function required(schema) {
+			return {
+				...schema,
+				required: true
+			};
+		}
+		const expression = mathExpressionSchema(4);
+		const requiredExpression = required(expression);
+		const mathExpressionDescription = "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+		const identifier = {
+			type: "string",
+			description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -."
+		};
+		const tone = {
+			type: "string",
+			enum: [
+				"blue",
+				"green",
+				"red",
+				"orange",
+				"purple",
+				"gray"
+			]
+		};
+		const stroke = {
+			type: "string",
+			enum: [
+				"solid",
+				"dashed",
+				"dotted"
+			]
+		};
+		const point = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				x: {
+					type: "number",
+					required: true
+				},
+				y: {
+					type: "number",
+					required: true
+				},
+				label: { type: "string" }
+			}
+		};
+		const coordinate = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				x: {
+					type: "number",
+					required: true
+				},
+				y: {
+					type: "number",
+					required: true
+				}
+			}
+		};
+		const axis = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				label: { type: "string" },
+				min: {
+					type: "number",
+					required: true
+				},
+				max: {
+					type: "number",
+					required: true
+				}
+			}
+		};
+		const curveSeries = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				type: {
+					type: "string",
+					const: "curve",
+					required: true
+				},
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				expression: {
+					...requiredExpression,
+					description: mathExpressionDescription
+				},
+				tone,
+				stroke
+			}
+		};
+		const pointSeries = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				type: {
+					type: "string",
+					const: "points",
+					required: true
+				},
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				points: {
+					type: "array",
+					required: true,
+					items: point,
+					description: "1 to 256 points."
+				},
+				tone
+			}
+		};
+		const lineSeries = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				type: {
+					type: "string",
+					const: "line",
+					required: true
+				},
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				points: {
+					type: "array",
+					required: true,
+					items: point,
+					description: "1 to 256 points."
+				},
+				tone,
+				stroke
+			}
+		};
+		const barSeries = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				type: {
+					type: "string",
+					const: "bars",
+					required: true
+				},
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				points: {
+					type: "array",
+					required: true,
+					items: point,
+					description: "1 to 64 bars."
+				},
+				tone
+			}
+		};
+		const plotContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "plot",
+					required: true,
+					description: "Functions, quantitative data, probability, distributions, or tangent/secant geometry on Cartesian axes."
+				},
+				parameters: {
+					type: "array",
+					items: parameter,
+					description: [
+						"Optional; omit for a static plot. Use at most three only when changing the value teaches the mechanism.",
+						"A slider is a teaching metaphor that puts the learner's hand on the parameter: ask them to predict first, then drag it.",
+						"Do not silently treat movement as assessed evidence; like recall self-rating it has low confidence and unknown correctness until the learner explains what they observed.",
+						"可选；滑块用于“先预测、再拖动”的教学比喻，不得静默采集为已判定正确的学习证据。"
+					].join(" ")
+				},
+				xAxis: {
+					...axis,
+					required: true,
+					properties: {
+						...axis.properties,
+						samples: {
+							type: "integer",
+							description: "Optional curve samples from 24 to 256."
+						}
+					}
+				},
+				yAxis: required(axis),
+				series: {
+					type: "array",
+					required: true,
+					items: { oneOf: [
+						curveSeries,
+						pointSeries,
+						lineSeries,
+						barSeries
+					] },
+					description: "1 to 8 series."
+				},
+				metrics: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							expression: {
+								...requiredExpression,
+								description: mathExpressionDescription
+							},
+							digits: { type: "integer" },
+							suffix: { type: "string" }
+						}
+					},
+					description: "Optional; at most 4 metrics."
+				}
+			}
+		};
+		const nodeGroup = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				}
+			}
+		};
+		const node = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				detail: { type: "string" },
+				group: { type: "string" },
+				tone
+			}
+		};
+		const edge = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				from: {
+					type: "string",
+					required: true
+				},
+				to: {
+					type: "string",
+					required: true
+				},
+				label: { type: "string" },
+				detail: { type: "string" },
+				tone,
+				stroke,
+				directed: { type: "boolean" }
+			}
+		};
+		const nodeLinkContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "node_link",
+					required: true,
+					description: "Networks, fully connected layers, trees, causality, concept maps, state transitions, and dependency topology."
+				},
+				layout: {
+					type: "string",
+					enum: [
+						"layered",
+						"hierarchy",
+						"radial"
+					],
+					required: true
+				},
+				groups: {
+					type: "array",
+					items: nodeGroup,
+					description: "Optional 1 to 12 ordered layers for layered layout; every node must reference one group."
+				},
+				nodes: {
+					type: "array",
+					items: node,
+					required: true,
+					description: "2 to 48 nodes."
+				},
+				edges: {
+					type: "array",
+					items: edge,
+					required: true,
+					description: "1 to 160 edges; include every semantically required connection."
+				}
+			}
+		};
+		const sceneBase = {
+			id: {
+				...identifier,
+				required: true
+			},
+			label: { type: "string" },
+			detail: { type: "string" },
+			tone
+		};
+		const sceneElement = { oneOf: [
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						const: "point",
+						required: true
+					},
+					...sceneBase,
+					x: {
+						type: "number",
+						required: true
+					},
+					y: {
+						type: "number",
+						required: true
+					},
+					size: { type: "number" }
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						enum: ["segment", "arrow"],
+						required: true
+					},
+					...sceneBase,
+					x1: {
+						type: "number",
+						required: true
+					},
+					y1: {
+						type: "number",
+						required: true
+					},
+					x2: {
+						type: "number",
+						required: true
+					},
+					y2: {
+						type: "number",
+						required: true
+					},
+					stroke
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						const: "circle",
+						required: true
+					},
+					...sceneBase,
+					cx: {
+						type: "number",
+						required: true
+					},
+					cy: {
+						type: "number",
+						required: true
+					},
+					r: {
+						type: "number",
+						required: true
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						const: "rect",
+						required: true
+					},
+					...sceneBase,
+					x: {
+						type: "number",
+						required: true
+					},
+					y: {
+						type: "number",
+						required: true
+					},
+					width: {
+						type: "number",
+						required: true
+					},
+					height: {
+						type: "number",
+						required: true
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						const: "polygon",
+						required: true
+					},
+					...sceneBase,
+					points: {
+						type: "array",
+						required: true,
+						items: coordinate,
+						description: "3 to 24 polygon vertices."
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					type: {
+						type: "string",
+						const: "label",
+						required: true
+					},
+					...sceneBase,
+					x: {
+						type: "number",
+						required: true
+					},
+					y: {
+						type: "number",
+						required: true
+					},
+					text: {
+						type: "string",
+						required: true
+					}
+				}
+			}
+		] };
+		const sceneContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "scene_2d",
+					required: true,
+					description: "Geometry, vectors, forces, spatial relationships, and annotated scientific schematics."
+				},
+				xAxis: required(axis),
+				yAxis: required(axis),
+				grid: { type: "boolean" },
+				elements: {
+					type: "array",
+					items: sceneElement,
+					required: true,
+					description: "1 to 64 scene elements."
+				}
+			}
+		};
+		const relationSubject = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				},
+				detail: { type: "string" },
+				tone
+			}
+		};
+		const relationAxisItem = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				}
+			}
+		};
+		const relationContent = { oneOf: [
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					kind: {
+						type: "string",
+						const: "relation",
+						required: true
+					},
+					variant: {
+						type: "string",
+						const: "comparison",
+						required: true
+					},
+					subjects: {
+						type: "array",
+						items: relationSubject,
+						required: true,
+						description: "2 to 4 subjects."
+					},
+					rows: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								id: {
+									...identifier,
+									required: true
+								},
+								label: {
+									type: "string",
+									required: true
+								},
+								detail: { type: "string" },
+								cells: {
+									type: "array",
+									required: true,
+									items: {
+										type: "object",
+										additionalProperties: false,
+										properties: {
+											subjectId: {
+												type: "string",
+												required: true
+											},
+											value: {
+												type: "string",
+												required: true
+											},
+											tone
+										}
+									},
+									description: "1 to 4 cells; each subjectId must reference a declared subject."
+								}
+							}
+						},
+						description: "1 to 16 comparison rows."
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					kind: {
+						type: "string",
+						const: "relation",
+						required: true
+					},
+					variant: {
+						type: "string",
+						const: "matrix",
+						required: true
+					},
+					rows: {
+						type: "array",
+						items: relationAxisItem,
+						required: true,
+						description: "1 to 10 matrix rows."
+					},
+					columns: {
+						type: "array",
+						items: relationAxisItem,
+						required: true,
+						description: "1 to 10 matrix columns."
+					},
+					cells: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								id: {
+									...identifier,
+									required: true
+								},
+								rowId: {
+									type: "string",
+									required: true
+								},
+								columnId: {
+									type: "string",
+									required: true
+								},
+								label: {
+									type: "string",
+									required: true
+								},
+								detail: { type: "string" },
+								tone
+							}
+						},
+						description: "1 to 64 matrix cells; rowId and columnId must reference declared axes."
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					kind: {
+						type: "string",
+						const: "relation",
+						required: true
+					},
+					variant: {
+						type: "string",
+						const: "sets",
+						required: true
+					},
+					sets: {
+						type: "array",
+						items: relationSubject,
+						required: true,
+						description: "2 to 3 sets."
+					},
+					items: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								id: {
+									...identifier,
+									required: true
+								},
+								label: {
+									type: "string",
+									required: true
+								},
+								setIds: {
+									type: "array",
+									items: { type: "string" },
+									required: true,
+									description: "1 to 3 unique ids referencing declared sets."
+								},
+								detail: { type: "string" }
+							}
+						},
+						description: "1 to 24 set items."
+					}
+				}
+			}
+		] };
+		const timelineContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "timeline",
+					required: true,
+					description: "Ordered historical events, scientific discoveries, biographies, eras, or other chronology where time order is the structure."
+				},
+				orientation: {
+					type: "string",
+					enum: ["horizontal", "vertical"]
+				},
+				events: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							time: {
+								type: "string",
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							position: {
+								type: "number",
+								description: "Optional normalized position from 0 to 1. Provide it for every event or omit it for every event."
+							},
+							tone
+						}
+					},
+					required: true,
+					description: "2 to 32 events in chronological order."
+				},
+				eras: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							startEventId: {
+								type: "string",
+								required: true
+							},
+							endEventId: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "Optional 1 to 8 eras; startEventId and endEventId must reference declared events in order."
+				}
+			}
+		};
+		const formulaStepsContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "formula_steps",
+					required: true,
+					description: "A derivation, algebraic transformation, proof chain, or symbolic simplification where the rule between steps matters. Not for merely recalling one formula."
+				},
+				notation: {
+					type: "string",
+					description: "Optional short notation key used across the derivation."
+				},
+				steps: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							expression: {
+								type: "string",
+								required: true,
+								description: "One LaTeX display expression without dollar delimiters; use commands such as \\lim_{h \\to 0} and ^{\\prime}."
+							},
+							label: { type: "string" },
+							rule: { type: "string" },
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "2 to 16 formula steps."
+				},
+				conclusion: { type: "string" }
+			}
+		};
+		const studyMapContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "study_map",
+					required: true,
+					description: "A navigable overview of a supplied document, chapter, slide deck, or multi-concept learning source. Preserve source sections and anchors instead of flattening the material."
+				},
+				sourceLabel: {
+					type: "string",
+					required: true
+				},
+				goal: { type: "string" },
+				sections: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							anchor: {
+								type: "string",
+								description: "Human-readable source location, such as Chapter 2 or pp. 18–23."
+							},
+							summary: { type: "string" }
+						}
+					},
+					description: "1 to 16 source sections."
+				},
+				concepts: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							sectionId: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							prerequisiteIds: {
+								type: "array",
+								items: { type: "string" },
+								description: "Optional; at most 8 unique declared concept ids, excluding this concept, with no cycles."
+							},
+							role: {
+								type: "string",
+								enum: [
+									"foundation",
+									"core",
+									"extension",
+									"practice"
+								]
+							},
+							tone
+						}
+					},
+					description: "1 to 48 concepts; every sectionId must reference a declared section."
+				}
+			}
+		};
+		const recallDeckContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "recall_deck",
+					required: true,
+					description: "A requested flashcard or active-recall set with hidden answers, hints, and local review state. Use only after the relevant material is known."
+				},
+				instructions: { type: "string" },
+				cards: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							prompt: {
+								type: "string",
+								required: true
+							},
+							answer: {
+								type: "string",
+								required: true
+							},
+							hint: { type: "string" },
+							tags: {
+								type: "array",
+								items: { type: "string" },
+								description: "Optional; at most 6 unique labels."
+							}
+						}
+					},
+					description: "2 to 32 recall cards."
+				}
+			}
+		};
+		const tableValue = { oneOf: [
+			{ type: "string" },
+			{ type: "number" },
+			{ type: "boolean" },
+			{ type: "null" }
+		] };
+		const dataTableContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "data_table",
+					required: true,
+					description: "A typed record table for inspecting real data, filtering rows, sorting values, marking outliers, or linking tabular values to a chart."
+				},
+				columns: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							type: {
+								type: "string",
+								enum: [
+									"string",
+									"number",
+									"boolean",
+									"date"
+								],
+								required: true
+							},
+							unit: { type: "string" }
+						}
+					},
+					description: "1 to 24 typed columns."
+				},
+				rows: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							detail: { type: "string" },
+							cells: {
+								type: "array",
+								required: true,
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										columnId: {
+											type: "string",
+											required: true
+										},
+										value: {
+											...tableValue,
+											required: true
+										}
+									}
+								},
+								description: "One cell per declared column; columnId must reference a declared column."
+							}
+						}
+					},
+					description: "1 to 128 records."
+				},
+				outlierIds: {
+					type: "array",
+					items: { type: "string" },
+					description: "Optional row ids to emphasize as anomalies."
+				},
+				initialSort: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						columnId: {
+							type: "string",
+							required: true
+						},
+						direction: {
+							type: "string",
+							enum: ["asc", "desc"],
+							required: true
+						}
+					}
+				},
+				initialFilter: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						columnId: {
+							type: "string",
+							required: true
+						},
+						operator: {
+							type: "string",
+							enum: [
+								"equals",
+								"not_equals",
+								"contains",
+								"gt",
+								"gte",
+								"lt",
+								"lte"
+							],
+							required: true
+						},
+						value: {
+							...tableValue,
+							required: true
+						}
+					}
+				},
+				chart: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						type: {
+							type: "string",
+							enum: [
+								"line",
+								"bar",
+								"scatter"
+							],
+							required: true
+						},
+						xColumnId: {
+							type: "string",
+							required: true
+						},
+						yColumnId: {
+							type: "string",
+							required: true
+						},
+						seriesColumnId: { type: "string" }
+					}
+				}
+			}
+		};
+		const stateTransitionContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "state_transition",
+					required: true,
+					description: "A state machine where an event triggers a transition from one explicit state to another, optionally with guard and action."
+				},
+				states: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							tone,
+							initial: { type: "boolean" },
+							final: { type: "boolean" }
+						}
+					},
+					description: "2 to 32 states; mark initial/final states when the lifecycle has them."
+				},
+				transitions: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							from: {
+								type: "string",
+								required: true
+							},
+							to: {
+								type: "string",
+								required: true
+							},
+							trigger: {
+								type: "string",
+								required: true
+							},
+							guard: { type: "string" },
+							action: { type: "string" },
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "1 to 96 transitions; from and to must reference declared states."
+				},
+				steps: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							currentStateId: {
+								type: "string",
+								required: true
+							},
+							transitionId: { type: "string" },
+							description: { type: "string" }
+						}
+					},
+					description: "Optional 2 to 16 execution steps; each names the current state and optional transition just taken."
+				}
+			}
+		};
+		const sequenceBufferContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "sequence_buffer",
+					required: true,
+					description: "Discrete indexed slots with moving pointers, highlighted intervals, and snapshots for array, window, parsing, or protocol algorithms."
+				},
+				slots: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							index: {
+								type: "integer",
+								required: true
+							},
+							value: {
+								...tableValue,
+								required: true
+							},
+							label: { type: "string" },
+							tone
+						}
+					},
+					description: "1 to 128 ordered slots; index values must be unique."
+				},
+				pointers: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							index: {
+								type: "integer",
+								required: true
+							},
+							tone
+						}
+					},
+					description: "Optional 1 to 8 named pointers."
+				},
+				ranges: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							start: {
+								type: "integer",
+								required: true
+							},
+							end: {
+								type: "integer",
+								required: true
+							},
+							tone
+						}
+					},
+					description: "Optional 1 to 8 inclusive index intervals."
+				},
+				steps: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							description: { type: "string" },
+							slots: {
+								type: "array",
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										slotId: {
+											type: "string",
+											required: true
+										},
+										value: { ...tableValue }
+									}
+								}
+							},
+							pointers: {
+								type: "array",
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										pointerId: {
+											type: "string",
+											required: true
+										},
+										index: {
+											type: "integer",
+											required: true
+										}
+									}
+								}
+							},
+							ranges: {
+								type: "array",
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										rangeId: {
+											type: "string",
+											required: true
+										},
+										start: {
+											type: "integer",
+											required: true
+										},
+										end: {
+											type: "integer",
+											required: true
+										}
+									}
+								}
+							}
+						}
+					},
+					description: "Optional 2 to 16 snapshots. Include only the collections that change in each snapshot."
+				}
+			}
+		};
+		const sequenceDiagramContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "sequence_diagram",
+					required: true,
+					description: "Ordered messages exchanged by API clients, services, protocols, cells, or collaborating roles."
+				},
+				participants: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "2 to 16 lifeline participants."
+				},
+				messages: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							from: {
+								type: "string",
+								required: true
+							},
+							to: {
+								type: "string",
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							type: {
+								type: "string",
+								enum: [
+									"sync",
+									"async",
+									"return",
+									"self"
+								],
+								required: true
+							},
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "1 to 96 messages in top-to-bottom order; from and to must reference participants."
+				}
+			}
+		};
+		const codeTraceContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "code_trace",
+					required: true,
+					description: "Source lines paired with execution steps, current line, variable values, call stack, and output."
+				},
+				language: {
+					type: "string",
+					required: true
+				},
+				code: {
+					type: "string",
+					required: true,
+					description: "Complete source text shown above or beside the trace."
+				},
+				lines: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							number: {
+								type: "integer",
+								required: true
+							},
+							text: {
+								type: "string",
+								required: true
+							}
+						}
+					},
+					description: "1 to 256 numbered source lines."
+				},
+				steps: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							currentLine: {
+								type: "integer",
+								required: true
+							},
+							variables: {
+								type: "array",
+								required: true,
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										name: {
+											type: "string",
+											required: true
+										},
+										value: {
+											...tableValue,
+											required: true
+										},
+										type: { type: "string" }
+									}
+								}
+							},
+							stack: {
+								type: "array",
+								required: true,
+								items: {
+									type: "object",
+									additionalProperties: false,
+									properties: {
+										id: {
+											...identifier,
+											required: true
+										},
+										function: {
+											type: "string",
+											required: true
+										},
+										line: { type: "integer" }
+									}
+								}
+							},
+							output: { type: "string" },
+							description: { type: "string" }
+						}
+					},
+					description: "2 to 32 execution snapshots."
+				}
+			}
+		};
+		const fieldGrid = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				columns: {
+					type: "integer",
+					required: true
+				},
+				rows: {
+					type: "integer",
+					required: true
+				}
+			}
+		};
+		const scalarFieldSamples = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				...fieldGrid.properties,
+				values: {
+					type: "array",
+					items: { type: "number" },
+					required: true,
+					description: "Flattened row-major values; length must equal rows * columns."
+				}
+			}
+		};
+		const vectorFieldSamples = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				...fieldGrid.properties,
+				u: {
+					type: "array",
+					items: { type: "number" },
+					required: true,
+					description: "Flattened horizontal components; length must equal rows * columns."
+				},
+				v: {
+					type: "array",
+					items: { type: "number" },
+					required: true,
+					description: "Flattened vertical components; length must equal rows * columns."
+				}
+			}
+		};
+		const field2DContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "field_2d",
+					required: true,
+					description: "A sampled or mathematically defined scalar heatmap, contour field, vector field, or gradient over two axes."
+				},
+				xAxis: {
+					...axis,
+					required: true,
+					properties: {
+						...axis.properties,
+						samples: { type: "integer" }
+					}
+				},
+				yAxis: {
+					...axis,
+					required: true,
+					properties: {
+						...axis.properties,
+						samples: { type: "integer" }
+					}
+				},
+				scalar: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						samples: scalarFieldSamples,
+						expression: {
+							...expression,
+							description: "Closed math AST using x and y variables."
+						},
+						min: { type: "number" },
+						max: { type: "number" }
+					}
+				},
+				vector: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						samples: vectorFieldSamples,
+						expression: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								u: {
+									...requiredExpression,
+									description: "Horizontal component using x and y variables."
+								},
+								v: {
+									...requiredExpression,
+									description: "Vertical component using x and y variables."
+								}
+							}
+						}
+					}
+				}
+			}
+		};
+		const causalLoopContent = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				kind: {
+					type: "string",
+					const: "causal_loop",
+					required: true,
+					description: "A causal feedback diagram with positive or negative polarity, optional delay, and named reinforcing or balancing loops."
+				},
+				variables: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "2 to 32 causal variables."
+				},
+				links: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							from: {
+								type: "string",
+								required: true
+							},
+							to: {
+								type: "string",
+								required: true
+							},
+							polarity: {
+								type: "string",
+								enum: ["positive", "negative"],
+								required: true
+							},
+							delay: { type: "number" },
+							label: { type: "string" },
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "1 to 96 directed links; from and to must reference variables."
+				},
+				loops: {
+					type: "array",
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							type: {
+								type: "string",
+								enum: ["reinforcing", "balancing"],
+								required: true
+							},
+							linkIds: {
+								type: "array",
+								items: { type: "string" },
+								required: true
+							},
+							detail: { type: "string" },
+							tone
+						}
+					},
+					description: "Optional 1 to 12 named feedback loops; linkIds must reference declared links in cycle order."
+				}
+			}
+		};
+		const LEARNING_VISUAL_SEQUENCE_SCHEMA_V4 = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				initialFrameId: { type: "string" },
+				frames: {
+					type: "array",
+					required: true,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							id: {
+								...identifier,
+								required: true
+							},
+							label: {
+								type: "string",
+								required: true
+							},
+							description: { type: "string" },
+							focusIds: {
+								type: "array",
+								items: { type: "string" },
+								required: true,
+								description: "At most 64 unique ids already declared by content."
+							}
+						}
+					},
+					description: "2 to 12 sequence frames."
+				}
+			}
+		};
+		const LEARNING_CHECKPOINT_OPTION_SCHEMA_V1 = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				id: {
+					...identifier,
+					required: true
+				},
+				label: {
+					type: "string",
+					required: true
+				}
+			}
+		};
+		const LEARNING_CHECKPOINT_RESPONSE_SCHEMA_V1 = { oneOf: [
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: { text: {
+					type: "string",
+					required: true
+				} }
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: { optionId: {
+					...identifier,
+					required: true
+				} }
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: { number: {
+					type: "number",
+					required: true
+				} }
+			}
+		] };
+		const LEARNING_CHECKPOINT_RESULT_SCHEMA_V1 = { oneOf: [
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					protocol: {
+						type: "string",
+						const: CHECKPOINT_RESULT_PROTOCOL,
+						required: true
+					},
+					checkpointId: {
+						type: "string",
+						required: true
+					},
+					status: {
+						type: "string",
+						const: "submitted",
+						required: true
+					},
+					response: {
+						...LEARNING_CHECKPOINT_RESPONSE_SCHEMA_V1,
+						required: true
+					},
+					receiptId: {
+						type: "string",
+						required: true
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					protocol: {
+						type: "string",
+						const: CHECKPOINT_RESULT_PROTOCOL,
+						required: true
+					},
+					checkpointId: {
+						type: "string",
+						required: true
+					},
+					status: {
+						type: "string",
+						const: "skipped",
+						required: true
+					},
+					reason: {
+						type: "string",
+						enum: [
+							"learner-skipped",
+							"client-unavailable",
+							"client-response-timeout",
+							"host-unavailable",
+							"provider-failure"
+						]
+					},
+					receiptId: {
+						type: "string",
+						required: true
+					}
+				}
+			},
+			{
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					protocol: {
+						type: "string",
+						const: CHECKPOINT_RESULT_PROTOCOL,
+						required: true
+					},
+					checkpointId: {
+						type: "string",
+						required: true
+					},
+					status: {
+						type: "string",
+						const: "cancelled",
+						required: true
+					},
+					reason: {
+						type: "string",
+						enum: [
+							"learner-cancelled",
+							"session-aborted",
+							"plugin-disposed"
+						]
+					},
+					receiptId: {
+						type: "string",
+						required: true
+					}
+				}
+			}
+		] };
+		const LEARNING_VISUAL_SCHEMA_V4 = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				protocol: {
+					type: "string",
+					const: VISUAL_PROTOCOL_V4,
+					required: true
+				},
+				title: {
+					type: "string",
+					required: true
+				},
+				description: { type: "string" },
+				content: {
+					oneOf: [
+						plotContent,
+						nodeLinkContent,
+						sceneContent,
+						relationContent,
+						timelineContent,
+						formulaStepsContent,
+						studyMapContent,
+						recallDeckContent,
+						dataTableContent,
+						stateTransitionContent,
+						sequenceBufferContent,
+						sequenceDiagramContent,
+						codeTraceContent,
+						field2DContent,
+						causalLoopContent
+					],
+					required: true
+				},
+				sequence: LEARNING_VISUAL_SEQUENCE_SCHEMA_V4,
+				fallbackMarkdown: { type: "string" }
+			}
+		};
+		const LEARNING_VISUAL_RESULT_SCHEMA_V4 = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				protocol: {
+					type: "string",
+					const: VISUAL_RESULT_PROTOCOL_V4,
+					required: true
+				},
+				status: {
+					type: "string",
+					enum: LEARNING_VISUAL_STATUSES,
+					required: true
+				}
+			}
+		};
+		const LEARNING_CHECKPOINT_SCHEMA_V1 = {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				protocol: {
+					type: "string",
+					const: CHECKPOINT_PROTOCOL,
+					required: true
+				},
+				kind: {
+					type: "string",
+					enum: LEARNING_CHECKPOINT_KINDS,
+					required: true
+				},
+				prompt: {
+					type: "string",
+					required: true
+				},
+				context: { type: "string" },
+				expectedEvidence: {
+					type: "string",
+					enum: LEARNING_CHECKPOINT_EVIDENCE_KINDS,
+					required: true
+				},
+				options: {
+					type: "array",
+					items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1
+				},
+				fallbackMarkdown: {
+					type: "string",
+					required: true
+				}
+			}
+		};
+		const visualJsonSchemaV4 = LEARNING_VISUAL_SCHEMA_V4;
+		const visualResultJsonSchemaV4 = LEARNING_VISUAL_RESULT_SCHEMA_V4;
+		const checkpointJsonSchemaV1 = LEARNING_CHECKPOINT_SCHEMA_V1;
+		const checkpointResultJsonSchemaV1 = LEARNING_CHECKPOINT_RESULT_SCHEMA_V1;
+		/** Generated structural validator; semantic bounds and cross-references remain in protocol.ts. */
+		function validateLearningVisualSchemaV4(value) {
+			return validateSchemaValue(visualJsonSchemaV4, value, "visual");
+		}
+		function validateLearningVisualResultSchemaV4(value) {
+			return validateSchemaValue(visualResultJsonSchemaV4, value, "visualResult");
+		}
+		/** Generated structural validator; answer-free copy checks remain in protocol.ts. */
+		function validateLearningCheckpointSchemaV1(value) {
+			return validateSchemaValue(checkpointJsonSchemaV1, value, "checkpoint");
+		}
+		/** Generated structural validator for the closed checkpoint receipt union. */
+		function validateLearningCheckpointResultSchemaV1(value) {
+			return validateSchemaValue(checkpointResultJsonSchemaV1, value, "checkpointResult");
+		}
+		//#endregion
+		//#region src/protocol-errors.ts
+		/** Stable error type shared by current and compatibility protocol parsers. */
 		var LearningProtocolError = class extends Error {
 			issues;
 			code = "INVALID_LEARNING_ACTIVITY";
@@ -98,6 +2239,2073 @@ window.__ModuleLoader__.load({
 				this.name = "LearningProtocolError";
 			}
 		};
+		//#endregion
+		//#region src/protocol-current.ts
+		/** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
+		const RESPONSE_PROTOCOL$1 = "dsh-learning/response@1";
+		const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
+		const ACTIVITY_PROTOCOL_V2$1 = "dsh-learning/activity@2";
+		const RESPONSE_PROTOCOL_V2$1 = "dsh-learning/response@2";
+		const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
+		const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
+		const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
+		const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
+		const MAX_ACTIVITY_BYTES$1 = 65536;
+		const MAX_RESPONSE_BYTES$1 = 32768;
+		function record$1(value) {
+			return typeof value === "object" && value !== null && !Array.isArray(value);
+		}
+		function onlyKeys$1(value, allowed, path, issues) {
+			for (const key of Object.keys(value)) if (!allowed.includes(key)) issues.push(`${path}.${key} is not supported`);
+		}
+		function text$1(value, path, issues, max = 8e3) {
+			if (typeof value !== "string" || value.trim() === "") {
+				issues.push(`${path} must be a non-empty string`);
+				return false;
+			}
+			if (value.length > max) issues.push(`${path} exceeds ${String(max)} characters`);
+			return true;
+		}
+		function finite$1(value, path, issues) {
+			if (typeof value !== "number" || !Number.isFinite(value)) {
+				issues.push(`${path} must be a finite number`);
+				return false;
+			}
+			return true;
+		}
+		function id$1(value, path, issues) {
+			if (typeof value !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(value)) {
+				issues.push(`${path} must match ^[a-z][a-z0-9_-]{0,31}$`);
+				return false;
+			}
+			return true;
+		}
+		function uniqueIds$1(values, path, issues) {
+			const seen = /* @__PURE__ */ new Set();
+			for (const [index, value] of values.entries()) {
+				if (typeof value.id !== "string") continue;
+				if (seen.has(value.id)) issues.push(`${path}[${String(index)}].id duplicates ${value.id}`);
+				seen.add(value.id);
+			}
+		}
+		function jsonBytes$1(value) {
+			try {
+				return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+			} catch {
+				return;
+			}
+		}
+		function validateMath$1(value, parameterIds, path, issues, allowX = true, maxDepth = 8) {
+			const binary = new Set(MATH_BINARY_OPERATORS);
+			const unary = new Set(MATH_UNARY_OPERATORS);
+			const stack = [{
+				value,
+				path,
+				depth: 1
+			}];
+			let nodes = 0;
+			while (stack.length > 0) {
+				const node = stack.pop();
+				nodes += 1;
+				if (nodes > 64) {
+					issues.push(`${path} exceeds ${String(64)} AST nodes`);
+					return;
+				}
+				if (node.depth > maxDepth) {
+					issues.push(`${node.path} exceeds AST depth ${String(maxDepth)}`);
+					return;
+				}
+				if (!record$1(node.value) || typeof node.value.op !== "string") {
+					issues.push(`${node.path} must be a mathematical AST node`);
+					continue;
+				}
+				const expression = node.value;
+				const op = expression.op;
+				if (op === "constant") {
+					onlyKeys$1(expression, ["op", "value"], node.path, issues);
+					if (finite$1(expression.value, `${node.path}.value`, issues) && Math.abs(expression.value) > 0xe8d4a51000) issues.push(`${node.path}.value exceeds the numeric limit`);
+				} else if (op === "variable") {
+					onlyKeys$1(expression, ["op", "name"], node.path, issues);
+					if (typeof expression.name !== "string" || !parameterIds.has(expression.name) && !(allowX && expression.name === "x")) issues.push(`${node.path}.name must be ${allowX ? "x or " : ""}a declared parameter id`);
+				} else if (binary.has(op)) {
+					onlyKeys$1(expression, [
+						"op",
+						"left",
+						"right"
+					], node.path, issues);
+					stack.push({
+						value: expression.right,
+						path: `${node.path}.right`,
+						depth: node.depth + 1
+					}, {
+						value: expression.left,
+						path: `${node.path}.left`,
+						depth: node.depth + 1
+					});
+				} else if (unary.has(op)) {
+					onlyKeys$1(expression, ["op", "value"], node.path, issues);
+					stack.push({
+						value: expression.value,
+						path: `${node.path}.value`,
+						depth: node.depth + 1
+					});
+				} else issues.push(`${node.path}.op is unknown`);
+			}
+		}
+		function integer$1(value, path, issues, min = 0) {
+			if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
+				issues.push(`${path} must be an integer >= ${String(min)}`);
+				return false;
+			}
+			return true;
+		}
+		function token$1(value, path, issues) {
+			if (typeof value !== "string" || value.length < 1 || value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+				issues.push(`${path} must be an opaque token of 1 to 128 URL-safe characters`);
+				return false;
+			}
+			return true;
+		}
+		const CHECKPOINT_RAW_HTML = /<(?:!DOCTYPE\b|!--|\/?[A-Za-z][^<>]*>)/i;
+		const CHECKPOINT_LEAKAGE_COPY = /\b(?:correct\s+answer|model\s+answer|answer\s+key|(?:the\s+)?answer\s*(?:is|was|[:：])|solution\s*[:：]|expected\s+(?:answer|response|result)\s*[:：]|grading\s+rubric|scoring\s+rubric|future\s+(?:step|question)|next\s+question\s*:)|(?:正确|标准|参考|模型)(?:答案|解答)|标准解\s*[:：]?|(?:答案|解答)\s*[:：]|答案(?:是|为)|评分(?:标准|细则)|下一(?:步|题|个问题)|后续步骤|未来步骤/iu;
+		/** Canonical fail-closed predicate shared by protocol parsing and Client fallback extraction. */
+		function isLearningCheckpointDisplayTextSafe(value) {
+			return !CHECKPOINT_RAW_HTML.test(value) && !CHECKPOINT_LEAKAGE_COPY.test(value);
+		}
+		function checkpointDisplayText(value, path, issues, max) {
+			const valid = text$1(value, path, issues, max);
+			if (valid && !isLearningCheckpointDisplayTextSafe(value)) {
+				issues.push(`${path} must not contain raw HTML, an answer key, scoring rubric, or future-step copy`);
+				return false;
+			}
+			return valid;
+		}
+		/** Strict, answer-free protocol for one optional learner checkpoint. */
+		function parseLearningCheckpointV1(value) {
+			const issues = [...validateLearningCheckpointSchemaV1(value)];
+			const bytes = jsonBytes$1(value);
+			if (bytes === void 0) issues.push("checkpoint must be serializable JSON");
+			else if (bytes > 65536) issues.push(`checkpoint exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
+			if (!record$1(value)) throw new LearningProtocolError([...issues, "checkpoint must be an object"]);
+			onlyKeys$1(value, [
+				"protocol",
+				"kind",
+				"prompt",
+				"context",
+				"expectedEvidence",
+				"options",
+				"fallbackMarkdown"
+			], "checkpoint", issues);
+			if (value.protocol !== "dsh-learning/checkpoint@1") issues.push(`checkpoint.protocol must be ${CHECKPOINT_PROTOCOL}`);
+			if (!LEARNING_CHECKPOINT_KINDS.includes(value.kind)) issues.push(`checkpoint.kind must be one of ${LEARNING_CHECKPOINT_KINDS.join(", ")}`);
+			checkpointDisplayText(value.prompt, "checkpoint.prompt", issues, 2e3);
+			if (value.context !== void 0) checkpointDisplayText(value.context, "checkpoint.context", issues, 4e3);
+			if (!LEARNING_CHECKPOINT_EVIDENCE_KINDS.includes(value.expectedEvidence)) issues.push(`checkpoint.expectedEvidence must be one of ${LEARNING_CHECKPOINT_EVIDENCE_KINDS.join(", ")}`);
+			checkpointDisplayText(value.fallbackMarkdown, "checkpoint.fallbackMarkdown", issues, 8e3);
+			if (value.kind === "single_choice") {
+				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) issues.push("checkpoint.options must contain 2 to 8 options for single_choice");
+				else {
+					const options = value.options.filter(record$1);
+					if (options.length !== value.options.length) issues.push("checkpoint.options entries must be objects");
+					uniqueIds$1(options, "checkpoint.options", issues);
+					for (const [index, option] of options.entries()) {
+						const path = `checkpoint.options[${String(index)}]`;
+						onlyKeys$1(option, ["id", "label"], path, issues);
+						id$1(option.id, `${path}.id`, issues);
+						checkpointDisplayText(option.label, `${path}.label`, issues, 500);
+					}
+				}
+			} else if (value.options !== void 0) issues.push("checkpoint.options is supported only for single_choice");
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		/** Validate one phase-bound checkpoint receipt before the Host accepts it. */
+		function parseLearningCheckpointResultV1(value, expected = {}) {
+			const issues = [...validateLearningCheckpointResultSchemaV1(value)];
+			const bytes = jsonBytes$1(value);
+			if (bytes === void 0) issues.push("checkpoint result must be serializable JSON");
+			else if (bytes > 32768) issues.push(`checkpoint result exceeds ${String(MAX_RESPONSE_BYTES$1)} bytes`);
+			if (!record$1(value)) throw new LearningProtocolError([...issues, "checkpoint result must be an object"]);
+			const submitted = value.status === "submitted";
+			onlyKeys$1(value, submitted ? [
+				"protocol",
+				"checkpointId",
+				"status",
+				"response",
+				"receiptId"
+			] : [
+				"protocol",
+				"checkpointId",
+				"status",
+				"reason",
+				"receiptId"
+			], "checkpointResult", issues);
+			if (value.protocol !== "dsh-learning/checkpoint-result@1") issues.push(`checkpointResult.protocol must be ${CHECKPOINT_RESULT_PROTOCOL}`);
+			token$1(value.checkpointId, "checkpointResult.checkpointId", issues);
+			token$1(value.receiptId, "checkpointResult.receiptId", issues);
+			if (![
+				"submitted",
+				"skipped",
+				"cancelled"
+			].includes(value.status)) issues.push("checkpointResult.status must be submitted, skipped, or cancelled");
+			if (value.reason !== void 0 && typeof value.reason !== "string") issues.push("checkpointResult.reason must be a string");
+			else if (value.status === "skipped" && value.reason !== void 0 && ![
+				"learner-skipped",
+				"client-unavailable",
+				"client-response-timeout",
+				"host-unavailable",
+				"provider-failure"
+			].includes(value.reason)) issues.push("checkpointResult.reason is not valid for skipped status");
+			else if (value.status === "cancelled" && value.reason !== void 0 && ![
+				"learner-cancelled",
+				"session-aborted",
+				"plugin-disposed"
+			].includes(value.reason)) issues.push("checkpointResult.reason is not valid for cancelled status");
+			else if (value.status === "submitted" && value.reason !== void 0) issues.push("checkpointResult.reason is allowed only for skipped or cancelled status");
+			if (expected.checkpointId !== void 0 && value.checkpointId !== expected.checkpointId) issues.push("checkpointResult.checkpointId does not match the pending checkpoint");
+			let checkpoint;
+			if (expected.checkpoint !== void 0) try {
+				checkpoint = parseLearningCheckpointV1(expected.checkpoint);
+			} catch (cause) {
+				if (cause instanceof LearningProtocolError) issues.push(...cause.issues.map((issue) => `expected ${issue}`));
+				else throw cause;
+			}
+			if (submitted) {
+				if (!record$1(value.response)) issues.push("checkpointResult.response must be an object when submitted");
+				else {
+					const response = value.response;
+					const responsePath = "checkpointResult.response";
+					const expectedKind = checkpoint?.kind;
+					const shape = expectedKind === "single_choice" ? "optionId" : expectedKind === "numeric" ? "number" : expectedKind === void 0 ? void 0 : "text";
+					if (shape === "optionId" || shape === void 0 && Object.hasOwn(response, "optionId")) {
+						onlyKeys$1(response, ["optionId"], responsePath, issues);
+						if (id$1(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
+					} else if (shape === "number" || shape === void 0 && Object.hasOwn(response, "number")) {
+						onlyKeys$1(response, ["number"], responsePath, issues);
+						finite$1(response.number, `${responsePath}.number`, issues);
+					} else if (shape === "text" || shape === void 0 && Object.hasOwn(response, "text")) {
+						onlyKeys$1(response, ["text"], responsePath, issues);
+						text$1(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
+					} else {
+						issues.push(`${responsePath} must contain exactly one of text, optionId, or number`);
+						onlyKeys$1(response, [], responsePath, issues);
+					}
+				}
+			} else if (value.response !== void 0) issues.push("checkpointResult.response is allowed only when status is submitted");
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		const VISUAL_TONES_V3 = /* @__PURE__ */ new Set([
+			"blue",
+			"green",
+			"red",
+			"orange",
+			"purple",
+			"gray"
+		]);
+		const VISUAL_STROKES_V3 = /* @__PURE__ */ new Set([
+			"solid",
+			"dashed",
+			"dotted"
+		]);
+		function validateVisualAxisV3(value, path, issues, samplesAllowed) {
+			if (!record$1(value)) {
+				issues.push(`${path} must be an object`);
+				return;
+			}
+			onlyKeys$1(value, samplesAllowed ? [
+				"label",
+				"min",
+				"max",
+				"samples"
+			] : [
+				"label",
+				"min",
+				"max"
+			], path, issues);
+			if (value.label !== void 0) text$1(value.label, `${path}.label`, issues, 120);
+			const minOk = finite$1(value.min, `${path}.min`, issues);
+			const maxOk = finite$1(value.max, `${path}.max`, issues);
+			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
+			if (samplesAllowed && value.samples !== void 0 && (!integer$1(value.samples, `${path}.samples`, issues, 24) || value.samples > 256)) issues.push(`${path}.samples must be an integer from 24 to 256`);
+		}
+		function validateVisualParametersV3(value, issues) {
+			const path = "visual.parameters";
+			if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
+				issues.push(`${path} must contain 1 to 3 parameters`);
+				return [];
+			}
+			const parameters = value.filter(record$1);
+			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
+			uniqueIds$1(parameters, path, issues);
+			for (const [index, parameter] of parameters.entries()) {
+				const itemPath = `${path}[${String(index)}]`;
+				onlyKeys$1(parameter, [
+					"id",
+					"label",
+					"min",
+					"max",
+					"step",
+					"initial"
+				], itemPath, issues);
+				id$1(parameter.id, `${itemPath}.id`, issues);
+				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
+				text$1(parameter.label, `${itemPath}.label`, issues, 120);
+				const minOk = finite$1(parameter.min, `${itemPath}.min`, issues);
+				const maxOk = finite$1(parameter.max, `${itemPath}.max`, issues);
+				const stepOk = finite$1(parameter.step, `${itemPath}.step`, issues);
+				const initialOk = finite$1(parameter.initial, `${itemPath}.initial`, issues);
+				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
+				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
+				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
+				if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
+			}
+			return parameters;
+		}
+		/** Validate the preferred, non-blocking visual protocol. */
+		function parseLearningVisualV3(value) {
+			const issues = [];
+			const bytes = jsonBytes$1(value);
+			if (bytes === void 0) issues.push("visual must be serializable JSON");
+			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
+			if (!record$1(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
+			onlyKeys$1(value, [
+				"protocol",
+				"kind",
+				"title",
+				"description",
+				"parameters",
+				"xAxis",
+				"yAxis",
+				"series",
+				"metrics"
+			], "visual", issues);
+			if (value.protocol !== "dsh-learning/visual@3") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V3}`);
+			if (value.kind !== "parameter_chart") issues.push("visual.kind must be parameter_chart");
+			text$1(value.title, "visual.title", issues, 200);
+			if (value.description !== void 0) text$1(value.description, "visual.description", issues, 1e3);
+			const parameters = validateVisualParametersV3(value.parameters, issues);
+			const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
+			validateVisualAxisV3(value.xAxis, "visual.xAxis", issues, true);
+			validateVisualAxisV3(value.yAxis, "visual.yAxis", issues, false);
+			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.series must contain 1 to 8 series");
+			else {
+				const series = value.series.filter(record$1);
+				if (series.length !== value.series.length) issues.push("visual.series entries must be objects");
+				uniqueIds$1(series, "visual.series", issues);
+				let curveCount = 0;
+				for (const [index, item] of series.entries()) {
+					const path = `visual.series[${String(index)}]`;
+					id$1(item.id, `${path}.id`, issues);
+					text$1(item.label, `${path}.label`, issues, 160);
+					if (item.tone !== void 0 && !VISUAL_TONES_V3.has(item.tone)) issues.push(`${path}.tone is unknown`);
+					if (item.type === "curve") {
+						curveCount += 1;
+						onlyKeys$1(item, [
+							"type",
+							"id",
+							"label",
+							"expression",
+							"tone",
+							"stroke"
+						], path, issues);
+						if (item.stroke !== void 0 && !VISUAL_STROKES_V3.has(item.stroke)) issues.push(`${path}.stroke is unknown`);
+						validateMath$1(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
+					} else if (item.type === "points") {
+						onlyKeys$1(item, [
+							"type",
+							"id",
+							"label",
+							"points",
+							"tone"
+						], path, issues);
+						if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 128) {
+							issues.push(`${path}.points must contain 1 to 128 points`);
+							continue;
+						}
+						for (const [pointIndex, point] of item.points.entries()) {
+							const pointPath = `${path}.points[${String(pointIndex)}]`;
+							if (!record$1(point)) {
+								issues.push(`${pointPath} must be an object`);
+								continue;
+							}
+							onlyKeys$1(point, [
+								"x",
+								"y",
+								"label"
+							], pointPath, issues);
+							finite$1(point.x, `${pointPath}.x`, issues);
+							finite$1(point.y, `${pointPath}.y`, issues);
+							if (point.label !== void 0) text$1(point.label, `${pointPath}.label`, issues, 160);
+						}
+					} else issues.push(`${path}.type must be curve or points`);
+				}
+				if (curveCount === 0) issues.push("visual.series must contain at least one curve");
+			}
+			if (value.metrics !== void 0) {
+				if (!Array.isArray(value.metrics) || value.metrics.length > 4) issues.push("visual.metrics must contain at most 4 metrics");
+				else {
+					const metrics = value.metrics.filter(record$1);
+					if (metrics.length !== value.metrics.length) issues.push("visual.metrics entries must be objects");
+					uniqueIds$1(metrics, "visual.metrics", issues);
+					for (const [index, metric] of metrics.entries()) {
+						const path = `visual.metrics[${String(index)}]`;
+						onlyKeys$1(metric, [
+							"id",
+							"label",
+							"expression",
+							"digits",
+							"suffix"
+						], path, issues);
+						id$1(metric.id, `${path}.id`, issues);
+						text$1(metric.label, `${path}.label`, issues, 160);
+						validateMath$1(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
+						if (metric.digits !== void 0 && (!integer$1(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
+						if (metric.suffix !== void 0) text$1(metric.suffix, `${path}.suffix`, issues, 80);
+					}
+				}
+			}
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		function validateVisualToneV4(value, path, issues) {
+			if (value !== void 0 && !VISUAL_TONES_V3.has(value)) issues.push(`${path} is unknown`);
+		}
+		function validateVisualStrokeV4(value, path, issues) {
+			if (value !== void 0 && !VISUAL_STROKES_V3.has(value)) issues.push(`${path} is unknown`);
+		}
+		function registerVisualIdV4(ids, value, path, issues) {
+			if (typeof value !== "string") return;
+			if (ids.has(value)) issues.push(`${path} duplicates visual id ${value}`);
+			else ids.add(value);
+		}
+		function validateVisualParametersV4(value, issues) {
+			const path = "visual.content.parameters";
+			if (value === void 0) return [];
+			if (!Array.isArray(value) || value.length > 3) {
+				issues.push(`${path} must contain at most 3 parameters`);
+				return [];
+			}
+			const parameters = value.filter(record$1);
+			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
+			uniqueIds$1(parameters, path, issues);
+			for (const [index, parameter] of parameters.entries()) {
+				const itemPath = `${path}[${String(index)}]`;
+				onlyKeys$1(parameter, [
+					"id",
+					"label",
+					"min",
+					"max",
+					"step",
+					"initial"
+				], itemPath, issues);
+				id$1(parameter.id, `${itemPath}.id`, issues);
+				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
+				text$1(parameter.label, `${itemPath}.label`, issues, 120);
+				const minOk = finite$1(parameter.min, `${itemPath}.min`, issues);
+				const maxOk = finite$1(parameter.max, `${itemPath}.max`, issues);
+				const stepOk = finite$1(parameter.step, `${itemPath}.step`, issues);
+				const initialOk = finite$1(parameter.initial, `${itemPath}.initial`, issues);
+				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
+				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
+				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
+				if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
+			}
+			return parameters;
+		}
+		function validateVisualPointsV4(value, path, issues, maximum = 256) {
+			if (!Array.isArray(value) || value.length < 1 || value.length > maximum) {
+				issues.push(`${path} must contain 1 to ${String(maximum)} points`);
+				return;
+			}
+			for (const [index, point] of value.entries()) {
+				const pointPath = `${path}[${String(index)}]`;
+				if (!record$1(point)) {
+					issues.push(`${pointPath} must be an object`);
+					continue;
+				}
+				onlyKeys$1(point, [
+					"x",
+					"y",
+					"label"
+				], pointPath, issues);
+				finite$1(point.x, `${pointPath}.x`, issues);
+				finite$1(point.y, `${pointPath}.y`, issues);
+				if (point.label !== void 0) text$1(point.label, `${pointPath}.label`, issues, 160);
+			}
+		}
+		function validateVisualMetricsV4(value, parameterIds, issues) {
+			if (value === void 0) return [];
+			if (!Array.isArray(value) || value.length > 4) {
+				issues.push("visual.content.metrics must contain at most 4 metrics");
+				return [];
+			}
+			const metrics = value.filter(record$1);
+			if (metrics.length !== value.length) issues.push("visual.content.metrics entries must be objects");
+			uniqueIds$1(metrics, "visual.content.metrics", issues);
+			for (const [index, metric] of metrics.entries()) {
+				const path = `visual.content.metrics[${String(index)}]`;
+				onlyKeys$1(metric, [
+					"id",
+					"label",
+					"expression",
+					"digits",
+					"suffix"
+				], path, issues);
+				id$1(metric.id, `${path}.id`, issues);
+				text$1(metric.label, `${path}.label`, issues, 160);
+				validateMath$1(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
+				if (metric.digits !== void 0 && (!integer$1(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
+				if (metric.suffix !== void 0) text$1(metric.suffix, `${path}.suffix`, issues, 80);
+			}
+			return metrics;
+		}
+		function validatePlotV4(value, issues) {
+			const ids = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"parameters",
+				"xAxis",
+				"yAxis",
+				"series",
+				"metrics"
+			], "visual.content", issues);
+			const parameters = validateVisualParametersV4(value.parameters, issues);
+			const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
+			for (const parameterId of parameterIds) registerVisualIdV4(ids, parameterId, "visual.content.parameters", issues);
+			validateVisualAxisV3(value.xAxis, "visual.content.xAxis", issues, true);
+			validateVisualAxisV3(value.yAxis, "visual.content.yAxis", issues, false);
+			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.content.series must contain 1 to 8 series");
+			else {
+				const series = value.series.filter(record$1);
+				if (series.length !== value.series.length) issues.push("visual.content.series entries must be objects");
+				uniqueIds$1(series, "visual.content.series", issues);
+				for (const [index, item] of series.entries()) {
+					const path = `visual.content.series[${String(index)}]`;
+					if (id$1(item.id, `${path}.id`, issues)) registerVisualIdV4(ids, item.id, `${path}.id`, issues);
+					text$1(item.label, `${path}.label`, issues, 160);
+					validateVisualToneV4(item.tone, `${path}.tone`, issues);
+					if (item.type === "curve") {
+						onlyKeys$1(item, [
+							"type",
+							"id",
+							"label",
+							"expression",
+							"tone",
+							"stroke"
+						], path, issues);
+						validateVisualStrokeV4(item.stroke, `${path}.stroke`, issues);
+						validateMath$1(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
+					} else if (item.type === "points" || item.type === "bars") {
+						onlyKeys$1(item, [
+							"type",
+							"id",
+							"label",
+							"points",
+							"tone"
+						], path, issues);
+						validateVisualPointsV4(item.points, `${path}.points`, issues, item.type === "bars" ? 64 : 256);
+					} else if (item.type === "line") {
+						onlyKeys$1(item, [
+							"type",
+							"id",
+							"label",
+							"points",
+							"tone",
+							"stroke"
+						], path, issues);
+						validateVisualStrokeV4(item.stroke, `${path}.stroke`, issues);
+						validateVisualPointsV4(item.points, `${path}.points`, issues);
+					} else issues.push(`${path}.type must be curve, points, line, or bars`);
+				}
+			}
+			const metrics = validateVisualMetricsV4(value.metrics, parameterIds, issues);
+			for (const [index, metric] of metrics.entries()) if (typeof metric.id === "string") registerVisualIdV4(ids, metric.id, `visual.content.metrics[${String(index)}].id`, issues);
+			return ids;
+		}
+		function validateNodeLinkV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"layout",
+				"groups",
+				"nodes",
+				"edges"
+			], "visual.content", issues);
+			if (![
+				"layered",
+				"hierarchy",
+				"radial"
+			].includes(value.layout)) issues.push("visual.content.layout must be layered, hierarchy, or radial");
+			let groups = [];
+			if (value.groups !== void 0) {
+				if (!Array.isArray(value.groups) || value.groups.length < 1 || value.groups.length > 12) issues.push("visual.content.groups must contain 1 to 12 groups");
+				else {
+					groups = value.groups.filter(record$1);
+					if (groups.length !== value.groups.length) issues.push("visual.content.groups entries must be objects");
+					uniqueIds$1(groups, "visual.content.groups", issues);
+					for (const [index, group] of groups.entries()) {
+						const path = `visual.content.groups[${String(index)}]`;
+						onlyKeys$1(group, ["id", "label"], path, issues);
+						if (id$1(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
+						text$1(group.label, `${path}.label`, issues, 120);
+					}
+				}
+			}
+			const groupIds = new Set(groups.flatMap((group) => typeof group.id === "string" ? [group.id] : []));
+			let nodes = [];
+			if (!Array.isArray(value.nodes) || value.nodes.length < 2 || value.nodes.length > 48) issues.push("visual.content.nodes must contain 2 to 48 nodes");
+			else {
+				nodes = value.nodes.filter(record$1);
+				if (nodes.length !== value.nodes.length) issues.push("visual.content.nodes entries must be objects");
+				uniqueIds$1(nodes, "visual.content.nodes", issues);
+				for (const [index, node] of nodes.entries()) {
+					const path = `visual.content.nodes[${String(index)}]`;
+					onlyKeys$1(node, [
+						"id",
+						"label",
+						"detail",
+						"group",
+						"tone"
+					], path, issues);
+					if (id$1(node.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, node.id, `${path}.id`, issues);
+					text$1(node.label, `${path}.label`, issues, 120);
+					if (node.detail !== void 0) text$1(node.detail, `${path}.detail`, issues, 1e3);
+					if (node.group !== void 0 && (typeof node.group !== "string" || !groupIds.has(node.group))) issues.push(`${path}.group must reference a declared group`);
+					validateVisualToneV4(node.tone, `${path}.tone`, issues);
+				}
+			}
+			if (value.layout === "layered" && (groups.length === 0 || nodes.some((node) => typeof node.group !== "string"))) issues.push("visual.content layered layouts require groups and a group on every node");
+			const nodeIds = new Set(nodes.flatMap((node) => typeof node.id === "string" ? [node.id] : []));
+			if (!Array.isArray(value.edges) || value.edges.length < 1 || value.edges.length > 160) issues.push("visual.content.edges must contain 1 to 160 edges");
+			else {
+				const edges = value.edges.filter(record$1);
+				if (edges.length !== value.edges.length) issues.push("visual.content.edges entries must be objects");
+				uniqueIds$1(edges, "visual.content.edges", issues);
+				for (const [index, edge] of edges.entries()) {
+					const path = `visual.content.edges[${String(index)}]`;
+					onlyKeys$1(edge, [
+						"id",
+						"from",
+						"to",
+						"label",
+						"detail",
+						"tone",
+						"stroke",
+						"directed"
+					], path, issues);
+					if (id$1(edge.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, edge.id, `${path}.id`, issues);
+					if (typeof edge.from !== "string" || !nodeIds.has(edge.from)) issues.push(`${path}.from must reference a declared node`);
+					if (typeof edge.to !== "string" || !nodeIds.has(edge.to)) issues.push(`${path}.to must reference a declared node`);
+					if (edge.label !== void 0) text$1(edge.label, `${path}.label`, issues, 120);
+					if (edge.detail !== void 0) text$1(edge.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(edge.tone, `${path}.tone`, issues);
+					validateVisualStrokeV4(edge.stroke, `${path}.stroke`, issues);
+					if (edge.directed !== void 0 && typeof edge.directed !== "boolean") issues.push(`${path}.directed must be a boolean`);
+				}
+			}
+			return focusIds;
+		}
+		function validateSceneElementBaseV4(element, path, allowed, issues) {
+			onlyKeys$1(element, [
+				"type",
+				"id",
+				"label",
+				"detail",
+				"tone",
+				...allowed
+			], path, issues);
+			id$1(element.id, `${path}.id`, issues);
+			if (element.label !== void 0) text$1(element.label, `${path}.label`, issues, 120);
+			if (element.detail !== void 0) text$1(element.detail, `${path}.detail`, issues, 1e3);
+			validateVisualToneV4(element.tone, `${path}.tone`, issues);
+		}
+		function validateScene2DV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"xAxis",
+				"yAxis",
+				"grid",
+				"elements"
+			], "visual.content", issues);
+			validateVisualAxisV3(value.xAxis, "visual.content.xAxis", issues, false);
+			validateVisualAxisV3(value.yAxis, "visual.content.yAxis", issues, false);
+			if (value.grid !== void 0 && typeof value.grid !== "boolean") issues.push("visual.content.grid must be a boolean");
+			if (!Array.isArray(value.elements) || value.elements.length < 1 || value.elements.length > 64) {
+				issues.push("visual.content.elements must contain 1 to 64 elements");
+				return focusIds;
+			}
+			const elements = value.elements.filter(record$1);
+			if (elements.length !== value.elements.length) issues.push("visual.content.elements entries must be objects");
+			uniqueIds$1(elements, "visual.content.elements", issues);
+			for (const [index, element] of elements.entries()) {
+				const path = `visual.content.elements[${String(index)}]`;
+				registerVisualIdV4(focusIds, element.id, `${path}.id`, issues);
+				if (element.type === "point") {
+					validateSceneElementBaseV4(element, path, [
+						"x",
+						"y",
+						"size"
+					], issues);
+					finite$1(element.x, `${path}.x`, issues);
+					finite$1(element.y, `${path}.y`, issues);
+					if (element.size !== void 0 && finite$1(element.size, `${path}.size`, issues) && (element.size <= 0 || element.size > 64)) issues.push(`${path}.size must be greater than 0 and at most 64`);
+				} else if (element.type === "segment" || element.type === "arrow") {
+					validateSceneElementBaseV4(element, path, [
+						"x1",
+						"y1",
+						"x2",
+						"y2",
+						"stroke"
+					], issues);
+					finite$1(element.x1, `${path}.x1`, issues);
+					finite$1(element.y1, `${path}.y1`, issues);
+					finite$1(element.x2, `${path}.x2`, issues);
+					finite$1(element.y2, `${path}.y2`, issues);
+					validateVisualStrokeV4(element.stroke, `${path}.stroke`, issues);
+				} else if (element.type === "circle") {
+					validateSceneElementBaseV4(element, path, [
+						"cx",
+						"cy",
+						"r"
+					], issues);
+					finite$1(element.cx, `${path}.cx`, issues);
+					finite$1(element.cy, `${path}.cy`, issues);
+					if (finite$1(element.r, `${path}.r`, issues) && element.r <= 0) issues.push(`${path}.r must be positive`);
+				} else if (element.type === "rect") {
+					validateSceneElementBaseV4(element, path, [
+						"x",
+						"y",
+						"width",
+						"height"
+					], issues);
+					finite$1(element.x, `${path}.x`, issues);
+					finite$1(element.y, `${path}.y`, issues);
+					if (finite$1(element.width, `${path}.width`, issues) && element.width <= 0) issues.push(`${path}.width must be positive`);
+					if (finite$1(element.height, `${path}.height`, issues) && element.height <= 0) issues.push(`${path}.height must be positive`);
+				} else if (element.type === "polygon") {
+					validateSceneElementBaseV4(element, path, ["points"], issues);
+					if (!Array.isArray(element.points) || element.points.length < 3 || element.points.length > 24) issues.push(`${path}.points must contain 3 to 24 points`);
+					else for (const [pointIndex, point] of element.points.entries()) {
+						const pointPath = `${path}.points[${String(pointIndex)}]`;
+						if (!record$1(point)) {
+							issues.push(`${pointPath} must be an object`);
+							continue;
+						}
+						onlyKeys$1(point, ["x", "y"], pointPath, issues);
+						finite$1(point.x, `${pointPath}.x`, issues);
+						finite$1(point.y, `${pointPath}.y`, issues);
+					}
+				} else if (element.type === "label") {
+					validateSceneElementBaseV4(element, path, [
+						"x",
+						"y",
+						"text"
+					], issues);
+					finite$1(element.x, `${path}.x`, issues);
+					finite$1(element.y, `${path}.y`, issues);
+					text$1(element.text, `${path}.text`, issues, 240);
+				} else issues.push(`${path}.type must be point, segment, arrow, circle, rect, polygon, or label`);
+			}
+			return focusIds;
+		}
+		function validateRelationSubjectsV4(value, path, issues) {
+			if (!Array.isArray(value) || value.length < 2 || value.length > 4) {
+				issues.push(`${path} must contain 2 to 4 subjects`);
+				return [];
+			}
+			const subjects = value.filter(record$1);
+			if (subjects.length !== value.length) issues.push(`${path} entries must be objects`);
+			uniqueIds$1(subjects, path, issues);
+			for (const [index, subject] of subjects.entries()) {
+				const itemPath = `${path}[${String(index)}]`;
+				onlyKeys$1(subject, [
+					"id",
+					"label",
+					"detail",
+					"tone"
+				], itemPath, issues);
+				id$1(subject.id, `${itemPath}.id`, issues);
+				text$1(subject.label, `${itemPath}.label`, issues, 120);
+				if (subject.detail !== void 0) text$1(subject.detail, `${itemPath}.detail`, issues, 1e3);
+				validateVisualToneV4(subject.tone, `${itemPath}.tone`, issues);
+			}
+			return subjects;
+		}
+		function validateRelationAxisV4(value, path, issues) {
+			if (!Array.isArray(value) || value.length < 1 || value.length > 10) {
+				issues.push(`${path} must contain 1 to 10 items`);
+				return [];
+			}
+			const items = value.filter(record$1);
+			if (items.length !== value.length) issues.push(`${path} entries must be objects`);
+			uniqueIds$1(items, path, issues);
+			for (const [index, item] of items.entries()) {
+				const itemPath = `${path}[${String(index)}]`;
+				onlyKeys$1(item, ["id", "label"], itemPath, issues);
+				id$1(item.id, `${itemPath}.id`, issues);
+				text$1(item.label, `${itemPath}.label`, issues, 120);
+			}
+			return items;
+		}
+		function validateRelationV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			if (value.variant === "comparison") {
+				onlyKeys$1(value, [
+					"kind",
+					"variant",
+					"subjects",
+					"rows"
+				], "visual.content", issues);
+				const subjects = validateRelationSubjectsV4(value.subjects, "visual.content.subjects", issues);
+				const subjectIds = new Set(subjects.flatMap((subject) => typeof subject.id === "string" ? [subject.id] : []));
+				for (const subjectId of subjectIds) registerVisualIdV4(focusIds, subjectId, "visual.content.subjects", issues);
+				if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 16) {
+					issues.push("visual.content.rows must contain 1 to 16 comparison rows");
+					return focusIds;
+				}
+				const rows = value.rows.filter(record$1);
+				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
+				uniqueIds$1(rows, "visual.content.rows", issues);
+				for (const [index, row] of rows.entries()) {
+					const path = `visual.content.rows[${String(index)}]`;
+					onlyKeys$1(row, [
+						"id",
+						"label",
+						"cells",
+						"detail"
+					], path, issues);
+					if (id$1(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
+					text$1(row.label, `${path}.label`, issues, 120);
+					if (row.detail !== void 0) text$1(row.detail, `${path}.detail`, issues, 1e3);
+					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 4) {
+						issues.push(`${path}.cells must contain 1 to 4 cells`);
+						continue;
+					}
+					const seenSubjects = /* @__PURE__ */ new Set();
+					for (const [cellIndex, cell] of row.cells.entries()) {
+						const cellPath = `${path}.cells[${String(cellIndex)}]`;
+						if (!record$1(cell)) {
+							issues.push(`${cellPath} must be an object`);
+							continue;
+						}
+						onlyKeys$1(cell, [
+							"subjectId",
+							"value",
+							"tone"
+						], cellPath, issues);
+						if (typeof cell.subjectId !== "string" || !subjectIds.has(cell.subjectId)) issues.push(`${cellPath}.subjectId must reference a declared subject`);
+						else if (seenSubjects.has(cell.subjectId)) issues.push(`${cellPath}.subjectId duplicates ${cell.subjectId}`);
+						else seenSubjects.add(cell.subjectId);
+						text$1(cell.value, `${cellPath}.value`, issues, 500);
+						validateVisualToneV4(cell.tone, `${cellPath}.tone`, issues);
+					}
+				}
+			} else if (value.variant === "matrix") {
+				onlyKeys$1(value, [
+					"kind",
+					"variant",
+					"rows",
+					"columns",
+					"cells"
+				], "visual.content", issues);
+				const rows = validateRelationAxisV4(value.rows, "visual.content.rows", issues);
+				const columns = validateRelationAxisV4(value.columns, "visual.content.columns", issues);
+				const rowIds = new Set(rows.flatMap((row) => typeof row.id === "string" ? [row.id] : []));
+				const columnIds = new Set(columns.flatMap((column) => typeof column.id === "string" ? [column.id] : []));
+				for (const rowId of rowIds) registerVisualIdV4(focusIds, rowId, "visual.content.rows", issues);
+				for (const columnId of columnIds) registerVisualIdV4(focusIds, columnId, "visual.content.columns", issues);
+				if (!Array.isArray(value.cells) || value.cells.length < 1 || value.cells.length > 64) {
+					issues.push("visual.content.cells must contain 1 to 64 matrix cells");
+					return focusIds;
+				}
+				const cells = value.cells.filter(record$1);
+				if (cells.length !== value.cells.length) issues.push("visual.content.cells entries must be objects");
+				uniqueIds$1(cells, "visual.content.cells", issues);
+				const coordinates = /* @__PURE__ */ new Set();
+				for (const [index, cell] of cells.entries()) {
+					const path = `visual.content.cells[${String(index)}]`;
+					onlyKeys$1(cell, [
+						"id",
+						"rowId",
+						"columnId",
+						"label",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(cell.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, cell.id, `${path}.id`, issues);
+					if (typeof cell.rowId !== "string" || !rowIds.has(cell.rowId)) issues.push(`${path}.rowId must reference a declared row`);
+					if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${path}.columnId must reference a declared column`);
+					if (typeof cell.rowId === "string" && typeof cell.columnId === "string") {
+						const coordinate = `${cell.rowId}\u0000${cell.columnId}`;
+						if (coordinates.has(coordinate)) issues.push(`${path} duplicates a matrix coordinate`);
+						coordinates.add(coordinate);
+					}
+					text$1(cell.label, `${path}.label`, issues, 240);
+					if (cell.detail !== void 0) text$1(cell.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(cell.tone, `${path}.tone`, issues);
+				}
+			} else if (value.variant === "sets") {
+				onlyKeys$1(value, [
+					"kind",
+					"variant",
+					"sets",
+					"items"
+				], "visual.content", issues);
+				const sets = validateRelationSubjectsV4(value.sets, "visual.content.sets", issues);
+				if (sets.length > 3) issues.push("visual.content.sets must contain at most 3 sets");
+				const setIds = new Set(sets.flatMap((item) => typeof item.id === "string" ? [item.id] : []));
+				for (const setId of setIds) registerVisualIdV4(focusIds, setId, "visual.content.sets", issues);
+				if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 24) {
+					issues.push("visual.content.items must contain 1 to 24 set items");
+					return focusIds;
+				}
+				const items = value.items.filter(record$1);
+				if (items.length !== value.items.length) issues.push("visual.content.items entries must be objects");
+				uniqueIds$1(items, "visual.content.items", issues);
+				for (const [index, item] of items.entries()) {
+					const path = `visual.content.items[${String(index)}]`;
+					onlyKeys$1(item, [
+						"id",
+						"label",
+						"setIds",
+						"detail"
+					], path, issues);
+					if (id$1(item.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, item.id, `${path}.id`, issues);
+					text$1(item.label, `${path}.label`, issues, 120);
+					if (item.detail !== void 0) text$1(item.detail, `${path}.detail`, issues, 1e3);
+					if (!Array.isArray(item.setIds) || item.setIds.length < 1 || item.setIds.length > 3) issues.push(`${path}.setIds must contain 1 to 3 set ids`);
+					else {
+						const memberships = /* @__PURE__ */ new Set();
+						for (const setId of item.setIds) if (typeof setId !== "string" || !setIds.has(setId)) issues.push(`${path}.setIds must reference declared sets`);
+						else if (memberships.has(setId)) issues.push(`${path}.setIds duplicates ${setId}`);
+						else memberships.add(setId);
+					}
+				}
+			} else issues.push("visual.content.variant must be comparison, matrix, or sets");
+			return focusIds;
+		}
+		function validateTimelineV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"orientation",
+				"events",
+				"eras"
+			], "visual.content", issues);
+			if (value.orientation !== void 0 && value.orientation !== "horizontal" && value.orientation !== "vertical") issues.push("visual.content.orientation must be horizontal or vertical");
+			let events = [];
+			if (!Array.isArray(value.events) || value.events.length < 2 || value.events.length > 32) issues.push("visual.content.events must contain 2 to 32 events");
+			else {
+				events = value.events.filter(record$1);
+				if (events.length !== value.events.length) issues.push("visual.content.events entries must be objects");
+				uniqueIds$1(events, "visual.content.events", issues);
+				const hasPositions = events.filter((event) => event.position !== void 0).length;
+				if (hasPositions !== 0 && hasPositions !== events.length) issues.push("visual.content.events.position must be provided for every event or omitted for every event");
+				let previousPosition = -1;
+				for (const [index, event] of events.entries()) {
+					const path = `visual.content.events[${String(index)}]`;
+					onlyKeys$1(event, [
+						"id",
+						"time",
+						"label",
+						"detail",
+						"position",
+						"tone"
+					], path, issues);
+					if (id$1(event.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, event.id, `${path}.id`, issues);
+					text$1(event.time, `${path}.time`, issues, 80);
+					text$1(event.label, `${path}.label`, issues, 160);
+					if (event.detail !== void 0) text$1(event.detail, `${path}.detail`, issues, 1500);
+					if (event.position !== void 0 && finite$1(event.position, `${path}.position`, issues)) {
+						const position = event.position;
+						if (position < 0 || position > 1) issues.push(`${path}.position must be from 0 to 1`);
+						if (position <= previousPosition) issues.push(`${path}.position must be greater than the preceding event position`);
+						previousPosition = position;
+					}
+					validateVisualToneV4(event.tone, `${path}.tone`, issues);
+				}
+			}
+			const eventIds = new Set(events.flatMap((event) => typeof event.id === "string" ? [event.id] : []));
+			const eventIndexes = new Map(events.flatMap((event, index) => typeof event.id === "string" ? [[event.id, index]] : []));
+			if (value.eras !== void 0) {
+				if (!Array.isArray(value.eras) || value.eras.length < 1 || value.eras.length > 8) issues.push("visual.content.eras must contain 1 to 8 eras");
+				else {
+					const eras = value.eras.filter(record$1);
+					if (eras.length !== value.eras.length) issues.push("visual.content.eras entries must be objects");
+					uniqueIds$1(eras, "visual.content.eras", issues);
+					for (const [index, era] of eras.entries()) {
+						const path = `visual.content.eras[${String(index)}]`;
+						onlyKeys$1(era, [
+							"id",
+							"label",
+							"startEventId",
+							"endEventId",
+							"detail",
+							"tone"
+						], path, issues);
+						if (id$1(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
+						text$1(era.label, `${path}.label`, issues, 120);
+						if (typeof era.startEventId !== "string" || !eventIds.has(era.startEventId)) issues.push(`${path}.startEventId must reference a declared event`);
+						if (typeof era.endEventId !== "string" || !eventIds.has(era.endEventId)) issues.push(`${path}.endEventId must reference a declared event`);
+						if (typeof era.startEventId === "string" && typeof era.endEventId === "string") {
+							const startIndex = eventIndexes.get(era.startEventId);
+							const endIndex = eventIndexes.get(era.endEventId);
+							if (startIndex !== void 0 && endIndex !== void 0 && startIndex > endIndex) issues.push(`${path}.startEventId must not occur after endEventId`);
+						}
+						if (era.detail !== void 0) text$1(era.detail, `${path}.detail`, issues, 1e3);
+						validateVisualToneV4(era.tone, `${path}.tone`, issues);
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateFormulaStepsV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"notation",
+				"steps",
+				"conclusion"
+			], "visual.content", issues);
+			if (value.notation !== void 0) text$1(value.notation, "visual.content.notation", issues, 300);
+			if (value.conclusion !== void 0) text$1(value.conclusion, "visual.content.conclusion", issues, 1e3);
+			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) {
+				issues.push("visual.content.steps must contain 2 to 16 formula steps");
+				return focusIds;
+			}
+			const steps = value.steps.filter(record$1);
+			if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+			uniqueIds$1(steps, "visual.content.steps", issues);
+			for (const [index, step] of steps.entries()) {
+				const path = `visual.content.steps[${String(index)}]`;
+				onlyKeys$1(step, [
+					"id",
+					"expression",
+					"label",
+					"rule",
+					"detail",
+					"tone"
+				], path, issues);
+				if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+				text$1(step.expression, `${path}.expression`, issues, 500);
+				if (step.label !== void 0) text$1(step.label, `${path}.label`, issues, 120);
+				if (step.rule !== void 0) text$1(step.rule, `${path}.rule`, issues, 240);
+				if (step.detail !== void 0) text$1(step.detail, `${path}.detail`, issues, 1500);
+				validateVisualToneV4(step.tone, `${path}.tone`, issues);
+			}
+			return focusIds;
+		}
+		function validateStudyMapV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"sourceLabel",
+				"goal",
+				"sections",
+				"concepts"
+			], "visual.content", issues);
+			text$1(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
+			if (value.goal !== void 0) text$1(value.goal, "visual.content.goal", issues, 600);
+			let sections = [];
+			if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 16) issues.push("visual.content.sections must contain 1 to 16 sections");
+			else {
+				sections = value.sections.filter(record$1);
+				if (sections.length !== value.sections.length) issues.push("visual.content.sections entries must be objects");
+				uniqueIds$1(sections, "visual.content.sections", issues);
+				for (const [index, section] of sections.entries()) {
+					const path = `visual.content.sections[${String(index)}]`;
+					onlyKeys$1(section, [
+						"id",
+						"label",
+						"anchor",
+						"summary"
+					], path, issues);
+					if (id$1(section.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, section.id, `${path}.id`, issues);
+					text$1(section.label, `${path}.label`, issues, 160);
+					if (section.anchor !== void 0) text$1(section.anchor, `${path}.anchor`, issues, 160);
+					if (section.summary !== void 0) text$1(section.summary, `${path}.summary`, issues, 1e3);
+				}
+			}
+			const sectionIds = new Set(sections.flatMap((section) => typeof section.id === "string" ? [section.id] : []));
+			let concepts = [];
+			if (!Array.isArray(value.concepts) || value.concepts.length < 1 || value.concepts.length > 48) issues.push("visual.content.concepts must contain 1 to 48 concepts");
+			else {
+				concepts = value.concepts.filter(record$1);
+				if (concepts.length !== value.concepts.length) issues.push("visual.content.concepts entries must be objects");
+				uniqueIds$1(concepts, "visual.content.concepts", issues);
+				for (const [index, concept] of concepts.entries()) {
+					const path = `visual.content.concepts[${String(index)}]`;
+					onlyKeys$1(concept, [
+						"id",
+						"label",
+						"sectionId",
+						"detail",
+						"prerequisiteIds",
+						"role",
+						"tone"
+					], path, issues);
+					if (id$1(concept.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, concept.id, `${path}.id`, issues);
+					text$1(concept.label, `${path}.label`, issues, 160);
+					if (typeof concept.sectionId !== "string" || !sectionIds.has(concept.sectionId)) issues.push(`${path}.sectionId must reference a declared section`);
+					if (concept.detail !== void 0) text$1(concept.detail, `${path}.detail`, issues, 1500);
+					if (concept.role !== void 0 && ![
+						"foundation",
+						"core",
+						"extension",
+						"practice"
+					].includes(concept.role)) issues.push(`${path}.role must be foundation, core, extension, or practice`);
+					validateVisualToneV4(concept.tone, `${path}.tone`, issues);
+				}
+			}
+			const conceptIds = new Set(concepts.flatMap((concept) => typeof concept.id === "string" ? [concept.id] : []));
+			const prerequisiteGraph = /* @__PURE__ */ new Map();
+			for (const [index, concept] of concepts.entries()) {
+				if (concept.prerequisiteIds === void 0) continue;
+				const path = `visual.content.concepts[${String(index)}].prerequisiteIds`;
+				if (!Array.isArray(concept.prerequisiteIds) || concept.prerequisiteIds.length > 8) {
+					issues.push(`${path} must contain at most 8 concept ids`);
+					continue;
+				}
+				const seen = /* @__PURE__ */ new Set();
+				for (const prerequisiteId of concept.prerequisiteIds) if (typeof prerequisiteId !== "string" || !conceptIds.has(prerequisiteId)) issues.push(`${path} must reference declared concepts`);
+				else if (prerequisiteId === concept.id) issues.push(`${path} must not reference its own concept`);
+				else if (seen.has(prerequisiteId)) issues.push(`${path} duplicates ${prerequisiteId}`);
+				else seen.add(prerequisiteId);
+				if (typeof concept.id === "string") prerequisiteGraph.set(concept.id, [...seen]);
+			}
+			const visited = /* @__PURE__ */ new Set();
+			const visiting = /* @__PURE__ */ new Set();
+			const visit = (conceptId) => {
+				if (visiting.has(conceptId)) return true;
+				if (visited.has(conceptId)) return false;
+				visiting.add(conceptId);
+				const cyclic = (prerequisiteGraph.get(conceptId) ?? []).some(visit);
+				visiting.delete(conceptId);
+				visited.add(conceptId);
+				return cyclic;
+			};
+			if ([...conceptIds].some(visit)) issues.push("visual.content.concepts prerequisiteIds must not contain a cycle");
+			return focusIds;
+		}
+		function validateRecallDeckV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"instructions",
+				"cards"
+			], "visual.content", issues);
+			if (value.instructions !== void 0) text$1(value.instructions, "visual.content.instructions", issues, 600);
+			if (!Array.isArray(value.cards) || value.cards.length < 2 || value.cards.length > 32) {
+				issues.push("visual.content.cards must contain 2 to 32 cards");
+				return focusIds;
+			}
+			const cards = value.cards.filter(record$1);
+			if (cards.length !== value.cards.length) issues.push("visual.content.cards entries must be objects");
+			uniqueIds$1(cards, "visual.content.cards", issues);
+			for (const [index, card] of cards.entries()) {
+				const path = `visual.content.cards[${String(index)}]`;
+				onlyKeys$1(card, [
+					"id",
+					"prompt",
+					"answer",
+					"hint",
+					"tags"
+				], path, issues);
+				if (id$1(card.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, card.id, `${path}.id`, issues);
+				text$1(card.prompt, `${path}.prompt`, issues, 1e3);
+				text$1(card.answer, `${path}.answer`, issues, 2e3);
+				if (card.hint !== void 0) text$1(card.hint, `${path}.hint`, issues, 800);
+				if (card.tags !== void 0) {
+					if (!Array.isArray(card.tags) || card.tags.length > 6) issues.push(`${path}.tags must contain at most 6 labels`);
+					else {
+						const seen = /* @__PURE__ */ new Set();
+						for (const [tagIndex, tag] of card.tags.entries()) if (text$1(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") {
+							if (seen.has(tag)) issues.push(`${path}.tags duplicates ${tag}`);
+							else seen.add(tag);
+						}
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateTableValueV4(value, path, issues) {
+			if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+			if (typeof value === "number" && Number.isFinite(value)) return true;
+			issues.push(`${path} must be a string, number, boolean, or null`);
+			return false;
+		}
+		function validateDataTableV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"columns",
+				"rows",
+				"outlierIds",
+				"initialSort",
+				"initialFilter",
+				"chart"
+			], "visual.content", issues);
+			let columns = [];
+			if (!Array.isArray(value.columns) || value.columns.length < 1 || value.columns.length > 24) issues.push("visual.content.columns must contain 1 to 24 columns");
+			else {
+				columns = value.columns.filter(record$1);
+				if (columns.length !== value.columns.length) issues.push("visual.content.columns entries must be objects");
+				uniqueIds$1(columns, "visual.content.columns", issues);
+				for (const [index, column] of columns.entries()) {
+					const path = `visual.content.columns[${String(index)}]`;
+					onlyKeys$1(column, [
+						"id",
+						"label",
+						"type",
+						"unit"
+					], path, issues);
+					if (id$1(column.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, column.id, `${path}.id`, issues);
+					text$1(column.label, `${path}.label`, issues, 160);
+					if (![
+						"string",
+						"number",
+						"boolean",
+						"date"
+					].includes(column.type)) issues.push(`${path}.type must be string, number, boolean, or date`);
+					if (column.unit !== void 0) text$1(column.unit, `${path}.unit`, issues, 80);
+				}
+			}
+			const columnIds = new Set(columns.flatMap((column) => typeof column.id === "string" ? [column.id] : []));
+			const columnTypes = new Map(columns.flatMap((column) => typeof column.id === "string" && typeof column.type === "string" ? [[column.id, column.type]] : []));
+			let rows = [];
+			if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 128) issues.push("visual.content.rows must contain 1 to 128 rows");
+			else {
+				rows = value.rows.filter(record$1);
+				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
+				uniqueIds$1(rows, "visual.content.rows", issues);
+				for (const [index, row] of rows.entries()) {
+					const path = `visual.content.rows[${String(index)}]`;
+					onlyKeys$1(row, [
+						"id",
+						"cells",
+						"detail"
+					], path, issues);
+					if (id$1(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
+					if (row.detail !== void 0) text$1(row.detail, `${path}.detail`, issues, 1e3);
+					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 24) {
+						issues.push(`${path}.cells must contain 1 to 24 cells`);
+						continue;
+					}
+					const seen = /* @__PURE__ */ new Set();
+					for (const [cellIndex, cell] of row.cells.entries()) {
+						const cellPath = `${path}.cells[${String(cellIndex)}]`;
+						if (!record$1(cell)) {
+							issues.push(`${cellPath} must be an object`);
+							continue;
+						}
+						onlyKeys$1(cell, ["columnId", "value"], cellPath, issues);
+						if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${cellPath}.columnId must reference a declared column`);
+						else if (seen.has(cell.columnId)) issues.push(`${cellPath}.columnId duplicates ${cell.columnId}`);
+						else seen.add(cell.columnId);
+						const valueOk = validateTableValueV4(cell.value, `${cellPath}.value`, issues);
+						const expected = typeof cell.columnId === "string" ? columnTypes.get(cell.columnId) : void 0;
+						if (valueOk && cell.value !== null && expected !== void 0 && (expected === "number" && typeof cell.value !== "number" || expected === "boolean" && typeof cell.value !== "boolean" || (expected === "string" || expected === "date") && typeof cell.value !== "string")) issues.push(`${cellPath}.value does not match column type ${expected}`);
+					}
+				}
+			}
+			const rowIds = new Set(rows.flatMap((row) => typeof row.id === "string" ? [row.id] : []));
+			if (value.outlierIds !== void 0) {
+				if (!Array.isArray(value.outlierIds) || value.outlierIds.length > 32) issues.push("visual.content.outlierIds must contain at most 32 row ids");
+				else {
+					const seen = /* @__PURE__ */ new Set();
+					for (const [index, rowId] of value.outlierIds.entries()) {
+						const path = `visual.content.outlierIds[${String(index)}]`;
+						if (typeof rowId !== "string" || !rowIds.has(rowId)) issues.push(`${path} must reference a declared row`);
+						else if (seen.has(rowId)) issues.push(`${path} duplicates ${rowId}`);
+						else seen.add(rowId);
+					}
+				}
+			}
+			const validateColumnRef = (candidate, path) => {
+				if (typeof candidate !== "string" || !columnIds.has(candidate)) issues.push(`${path} must reference a declared column`);
+			};
+			if (value.initialSort !== void 0) {
+				if (!record$1(value.initialSort)) issues.push("visual.content.initialSort must be an object");
+				else {
+					onlyKeys$1(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
+					validateColumnRef(value.initialSort.columnId, "visual.content.initialSort.columnId");
+					if (value.initialSort.direction !== "asc" && value.initialSort.direction !== "desc") issues.push("visual.content.initialSort.direction must be asc or desc");
+				}
+			}
+			if (value.initialFilter !== void 0) {
+				if (!record$1(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
+				else {
+					onlyKeys$1(value.initialFilter, [
+						"columnId",
+						"operator",
+						"value"
+					], "visual.content.initialFilter", issues);
+					validateColumnRef(value.initialFilter.columnId, "visual.content.initialFilter.columnId");
+					if (![
+						"equals",
+						"not_equals",
+						"contains",
+						"gt",
+						"gte",
+						"lt",
+						"lte"
+					].includes(value.initialFilter.operator)) issues.push("visual.content.initialFilter.operator is unknown");
+					validateTableValueV4(value.initialFilter.value, "visual.content.initialFilter.value", issues);
+				}
+			}
+			if (value.chart !== void 0) {
+				if (!record$1(value.chart)) issues.push("visual.content.chart must be an object");
+				else {
+					onlyKeys$1(value.chart, [
+						"type",
+						"xColumnId",
+						"yColumnId",
+						"seriesColumnId"
+					], "visual.content.chart", issues);
+					if (![
+						"line",
+						"bar",
+						"scatter"
+					].includes(value.chart.type)) issues.push("visual.content.chart.type is unknown");
+					validateColumnRef(value.chart.xColumnId, "visual.content.chart.xColumnId");
+					validateColumnRef(value.chart.yColumnId, "visual.content.chart.yColumnId");
+					if (value.chart.seriesColumnId !== void 0) validateColumnRef(value.chart.seriesColumnId, "visual.content.chart.seriesColumnId");
+				}
+			}
+			return focusIds;
+		}
+		function validateStateTransitionV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"states",
+				"transitions",
+				"steps"
+			], "visual.content", issues);
+			let states = [];
+			if (!Array.isArray(value.states) || value.states.length < 2 || value.states.length > 32) issues.push("visual.content.states must contain 2 to 32 states");
+			else {
+				states = value.states.filter(record$1);
+				if (states.length !== value.states.length) issues.push("visual.content.states entries must be objects");
+				uniqueIds$1(states, "visual.content.states", issues);
+				for (const [index, state] of states.entries()) {
+					const path = `visual.content.states[${String(index)}]`;
+					onlyKeys$1(state, [
+						"id",
+						"label",
+						"detail",
+						"tone",
+						"initial",
+						"final"
+					], path, issues);
+					if (id$1(state.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, state.id, `${path}.id`, issues);
+					text$1(state.label, `${path}.label`, issues, 160);
+					if (state.detail !== void 0) text$1(state.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(state.tone, `${path}.tone`, issues);
+					if (state.initial !== void 0 && typeof state.initial !== "boolean") issues.push(`${path}.initial must be a boolean`);
+					if (state.final !== void 0 && typeof state.final !== "boolean") issues.push(`${path}.final must be a boolean`);
+				}
+			}
+			const stateIds = new Set(states.flatMap((state) => typeof state.id === "string" ? [state.id] : []));
+			let transitions = [];
+			if (!Array.isArray(value.transitions) || value.transitions.length < 1 || value.transitions.length > 96) issues.push("visual.content.transitions must contain 1 to 96 transitions");
+			else {
+				transitions = value.transitions.filter(record$1);
+				if (transitions.length !== value.transitions.length) issues.push("visual.content.transitions entries must be objects");
+				uniqueIds$1(transitions, "visual.content.transitions", issues);
+				for (const [index, transition] of transitions.entries()) {
+					const path = `visual.content.transitions[${String(index)}]`;
+					onlyKeys$1(transition, [
+						"id",
+						"from",
+						"to",
+						"trigger",
+						"guard",
+						"action",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(transition.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, transition.id, `${path}.id`, issues);
+					if (typeof transition.from !== "string" || !stateIds.has(transition.from)) issues.push(`${path}.from must reference a declared state`);
+					if (typeof transition.to !== "string" || !stateIds.has(transition.to)) issues.push(`${path}.to must reference a declared state`);
+					text$1(transition.trigger, `${path}.trigger`, issues, 240);
+					if (transition.guard !== void 0) text$1(transition.guard, `${path}.guard`, issues, 500);
+					if (transition.action !== void 0) text$1(transition.action, `${path}.action`, issues, 500);
+					if (transition.detail !== void 0) text$1(transition.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(transition.tone, `${path}.tone`, issues);
+				}
+			}
+			const transitionIds = new Set(transitions.flatMap((transition) => typeof transition.id === "string" ? [transition.id] : []));
+			if (value.steps !== void 0) {
+				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 steps");
+				else {
+					const steps = value.steps.filter(record$1);
+					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+					uniqueIds$1(steps, "visual.content.steps", issues);
+					for (const [index, step] of steps.entries()) {
+						const path = `visual.content.steps[${String(index)}]`;
+						onlyKeys$1(step, [
+							"id",
+							"label",
+							"currentStateId",
+							"transitionId",
+							"description"
+						], path, issues);
+						if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+						text$1(step.label, `${path}.label`, issues, 160);
+						if (typeof step.currentStateId !== "string" || !stateIds.has(step.currentStateId)) issues.push(`${path}.currentStateId must reference a declared state`);
+						if (step.transitionId !== void 0 && (typeof step.transitionId !== "string" || !transitionIds.has(step.transitionId))) issues.push(`${path}.transitionId must reference a declared transition`);
+						if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateSequenceBufferV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"slots",
+				"pointers",
+				"ranges",
+				"steps"
+			], "visual.content", issues);
+			let slots = [];
+			if (!Array.isArray(value.slots) || value.slots.length < 1 || value.slots.length > 128) issues.push("visual.content.slots must contain 1 to 128 slots");
+			else {
+				slots = value.slots.filter(record$1);
+				if (slots.length !== value.slots.length) issues.push("visual.content.slots entries must be objects");
+				uniqueIds$1(slots, "visual.content.slots", issues);
+				const indexes = /* @__PURE__ */ new Set();
+				for (const [index, slot] of slots.entries()) {
+					const path = `visual.content.slots[${String(index)}]`;
+					onlyKeys$1(slot, [
+						"id",
+						"index",
+						"value",
+						"label",
+						"tone"
+					], path, issues);
+					if (id$1(slot.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, slot.id, `${path}.id`, issues);
+					if (!integer$1(slot.index, `${path}.index`, issues)) continue;
+					if (indexes.has(slot.index)) issues.push(`${path}.index duplicates ${String(slot.index)}`);
+					indexes.add(slot.index);
+					validateTableValueV4(slot.value, `${path}.value`, issues);
+					if (slot.label !== void 0) text$1(slot.label, `${path}.label`, issues, 120);
+					validateVisualToneV4(slot.tone, `${path}.tone`, issues);
+				}
+			}
+			const slotIds = new Set(slots.flatMap((slot) => typeof slot.id === "string" ? [slot.id] : []));
+			const slotIndexes = new Set(slots.flatMap((slot) => typeof slot.index === "number" && Number.isInteger(slot.index) ? [slot.index] : []));
+			const maxIndex = slots.reduce((max, slot) => typeof slot.index === "number" ? Math.max(max, slot.index) : max, -1);
+			let pointers = [];
+			if (value.pointers !== void 0) {
+				if (!Array.isArray(value.pointers) || value.pointers.length < 1 || value.pointers.length > 8) issues.push("visual.content.pointers must contain 1 to 8 pointers");
+				else {
+					pointers = value.pointers.filter(record$1);
+					if (pointers.length !== value.pointers.length) issues.push("visual.content.pointers entries must be objects");
+					uniqueIds$1(pointers, "visual.content.pointers", issues);
+					for (const [index, pointer] of pointers.entries()) {
+						const path = `visual.content.pointers[${String(index)}]`;
+						onlyKeys$1(pointer, [
+							"id",
+							"label",
+							"index",
+							"tone"
+						], path, issues);
+						if (id$1(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
+						text$1(pointer.label, `${path}.label`, issues, 120);
+						if (integer$1(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
+						validateVisualToneV4(pointer.tone, `${path}.tone`, issues);
+					}
+				}
+			}
+			const pointerIds = new Set(pointers.flatMap((pointer) => typeof pointer.id === "string" ? [pointer.id] : []));
+			let ranges = [];
+			if (value.ranges !== void 0) {
+				if (!Array.isArray(value.ranges) || value.ranges.length < 1 || value.ranges.length > 8) issues.push("visual.content.ranges must contain 1 to 8 ranges");
+				else {
+					ranges = value.ranges.filter(record$1);
+					if (ranges.length !== value.ranges.length) issues.push("visual.content.ranges entries must be objects");
+					uniqueIds$1(ranges, "visual.content.ranges", issues);
+					for (const [index, range] of ranges.entries()) {
+						const path = `visual.content.ranges[${String(index)}]`;
+						onlyKeys$1(range, [
+							"id",
+							"label",
+							"start",
+							"end",
+							"tone"
+						], path, issues);
+						if (id$1(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
+						text$1(range.label, `${path}.label`, issues, 120);
+						const startOk = integer$1(range.start, `${path}.start`, issues);
+						const endOk = integer$1(range.end, `${path}.end`, issues);
+						if (startOk && !slotIndexes.has(range.start)) issues.push(`${path}.start must reference a declared slot index`);
+						if (endOk && !slotIndexes.has(range.end)) issues.push(`${path}.end must reference a declared slot index`);
+						if (startOk && endOk && range.start > range.end) issues.push(`${path}.start must not exceed end`);
+						validateVisualToneV4(range.tone, `${path}.tone`, issues);
+					}
+				}
+			}
+			const rangeIds = new Set(ranges.flatMap((range) => typeof range.id === "string" ? [range.id] : []));
+			if (value.steps !== void 0) {
+				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 snapshots");
+				else {
+					const steps = value.steps.filter(record$1);
+					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+					uniqueIds$1(steps, "visual.content.steps", issues);
+					for (const [index, step] of steps.entries()) {
+						const path = `visual.content.steps[${String(index)}]`;
+						onlyKeys$1(step, [
+							"id",
+							"label",
+							"description",
+							"slots",
+							"pointers",
+							"ranges"
+						], path, issues);
+						if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+						text$1(step.label, `${path}.label`, issues, 160);
+						if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+						if (step.slots !== void 0) {
+							if (!Array.isArray(step.slots) || step.slots.length > 128) issues.push(`${path}.slots must contain at most 128 snapshots`);
+							else for (const [snapshotIndex, snapshot] of step.slots.entries()) {
+								const snapshotPath = `${path}.slots[${String(snapshotIndex)}]`;
+								if (!record$1(snapshot)) {
+									issues.push(`${snapshotPath} must be an object`);
+									continue;
+								}
+								onlyKeys$1(snapshot, ["slotId", "value"], snapshotPath, issues);
+								if (typeof snapshot.slotId !== "string" || !slotIds.has(snapshot.slotId)) issues.push(`${snapshotPath}.slotId must reference a declared slot`);
+								if (snapshot.value !== void 0) validateTableValueV4(snapshot.value, `${snapshotPath}.value`, issues);
+							}
+						}
+						if (step.pointers !== void 0) {
+							if (!Array.isArray(step.pointers) || step.pointers.length > 8) issues.push(`${path}.pointers must contain at most 8 snapshots`);
+							else for (const [snapshotIndex, snapshot] of step.pointers.entries()) {
+								const snapshotPath = `${path}.pointers[${String(snapshotIndex)}]`;
+								if (!record$1(snapshot)) {
+									issues.push(`${snapshotPath} must be an object`);
+									continue;
+								}
+								onlyKeys$1(snapshot, ["pointerId", "index"], snapshotPath, issues);
+								if (typeof snapshot.pointerId !== "string" || !pointerIds.has(snapshot.pointerId)) issues.push(`${snapshotPath}.pointerId must reference a declared pointer`);
+								if (integer$1(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
+							}
+						}
+						if (step.ranges !== void 0) {
+							if (!Array.isArray(step.ranges) || step.ranges.length > 8) issues.push(`${path}.ranges must contain at most 8 snapshots`);
+							else for (const [snapshotIndex, snapshot] of step.ranges.entries()) {
+								const snapshotPath = `${path}.ranges[${String(snapshotIndex)}]`;
+								if (!record$1(snapshot)) {
+									issues.push(`${snapshotPath} must be an object`);
+									continue;
+								}
+								onlyKeys$1(snapshot, [
+									"rangeId",
+									"start",
+									"end"
+								], snapshotPath, issues);
+								if (typeof snapshot.rangeId !== "string" || !rangeIds.has(snapshot.rangeId)) issues.push(`${snapshotPath}.rangeId must reference a declared range`);
+								const startOk = integer$1(snapshot.start, `${snapshotPath}.start`, issues);
+								const endOk = integer$1(snapshot.end, `${snapshotPath}.end`, issues);
+								if (startOk && !slotIndexes.has(snapshot.start)) issues.push(`${snapshotPath}.start must reference a declared slot index`);
+								if (endOk && !slotIndexes.has(snapshot.end)) issues.push(`${snapshotPath}.end must reference a declared slot index`);
+								if (startOk && endOk && snapshot.start > snapshot.end) issues.push(`${snapshotPath}.start must not exceed end`);
+							}
+						}
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateSequenceDiagramV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"participants",
+				"messages"
+			], "visual.content", issues);
+			let participants = [];
+			if (!Array.isArray(value.participants) || value.participants.length < 2 || value.participants.length > 16) issues.push("visual.content.participants must contain 2 to 16 participants");
+			else {
+				participants = value.participants.filter(record$1);
+				if (participants.length !== value.participants.length) issues.push("visual.content.participants entries must be objects");
+				uniqueIds$1(participants, "visual.content.participants", issues);
+				for (const [index, participant] of participants.entries()) {
+					const path = `visual.content.participants[${String(index)}]`;
+					onlyKeys$1(participant, [
+						"id",
+						"label",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(participant.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, participant.id, `${path}.id`, issues);
+					text$1(participant.label, `${path}.label`, issues, 160);
+					if (participant.detail !== void 0) text$1(participant.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(participant.tone, `${path}.tone`, issues);
+				}
+			}
+			const participantIds = new Set(participants.flatMap((participant) => typeof participant.id === "string" ? [participant.id] : []));
+			if (!Array.isArray(value.messages) || value.messages.length < 1 || value.messages.length > 96) issues.push("visual.content.messages must contain 1 to 96 messages");
+			else {
+				const messages = value.messages.filter(record$1);
+				if (messages.length !== value.messages.length) issues.push("visual.content.messages entries must be objects");
+				uniqueIds$1(messages, "visual.content.messages", issues);
+				for (const [index, message] of messages.entries()) {
+					const path = `visual.content.messages[${String(index)}]`;
+					onlyKeys$1(message, [
+						"id",
+						"from",
+						"to",
+						"label",
+						"type",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(message.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, message.id, `${path}.id`, issues);
+					if (typeof message.from !== "string" || !participantIds.has(message.from)) issues.push(`${path}.from must reference a declared participant`);
+					if (typeof message.to !== "string" || !participantIds.has(message.to)) issues.push(`${path}.to must reference a declared participant`);
+					text$1(message.label, `${path}.label`, issues, 240);
+					if (![
+						"sync",
+						"async",
+						"return",
+						"self"
+					].includes(message.type)) issues.push(`${path}.type must be sync, async, return, or self`);
+					if (message.type === "self" && message.from !== message.to) issues.push(`${path}.self messages must have matching from and to participants`);
+					if (message.detail !== void 0) text$1(message.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(message.tone, `${path}.tone`, issues);
+				}
+			}
+			return focusIds;
+		}
+		function validateCodeTraceV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"language",
+				"code",
+				"lines",
+				"steps"
+			], "visual.content", issues);
+			text$1(value.language, "visual.content.language", issues, 40);
+			text$1(value.code, "visual.content.code", issues, 24e3);
+			const lineNumbers = /* @__PURE__ */ new Set();
+			if (!Array.isArray(value.lines) || value.lines.length < 1 || value.lines.length > 256) issues.push("visual.content.lines must contain 1 to 256 lines");
+			else {
+				const lines = value.lines.filter(record$1);
+				if (lines.length !== value.lines.length) issues.push("visual.content.lines entries must be objects");
+				let previousLine = -1;
+				for (const [index, line] of lines.entries()) {
+					const path = `visual.content.lines[${String(index)}]`;
+					onlyKeys$1(line, ["number", "text"], path, issues);
+					if (integer$1(line.number, `${path}.number`, issues)) {
+						lineNumbers.add(line.number);
+						if (line.number <= previousLine) issues.push(`${path}.number must increase in source order`);
+						previousLine = line.number;
+					}
+					if (typeof line.text !== "string") issues.push(`${path}.text must be a string`);
+					else if (line.text.length > 1e3) issues.push(`${path}.text exceeds 1000 characters`);
+				}
+			}
+			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 32) issues.push("visual.content.steps must contain 2 to 32 execution steps");
+			else {
+				const steps = value.steps.filter(record$1);
+				if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+				uniqueIds$1(steps, "visual.content.steps", issues);
+				for (const [index, step] of steps.entries()) {
+					const path = `visual.content.steps[${String(index)}]`;
+					onlyKeys$1(step, [
+						"id",
+						"label",
+						"currentLine",
+						"variables",
+						"stack",
+						"output",
+						"description"
+					], path, issues);
+					if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+					text$1(step.label, `${path}.label`, issues, 160);
+					if (integer$1(step.currentLine, `${path}.currentLine`, issues) && !lineNumbers.has(step.currentLine)) issues.push(`${path}.currentLine must reference a declared source line`);
+					if (!Array.isArray(step.variables) || step.variables.length > 32) issues.push(`${path}.variables must contain at most 32 variables`);
+					else {
+						const variables = step.variables.filter(record$1);
+						if (variables.length !== step.variables.length) issues.push(`${path}.variables entries must be objects`);
+						const names = /* @__PURE__ */ new Set();
+						for (const [variableIndex, variable] of variables.entries()) {
+							const variablePath = `${path}.variables[${String(variableIndex)}]`;
+							onlyKeys$1(variable, [
+								"name",
+								"value",
+								"type"
+							], variablePath, issues);
+							if (typeof variable.name !== "string" || variable.name.trim() === "") issues.push(`${variablePath}.name must be a non-empty string`);
+							else if (names.has(variable.name)) issues.push(`${variablePath}.name duplicates ${variable.name}`);
+							else names.add(variable.name);
+							validateTableValueV4(variable.value, `${variablePath}.value`, issues);
+							if (variable.type !== void 0) text$1(variable.type, `${variablePath}.type`, issues, 80);
+						}
+					}
+					if (!Array.isArray(step.stack) || step.stack.length > 16) issues.push(`${path}.stack must contain at most 16 frames`);
+					else {
+						const stack = step.stack.filter(record$1);
+						if (stack.length !== step.stack.length) issues.push(`${path}.stack entries must be objects`);
+						uniqueIds$1(stack, `${path}.stack`, issues);
+						for (const [frameIndex, frame] of stack.entries()) {
+							const framePath = `${path}.stack[${String(frameIndex)}]`;
+							onlyKeys$1(frame, [
+								"id",
+								"function",
+								"line"
+							], framePath, issues);
+							id$1(frame.id, `${framePath}.id`, issues);
+							text$1(frame.function, `${framePath}.function`, issues, 160);
+							if (frame.line !== void 0 && integer$1(frame.line, `${framePath}.line`, issues) && !lineNumbers.has(frame.line)) issues.push(`${framePath}.line must reference a declared source line`);
+						}
+					}
+					if (step.output !== void 0 && typeof step.output !== "string") issues.push(`${path}.output must be a string`);
+					else if (step.output !== void 0 && step.output.length > 4e3) issues.push(`${path}.output exceeds 4000 characters`);
+					if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+				}
+			}
+			return focusIds;
+		}
+		function validateFieldGridV4(value, path, issues, components) {
+			if (!record$1(value)) {
+				issues.push(`${path} must be an object`);
+				return;
+			}
+			onlyKeys$1(value, components === "scalar" ? [
+				"columns",
+				"rows",
+				"values"
+			] : [
+				"columns",
+				"rows",
+				"u",
+				"v"
+			], path, issues);
+			const columnsOk = integer$1(value.columns, `${path}.columns`, issues, 2) && value.columns <= 64;
+			const rowsOk = integer$1(value.rows, `${path}.rows`, issues, 2) && value.rows <= 64;
+			const expected = columnsOk && rowsOk ? value.columns * value.rows : void 0;
+			if (components === "scalar") {
+				if (!Array.isArray(value.values) || value.values.length < 1 || value.values.length > 4096) issues.push(`${path}.values must contain sampled values`);
+				else {
+					if (expected !== void 0 && value.values.length !== expected) issues.push(`${path}.values length must equal rows * columns`);
+					for (const [index, sample] of value.values.entries()) finite$1(sample, `${path}.values[${String(index)}]`, issues);
+				}
+			} else for (const component of ["u", "v"]) {
+				const samples = value[component];
+				if (!Array.isArray(samples) || samples.length < 1 || samples.length > 4096) issues.push(`${path}.${component} must contain sampled values`);
+				else {
+					if (expected !== void 0 && samples.length !== expected) issues.push(`${path}.${component} length must equal rows * columns`);
+					for (const [index, sample] of samples.entries()) finite$1(sample, `${path}.${component}[${String(index)}]`, issues);
+				}
+			}
+		}
+		function validateFieldAxisV4(value, path, issues) {
+			if (!record$1(value)) {
+				issues.push(`${path} must be an object`);
+				return;
+			}
+			onlyKeys$1(value, [
+				"label",
+				"min",
+				"max",
+				"samples"
+			], path, issues);
+			if (value.label !== void 0) text$1(value.label, `${path}.label`, issues, 120);
+			const minOk = finite$1(value.min, `${path}.min`, issues);
+			const maxOk = finite$1(value.max, `${path}.max`, issues);
+			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
+			if (value.samples !== void 0 && (!integer$1(value.samples, `${path}.samples`, issues, 2) || value.samples > 64)) issues.push(`${path}.samples must be an integer from 2 to 64`);
+		}
+		function validateField2DV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"xAxis",
+				"yAxis",
+				"scalar",
+				"vector"
+			], "visual.content", issues);
+			validateFieldAxisV4(value.xAxis, "visual.content.xAxis", issues);
+			validateFieldAxisV4(value.yAxis, "visual.content.yAxis", issues);
+			if (value.scalar === void 0 && value.vector === void 0) issues.push("visual.content must provide scalar or vector data");
+			const fieldVariables = /* @__PURE__ */ new Set(["y"]);
+			if (value.scalar !== void 0) {
+				if (!record$1(value.scalar)) issues.push("visual.content.scalar must be an object");
+				else {
+					onlyKeys$1(value.scalar, [
+						"samples",
+						"expression",
+						"min",
+						"max"
+					], "visual.content.scalar", issues);
+					if (value.scalar.samples === void 0 && value.scalar.expression === void 0) issues.push("visual.content.scalar must provide samples or expression");
+					if (value.scalar.samples !== void 0) validateFieldGridV4(value.scalar.samples, "visual.content.scalar.samples", issues, "scalar");
+					if (value.scalar.expression !== void 0) validateMath$1(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
+					const minOk = value.scalar.min === void 0 ? false : finite$1(value.scalar.min, "visual.content.scalar.min", issues);
+					const maxOk = value.scalar.max === void 0 ? false : finite$1(value.scalar.max, "visual.content.scalar.max", issues);
+					if (minOk && maxOk && value.scalar.min >= value.scalar.max) issues.push("visual.content.scalar.min must be less than max");
+				}
+			}
+			if (value.vector !== void 0) {
+				if (!record$1(value.vector)) issues.push("visual.content.vector must be an object");
+				else {
+					onlyKeys$1(value.vector, ["samples", "expression"], "visual.content.vector", issues);
+					if (value.vector.samples === void 0 && value.vector.expression === void 0) issues.push("visual.content.vector must provide samples or expression");
+					if (value.vector.samples !== void 0) validateFieldGridV4(value.vector.samples, "visual.content.vector.samples", issues, "vector");
+					if (value.vector.expression !== void 0) {
+						if (!record$1(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
+						else {
+							onlyKeys$1(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
+							validateMath$1(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
+							validateMath$1(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
+						}
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateCausalLoopV4(value, issues) {
+			const focusIds = /* @__PURE__ */ new Set();
+			onlyKeys$1(value, [
+				"kind",
+				"variables",
+				"links",
+				"loops"
+			], "visual.content", issues);
+			let variables = [];
+			if (!Array.isArray(value.variables) || value.variables.length < 2 || value.variables.length > 32) issues.push("visual.content.variables must contain 2 to 32 variables");
+			else {
+				variables = value.variables.filter(record$1);
+				if (variables.length !== value.variables.length) issues.push("visual.content.variables entries must be objects");
+				uniqueIds$1(variables, "visual.content.variables", issues);
+				for (const [index, variable] of variables.entries()) {
+					const path = `visual.content.variables[${String(index)}]`;
+					onlyKeys$1(variable, [
+						"id",
+						"label",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(variable.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, variable.id, `${path}.id`, issues);
+					text$1(variable.label, `${path}.label`, issues, 160);
+					if (variable.detail !== void 0) text$1(variable.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(variable.tone, `${path}.tone`, issues);
+				}
+			}
+			const variableIds = new Set(variables.flatMap((variable) => typeof variable.id === "string" ? [variable.id] : []));
+			let links = [];
+			if (!Array.isArray(value.links) || value.links.length < 1 || value.links.length > 96) issues.push("visual.content.links must contain 1 to 96 links");
+			else {
+				links = value.links.filter(record$1);
+				if (links.length !== value.links.length) issues.push("visual.content.links entries must be objects");
+				uniqueIds$1(links, "visual.content.links", issues);
+				for (const [index, link] of links.entries()) {
+					const path = `visual.content.links[${String(index)}]`;
+					onlyKeys$1(link, [
+						"id",
+						"from",
+						"to",
+						"polarity",
+						"delay",
+						"label",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id$1(link.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, link.id, `${path}.id`, issues);
+					if (typeof link.from !== "string" || !variableIds.has(link.from)) issues.push(`${path}.from must reference a declared variable`);
+					if (typeof link.to !== "string" || !variableIds.has(link.to)) issues.push(`${path}.to must reference a declared variable`);
+					if (link.polarity !== "positive" && link.polarity !== "negative") issues.push(`${path}.polarity must be positive or negative`);
+					if (link.delay !== void 0 && (typeof link.delay !== "number" || !Number.isFinite(link.delay) || link.delay < 0)) issues.push(`${path}.delay must be a non-negative finite number`);
+					if (link.label !== void 0) text$1(link.label, `${path}.label`, issues, 160);
+					if (link.detail !== void 0) text$1(link.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(link.tone, `${path}.tone`, issues);
+				}
+			}
+			const linkIds = new Set(links.flatMap((link) => typeof link.id === "string" ? [link.id] : []));
+			if (value.loops !== void 0) {
+				if (!Array.isArray(value.loops) || value.loops.length < 1 || value.loops.length > 12) issues.push("visual.content.loops must contain 1 to 12 loops");
+				else {
+					const loops = value.loops.filter(record$1);
+					if (loops.length !== value.loops.length) issues.push("visual.content.loops entries must be objects");
+					uniqueIds$1(loops, "visual.content.loops", issues);
+					for (const [index, loop] of loops.entries()) {
+						const path = `visual.content.loops[${String(index)}]`;
+						onlyKeys$1(loop, [
+							"id",
+							"label",
+							"type",
+							"linkIds",
+							"detail",
+							"tone"
+						], path, issues);
+						if (id$1(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
+						text$1(loop.label, `${path}.label`, issues, 160);
+						if (loop.type !== "reinforcing" && loop.type !== "balancing") issues.push(`${path}.type must be reinforcing or balancing`);
+						if (!Array.isArray(loop.linkIds) || loop.linkIds.length < 1 || loop.linkIds.length > 96) issues.push(`${path}.linkIds must contain 1 to 96 link ids`);
+						else {
+							const seen = /* @__PURE__ */ new Set();
+							for (const [linkIndex, linkId] of loop.linkIds.entries()) {
+								const linkPath = `${path}.linkIds[${String(linkIndex)}]`;
+								if (typeof linkId !== "string" || !linkIds.has(linkId)) issues.push(`${linkPath} must reference a declared link`);
+								else if (seen.has(linkId)) issues.push(`${linkPath} duplicates ${linkId}`);
+								else seen.add(linkId);
+							}
+						}
+						if (loop.detail !== void 0) text$1(loop.detail, `${path}.detail`, issues, 1e3);
+						validateVisualToneV4(loop.tone, `${path}.tone`, issues);
+					}
+				}
+			}
+			return focusIds;
+		}
+		function validateVisualSequenceV4(value, focusIds, issues) {
+			if (value === void 0) return;
+			if (!record$1(value)) {
+				issues.push("visual.sequence must be an object");
+				return;
+			}
+			onlyKeys$1(value, ["initialFrameId", "frames"], "visual.sequence", issues);
+			if (!Array.isArray(value.frames) || value.frames.length < 2 || value.frames.length > 12) {
+				issues.push("visual.sequence.frames must contain 2 to 12 frames");
+				return;
+			}
+			const frames = value.frames.filter(record$1);
+			if (frames.length !== value.frames.length) issues.push("visual.sequence.frames entries must be objects");
+			uniqueIds$1(frames, "visual.sequence.frames", issues);
+			const frameIds = /* @__PURE__ */ new Set();
+			for (const [index, frame] of frames.entries()) {
+				const path = `visual.sequence.frames[${String(index)}]`;
+				onlyKeys$1(frame, [
+					"id",
+					"label",
+					"description",
+					"focusIds"
+				], path, issues);
+				if (id$1(frame.id, `${path}.id`, issues)) frameIds.add(frame.id);
+				text$1(frame.label, `${path}.label`, issues, 120);
+				if (frame.description !== void 0) text$1(frame.description, `${path}.description`, issues, 1e3);
+				if (!Array.isArray(frame.focusIds) || frame.focusIds.length > 64) {
+					issues.push(`${path}.focusIds must contain at most 64 ids`);
+					continue;
+				}
+				const seen = /* @__PURE__ */ new Set();
+				for (const [focusIndex, focusId] of frame.focusIds.entries()) if (typeof focusId !== "string" || !focusIds.has(focusId)) issues.push(`${path}.focusIds[${String(focusIndex)}] must reference visual content`);
+				else if (seen.has(focusId)) issues.push(`${path}.focusIds duplicates ${focusId}`);
+				else seen.add(focusId);
+			}
+			if (value.initialFrameId !== void 0 && (typeof value.initialFrameId !== "string" || !frameIds.has(value.initialFrameId))) issues.push("visual.sequence.initialFrameId must reference a declared frame");
+		}
+		/** Validate the semantic, model-facing visual protocol while retaining V3 replay separately. */
+		function parseLearningVisualV4(value) {
+			const issues = [...validateLearningVisualSchemaV4(value)];
+			const bytes = jsonBytes$1(value);
+			if (bytes === void 0) issues.push("visual must be serializable JSON");
+			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
+			if (!record$1(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
+			onlyKeys$1(value, [
+				"protocol",
+				"title",
+				"description",
+				"content",
+				"sequence",
+				"fallbackMarkdown"
+			], "visual", issues);
+			if (value.protocol !== "dsh-learning/visual@4") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V4}`);
+			text$1(value.title, "visual.title", issues, 200);
+			if (value.description !== void 0) text$1(value.description, "visual.description", issues, 1e3);
+			if (value.fallbackMarkdown !== void 0) text$1(value.fallbackMarkdown, "visual.fallbackMarkdown", issues, 8e3);
+			let focusIds = /* @__PURE__ */ new Set();
+			if (!record$1(value.content)) issues.push("visual.content must be an object");
+			else if (value.content.kind === "plot") focusIds = validatePlotV4(value.content, issues);
+			else if (value.content.kind === "node_link") focusIds = validateNodeLinkV4(value.content, issues);
+			else if (value.content.kind === "scene_2d") focusIds = validateScene2DV4(value.content, issues);
+			else if (value.content.kind === "relation") focusIds = validateRelationV4(value.content, issues);
+			else if (value.content.kind === "timeline") focusIds = validateTimelineV4(value.content, issues);
+			else if (value.content.kind === "formula_steps") focusIds = validateFormulaStepsV4(value.content, issues);
+			else if (value.content.kind === "study_map") focusIds = validateStudyMapV4(value.content, issues);
+			else if (value.content.kind === "recall_deck") focusIds = validateRecallDeckV4(value.content, issues);
+			else if (value.content.kind === "data_table") focusIds = validateDataTableV4(value.content, issues);
+			else if (value.content.kind === "state_transition") focusIds = validateStateTransitionV4(value.content, issues);
+			else if (value.content.kind === "sequence_buffer") focusIds = validateSequenceBufferV4(value.content, issues);
+			else if (value.content.kind === "sequence_diagram") focusIds = validateSequenceDiagramV4(value.content, issues);
+			else if (value.content.kind === "code_trace") focusIds = validateCodeTraceV4(value.content, issues);
+			else if (value.content.kind === "field_2d") focusIds = validateField2DV4(value.content, issues);
+			else if (value.content.kind === "causal_loop") focusIds = validateCausalLoopV4(value.content, issues);
+			else issues.push(`visual.content.kind must be one of ${LEARNING_VISUAL_KINDS_V4.join(", ")}`);
+			validateVisualSequenceV4(value.sequence, focusIds, issues);
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		function parseLearningVisualResultV4(value) {
+			const issues = [...validateLearningVisualResultSchemaV4(value)];
+			if (!record$1(value)) throw new LearningProtocolError(["visual result must be an object"]);
+			onlyKeys$1(value, ["protocol", "status"], "visualResult", issues);
+			if (value.protocol !== "dsh-learning/visual-result@4") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`);
+			if (!LEARNING_VISUAL_STATUSES.includes(value.status)) issues.push(`visualResult.status must be one of ${LEARNING_VISUAL_STATUSES.join(", ")}`);
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		function parseLearningVisualResultV3(value) {
+			const issues = [];
+			if (!record$1(value)) throw new LearningProtocolError(["visual result must be an object"]);
+			onlyKeys$1(value, ["protocol", "status"], "visualResult", issues);
+			if (value.protocol !== "dsh-learning/visual-result@3") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V3}`);
+			if (value.status !== "ready") issues.push("visualResult.status must be ready");
+			if (issues.length > 0) throw new LearningProtocolError(issues);
+			return value;
+		}
+		//#endregion
+		//#region src/legacy-protocol.ts
+		/**
+		* Compatibility-only V1/V2 validators.
+		*
+		* This module intentionally owns a small copy of the retired wire validators
+		* instead of re-exporting them from `protocol.ts`. The broker reaches it via
+		* `import()` only when replaying an old activity or handling the retired V2
+		* Question/Reveal gate; the current visual/checkpoint path remains on the
+		* eager protocol chunk.
+		*/
+		const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
+		const RESPONSE_PROTOCOL = "dsh-learning/response@1";
+		const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
+		const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
+		const MAX_ACTIVITY_BYTES = 65536;
+		const MAX_RESPONSE_BYTES = 32768;
+		const ACTIVITY_KINDS = [
+			"parameter_explorer",
+			"process_stepper",
+			"structure_compare"
+		];
+		const MATH_BINARY = /* @__PURE__ */ new Set([
+			"add",
+			"sub",
+			"mul",
+			"div",
+			"pow",
+			"min",
+			"max"
+		]);
+		const MATH_UNARY = /* @__PURE__ */ new Set([
+			"abs",
+			"neg",
+			"exp",
+			"log",
+			"sqrt",
+			"sigmoid",
+			"tanh",
+			"relu",
+			"leaky_relu",
+			"step",
+			"normpdf"
+		]);
 		function record(value) {
 			return typeof value === "object" && value !== null && !Array.isArray(value);
 		}
@@ -115,6 +4323,20 @@ window.__ModuleLoader__.load({
 		function finite(value, path, issues) {
 			if (typeof value !== "number" || !Number.isFinite(value)) {
 				issues.push(`${path} must be a finite number`);
+				return false;
+			}
+			return true;
+		}
+		function integer(value, path, issues, min = 0) {
+			if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
+				issues.push(`${path} must be an integer >= ${String(min)}`);
+				return false;
+			}
+			return true;
+		}
+		function token(value, path, issues) {
+			if (typeof value !== "string" || value.length < 1 || value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+				issues.push(`${path} must be an opaque token of 1 to 128 URL-safe characters`);
 				return false;
 			}
 			return true;
@@ -141,294 +4363,149 @@ window.__ModuleLoader__.load({
 				return;
 			}
 		}
-		function validateJson(value, path, issues) {
-			const stack = [{
-				value,
-				path,
-				depth: 0
-			}];
-			let nodes = 0;
-			while (stack.length > 0) {
-				const current = stack.pop();
-				nodes += 1;
-				if (nodes > 512) {
-					issues.push(`${path} exceeds 512 JSON nodes`);
-					return false;
-				}
-				if (current.depth > 12) {
-					issues.push(`${current.path} exceeds JSON depth 12`);
-					return false;
-				}
-				const item = current.value;
-				if (item === null || typeof item === "string" || typeof item === "boolean") continue;
-				if (typeof item === "number") {
-					if (!Number.isFinite(item)) issues.push(`${current.path} must contain finite numbers`);
-					continue;
-				}
-				if (Array.isArray(item)) {
-					for (let index = item.length - 1; index >= 0; index -= 1) stack.push({
-						value: item[index],
-						path: `${current.path}[${String(index)}]`,
-						depth: current.depth + 1
-					});
-					continue;
-				}
-				if (record(item)) {
-					for (const [key, child] of Object.entries(item)) stack.push({
-						value: child,
-						path: `${current.path}.${key}`,
-						depth: current.depth + 1
-					});
-					continue;
-				}
-				issues.push(`${current.path} must be lossless JSON`);
+		function validateJson(value, path, issues, depth = 0) {
+			if (depth > 12) {
+				issues.push(`${path} exceeds JSON depth 12`);
+				return;
 			}
-			return issues.length === 0;
-		}
-		function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth = 8) {
-			const binary = new Set(MATH_BINARY_OPERATORS);
-			const unary = new Set(MATH_UNARY_OPERATORS);
-			const stack = [{
-				value,
-				path,
-				depth: 1
-			}];
-			let nodes = 0;
-			while (stack.length > 0) {
-				const node = stack.pop();
-				nodes += 1;
-				if (nodes > 64) {
-					issues.push(`${path} exceeds ${String(64)} AST nodes`);
-					return;
-				}
-				if (node.depth > maxDepth) {
-					issues.push(`${node.path} exceeds AST depth ${String(maxDepth)}`);
-					return;
-				}
-				if (!record(node.value) || typeof node.value.op !== "string") {
-					issues.push(`${node.path} must be a mathematical AST node`);
-					continue;
-				}
-				const expression = node.value;
-				const op = expression.op;
-				if (op === "constant") {
-					onlyKeys(expression, ["op", "value"], node.path, issues);
-					if (finite(expression.value, `${node.path}.value`, issues) && Math.abs(expression.value) > 0xe8d4a51000) issues.push(`${node.path}.value exceeds the numeric limit`);
-				} else if (op === "variable") {
-					onlyKeys(expression, ["op", "name"], node.path, issues);
-					if (typeof expression.name !== "string" || !parameterIds.has(expression.name) && !(allowX && expression.name === "x")) issues.push(`${node.path}.name must be ${allowX ? "x or " : ""}a declared parameter id`);
-				} else if (binary.has(op)) {
-					onlyKeys(expression, [
-						"op",
-						"left",
-						"right"
-					], node.path, issues);
-					stack.push({
-						value: expression.right,
-						path: `${node.path}.right`,
-						depth: node.depth + 1
-					}, {
-						value: expression.left,
-						path: `${node.path}.left`,
-						depth: node.depth + 1
-					});
-				} else if (unary.has(op)) {
-					onlyKeys(expression, ["op", "value"], node.path, issues);
-					stack.push({
-						value: expression.value,
-						path: `${node.path}.value`,
-						depth: node.depth + 1
-					});
-				} else issues.push(`${node.path}.op is unknown`);
+			if (value === null || typeof value === "string" || typeof value === "boolean") return;
+			if (typeof value === "number") {
+				if (!Number.isFinite(value)) issues.push(`${path} must contain finite numbers`);
+				return;
 			}
+			if (Array.isArray(value)) {
+				for (const [index, item] of value.entries()) validateJson(item, `${path}[${String(index)}]`, issues, depth + 1);
+				return;
+			}
+			if (!record(value)) {
+				issues.push(`${path} must be lossless JSON`);
+				return;
+			}
+			for (const [key, item] of Object.entries(value)) validateJson(item, `${path}.${key}`, issues, depth + 1);
 		}
-		function validateParameterExplorer(payload, issues) {
+		function validateMath(value, parameterIds, path, issues, depth = 1) {
+			if (depth > 8) {
+				issues.push(`${path} exceeds AST depth 8`);
+				return;
+			}
+			if (!record(value) || typeof value.op !== "string") {
+				issues.push(`${path} must be a mathematical AST node`);
+				return;
+			}
+			if (value.op === "constant") {
+				onlyKeys(value, ["op", "value"], path, issues);
+				finite(value.value, `${path}.value`, issues);
+				return;
+			}
+			if (value.op === "variable") {
+				onlyKeys(value, ["op", "name"], path, issues);
+				if (typeof value.name !== "string" || !parameterIds.has(value.name) && value.name !== "x") issues.push(`${path}.name must be x or a declared parameter id`);
+				return;
+			}
+			if (MATH_BINARY.has(value.op)) {
+				onlyKeys(value, [
+					"op",
+					"left",
+					"right"
+				], path, issues);
+				validateMath(value.left, parameterIds, `${path}.left`, issues, depth + 1);
+				validateMath(value.right, parameterIds, `${path}.right`, issues, depth + 1);
+				return;
+			}
+			if (MATH_UNARY.has(value.op)) {
+				onlyKeys(value, ["op", "value"], path, issues);
+				validateMath(value.value, parameterIds, `${path}.value`, issues, depth + 1);
+				return;
+			}
+			issues.push(`${path}.op is unknown`);
+		}
+		function validateV1Payload(kind, payload, issues) {
 			if (!record(payload)) {
 				issues.push("activity.payload must be an object");
 				return;
 			}
-			onlyKeys(payload, [
-				"parameters",
-				"xAxis",
-				"curves",
-				"question"
-			], "activity.payload", issues);
-			if (!Array.isArray(payload.parameters) || payload.parameters.length < 1 || payload.parameters.length > 2) {
-				issues.push("activity.payload.parameters must contain 1 or 2 parameters");
-				return;
-			}
-			const parameters = payload.parameters.filter(record);
-			if (parameters.length !== payload.parameters.length) issues.push("activity.payload.parameters entries must be objects");
-			uniqueIds(parameters, "activity.payload.parameters", issues);
-			for (const [index, parameter] of parameters.entries()) {
-				const path = `activity.payload.parameters[${String(index)}]`;
-				onlyKeys(parameter, [
-					"id",
-					"label",
-					"min",
-					"max",
-					"step",
-					"initial"
-				], path, issues);
-				id(parameter.id, `${path}.id`, issues);
-				text(parameter.label, `${path}.label`, issues, 120);
-				const min = parameter.min;
-				const max = parameter.max;
-				const step = parameter.step;
-				const initial = parameter.initial;
-				const minOk = finite(min, `${path}.min`, issues);
-				const maxOk = finite(max, `${path}.max`, issues);
-				const stepOk = finite(step, `${path}.step`, issues);
-				const initialOk = finite(initial, `${path}.initial`, issues);
-				if (minOk && maxOk && min >= max) issues.push(`${path}.min must be less than max`);
-				if (stepOk && step <= 0) issues.push(`${path}.step must be positive`);
-				if (minOk && maxOk && stepOk && step > max - min) issues.push(`${path}.step must not exceed the parameter range`);
-				if (minOk && maxOk && initialOk && (initial < min || initial > max)) issues.push(`${path}.initial must be inside the parameter range`);
-			}
-			if (!record(payload.xAxis)) issues.push("activity.payload.xAxis must be an object");
-			else {
-				onlyKeys(payload.xAxis, [
-					"label",
-					"min",
-					"max",
-					"samples"
-				], "activity.payload.xAxis", issues);
-				if (payload.xAxis.label !== void 0) text(payload.xAxis.label, "activity.payload.xAxis.label", issues, 120);
-				const xMin = payload.xAxis.min;
-				const xMax = payload.xAxis.max;
-				const samples = payload.xAxis.samples;
-				const minOk = finite(xMin, "activity.payload.xAxis.min", issues);
-				const maxOk = finite(xMax, "activity.payload.xAxis.max", issues);
-				if (minOk && maxOk && xMin >= xMax) issues.push("activity.payload.xAxis.min must be less than max");
-				if (samples !== void 0 && (typeof samples !== "number" || !Number.isInteger(samples) || samples < 16 || samples > 256)) issues.push("activity.payload.xAxis.samples must be an integer from 16 to 256");
-			}
-			if (!Array.isArray(payload.curves) || payload.curves.length < 1 || payload.curves.length > 3) issues.push("activity.payload.curves must contain 1 to 3 curves");
-			else {
-				const curves = payload.curves.filter(record);
-				if (curves.length !== payload.curves.length) issues.push("activity.payload.curves entries must be objects");
-				uniqueIds(curves, "activity.payload.curves", issues);
+			if (kind === "parameter_explorer") {
+				onlyKeys(payload, [
+					"parameters",
+					"xAxis",
+					"curves",
+					"question"
+				], "activity.payload", issues);
+				if (!Array.isArray(payload.parameters) || payload.parameters.length < 1 || payload.parameters.length > 2) issues.push("activity.payload.parameters must contain 1 or 2 parameters");
+				const parameters = Array.isArray(payload.parameters) ? payload.parameters.filter(record) : [];
+				uniqueIds(parameters, "activity.payload.parameters", issues);
+				for (const [index, parameter] of parameters.entries()) {
+					const path = `activity.payload.parameters[${String(index)}]`;
+					id(parameter.id, `${path}.id`, issues);
+					text(parameter.label, `${path}.label`, issues, 120);
+					finite(parameter.min, `${path}.min`, issues);
+					finite(parameter.max, `${path}.max`, issues);
+					finite(parameter.step, `${path}.step`, issues);
+					finite(parameter.initial, `${path}.initial`, issues);
+				}
+				if (!record(payload.xAxis)) issues.push("activity.payload.xAxis must be an object");
+				else {
+					finite(payload.xAxis.min, "activity.payload.xAxis.min", issues);
+					finite(payload.xAxis.max, "activity.payload.xAxis.max", issues);
+				}
 				const parameterIds = new Set(parameters.map((item) => typeof item.id === "string" ? item.id : ""));
-				for (const [index, curve] of curves.entries()) {
-					const path = `activity.payload.curves[${String(index)}]`;
-					onlyKeys(curve, [
-						"id",
-						"label",
-						"expression"
-					], path, issues);
-					id(curve.id, `${path}.id`, issues);
-					text(curve.label, `${path}.label`, issues, 120);
-					validateMath(curve.expression, parameterIds, `${path}.expression`, issues);
+				if (!Array.isArray(payload.curves) || payload.curves.length < 1 || payload.curves.length > 3) issues.push("activity.payload.curves must contain 1 to 3 curves");
+				else {
+					const curves = payload.curves.filter(record);
+					uniqueIds(curves, "activity.payload.curves", issues);
+					for (const [index, curve] of curves.entries()) {
+						const path = `activity.payload.curves[${String(index)}]`;
+						id(curve.id, `${path}.id`, issues);
+						text(curve.label, `${path}.label`, issues, 120);
+						validateMath(curve.expression, parameterIds, `${path}.expression`, issues);
+					}
 				}
-			}
-			if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
-		}
-		function validateProcessStepper(payload, issues) {
-			if (!record(payload)) {
-				issues.push("activity.payload must be an object");
-				return;
-			}
-			onlyKeys(payload, ["steps", "question"], "activity.payload", issues);
-			if (!Array.isArray(payload.steps) || payload.steps.length < 2 || payload.steps.length > 12) {
-				issues.push("activity.payload.steps must contain 2 to 12 steps");
-				return;
-			}
-			const steps = payload.steps.filter(record);
-			if (steps.length !== payload.steps.length) issues.push("activity.payload.steps entries must be objects");
-			uniqueIds(steps, "activity.payload.steps", issues);
-			for (const [index, step] of steps.entries()) {
-				const path = `activity.payload.steps[${String(index)}]`;
-				onlyKeys(step, [
-					"id",
-					"title",
-					"content",
-					"checkpoint"
-				], path, issues);
-				id(step.id, `${path}.id`, issues);
-				text(step.title, `${path}.title`, issues, 200);
-				text(step.content, `${path}.content`, issues, 4e3);
-				if (step.checkpoint !== void 0) {
-					if (!record(step.checkpoint)) issues.push(`${path}.checkpoint must be an object`);
+			} else if (kind === "process_stepper") {
+				onlyKeys(payload, ["steps", "question"], "activity.payload", issues);
+				if (!Array.isArray(payload.steps) || payload.steps.length < 2 || payload.steps.length > 12) issues.push("activity.payload.steps must contain 2 to 12 steps");
+				else {
+					const steps = payload.steps.filter(record);
+					uniqueIds(steps, "activity.payload.steps", issues);
+					for (const [index, step] of steps.entries()) {
+						const path = `activity.payload.steps[${String(index)}]`;
+						id(step.id, `${path}.id`, issues);
+						text(step.title, `${path}.title`, issues, 200);
+						text(step.content, `${path}.content`, issues, 4e3);
+					}
+				}
+			} else if (kind === "structure_compare") {
+				onlyKeys(payload, [
+					"left",
+					"right",
+					"alignments",
+					"question"
+				], "activity.payload", issues);
+				for (const side of ["left", "right"]) {
+					const value = payload[side];
+					if (!record(value)) {
+						issues.push(`activity.payload.${side} must be an object`);
+						continue;
+					}
+					text(value.title, `activity.payload.${side}.title`, issues, 200);
+					if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 20) issues.push(`activity.payload.${side}.items must contain 1 to 20 items`);
 					else {
-						onlyKeys(step.checkpoint, ["question", "options"], `${path}.checkpoint`, issues);
-						text(step.checkpoint.question, `${path}.checkpoint.question`, issues, 2e3);
-						if (step.checkpoint.options !== void 0) {
-							if (!Array.isArray(step.checkpoint.options) || step.checkpoint.options.length < 2 || step.checkpoint.options.length > 6 || !step.checkpoint.options.every((option) => typeof option === "string" && option.trim() !== "")) issues.push(`${path}.checkpoint.options must contain 2 to 6 non-empty strings`);
+						const items = value.items.filter(record);
+						uniqueIds(items, `activity.payload.${side}.items`, issues);
+						for (const [index, item] of items.entries()) {
+							id(item.id, `activity.payload.${side}.items[${String(index)}].id`, issues);
+							text(item.label, `activity.payload.${side}.items[${String(index)}].label`, issues, 500);
 						}
 					}
 				}
+				if (!Array.isArray(payload.alignments) || payload.alignments.length < 1 || payload.alignments.length > 24) issues.push("activity.payload.alignments must contain 1 to 24 rows");
 			}
-			if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
 		}
-		function validateStructureSide(value, path, issues) {
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return [];
-			}
-			onlyKeys(value, ["title", "items"], path, issues);
-			text(value.title, `${path}.title`, issues, 200);
-			if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 20) {
-				issues.push(`${path}.items must contain 1 to 20 items`);
-				return [];
-			}
-			const items = value.items.filter(record);
-			if (items.length !== value.items.length) issues.push(`${path}.items entries must be objects`);
-			uniqueIds(items, `${path}.items`, issues);
-			for (const [index, item] of items.entries()) {
-				const itemPath = `${path}.items[${String(index)}]`;
-				onlyKeys(item, [
-					"id",
-					"label",
-					"detail"
-				], itemPath, issues);
-				id(item.id, `${itemPath}.id`, issues);
-				text(item.label, `${itemPath}.label`, issues, 500);
-				if (item.detail !== void 0) text(item.detail, `${itemPath}.detail`, issues, 2e3);
-			}
-			return items;
-		}
-		function validateStructureCompare(payload, issues) {
-			if (!record(payload)) {
-				issues.push("activity.payload must be an object");
-				return;
-			}
-			onlyKeys(payload, [
-				"left",
-				"right",
-				"alignments",
-				"question"
-			], "activity.payload", issues);
-			const left = validateStructureSide(payload.left, "activity.payload.left", issues);
-			const right = validateStructureSide(payload.right, "activity.payload.right", issues);
-			const leftIds = new Set(left.map((item) => typeof item.id === "string" ? item.id : ""));
-			const rightIds = new Set(right.map((item) => typeof item.id === "string" ? item.id : ""));
-			if (!Array.isArray(payload.alignments) || payload.alignments.length < 1 || payload.alignments.length > 24) issues.push("activity.payload.alignments must contain 1 to 24 rows");
-			else {
-				const alignments = payload.alignments.filter(record);
-				if (alignments.length !== payload.alignments.length) issues.push("activity.payload.alignments entries must be objects");
-				uniqueIds(alignments, "activity.payload.alignments", issues);
-				for (const [index, alignment] of alignments.entries()) {
-					const path = `activity.payload.alignments[${String(index)}]`;
-					onlyKeys(alignment, [
-						"id",
-						"leftId",
-						"rightId",
-						"prompt"
-					], path, issues);
-					id(alignment.id, `${path}.id`, issues);
-					if (alignment.leftId === void 0 && alignment.rightId === void 0) issues.push(`${path} must reference at least one side`);
-					if (alignment.leftId !== void 0 && (typeof alignment.leftId !== "string" || !leftIds.has(alignment.leftId))) issues.push(`${path}.leftId must reference a left item`);
-					if (alignment.rightId !== void 0 && (typeof alignment.rightId !== "string" || !rightIds.has(alignment.rightId))) issues.push(`${path}.rightId must reference a right item`);
-					if (alignment.prompt !== void 0) text(alignment.prompt, `${path}.prompt`, issues, 1e3);
-				}
-			}
-			if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
-		}
-		/** Validate and narrow an untrusted model-provided activity. */
+		/** Validate a retired V1 activity used only by replay/fallback. */
 		function parseLearningActivity(value) {
 			const issues = [];
 			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("activity must be serializable JSON");
-			else if (bytes > 65536) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
+			else if (bytes > MAX_ACTIVITY_BYTES) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
 			if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
 			onlyKeys(value, [
 				"protocol",
@@ -440,25 +4517,23 @@ window.__ModuleLoader__.load({
 				"payload",
 				"fallbackMarkdown"
 			], "activity", issues);
-			if (value.protocol !== "dsh-learning/activity@1") issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL}`);
-			if (!LEARNING_ACTIVITY_KINDS.includes(value.kind)) issues.push("activity.kind is unknown");
+			if (value.protocol !== ACTIVITY_PROTOCOL) issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL}`);
+			if (!ACTIVITY_KINDS.includes(value.kind)) issues.push("activity.kind is unknown");
 			text(value.title, "activity.title", issues, 200);
 			text(value.objective, "activity.objective", issues, 1e3);
 			text(value.prompt, "activity.prompt", issues, 2e3);
 			if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
 			text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-			if (value.kind === "parameter_explorer") validateParameterExplorer(value.payload, issues);
-			else if (value.kind === "process_stepper") validateProcessStepper(value.payload, issues);
-			else if (value.kind === "structure_compare") validateStructureCompare(value.payload, issues);
+			validateV1Payload(value.kind, value.payload, issues);
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
-		/** Validate and narrow a Client response before it returns to the model. */
+		/** Validate a retired V1 Client response. */
 		function parseLearningResponse(value, expectedActivityId) {
 			const issues = [];
 			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("response must be serializable JSON");
-			else if (bytes > 32768) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
+			else if (bytes > MAX_RESPONSE_BYTES) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
 			if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
 			onlyKeys(value, [
 				"protocol",
@@ -467,7 +4542,7 @@ window.__ModuleLoader__.load({
 				"answer",
 				"interactionState"
 			], "response", issues);
-			if (value.protocol !== "dsh-learning/response@1") issues.push(`response.protocol must be ${RESPONSE_PROTOCOL}`);
+			if (value.protocol !== RESPONSE_PROTOCOL) issues.push(`response.protocol must be ${RESPONSE_PROTOCOL}`);
 			if (typeof value.activityId !== "string" || value.activityId === "") issues.push("response.activityId must be a non-empty string");
 			if (expectedActivityId !== void 0 && value.activityId !== expectedActivityId) issues.push("response.activityId does not match the pending activity");
 			if (value.action !== "submit" && value.action !== "skip" && value.action !== "cancel") issues.push("response.action is unknown");
@@ -476,81 +4551,59 @@ window.__ModuleLoader__.load({
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
-		function integer(value, path, issues, min = 0) {
-			if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
-				issues.push(`${path} must be an integer >= ${String(min)}`);
-				return false;
-			}
-			return true;
-		}
-		function token(value, path, issues) {
-			if (typeof value !== "string" || value.length < 1 || value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
-				issues.push(`${path} must be an opaque token of 1 to 128 URL-safe characters`);
-				return false;
-			}
-			return true;
-		}
-		function validateFocusV2(value, path, issues) {
+		function validateFocus(value, issues) {
 			if (!record(value)) {
-				issues.push(`${path} must be an object`);
+				issues.push("activity.focus must be an object");
 				return;
 			}
-			onlyKeys(value, ["title", "progress"], path, issues);
-			text(value.title, `${path}.title`, issues, 200);
+			onlyKeys(value, ["title", "progress"], "activity.focus", issues);
+			text(value.title, "activity.focus.title", issues, 200);
 			if (value.progress !== void 0) {
-				if (!record(value.progress)) issues.push(`${path}.progress must be an object`);
+				if (!record(value.progress)) issues.push("activity.focus.progress must be an object");
 				else {
-					onlyKeys(value.progress, ["current", "total"], `${path}.progress`, issues);
-					const currentOk = integer(value.progress.current, `${path}.progress.current`, issues, 1);
-					const totalOk = value.progress.total === void 0 ? false : integer(value.progress.total, `${path}.progress.total`, issues, 1);
-					if (currentOk && totalOk && value.progress.current > value.progress.total) issues.push(`${path}.progress.current must not exceed total`);
+					integer(value.progress.current, "activity.focus.progress.current", issues, 1);
+					if (value.progress.total !== void 0) integer(value.progress.total, "activity.focus.progress.total", issues, 1);
 				}
 			}
 		}
-		function validateInputV2(value, issues) {
-			const path = "activity.input";
+		function validateInput(value, issues) {
 			if (!record(value)) {
-				issues.push(`${path} must be an object`);
+				issues.push("activity.input must be an object");
 				return;
 			}
 			if (value.kind === "single_choice") {
-				onlyKeys(value, ["kind", "options"], path, issues);
+				onlyKeys(value, ["kind", "options"], "activity.input", issues);
 				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) {
-					issues.push(`${path}.options must contain 2 to 8 options`);
+					issues.push("activity.input.options must contain 2 to 8 options");
 					return;
 				}
 				const options = value.options.filter(record);
-				if (options.length !== value.options.length) issues.push(`${path}.options entries must be objects`);
-				uniqueIds(options, `${path}.options`, issues);
+				uniqueIds(options, "activity.input.options", issues);
 				for (const [index, option] of options.entries()) {
-					const optionPath = `${path}.options[${String(index)}]`;
-					onlyKeys(option, ["id", "label"], optionPath, issues);
-					id(option.id, `${optionPath}.id`, issues);
-					text(option.label, `${optionPath}.label`, issues, 500);
+					id(option.id, `activity.input.options[${String(index)}].id`, issues);
+					text(option.label, `activity.input.options[${String(index)}].label`, issues, 500);
 				}
 			} else if (value.kind === "short_text") {
 				onlyKeys(value, [
 					"kind",
 					"placeholder",
 					"maxLength"
-				], path, issues);
-				if (value.placeholder !== void 0) text(value.placeholder, `${path}.placeholder`, issues, 500);
-				if (value.maxLength !== void 0 && (!integer(value.maxLength, `${path}.maxLength`, issues, 1) || value.maxLength > 8e3)) issues.push(`${path}.maxLength must not exceed 8000`);
+				], "activity.input", issues);
+				if (value.placeholder !== void 0) text(value.placeholder, "activity.input.placeholder", issues, 500);
+				if (value.maxLength !== void 0) integer(value.maxLength, "activity.input.maxLength", issues, 1);
 			} else if (value.kind === "number") {
 				onlyKeys(value, [
 					"kind",
 					"min",
 					"max",
 					"step"
-				], path, issues);
-				const minOk = value.min === void 0 ? false : finite(value.min, `${path}.min`, issues);
-				const maxOk = value.max === void 0 ? false : finite(value.max, `${path}.max`, issues);
-				const stepOk = value.step === void 0 ? false : finite(value.step, `${path}.step`, issues);
-				if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-				if (stepOk && value.step <= 0) issues.push(`${path}.step must be positive`);
-			} else issues.push(`${path}.kind is unknown`);
+				], "activity.input", issues);
+				finite(value.min, "activity.input.min", issues);
+				finite(value.max, "activity.input.max", issues);
+				finite(value.step, "activity.input.step", issues);
+			} else issues.push("activity.input.kind is unknown");
 		}
-		function validateFrameV2(value, path, issues) {
+		function validateFrame(value, path, issues) {
 			if (!record(value)) {
 				issues.push(`${path} must be an object`);
 				return;
@@ -564,49 +4617,7 @@ window.__ModuleLoader__.load({
 			text(value.title, `${path}.title`, issues, 200);
 			if (value.content !== void 0) text(value.content, `${path}.content`, issues, 4e3);
 		}
-		function validateParameterVisualV2(value, path, issues, reveal) {
-			onlyKeys(value, reveal ? [
-				"kind",
-				"parameters",
-				"xAxis",
-				"curves",
-				"emphasis"
-			] : [
-				"kind",
-				"parameters",
-				"xAxis",
-				"curves"
-			], path, issues);
-			validateParameterExplorer({
-				parameters: value.parameters,
-				xAxis: value.xAxis,
-				curves: value.curves
-			}, issues);
-			if (reveal && value.emphasis !== void 0) text(value.emphasis, `${path}.emphasis`, issues, 2e3);
-		}
-		function validateStructureVisualV2(value, path, issues, reveal) {
-			onlyKeys(value, reveal ? [
-				"kind",
-				"left",
-				"right",
-				"alignments",
-				"emphasisAlignmentIds"
-			] : [
-				"kind",
-				"left",
-				"right",
-				"alignments"
-			], path, issues);
-			validateStructureCompare({
-				left: value.left,
-				right: value.right,
-				alignments: value.alignments
-			}, issues);
-			if (reveal && value.emphasisAlignmentIds !== void 0) {
-				if (!Array.isArray(value.emphasisAlignmentIds) || !value.emphasisAlignmentIds.every((item) => typeof item === "string")) issues.push(`${path}.emphasisAlignmentIds must be an array of ids`);
-			}
-		}
-		function validateVisualV2(value, phase, issues) {
+		function validateVisual(value, phase, issues) {
 			const path = "activity.visual";
 			if (!record(value)) {
 				issues.push(`${path} must be an object`);
@@ -615,28 +4626,37 @@ window.__ModuleLoader__.load({
 			if (value.kind === "process") {
 				if (phase === "question") {
 					onlyKeys(value, ["kind", "frame"], path, issues);
-					validateFrameV2(value.frame, `${path}.frame`, issues);
+					validateFrame(value.frame, `${path}.frame`, issues);
 				} else {
 					onlyKeys(value, [
 						"kind",
 						"before",
 						"after"
 					], path, issues);
-					validateFrameV2(value.before, `${path}.before`, issues);
-					validateFrameV2(value.after, `${path}.after`, issues);
+					validateFrame(value.before, `${path}.before`, issues);
+					validateFrame(value.after, `${path}.after`, issues);
 				}
-			} else if (value.kind === "parameter") validateParameterVisualV2(value, path, issues, phase === "reveal");
-			else if (value.kind === "structure") validateStructureVisualV2(value, path, issues, phase === "reveal");
-			else issues.push(`${path}.kind is unknown`);
+			} else if (value.kind === "parameter" || value.kind === "structure") {
+				const required = value.kind === "parameter" ? [
+					"parameters",
+					"xAxis",
+					"curves"
+				] : [
+					"left",
+					"right",
+					"alignments"
+				];
+				for (const key of required) if (!(key in value)) issues.push(`${path}.${key} is required`);
+			} else issues.push(`${path}.kind is unknown`);
 		}
-		/** Strict live protocol. V1 is intentionally parsed separately for legacy replay only. */
+		/** Validate a retired Question or Reveal activity. */
 		function parseLearningActivityV2(value) {
 			const issues = [];
 			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("activity must be serializable JSON");
-			else if (bytes > 65536) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
+			else if (bytes > MAX_ACTIVITY_BYTES) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
 			if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
-			if (value.protocol !== "dsh-learning/activity@2") issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL_V2}`);
+			if (value.protocol !== ACTIVITY_PROTOCOL_V2) issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL_V2}`);
 			if (value.phase === "question") {
 				onlyKeys(value, [
 					"protocol",
@@ -652,11 +4672,11 @@ window.__ModuleLoader__.load({
 				], "activity", issues);
 				if (value.lessonToken !== void 0) token(value.lessonToken, "activity.lessonToken", issues);
 				integer(value.seq, "activity.seq", issues);
-				validateFocusV2(value.focus, "activity.focus", issues);
+				validateFocus(value.focus, issues);
 				text(value.prompt, "activity.prompt", issues, 2e3);
 				if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
-				validateInputV2(value.input, issues);
-				if (value.visual !== void 0) validateVisualV2(value.visual, "question", issues);
+				validateInput(value.input, issues);
+				if (value.visual !== void 0) validateVisual(value.visual, "question", issues);
 				text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
 			} else if (value.phase === "reveal") {
 				onlyKeys(value, [
@@ -675,7 +4695,7 @@ window.__ModuleLoader__.load({
 				token(value.lessonToken, "activity.lessonToken", issues);
 				token(value.roundToken, "activity.roundToken", issues);
 				integer(value.seq, "activity.seq", issues);
-				validateFocusV2(value.focus, "activity.focus", issues);
+				validateFocus(value.focus, issues);
 				if (!record(value.feedback)) issues.push("activity.feedback must be an object");
 				else {
 					onlyKeys(value.feedback, [
@@ -694,7 +4714,7 @@ window.__ModuleLoader__.load({
 					text(value.feedback.explanation, "activity.feedback.explanation", issues, 8e3);
 					if (value.feedback.answer !== void 0) text(value.feedback.answer, "activity.feedback.answer", issues, 4e3);
 				}
-				if (value.visual !== void 0) validateVisualV2(value.visual, "reveal", issues);
+				if (value.visual !== void 0) validateVisual(value.visual, "reveal", issues);
 				if (!record(value.animation)) issues.push("activity.animation must be an object");
 				else {
 					onlyKeys(value.animation, [
@@ -708,7 +4728,7 @@ window.__ModuleLoader__.load({
 						"highlight",
 						"step_complete"
 					].includes(value.animation.kind)) issues.push("activity.animation.kind is unknown");
-					if (value.animation.preferredDurationMs !== void 0 && (!integer(value.animation.preferredDurationMs, "activity.animation.preferredDurationMs", issues, 0) || value.animation.preferredDurationMs > 1e4)) issues.push("activity.animation.preferredDurationMs must not exceed 10000");
+					if (value.animation.preferredDurationMs !== void 0) integer(value.animation.preferredDurationMs, "activity.animation.preferredDurationMs", issues);
 					if (value.animation.reducedMotion !== "commit-final-state") issues.push("activity.animation.reducedMotion must be commit-final-state");
 				}
 				if (!record(value.advance)) issues.push("activity.advance must be an object");
@@ -722,12 +4742,12 @@ window.__ModuleLoader__.load({
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
-		/** Validate a phase-bound Client receipt before the Broker changes lesson state. */
+		/** Validate a retired phase-bound Client receipt. */
 		function parseLearningResponseV2(value, expected = {}) {
 			const issues = [];
 			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("response must be serializable JSON");
-			else if (bytes > 32768) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
+			else if (bytes > MAX_RESPONSE_BYTES) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
 			if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
 			if (value.phase === "question") {
 				onlyKeys(value, [
@@ -775,13 +4795,10 @@ window.__ModuleLoader__.load({
 						"error"
 					], "response.animation", issues);
 					if (typeof value.animation.completed !== "boolean") issues.push("response.animation.completed must be boolean");
-					if (value.animation.skipped !== void 0 && typeof value.animation.skipped !== "boolean") issues.push("response.animation.skipped must be boolean");
-					if (value.animation.reducedMotion !== void 0 && typeof value.animation.reducedMotion !== "boolean") issues.push("response.animation.reducedMotion must be boolean");
-					if (value.animation.error !== void 0 && typeof value.animation.error !== "string") issues.push("response.animation.error must be a string");
 					if (value.action === "continue" && value.animation.completed !== true) issues.push("response.animation.completed must be true before continue");
 				}
 			} else issues.push("response.phase must be question or reveal");
-			if (value.protocol !== "dsh-learning/response@2") issues.push(`response.protocol must be ${RESPONSE_PROTOCOL_V2}`);
+			if (value.protocol !== RESPONSE_PROTOCOL_V2) issues.push(`response.protocol must be ${RESPONSE_PROTOCOL_V2}`);
 			token(value.activityId, "response.activityId", issues);
 			token(value.lessonToken, "response.lessonToken", issues);
 			token(value.roundToken, "response.roundToken", issues);
@@ -789,1902 +4806,6 @@ window.__ModuleLoader__.load({
 			token(value.receiptId, "response.receiptId", issues);
 			if (value.interactionState !== void 0) validateJson(value.interactionState, "response.interactionState", issues);
 			for (const [key, expectedValue] of Object.entries(expected)) if (expectedValue !== void 0 && value[key] !== expectedValue) issues.push(`response.${key} does not match the pending activity`);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		const CHECKPOINT_RAW_HTML = /<(?:!DOCTYPE\b|!--|\/?[A-Za-z][^<>]*>)/i;
-		const CHECKPOINT_LEAKAGE_COPY = /\b(?:correct\s+answer|model\s+answer|answer\s+key|(?:the\s+)?answer\s*(?:is|was|[:：])|solution\s*[:：]|expected\s+(?:answer|response|result)\s*[:：]|grading\s+rubric|scoring\s+rubric|future\s+(?:step|question)|next\s+question\s*:)|(?:正确|标准|参考|模型)(?:答案|解答)|标准解\s*[:：]?|(?:答案|解答)\s*[:：]|答案(?:是|为)|评分(?:标准|细则)|下一(?:步|题|个问题)|后续步骤|未来步骤/iu;
-		/** Canonical fail-closed predicate shared by protocol parsing and Client fallback extraction. */
-		function isLearningCheckpointDisplayTextSafe(value) {
-			return !CHECKPOINT_RAW_HTML.test(value) && !CHECKPOINT_LEAKAGE_COPY.test(value);
-		}
-		function checkpointDisplayText(value, path, issues, max) {
-			const valid = text(value, path, issues, max);
-			if (valid && !isLearningCheckpointDisplayTextSafe(value)) {
-				issues.push(`${path} must not contain raw HTML, an answer key, scoring rubric, or future-step copy`);
-				return false;
-			}
-			return valid;
-		}
-		/** Strict, answer-free protocol for one optional learner checkpoint. */
-		function parseLearningCheckpointV1(value) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("checkpoint must be serializable JSON");
-			else if (bytes > 65536) issues.push(`checkpoint exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "checkpoint must be an object"]);
-			onlyKeys(value, [
-				"protocol",
-				"kind",
-				"prompt",
-				"context",
-				"expectedEvidence",
-				"options",
-				"fallbackMarkdown"
-			], "checkpoint", issues);
-			if (value.protocol !== "dsh-learning/checkpoint@1") issues.push(`checkpoint.protocol must be ${CHECKPOINT_PROTOCOL}`);
-			if (!LEARNING_CHECKPOINT_KINDS.includes(value.kind)) issues.push(`checkpoint.kind must be one of ${LEARNING_CHECKPOINT_KINDS.join(", ")}`);
-			checkpointDisplayText(value.prompt, "checkpoint.prompt", issues, 2e3);
-			if (value.context !== void 0) checkpointDisplayText(value.context, "checkpoint.context", issues, 4e3);
-			if (!LEARNING_CHECKPOINT_EVIDENCE_KINDS.includes(value.expectedEvidence)) issues.push(`checkpoint.expectedEvidence must be one of ${LEARNING_CHECKPOINT_EVIDENCE_KINDS.join(", ")}`);
-			checkpointDisplayText(value.fallbackMarkdown, "checkpoint.fallbackMarkdown", issues, 8e3);
-			if (value.kind === "single_choice") {
-				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) issues.push("checkpoint.options must contain 2 to 8 options for single_choice");
-				else {
-					const options = value.options.filter(record);
-					if (options.length !== value.options.length) issues.push("checkpoint.options entries must be objects");
-					uniqueIds(options, "checkpoint.options", issues);
-					for (const [index, option] of options.entries()) {
-						const path = `checkpoint.options[${String(index)}]`;
-						onlyKeys(option, ["id", "label"], path, issues);
-						id(option.id, `${path}.id`, issues);
-						checkpointDisplayText(option.label, `${path}.label`, issues, 500);
-					}
-				}
-			} else if (value.options !== void 0) issues.push("checkpoint.options is supported only for single_choice");
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		/** Validate one phase-bound checkpoint receipt before the Host accepts it. */
-		function parseLearningCheckpointResultV1(value, expected = {}) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("checkpoint result must be serializable JSON");
-			else if (bytes > 32768) issues.push(`checkpoint result exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "checkpoint result must be an object"]);
-			const submitted = value.status === "submitted";
-			onlyKeys(value, submitted ? [
-				"protocol",
-				"checkpointId",
-				"status",
-				"response",
-				"receiptId"
-			] : [
-				"protocol",
-				"checkpointId",
-				"status",
-				"reason",
-				"receiptId"
-			], "checkpointResult", issues);
-			if (value.protocol !== "dsh-learning/checkpoint-result@1") issues.push(`checkpointResult.protocol must be ${CHECKPOINT_RESULT_PROTOCOL}`);
-			token(value.checkpointId, "checkpointResult.checkpointId", issues);
-			token(value.receiptId, "checkpointResult.receiptId", issues);
-			if (![
-				"submitted",
-				"skipped",
-				"cancelled"
-			].includes(value.status)) issues.push("checkpointResult.status must be submitted, skipped, or cancelled");
-			if (value.reason !== void 0 && typeof value.reason !== "string") issues.push("checkpointResult.reason must be a string");
-			else if (value.status === "skipped" && value.reason !== void 0 && ![
-				"learner-skipped",
-				"client-unavailable",
-				"client-response-timeout",
-				"host-unavailable",
-				"provider-failure"
-			].includes(value.reason)) issues.push("checkpointResult.reason is not valid for skipped status");
-			else if (value.status === "cancelled" && value.reason !== void 0 && ![
-				"learner-cancelled",
-				"session-aborted",
-				"plugin-disposed"
-			].includes(value.reason)) issues.push("checkpointResult.reason is not valid for cancelled status");
-			else if (value.status === "submitted" && value.reason !== void 0) issues.push("checkpointResult.reason is allowed only for skipped or cancelled status");
-			if (expected.checkpointId !== void 0 && value.checkpointId !== expected.checkpointId) issues.push("checkpointResult.checkpointId does not match the pending checkpoint");
-			let checkpoint;
-			if (expected.checkpoint !== void 0) try {
-				checkpoint = parseLearningCheckpointV1(expected.checkpoint);
-			} catch (cause) {
-				if (cause instanceof LearningProtocolError) issues.push(...cause.issues.map((issue) => `expected ${issue}`));
-				else throw cause;
-			}
-			if (submitted) {
-				if (!record(value.response)) issues.push("checkpointResult.response must be an object when submitted");
-				else {
-					const response = value.response;
-					const responsePath = "checkpointResult.response";
-					const expectedKind = checkpoint?.kind;
-					const shape = expectedKind === "single_choice" ? "optionId" : expectedKind === "numeric" ? "number" : expectedKind === void 0 ? void 0 : "text";
-					if (shape === "optionId" || shape === void 0 && Object.hasOwn(response, "optionId")) {
-						onlyKeys(response, ["optionId"], responsePath, issues);
-						if (id(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
-					} else if (shape === "number" || shape === void 0 && Object.hasOwn(response, "number")) {
-						onlyKeys(response, ["number"], responsePath, issues);
-						finite(response.number, `${responsePath}.number`, issues);
-					} else if (shape === "text" || shape === void 0 && Object.hasOwn(response, "text")) {
-						onlyKeys(response, ["text"], responsePath, issues);
-						text(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
-					} else {
-						issues.push(`${responsePath} must contain exactly one of text, optionId, or number`);
-						onlyKeys(response, [], responsePath, issues);
-					}
-				}
-			} else if (value.response !== void 0) issues.push("checkpointResult.response is allowed only when status is submitted");
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		const VISUAL_TONES_V3 = /* @__PURE__ */ new Set([
-			"blue",
-			"green",
-			"red",
-			"orange",
-			"purple",
-			"gray"
-		]);
-		const VISUAL_STROKES_V3 = /* @__PURE__ */ new Set([
-			"solid",
-			"dashed",
-			"dotted"
-		]);
-		function validateVisualAxisV3(value, path, issues, samplesAllowed) {
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return;
-			}
-			onlyKeys(value, samplesAllowed ? [
-				"label",
-				"min",
-				"max",
-				"samples"
-			] : [
-				"label",
-				"min",
-				"max"
-			], path, issues);
-			if (value.label !== void 0) text(value.label, `${path}.label`, issues, 120);
-			const minOk = finite(value.min, `${path}.min`, issues);
-			const maxOk = finite(value.max, `${path}.max`, issues);
-			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-			if (samplesAllowed && value.samples !== void 0 && (!integer(value.samples, `${path}.samples`, issues, 24) || value.samples > 256)) issues.push(`${path}.samples must be an integer from 24 to 256`);
-		}
-		function validateVisualParametersV3(value, issues) {
-			const path = "visual.parameters";
-			if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
-				issues.push(`${path} must contain 1 to 3 parameters`);
-				return [];
-			}
-			const parameters = value.filter(record);
-			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds(parameters, path, issues);
-			for (const [index, parameter] of parameters.entries()) {
-				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys(parameter, [
-					"id",
-					"label",
-					"min",
-					"max",
-					"step",
-					"initial"
-				], itemPath, issues);
-				id(parameter.id, `${itemPath}.id`, issues);
-				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
-				text(parameter.label, `${itemPath}.label`, issues, 120);
-				const minOk = finite(parameter.min, `${itemPath}.min`, issues);
-				const maxOk = finite(parameter.max, `${itemPath}.max`, issues);
-				const stepOk = finite(parameter.step, `${itemPath}.step`, issues);
-				const initialOk = finite(parameter.initial, `${itemPath}.initial`, issues);
-				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
-				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
-				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
-				if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
-			}
-			return parameters;
-		}
-		/** Validate the preferred, non-blocking visual protocol. */
-		function parseLearningVisualV3(value) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("visual must be serializable JSON");
-			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
-			onlyKeys(value, [
-				"protocol",
-				"kind",
-				"title",
-				"description",
-				"parameters",
-				"xAxis",
-				"yAxis",
-				"series",
-				"metrics"
-			], "visual", issues);
-			if (value.protocol !== "dsh-learning/visual@3") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V3}`);
-			if (value.kind !== "parameter_chart") issues.push("visual.kind must be parameter_chart");
-			text(value.title, "visual.title", issues, 200);
-			if (value.description !== void 0) text(value.description, "visual.description", issues, 1e3);
-			const parameters = validateVisualParametersV3(value.parameters, issues);
-			const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
-			validateVisualAxisV3(value.xAxis, "visual.xAxis", issues, true);
-			validateVisualAxisV3(value.yAxis, "visual.yAxis", issues, false);
-			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.series must contain 1 to 8 series");
-			else {
-				const series = value.series.filter(record);
-				if (series.length !== value.series.length) issues.push("visual.series entries must be objects");
-				uniqueIds(series, "visual.series", issues);
-				let curveCount = 0;
-				for (const [index, item] of series.entries()) {
-					const path = `visual.series[${String(index)}]`;
-					id(item.id, `${path}.id`, issues);
-					text(item.label, `${path}.label`, issues, 160);
-					if (item.tone !== void 0 && !VISUAL_TONES_V3.has(item.tone)) issues.push(`${path}.tone is unknown`);
-					if (item.type === "curve") {
-						curveCount += 1;
-						onlyKeys(item, [
-							"type",
-							"id",
-							"label",
-							"expression",
-							"tone",
-							"stroke"
-						], path, issues);
-						if (item.stroke !== void 0 && !VISUAL_STROKES_V3.has(item.stroke)) issues.push(`${path}.stroke is unknown`);
-						validateMath(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
-					} else if (item.type === "points") {
-						onlyKeys(item, [
-							"type",
-							"id",
-							"label",
-							"points",
-							"tone"
-						], path, issues);
-						if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 128) {
-							issues.push(`${path}.points must contain 1 to 128 points`);
-							continue;
-						}
-						for (const [pointIndex, point] of item.points.entries()) {
-							const pointPath = `${path}.points[${String(pointIndex)}]`;
-							if (!record(point)) {
-								issues.push(`${pointPath} must be an object`);
-								continue;
-							}
-							onlyKeys(point, [
-								"x",
-								"y",
-								"label"
-							], pointPath, issues);
-							finite(point.x, `${pointPath}.x`, issues);
-							finite(point.y, `${pointPath}.y`, issues);
-							if (point.label !== void 0) text(point.label, `${pointPath}.label`, issues, 160);
-						}
-					} else issues.push(`${path}.type must be curve or points`);
-				}
-				if (curveCount === 0) issues.push("visual.series must contain at least one curve");
-			}
-			if (value.metrics !== void 0) {
-				if (!Array.isArray(value.metrics) || value.metrics.length > 4) issues.push("visual.metrics must contain at most 4 metrics");
-				else {
-					const metrics = value.metrics.filter(record);
-					if (metrics.length !== value.metrics.length) issues.push("visual.metrics entries must be objects");
-					uniqueIds(metrics, "visual.metrics", issues);
-					for (const [index, metric] of metrics.entries()) {
-						const path = `visual.metrics[${String(index)}]`;
-						onlyKeys(metric, [
-							"id",
-							"label",
-							"expression",
-							"digits",
-							"suffix"
-						], path, issues);
-						id(metric.id, `${path}.id`, issues);
-						text(metric.label, `${path}.label`, issues, 160);
-						validateMath(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
-						if (metric.digits !== void 0 && (!integer(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
-						if (metric.suffix !== void 0) text(metric.suffix, `${path}.suffix`, issues, 80);
-					}
-				}
-			}
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		function validateVisualToneV4(value, path, issues) {
-			if (value !== void 0 && !VISUAL_TONES_V3.has(value)) issues.push(`${path} is unknown`);
-		}
-		function validateVisualStrokeV4(value, path, issues) {
-			if (value !== void 0 && !VISUAL_STROKES_V3.has(value)) issues.push(`${path} is unknown`);
-		}
-		function registerVisualIdV4(ids, value, path, issues) {
-			if (typeof value !== "string") return;
-			if (ids.has(value)) issues.push(`${path} duplicates visual id ${value}`);
-			else ids.add(value);
-		}
-		function validateVisualParametersV4(value, issues) {
-			const path = "visual.content.parameters";
-			if (value === void 0) return [];
-			if (!Array.isArray(value) || value.length > 3) {
-				issues.push(`${path} must contain at most 3 parameters`);
-				return [];
-			}
-			const parameters = value.filter(record);
-			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds(parameters, path, issues);
-			for (const [index, parameter] of parameters.entries()) {
-				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys(parameter, [
-					"id",
-					"label",
-					"min",
-					"max",
-					"step",
-					"initial"
-				], itemPath, issues);
-				id(parameter.id, `${itemPath}.id`, issues);
-				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
-				text(parameter.label, `${itemPath}.label`, issues, 120);
-				const minOk = finite(parameter.min, `${itemPath}.min`, issues);
-				const maxOk = finite(parameter.max, `${itemPath}.max`, issues);
-				const stepOk = finite(parameter.step, `${itemPath}.step`, issues);
-				const initialOk = finite(parameter.initial, `${itemPath}.initial`, issues);
-				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
-				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
-				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
-				if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
-			}
-			return parameters;
-		}
-		function validateVisualPointsV4(value, path, issues, maximum = 256) {
-			if (!Array.isArray(value) || value.length < 1 || value.length > maximum) {
-				issues.push(`${path} must contain 1 to ${String(maximum)} points`);
-				return;
-			}
-			for (const [index, point] of value.entries()) {
-				const pointPath = `${path}[${String(index)}]`;
-				if (!record(point)) {
-					issues.push(`${pointPath} must be an object`);
-					continue;
-				}
-				onlyKeys(point, [
-					"x",
-					"y",
-					"label"
-				], pointPath, issues);
-				finite(point.x, `${pointPath}.x`, issues);
-				finite(point.y, `${pointPath}.y`, issues);
-				if (point.label !== void 0) text(point.label, `${pointPath}.label`, issues, 160);
-			}
-		}
-		function validateVisualMetricsV4(value, parameterIds, issues) {
-			if (value === void 0) return [];
-			if (!Array.isArray(value) || value.length > 4) {
-				issues.push("visual.content.metrics must contain at most 4 metrics");
-				return [];
-			}
-			const metrics = value.filter(record);
-			if (metrics.length !== value.length) issues.push("visual.content.metrics entries must be objects");
-			uniqueIds(metrics, "visual.content.metrics", issues);
-			for (const [index, metric] of metrics.entries()) {
-				const path = `visual.content.metrics[${String(index)}]`;
-				onlyKeys(metric, [
-					"id",
-					"label",
-					"expression",
-					"digits",
-					"suffix"
-				], path, issues);
-				id(metric.id, `${path}.id`, issues);
-				text(metric.label, `${path}.label`, issues, 160);
-				validateMath(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
-				if (metric.digits !== void 0 && (!integer(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
-				if (metric.suffix !== void 0) text(metric.suffix, `${path}.suffix`, issues, 80);
-			}
-			return metrics;
-		}
-		function validatePlotV4(value, issues) {
-			const ids = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"parameters",
-				"xAxis",
-				"yAxis",
-				"series",
-				"metrics"
-			], "visual.content", issues);
-			const parameters = validateVisualParametersV4(value.parameters, issues);
-			const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
-			for (const parameterId of parameterIds) registerVisualIdV4(ids, parameterId, "visual.content.parameters", issues);
-			validateVisualAxisV3(value.xAxis, "visual.content.xAxis", issues, true);
-			validateVisualAxisV3(value.yAxis, "visual.content.yAxis", issues, false);
-			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.content.series must contain 1 to 8 series");
-			else {
-				const series = value.series.filter(record);
-				if (series.length !== value.series.length) issues.push("visual.content.series entries must be objects");
-				uniqueIds(series, "visual.content.series", issues);
-				for (const [index, item] of series.entries()) {
-					const path = `visual.content.series[${String(index)}]`;
-					if (id(item.id, `${path}.id`, issues)) registerVisualIdV4(ids, item.id, `${path}.id`, issues);
-					text(item.label, `${path}.label`, issues, 160);
-					validateVisualToneV4(item.tone, `${path}.tone`, issues);
-					if (item.type === "curve") {
-						onlyKeys(item, [
-							"type",
-							"id",
-							"label",
-							"expression",
-							"tone",
-							"stroke"
-						], path, issues);
-						validateVisualStrokeV4(item.stroke, `${path}.stroke`, issues);
-						validateMath(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
-					} else if (item.type === "points" || item.type === "bars") {
-						onlyKeys(item, [
-							"type",
-							"id",
-							"label",
-							"points",
-							"tone"
-						], path, issues);
-						validateVisualPointsV4(item.points, `${path}.points`, issues, item.type === "bars" ? 64 : 256);
-					} else if (item.type === "line") {
-						onlyKeys(item, [
-							"type",
-							"id",
-							"label",
-							"points",
-							"tone",
-							"stroke"
-						], path, issues);
-						validateVisualStrokeV4(item.stroke, `${path}.stroke`, issues);
-						validateVisualPointsV4(item.points, `${path}.points`, issues);
-					} else issues.push(`${path}.type must be curve, points, line, or bars`);
-				}
-			}
-			const metrics = validateVisualMetricsV4(value.metrics, parameterIds, issues);
-			for (const [index, metric] of metrics.entries()) if (typeof metric.id === "string") registerVisualIdV4(ids, metric.id, `visual.content.metrics[${String(index)}].id`, issues);
-			return ids;
-		}
-		function validateNodeLinkV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"layout",
-				"groups",
-				"nodes",
-				"edges"
-			], "visual.content", issues);
-			if (![
-				"layered",
-				"hierarchy",
-				"radial"
-			].includes(value.layout)) issues.push("visual.content.layout must be layered, hierarchy, or radial");
-			let groups = [];
-			if (value.groups !== void 0) {
-				if (!Array.isArray(value.groups) || value.groups.length < 1 || value.groups.length > 12) issues.push("visual.content.groups must contain 1 to 12 groups");
-				else {
-					groups = value.groups.filter(record);
-					if (groups.length !== value.groups.length) issues.push("visual.content.groups entries must be objects");
-					uniqueIds(groups, "visual.content.groups", issues);
-					for (const [index, group] of groups.entries()) {
-						const path = `visual.content.groups[${String(index)}]`;
-						onlyKeys(group, ["id", "label"], path, issues);
-						if (id(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
-						text(group.label, `${path}.label`, issues, 120);
-					}
-				}
-			}
-			const groupIds = new Set(groups.flatMap((group) => typeof group.id === "string" ? [group.id] : []));
-			let nodes = [];
-			if (!Array.isArray(value.nodes) || value.nodes.length < 2 || value.nodes.length > 48) issues.push("visual.content.nodes must contain 2 to 48 nodes");
-			else {
-				nodes = value.nodes.filter(record);
-				if (nodes.length !== value.nodes.length) issues.push("visual.content.nodes entries must be objects");
-				uniqueIds(nodes, "visual.content.nodes", issues);
-				for (const [index, node] of nodes.entries()) {
-					const path = `visual.content.nodes[${String(index)}]`;
-					onlyKeys(node, [
-						"id",
-						"label",
-						"detail",
-						"group",
-						"tone"
-					], path, issues);
-					if (id(node.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, node.id, `${path}.id`, issues);
-					text(node.label, `${path}.label`, issues, 120);
-					if (node.detail !== void 0) text(node.detail, `${path}.detail`, issues, 1e3);
-					if (node.group !== void 0 && (typeof node.group !== "string" || !groupIds.has(node.group))) issues.push(`${path}.group must reference a declared group`);
-					validateVisualToneV4(node.tone, `${path}.tone`, issues);
-				}
-			}
-			if (value.layout === "layered" && (groups.length === 0 || nodes.some((node) => typeof node.group !== "string"))) issues.push("visual.content layered layouts require groups and a group on every node");
-			const nodeIds = new Set(nodes.flatMap((node) => typeof node.id === "string" ? [node.id] : []));
-			if (!Array.isArray(value.edges) || value.edges.length < 1 || value.edges.length > 160) issues.push("visual.content.edges must contain 1 to 160 edges");
-			else {
-				const edges = value.edges.filter(record);
-				if (edges.length !== value.edges.length) issues.push("visual.content.edges entries must be objects");
-				uniqueIds(edges, "visual.content.edges", issues);
-				for (const [index, edge] of edges.entries()) {
-					const path = `visual.content.edges[${String(index)}]`;
-					onlyKeys(edge, [
-						"id",
-						"from",
-						"to",
-						"label",
-						"detail",
-						"tone",
-						"stroke",
-						"directed"
-					], path, issues);
-					if (id(edge.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, edge.id, `${path}.id`, issues);
-					if (typeof edge.from !== "string" || !nodeIds.has(edge.from)) issues.push(`${path}.from must reference a declared node`);
-					if (typeof edge.to !== "string" || !nodeIds.has(edge.to)) issues.push(`${path}.to must reference a declared node`);
-					if (edge.label !== void 0) text(edge.label, `${path}.label`, issues, 120);
-					if (edge.detail !== void 0) text(edge.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(edge.tone, `${path}.tone`, issues);
-					validateVisualStrokeV4(edge.stroke, `${path}.stroke`, issues);
-					if (edge.directed !== void 0 && typeof edge.directed !== "boolean") issues.push(`${path}.directed must be a boolean`);
-				}
-			}
-			return focusIds;
-		}
-		function validateSceneElementBaseV4(element, path, allowed, issues) {
-			onlyKeys(element, [
-				"type",
-				"id",
-				"label",
-				"detail",
-				"tone",
-				...allowed
-			], path, issues);
-			id(element.id, `${path}.id`, issues);
-			if (element.label !== void 0) text(element.label, `${path}.label`, issues, 120);
-			if (element.detail !== void 0) text(element.detail, `${path}.detail`, issues, 1e3);
-			validateVisualToneV4(element.tone, `${path}.tone`, issues);
-		}
-		function validateScene2DV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"xAxis",
-				"yAxis",
-				"grid",
-				"elements"
-			], "visual.content", issues);
-			validateVisualAxisV3(value.xAxis, "visual.content.xAxis", issues, false);
-			validateVisualAxisV3(value.yAxis, "visual.content.yAxis", issues, false);
-			if (value.grid !== void 0 && typeof value.grid !== "boolean") issues.push("visual.content.grid must be a boolean");
-			if (!Array.isArray(value.elements) || value.elements.length < 1 || value.elements.length > 64) {
-				issues.push("visual.content.elements must contain 1 to 64 elements");
-				return focusIds;
-			}
-			const elements = value.elements.filter(record);
-			if (elements.length !== value.elements.length) issues.push("visual.content.elements entries must be objects");
-			uniqueIds(elements, "visual.content.elements", issues);
-			for (const [index, element] of elements.entries()) {
-				const path = `visual.content.elements[${String(index)}]`;
-				registerVisualIdV4(focusIds, element.id, `${path}.id`, issues);
-				if (element.type === "point") {
-					validateSceneElementBaseV4(element, path, [
-						"x",
-						"y",
-						"size"
-					], issues);
-					finite(element.x, `${path}.x`, issues);
-					finite(element.y, `${path}.y`, issues);
-					if (element.size !== void 0 && finite(element.size, `${path}.size`, issues) && (element.size <= 0 || element.size > 64)) issues.push(`${path}.size must be greater than 0 and at most 64`);
-				} else if (element.type === "segment" || element.type === "arrow") {
-					validateSceneElementBaseV4(element, path, [
-						"x1",
-						"y1",
-						"x2",
-						"y2",
-						"stroke"
-					], issues);
-					finite(element.x1, `${path}.x1`, issues);
-					finite(element.y1, `${path}.y1`, issues);
-					finite(element.x2, `${path}.x2`, issues);
-					finite(element.y2, `${path}.y2`, issues);
-					validateVisualStrokeV4(element.stroke, `${path}.stroke`, issues);
-				} else if (element.type === "circle") {
-					validateSceneElementBaseV4(element, path, [
-						"cx",
-						"cy",
-						"r"
-					], issues);
-					finite(element.cx, `${path}.cx`, issues);
-					finite(element.cy, `${path}.cy`, issues);
-					if (finite(element.r, `${path}.r`, issues) && element.r <= 0) issues.push(`${path}.r must be positive`);
-				} else if (element.type === "rect") {
-					validateSceneElementBaseV4(element, path, [
-						"x",
-						"y",
-						"width",
-						"height"
-					], issues);
-					finite(element.x, `${path}.x`, issues);
-					finite(element.y, `${path}.y`, issues);
-					if (finite(element.width, `${path}.width`, issues) && element.width <= 0) issues.push(`${path}.width must be positive`);
-					if (finite(element.height, `${path}.height`, issues) && element.height <= 0) issues.push(`${path}.height must be positive`);
-				} else if (element.type === "polygon") {
-					validateSceneElementBaseV4(element, path, ["points"], issues);
-					if (!Array.isArray(element.points) || element.points.length < 3 || element.points.length > 24) issues.push(`${path}.points must contain 3 to 24 points`);
-					else for (const [pointIndex, point] of element.points.entries()) {
-						const pointPath = `${path}.points[${String(pointIndex)}]`;
-						if (!record(point)) {
-							issues.push(`${pointPath} must be an object`);
-							continue;
-						}
-						onlyKeys(point, ["x", "y"], pointPath, issues);
-						finite(point.x, `${pointPath}.x`, issues);
-						finite(point.y, `${pointPath}.y`, issues);
-					}
-				} else if (element.type === "label") {
-					validateSceneElementBaseV4(element, path, [
-						"x",
-						"y",
-						"text"
-					], issues);
-					finite(element.x, `${path}.x`, issues);
-					finite(element.y, `${path}.y`, issues);
-					text(element.text, `${path}.text`, issues, 240);
-				} else issues.push(`${path}.type must be point, segment, arrow, circle, rect, polygon, or label`);
-			}
-			return focusIds;
-		}
-		function validateRelationSubjectsV4(value, path, issues) {
-			if (!Array.isArray(value) || value.length < 2 || value.length > 4) {
-				issues.push(`${path} must contain 2 to 4 subjects`);
-				return [];
-			}
-			const subjects = value.filter(record);
-			if (subjects.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds(subjects, path, issues);
-			for (const [index, subject] of subjects.entries()) {
-				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys(subject, [
-					"id",
-					"label",
-					"detail",
-					"tone"
-				], itemPath, issues);
-				id(subject.id, `${itemPath}.id`, issues);
-				text(subject.label, `${itemPath}.label`, issues, 120);
-				if (subject.detail !== void 0) text(subject.detail, `${itemPath}.detail`, issues, 1e3);
-				validateVisualToneV4(subject.tone, `${itemPath}.tone`, issues);
-			}
-			return subjects;
-		}
-		function validateRelationAxisV4(value, path, issues) {
-			if (!Array.isArray(value) || value.length < 1 || value.length > 10) {
-				issues.push(`${path} must contain 1 to 10 items`);
-				return [];
-			}
-			const items = value.filter(record);
-			if (items.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds(items, path, issues);
-			for (const [index, item] of items.entries()) {
-				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys(item, ["id", "label"], itemPath, issues);
-				id(item.id, `${itemPath}.id`, issues);
-				text(item.label, `${itemPath}.label`, issues, 120);
-			}
-			return items;
-		}
-		function validateRelationV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			if (value.variant === "comparison") {
-				onlyKeys(value, [
-					"kind",
-					"variant",
-					"subjects",
-					"rows"
-				], "visual.content", issues);
-				const subjects = validateRelationSubjectsV4(value.subjects, "visual.content.subjects", issues);
-				const subjectIds = new Set(subjects.flatMap((subject) => typeof subject.id === "string" ? [subject.id] : []));
-				for (const subjectId of subjectIds) registerVisualIdV4(focusIds, subjectId, "visual.content.subjects", issues);
-				if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 16) {
-					issues.push("visual.content.rows must contain 1 to 16 comparison rows");
-					return focusIds;
-				}
-				const rows = value.rows.filter(record);
-				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
-				uniqueIds(rows, "visual.content.rows", issues);
-				for (const [index, row] of rows.entries()) {
-					const path = `visual.content.rows[${String(index)}]`;
-					onlyKeys(row, [
-						"id",
-						"label",
-						"cells",
-						"detail"
-					], path, issues);
-					if (id(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
-					text(row.label, `${path}.label`, issues, 120);
-					if (row.detail !== void 0) text(row.detail, `${path}.detail`, issues, 1e3);
-					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 4) {
-						issues.push(`${path}.cells must contain 1 to 4 cells`);
-						continue;
-					}
-					const seenSubjects = /* @__PURE__ */ new Set();
-					for (const [cellIndex, cell] of row.cells.entries()) {
-						const cellPath = `${path}.cells[${String(cellIndex)}]`;
-						if (!record(cell)) {
-							issues.push(`${cellPath} must be an object`);
-							continue;
-						}
-						onlyKeys(cell, [
-							"subjectId",
-							"value",
-							"tone"
-						], cellPath, issues);
-						if (typeof cell.subjectId !== "string" || !subjectIds.has(cell.subjectId)) issues.push(`${cellPath}.subjectId must reference a declared subject`);
-						else if (seenSubjects.has(cell.subjectId)) issues.push(`${cellPath}.subjectId duplicates ${cell.subjectId}`);
-						else seenSubjects.add(cell.subjectId);
-						text(cell.value, `${cellPath}.value`, issues, 500);
-						validateVisualToneV4(cell.tone, `${cellPath}.tone`, issues);
-					}
-				}
-			} else if (value.variant === "matrix") {
-				onlyKeys(value, [
-					"kind",
-					"variant",
-					"rows",
-					"columns",
-					"cells"
-				], "visual.content", issues);
-				const rows = validateRelationAxisV4(value.rows, "visual.content.rows", issues);
-				const columns = validateRelationAxisV4(value.columns, "visual.content.columns", issues);
-				const rowIds = new Set(rows.flatMap((row) => typeof row.id === "string" ? [row.id] : []));
-				const columnIds = new Set(columns.flatMap((column) => typeof column.id === "string" ? [column.id] : []));
-				for (const rowId of rowIds) registerVisualIdV4(focusIds, rowId, "visual.content.rows", issues);
-				for (const columnId of columnIds) registerVisualIdV4(focusIds, columnId, "visual.content.columns", issues);
-				if (!Array.isArray(value.cells) || value.cells.length < 1 || value.cells.length > 64) {
-					issues.push("visual.content.cells must contain 1 to 64 matrix cells");
-					return focusIds;
-				}
-				const cells = value.cells.filter(record);
-				if (cells.length !== value.cells.length) issues.push("visual.content.cells entries must be objects");
-				uniqueIds(cells, "visual.content.cells", issues);
-				const coordinates = /* @__PURE__ */ new Set();
-				for (const [index, cell] of cells.entries()) {
-					const path = `visual.content.cells[${String(index)}]`;
-					onlyKeys(cell, [
-						"id",
-						"rowId",
-						"columnId",
-						"label",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(cell.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, cell.id, `${path}.id`, issues);
-					if (typeof cell.rowId !== "string" || !rowIds.has(cell.rowId)) issues.push(`${path}.rowId must reference a declared row`);
-					if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${path}.columnId must reference a declared column`);
-					if (typeof cell.rowId === "string" && typeof cell.columnId === "string") {
-						const coordinate = `${cell.rowId}\u0000${cell.columnId}`;
-						if (coordinates.has(coordinate)) issues.push(`${path} duplicates a matrix coordinate`);
-						coordinates.add(coordinate);
-					}
-					text(cell.label, `${path}.label`, issues, 240);
-					if (cell.detail !== void 0) text(cell.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(cell.tone, `${path}.tone`, issues);
-				}
-			} else if (value.variant === "sets") {
-				onlyKeys(value, [
-					"kind",
-					"variant",
-					"sets",
-					"items"
-				], "visual.content", issues);
-				const sets = validateRelationSubjectsV4(value.sets, "visual.content.sets", issues);
-				if (sets.length > 3) issues.push("visual.content.sets must contain at most 3 sets");
-				const setIds = new Set(sets.flatMap((item) => typeof item.id === "string" ? [item.id] : []));
-				for (const setId of setIds) registerVisualIdV4(focusIds, setId, "visual.content.sets", issues);
-				if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 24) {
-					issues.push("visual.content.items must contain 1 to 24 set items");
-					return focusIds;
-				}
-				const items = value.items.filter(record);
-				if (items.length !== value.items.length) issues.push("visual.content.items entries must be objects");
-				uniqueIds(items, "visual.content.items", issues);
-				for (const [index, item] of items.entries()) {
-					const path = `visual.content.items[${String(index)}]`;
-					onlyKeys(item, [
-						"id",
-						"label",
-						"setIds",
-						"detail"
-					], path, issues);
-					if (id(item.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, item.id, `${path}.id`, issues);
-					text(item.label, `${path}.label`, issues, 120);
-					if (item.detail !== void 0) text(item.detail, `${path}.detail`, issues, 1e3);
-					if (!Array.isArray(item.setIds) || item.setIds.length < 1 || item.setIds.length > 3) issues.push(`${path}.setIds must contain 1 to 3 set ids`);
-					else {
-						const memberships = /* @__PURE__ */ new Set();
-						for (const setId of item.setIds) if (typeof setId !== "string" || !setIds.has(setId)) issues.push(`${path}.setIds must reference declared sets`);
-						else if (memberships.has(setId)) issues.push(`${path}.setIds duplicates ${setId}`);
-						else memberships.add(setId);
-					}
-				}
-			} else issues.push("visual.content.variant must be comparison, matrix, or sets");
-			return focusIds;
-		}
-		function validateTimelineV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"orientation",
-				"events",
-				"eras"
-			], "visual.content", issues);
-			if (value.orientation !== void 0 && value.orientation !== "horizontal" && value.orientation !== "vertical") issues.push("visual.content.orientation must be horizontal or vertical");
-			let events = [];
-			if (!Array.isArray(value.events) || value.events.length < 2 || value.events.length > 32) issues.push("visual.content.events must contain 2 to 32 events");
-			else {
-				events = value.events.filter(record);
-				if (events.length !== value.events.length) issues.push("visual.content.events entries must be objects");
-				uniqueIds(events, "visual.content.events", issues);
-				const hasPositions = events.filter((event) => event.position !== void 0).length;
-				if (hasPositions !== 0 && hasPositions !== events.length) issues.push("visual.content.events.position must be provided for every event or omitted for every event");
-				let previousPosition = -1;
-				for (const [index, event] of events.entries()) {
-					const path = `visual.content.events[${String(index)}]`;
-					onlyKeys(event, [
-						"id",
-						"time",
-						"label",
-						"detail",
-						"position",
-						"tone"
-					], path, issues);
-					if (id(event.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, event.id, `${path}.id`, issues);
-					text(event.time, `${path}.time`, issues, 80);
-					text(event.label, `${path}.label`, issues, 160);
-					if (event.detail !== void 0) text(event.detail, `${path}.detail`, issues, 1500);
-					if (event.position !== void 0 && finite(event.position, `${path}.position`, issues)) {
-						const position = event.position;
-						if (position < 0 || position > 1) issues.push(`${path}.position must be from 0 to 1`);
-						if (position <= previousPosition) issues.push(`${path}.position must be greater than the preceding event position`);
-						previousPosition = position;
-					}
-					validateVisualToneV4(event.tone, `${path}.tone`, issues);
-				}
-			}
-			const eventIds = new Set(events.flatMap((event) => typeof event.id === "string" ? [event.id] : []));
-			const eventIndexes = new Map(events.flatMap((event, index) => typeof event.id === "string" ? [[event.id, index]] : []));
-			if (value.eras !== void 0) {
-				if (!Array.isArray(value.eras) || value.eras.length < 1 || value.eras.length > 8) issues.push("visual.content.eras must contain 1 to 8 eras");
-				else {
-					const eras = value.eras.filter(record);
-					if (eras.length !== value.eras.length) issues.push("visual.content.eras entries must be objects");
-					uniqueIds(eras, "visual.content.eras", issues);
-					for (const [index, era] of eras.entries()) {
-						const path = `visual.content.eras[${String(index)}]`;
-						onlyKeys(era, [
-							"id",
-							"label",
-							"startEventId",
-							"endEventId",
-							"detail",
-							"tone"
-						], path, issues);
-						if (id(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
-						text(era.label, `${path}.label`, issues, 120);
-						if (typeof era.startEventId !== "string" || !eventIds.has(era.startEventId)) issues.push(`${path}.startEventId must reference a declared event`);
-						if (typeof era.endEventId !== "string" || !eventIds.has(era.endEventId)) issues.push(`${path}.endEventId must reference a declared event`);
-						if (typeof era.startEventId === "string" && typeof era.endEventId === "string") {
-							const startIndex = eventIndexes.get(era.startEventId);
-							const endIndex = eventIndexes.get(era.endEventId);
-							if (startIndex !== void 0 && endIndex !== void 0 && startIndex > endIndex) issues.push(`${path}.startEventId must not occur after endEventId`);
-						}
-						if (era.detail !== void 0) text(era.detail, `${path}.detail`, issues, 1e3);
-						validateVisualToneV4(era.tone, `${path}.tone`, issues);
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateFormulaStepsV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"notation",
-				"steps",
-				"conclusion"
-			], "visual.content", issues);
-			if (value.notation !== void 0) text(value.notation, "visual.content.notation", issues, 300);
-			if (value.conclusion !== void 0) text(value.conclusion, "visual.content.conclusion", issues, 1e3);
-			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) {
-				issues.push("visual.content.steps must contain 2 to 16 formula steps");
-				return focusIds;
-			}
-			const steps = value.steps.filter(record);
-			if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-			uniqueIds(steps, "visual.content.steps", issues);
-			for (const [index, step] of steps.entries()) {
-				const path = `visual.content.steps[${String(index)}]`;
-				onlyKeys(step, [
-					"id",
-					"expression",
-					"label",
-					"rule",
-					"detail",
-					"tone"
-				], path, issues);
-				if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-				text(step.expression, `${path}.expression`, issues, 500);
-				if (step.label !== void 0) text(step.label, `${path}.label`, issues, 120);
-				if (step.rule !== void 0) text(step.rule, `${path}.rule`, issues, 240);
-				if (step.detail !== void 0) text(step.detail, `${path}.detail`, issues, 1500);
-				validateVisualToneV4(step.tone, `${path}.tone`, issues);
-			}
-			return focusIds;
-		}
-		function validateStudyMapV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"sourceLabel",
-				"goal",
-				"sections",
-				"concepts"
-			], "visual.content", issues);
-			text(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
-			if (value.goal !== void 0) text(value.goal, "visual.content.goal", issues, 600);
-			let sections = [];
-			if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 16) issues.push("visual.content.sections must contain 1 to 16 sections");
-			else {
-				sections = value.sections.filter(record);
-				if (sections.length !== value.sections.length) issues.push("visual.content.sections entries must be objects");
-				uniqueIds(sections, "visual.content.sections", issues);
-				for (const [index, section] of sections.entries()) {
-					const path = `visual.content.sections[${String(index)}]`;
-					onlyKeys(section, [
-						"id",
-						"label",
-						"anchor",
-						"summary"
-					], path, issues);
-					if (id(section.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, section.id, `${path}.id`, issues);
-					text(section.label, `${path}.label`, issues, 160);
-					if (section.anchor !== void 0) text(section.anchor, `${path}.anchor`, issues, 160);
-					if (section.summary !== void 0) text(section.summary, `${path}.summary`, issues, 1e3);
-				}
-			}
-			const sectionIds = new Set(sections.flatMap((section) => typeof section.id === "string" ? [section.id] : []));
-			let concepts = [];
-			if (!Array.isArray(value.concepts) || value.concepts.length < 1 || value.concepts.length > 48) issues.push("visual.content.concepts must contain 1 to 48 concepts");
-			else {
-				concepts = value.concepts.filter(record);
-				if (concepts.length !== value.concepts.length) issues.push("visual.content.concepts entries must be objects");
-				uniqueIds(concepts, "visual.content.concepts", issues);
-				for (const [index, concept] of concepts.entries()) {
-					const path = `visual.content.concepts[${String(index)}]`;
-					onlyKeys(concept, [
-						"id",
-						"label",
-						"sectionId",
-						"detail",
-						"prerequisiteIds",
-						"role",
-						"tone"
-					], path, issues);
-					if (id(concept.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, concept.id, `${path}.id`, issues);
-					text(concept.label, `${path}.label`, issues, 160);
-					if (typeof concept.sectionId !== "string" || !sectionIds.has(concept.sectionId)) issues.push(`${path}.sectionId must reference a declared section`);
-					if (concept.detail !== void 0) text(concept.detail, `${path}.detail`, issues, 1500);
-					if (concept.role !== void 0 && ![
-						"foundation",
-						"core",
-						"extension",
-						"practice"
-					].includes(concept.role)) issues.push(`${path}.role must be foundation, core, extension, or practice`);
-					validateVisualToneV4(concept.tone, `${path}.tone`, issues);
-				}
-			}
-			const conceptIds = new Set(concepts.flatMap((concept) => typeof concept.id === "string" ? [concept.id] : []));
-			const prerequisiteGraph = /* @__PURE__ */ new Map();
-			for (const [index, concept] of concepts.entries()) {
-				if (concept.prerequisiteIds === void 0) continue;
-				const path = `visual.content.concepts[${String(index)}].prerequisiteIds`;
-				if (!Array.isArray(concept.prerequisiteIds) || concept.prerequisiteIds.length > 8) {
-					issues.push(`${path} must contain at most 8 concept ids`);
-					continue;
-				}
-				const seen = /* @__PURE__ */ new Set();
-				for (const prerequisiteId of concept.prerequisiteIds) if (typeof prerequisiteId !== "string" || !conceptIds.has(prerequisiteId)) issues.push(`${path} must reference declared concepts`);
-				else if (prerequisiteId === concept.id) issues.push(`${path} must not reference its own concept`);
-				else if (seen.has(prerequisiteId)) issues.push(`${path} duplicates ${prerequisiteId}`);
-				else seen.add(prerequisiteId);
-				if (typeof concept.id === "string") prerequisiteGraph.set(concept.id, [...seen]);
-			}
-			const visited = /* @__PURE__ */ new Set();
-			const visiting = /* @__PURE__ */ new Set();
-			const visit = (conceptId) => {
-				if (visiting.has(conceptId)) return true;
-				if (visited.has(conceptId)) return false;
-				visiting.add(conceptId);
-				const cyclic = (prerequisiteGraph.get(conceptId) ?? []).some(visit);
-				visiting.delete(conceptId);
-				visited.add(conceptId);
-				return cyclic;
-			};
-			if ([...conceptIds].some(visit)) issues.push("visual.content.concepts prerequisiteIds must not contain a cycle");
-			return focusIds;
-		}
-		function validateRecallDeckV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"instructions",
-				"cards"
-			], "visual.content", issues);
-			if (value.instructions !== void 0) text(value.instructions, "visual.content.instructions", issues, 600);
-			if (!Array.isArray(value.cards) || value.cards.length < 2 || value.cards.length > 32) {
-				issues.push("visual.content.cards must contain 2 to 32 cards");
-				return focusIds;
-			}
-			const cards = value.cards.filter(record);
-			if (cards.length !== value.cards.length) issues.push("visual.content.cards entries must be objects");
-			uniqueIds(cards, "visual.content.cards", issues);
-			for (const [index, card] of cards.entries()) {
-				const path = `visual.content.cards[${String(index)}]`;
-				onlyKeys(card, [
-					"id",
-					"prompt",
-					"answer",
-					"hint",
-					"tags"
-				], path, issues);
-				if (id(card.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, card.id, `${path}.id`, issues);
-				text(card.prompt, `${path}.prompt`, issues, 1e3);
-				text(card.answer, `${path}.answer`, issues, 2e3);
-				if (card.hint !== void 0) text(card.hint, `${path}.hint`, issues, 800);
-				if (card.tags !== void 0) {
-					if (!Array.isArray(card.tags) || card.tags.length > 6) issues.push(`${path}.tags must contain at most 6 labels`);
-					else {
-						const seen = /* @__PURE__ */ new Set();
-						for (const [tagIndex, tag] of card.tags.entries()) if (text(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") {
-							if (seen.has(tag)) issues.push(`${path}.tags duplicates ${tag}`);
-							else seen.add(tag);
-						}
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateTableValueV4(value, path, issues) {
-			if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-			if (typeof value === "number" && Number.isFinite(value)) return true;
-			issues.push(`${path} must be a string, number, boolean, or null`);
-			return false;
-		}
-		function validateDataTableV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"columns",
-				"rows",
-				"outlierIds",
-				"initialSort",
-				"initialFilter",
-				"chart"
-			], "visual.content", issues);
-			let columns = [];
-			if (!Array.isArray(value.columns) || value.columns.length < 1 || value.columns.length > 24) issues.push("visual.content.columns must contain 1 to 24 columns");
-			else {
-				columns = value.columns.filter(record);
-				if (columns.length !== value.columns.length) issues.push("visual.content.columns entries must be objects");
-				uniqueIds(columns, "visual.content.columns", issues);
-				for (const [index, column] of columns.entries()) {
-					const path = `visual.content.columns[${String(index)}]`;
-					onlyKeys(column, [
-						"id",
-						"label",
-						"type",
-						"unit"
-					], path, issues);
-					if (id(column.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, column.id, `${path}.id`, issues);
-					text(column.label, `${path}.label`, issues, 160);
-					if (![
-						"string",
-						"number",
-						"boolean",
-						"date"
-					].includes(column.type)) issues.push(`${path}.type must be string, number, boolean, or date`);
-					if (column.unit !== void 0) text(column.unit, `${path}.unit`, issues, 80);
-				}
-			}
-			const columnIds = new Set(columns.flatMap((column) => typeof column.id === "string" ? [column.id] : []));
-			const columnTypes = new Map(columns.flatMap((column) => typeof column.id === "string" && typeof column.type === "string" ? [[column.id, column.type]] : []));
-			let rows = [];
-			if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 128) issues.push("visual.content.rows must contain 1 to 128 rows");
-			else {
-				rows = value.rows.filter(record);
-				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
-				uniqueIds(rows, "visual.content.rows", issues);
-				for (const [index, row] of rows.entries()) {
-					const path = `visual.content.rows[${String(index)}]`;
-					onlyKeys(row, [
-						"id",
-						"cells",
-						"detail"
-					], path, issues);
-					if (id(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
-					if (row.detail !== void 0) text(row.detail, `${path}.detail`, issues, 1e3);
-					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 24) {
-						issues.push(`${path}.cells must contain 1 to 24 cells`);
-						continue;
-					}
-					const seen = /* @__PURE__ */ new Set();
-					for (const [cellIndex, cell] of row.cells.entries()) {
-						const cellPath = `${path}.cells[${String(cellIndex)}]`;
-						if (!record(cell)) {
-							issues.push(`${cellPath} must be an object`);
-							continue;
-						}
-						onlyKeys(cell, ["columnId", "value"], cellPath, issues);
-						if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${cellPath}.columnId must reference a declared column`);
-						else if (seen.has(cell.columnId)) issues.push(`${cellPath}.columnId duplicates ${cell.columnId}`);
-						else seen.add(cell.columnId);
-						const valueOk = validateTableValueV4(cell.value, `${cellPath}.value`, issues);
-						const expected = typeof cell.columnId === "string" ? columnTypes.get(cell.columnId) : void 0;
-						if (valueOk && cell.value !== null && expected !== void 0 && (expected === "number" && typeof cell.value !== "number" || expected === "boolean" && typeof cell.value !== "boolean" || (expected === "string" || expected === "date") && typeof cell.value !== "string")) issues.push(`${cellPath}.value does not match column type ${expected}`);
-					}
-				}
-			}
-			const rowIds = new Set(rows.flatMap((row) => typeof row.id === "string" ? [row.id] : []));
-			if (value.outlierIds !== void 0) {
-				if (!Array.isArray(value.outlierIds) || value.outlierIds.length > 32) issues.push("visual.content.outlierIds must contain at most 32 row ids");
-				else {
-					const seen = /* @__PURE__ */ new Set();
-					for (const [index, rowId] of value.outlierIds.entries()) {
-						const path = `visual.content.outlierIds[${String(index)}]`;
-						if (typeof rowId !== "string" || !rowIds.has(rowId)) issues.push(`${path} must reference a declared row`);
-						else if (seen.has(rowId)) issues.push(`${path} duplicates ${rowId}`);
-						else seen.add(rowId);
-					}
-				}
-			}
-			const validateColumnRef = (candidate, path) => {
-				if (typeof candidate !== "string" || !columnIds.has(candidate)) issues.push(`${path} must reference a declared column`);
-			};
-			if (value.initialSort !== void 0) {
-				if (!record(value.initialSort)) issues.push("visual.content.initialSort must be an object");
-				else {
-					onlyKeys(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
-					validateColumnRef(value.initialSort.columnId, "visual.content.initialSort.columnId");
-					if (value.initialSort.direction !== "asc" && value.initialSort.direction !== "desc") issues.push("visual.content.initialSort.direction must be asc or desc");
-				}
-			}
-			if (value.initialFilter !== void 0) {
-				if (!record(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
-				else {
-					onlyKeys(value.initialFilter, [
-						"columnId",
-						"operator",
-						"value"
-					], "visual.content.initialFilter", issues);
-					validateColumnRef(value.initialFilter.columnId, "visual.content.initialFilter.columnId");
-					if (![
-						"equals",
-						"not_equals",
-						"contains",
-						"gt",
-						"gte",
-						"lt",
-						"lte"
-					].includes(value.initialFilter.operator)) issues.push("visual.content.initialFilter.operator is unknown");
-					validateTableValueV4(value.initialFilter.value, "visual.content.initialFilter.value", issues);
-				}
-			}
-			if (value.chart !== void 0) {
-				if (!record(value.chart)) issues.push("visual.content.chart must be an object");
-				else {
-					onlyKeys(value.chart, [
-						"type",
-						"xColumnId",
-						"yColumnId",
-						"seriesColumnId"
-					], "visual.content.chart", issues);
-					if (![
-						"line",
-						"bar",
-						"scatter"
-					].includes(value.chart.type)) issues.push("visual.content.chart.type is unknown");
-					validateColumnRef(value.chart.xColumnId, "visual.content.chart.xColumnId");
-					validateColumnRef(value.chart.yColumnId, "visual.content.chart.yColumnId");
-					if (value.chart.seriesColumnId !== void 0) validateColumnRef(value.chart.seriesColumnId, "visual.content.chart.seriesColumnId");
-				}
-			}
-			return focusIds;
-		}
-		function validateStateTransitionV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"states",
-				"transitions",
-				"steps"
-			], "visual.content", issues);
-			let states = [];
-			if (!Array.isArray(value.states) || value.states.length < 2 || value.states.length > 32) issues.push("visual.content.states must contain 2 to 32 states");
-			else {
-				states = value.states.filter(record);
-				if (states.length !== value.states.length) issues.push("visual.content.states entries must be objects");
-				uniqueIds(states, "visual.content.states", issues);
-				for (const [index, state] of states.entries()) {
-					const path = `visual.content.states[${String(index)}]`;
-					onlyKeys(state, [
-						"id",
-						"label",
-						"detail",
-						"tone",
-						"initial",
-						"final"
-					], path, issues);
-					if (id(state.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, state.id, `${path}.id`, issues);
-					text(state.label, `${path}.label`, issues, 160);
-					if (state.detail !== void 0) text(state.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(state.tone, `${path}.tone`, issues);
-					if (state.initial !== void 0 && typeof state.initial !== "boolean") issues.push(`${path}.initial must be a boolean`);
-					if (state.final !== void 0 && typeof state.final !== "boolean") issues.push(`${path}.final must be a boolean`);
-				}
-			}
-			const stateIds = new Set(states.flatMap((state) => typeof state.id === "string" ? [state.id] : []));
-			let transitions = [];
-			if (!Array.isArray(value.transitions) || value.transitions.length < 1 || value.transitions.length > 96) issues.push("visual.content.transitions must contain 1 to 96 transitions");
-			else {
-				transitions = value.transitions.filter(record);
-				if (transitions.length !== value.transitions.length) issues.push("visual.content.transitions entries must be objects");
-				uniqueIds(transitions, "visual.content.transitions", issues);
-				for (const [index, transition] of transitions.entries()) {
-					const path = `visual.content.transitions[${String(index)}]`;
-					onlyKeys(transition, [
-						"id",
-						"from",
-						"to",
-						"trigger",
-						"guard",
-						"action",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(transition.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, transition.id, `${path}.id`, issues);
-					if (typeof transition.from !== "string" || !stateIds.has(transition.from)) issues.push(`${path}.from must reference a declared state`);
-					if (typeof transition.to !== "string" || !stateIds.has(transition.to)) issues.push(`${path}.to must reference a declared state`);
-					text(transition.trigger, `${path}.trigger`, issues, 240);
-					if (transition.guard !== void 0) text(transition.guard, `${path}.guard`, issues, 500);
-					if (transition.action !== void 0) text(transition.action, `${path}.action`, issues, 500);
-					if (transition.detail !== void 0) text(transition.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(transition.tone, `${path}.tone`, issues);
-				}
-			}
-			const transitionIds = new Set(transitions.flatMap((transition) => typeof transition.id === "string" ? [transition.id] : []));
-			if (value.steps !== void 0) {
-				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 steps");
-				else {
-					const steps = value.steps.filter(record);
-					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds(steps, "visual.content.steps", issues);
-					for (const [index, step] of steps.entries()) {
-						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys(step, [
-							"id",
-							"label",
-							"currentStateId",
-							"transitionId",
-							"description"
-						], path, issues);
-						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text(step.label, `${path}.label`, issues, 160);
-						if (typeof step.currentStateId !== "string" || !stateIds.has(step.currentStateId)) issues.push(`${path}.currentStateId must reference a declared state`);
-						if (step.transitionId !== void 0 && (typeof step.transitionId !== "string" || !transitionIds.has(step.transitionId))) issues.push(`${path}.transitionId must reference a declared transition`);
-						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateSequenceBufferV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"slots",
-				"pointers",
-				"ranges",
-				"steps"
-			], "visual.content", issues);
-			let slots = [];
-			if (!Array.isArray(value.slots) || value.slots.length < 1 || value.slots.length > 128) issues.push("visual.content.slots must contain 1 to 128 slots");
-			else {
-				slots = value.slots.filter(record);
-				if (slots.length !== value.slots.length) issues.push("visual.content.slots entries must be objects");
-				uniqueIds(slots, "visual.content.slots", issues);
-				const indexes = /* @__PURE__ */ new Set();
-				for (const [index, slot] of slots.entries()) {
-					const path = `visual.content.slots[${String(index)}]`;
-					onlyKeys(slot, [
-						"id",
-						"index",
-						"value",
-						"label",
-						"tone"
-					], path, issues);
-					if (id(slot.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, slot.id, `${path}.id`, issues);
-					if (!integer(slot.index, `${path}.index`, issues)) continue;
-					if (indexes.has(slot.index)) issues.push(`${path}.index duplicates ${String(slot.index)}`);
-					indexes.add(slot.index);
-					validateTableValueV4(slot.value, `${path}.value`, issues);
-					if (slot.label !== void 0) text(slot.label, `${path}.label`, issues, 120);
-					validateVisualToneV4(slot.tone, `${path}.tone`, issues);
-				}
-			}
-			const slotIds = new Set(slots.flatMap((slot) => typeof slot.id === "string" ? [slot.id] : []));
-			const slotIndexes = new Set(slots.flatMap((slot) => typeof slot.index === "number" && Number.isInteger(slot.index) ? [slot.index] : []));
-			const maxIndex = slots.reduce((max, slot) => typeof slot.index === "number" ? Math.max(max, slot.index) : max, -1);
-			let pointers = [];
-			if (value.pointers !== void 0) {
-				if (!Array.isArray(value.pointers) || value.pointers.length < 1 || value.pointers.length > 8) issues.push("visual.content.pointers must contain 1 to 8 pointers");
-				else {
-					pointers = value.pointers.filter(record);
-					if (pointers.length !== value.pointers.length) issues.push("visual.content.pointers entries must be objects");
-					uniqueIds(pointers, "visual.content.pointers", issues);
-					for (const [index, pointer] of pointers.entries()) {
-						const path = `visual.content.pointers[${String(index)}]`;
-						onlyKeys(pointer, [
-							"id",
-							"label",
-							"index",
-							"tone"
-						], path, issues);
-						if (id(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
-						text(pointer.label, `${path}.label`, issues, 120);
-						if (integer(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
-						validateVisualToneV4(pointer.tone, `${path}.tone`, issues);
-					}
-				}
-			}
-			const pointerIds = new Set(pointers.flatMap((pointer) => typeof pointer.id === "string" ? [pointer.id] : []));
-			let ranges = [];
-			if (value.ranges !== void 0) {
-				if (!Array.isArray(value.ranges) || value.ranges.length < 1 || value.ranges.length > 8) issues.push("visual.content.ranges must contain 1 to 8 ranges");
-				else {
-					ranges = value.ranges.filter(record);
-					if (ranges.length !== value.ranges.length) issues.push("visual.content.ranges entries must be objects");
-					uniqueIds(ranges, "visual.content.ranges", issues);
-					for (const [index, range] of ranges.entries()) {
-						const path = `visual.content.ranges[${String(index)}]`;
-						onlyKeys(range, [
-							"id",
-							"label",
-							"start",
-							"end",
-							"tone"
-						], path, issues);
-						if (id(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
-						text(range.label, `${path}.label`, issues, 120);
-						const startOk = integer(range.start, `${path}.start`, issues);
-						const endOk = integer(range.end, `${path}.end`, issues);
-						if (startOk && !slotIndexes.has(range.start)) issues.push(`${path}.start must reference a declared slot index`);
-						if (endOk && !slotIndexes.has(range.end)) issues.push(`${path}.end must reference a declared slot index`);
-						if (startOk && endOk && range.start > range.end) issues.push(`${path}.start must not exceed end`);
-						validateVisualToneV4(range.tone, `${path}.tone`, issues);
-					}
-				}
-			}
-			const rangeIds = new Set(ranges.flatMap((range) => typeof range.id === "string" ? [range.id] : []));
-			if (value.steps !== void 0) {
-				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 snapshots");
-				else {
-					const steps = value.steps.filter(record);
-					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds(steps, "visual.content.steps", issues);
-					for (const [index, step] of steps.entries()) {
-						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys(step, [
-							"id",
-							"label",
-							"description",
-							"slots",
-							"pointers",
-							"ranges"
-						], path, issues);
-						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text(step.label, `${path}.label`, issues, 160);
-						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
-						if (step.slots !== void 0) {
-							if (!Array.isArray(step.slots) || step.slots.length > 128) issues.push(`${path}.slots must contain at most 128 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.slots.entries()) {
-								const snapshotPath = `${path}.slots[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, ["slotId", "value"], snapshotPath, issues);
-								if (typeof snapshot.slotId !== "string" || !slotIds.has(snapshot.slotId)) issues.push(`${snapshotPath}.slotId must reference a declared slot`);
-								if (snapshot.value !== void 0) validateTableValueV4(snapshot.value, `${snapshotPath}.value`, issues);
-							}
-						}
-						if (step.pointers !== void 0) {
-							if (!Array.isArray(step.pointers) || step.pointers.length > 8) issues.push(`${path}.pointers must contain at most 8 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.pointers.entries()) {
-								const snapshotPath = `${path}.pointers[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, ["pointerId", "index"], snapshotPath, issues);
-								if (typeof snapshot.pointerId !== "string" || !pointerIds.has(snapshot.pointerId)) issues.push(`${snapshotPath}.pointerId must reference a declared pointer`);
-								if (integer(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
-							}
-						}
-						if (step.ranges !== void 0) {
-							if (!Array.isArray(step.ranges) || step.ranges.length > 8) issues.push(`${path}.ranges must contain at most 8 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.ranges.entries()) {
-								const snapshotPath = `${path}.ranges[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, [
-									"rangeId",
-									"start",
-									"end"
-								], snapshotPath, issues);
-								if (typeof snapshot.rangeId !== "string" || !rangeIds.has(snapshot.rangeId)) issues.push(`${snapshotPath}.rangeId must reference a declared range`);
-								const startOk = integer(snapshot.start, `${snapshotPath}.start`, issues);
-								const endOk = integer(snapshot.end, `${snapshotPath}.end`, issues);
-								if (startOk && !slotIndexes.has(snapshot.start)) issues.push(`${snapshotPath}.start must reference a declared slot index`);
-								if (endOk && !slotIndexes.has(snapshot.end)) issues.push(`${snapshotPath}.end must reference a declared slot index`);
-								if (startOk && endOk && snapshot.start > snapshot.end) issues.push(`${snapshotPath}.start must not exceed end`);
-							}
-						}
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateSequenceDiagramV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"participants",
-				"messages"
-			], "visual.content", issues);
-			let participants = [];
-			if (!Array.isArray(value.participants) || value.participants.length < 2 || value.participants.length > 16) issues.push("visual.content.participants must contain 2 to 16 participants");
-			else {
-				participants = value.participants.filter(record);
-				if (participants.length !== value.participants.length) issues.push("visual.content.participants entries must be objects");
-				uniqueIds(participants, "visual.content.participants", issues);
-				for (const [index, participant] of participants.entries()) {
-					const path = `visual.content.participants[${String(index)}]`;
-					onlyKeys(participant, [
-						"id",
-						"label",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(participant.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, participant.id, `${path}.id`, issues);
-					text(participant.label, `${path}.label`, issues, 160);
-					if (participant.detail !== void 0) text(participant.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(participant.tone, `${path}.tone`, issues);
-				}
-			}
-			const participantIds = new Set(participants.flatMap((participant) => typeof participant.id === "string" ? [participant.id] : []));
-			if (!Array.isArray(value.messages) || value.messages.length < 1 || value.messages.length > 96) issues.push("visual.content.messages must contain 1 to 96 messages");
-			else {
-				const messages = value.messages.filter(record);
-				if (messages.length !== value.messages.length) issues.push("visual.content.messages entries must be objects");
-				uniqueIds(messages, "visual.content.messages", issues);
-				for (const [index, message] of messages.entries()) {
-					const path = `visual.content.messages[${String(index)}]`;
-					onlyKeys(message, [
-						"id",
-						"from",
-						"to",
-						"label",
-						"type",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(message.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, message.id, `${path}.id`, issues);
-					if (typeof message.from !== "string" || !participantIds.has(message.from)) issues.push(`${path}.from must reference a declared participant`);
-					if (typeof message.to !== "string" || !participantIds.has(message.to)) issues.push(`${path}.to must reference a declared participant`);
-					text(message.label, `${path}.label`, issues, 240);
-					if (![
-						"sync",
-						"async",
-						"return",
-						"self"
-					].includes(message.type)) issues.push(`${path}.type must be sync, async, return, or self`);
-					if (message.type === "self" && message.from !== message.to) issues.push(`${path}.self messages must have matching from and to participants`);
-					if (message.detail !== void 0) text(message.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(message.tone, `${path}.tone`, issues);
-				}
-			}
-			return focusIds;
-		}
-		function validateCodeTraceV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"language",
-				"code",
-				"lines",
-				"steps"
-			], "visual.content", issues);
-			text(value.language, "visual.content.language", issues, 40);
-			text(value.code, "visual.content.code", issues, 24e3);
-			const lineNumbers = /* @__PURE__ */ new Set();
-			if (!Array.isArray(value.lines) || value.lines.length < 1 || value.lines.length > 256) issues.push("visual.content.lines must contain 1 to 256 lines");
-			else {
-				const lines = value.lines.filter(record);
-				if (lines.length !== value.lines.length) issues.push("visual.content.lines entries must be objects");
-				let previousLine = -1;
-				for (const [index, line] of lines.entries()) {
-					const path = `visual.content.lines[${String(index)}]`;
-					onlyKeys(line, ["number", "text"], path, issues);
-					if (integer(line.number, `${path}.number`, issues)) {
-						lineNumbers.add(line.number);
-						if (line.number <= previousLine) issues.push(`${path}.number must increase in source order`);
-						previousLine = line.number;
-					}
-					if (typeof line.text !== "string") issues.push(`${path}.text must be a string`);
-					else if (line.text.length > 1e3) issues.push(`${path}.text exceeds 1000 characters`);
-				}
-			}
-			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 32) issues.push("visual.content.steps must contain 2 to 32 execution steps");
-			else {
-				const steps = value.steps.filter(record);
-				if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-				uniqueIds(steps, "visual.content.steps", issues);
-				for (const [index, step] of steps.entries()) {
-					const path = `visual.content.steps[${String(index)}]`;
-					onlyKeys(step, [
-						"id",
-						"label",
-						"currentLine",
-						"variables",
-						"stack",
-						"output",
-						"description"
-					], path, issues);
-					if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-					text(step.label, `${path}.label`, issues, 160);
-					if (integer(step.currentLine, `${path}.currentLine`, issues) && !lineNumbers.has(step.currentLine)) issues.push(`${path}.currentLine must reference a declared source line`);
-					if (!Array.isArray(step.variables) || step.variables.length > 32) issues.push(`${path}.variables must contain at most 32 variables`);
-					else {
-						const variables = step.variables.filter(record);
-						if (variables.length !== step.variables.length) issues.push(`${path}.variables entries must be objects`);
-						const names = /* @__PURE__ */ new Set();
-						for (const [variableIndex, variable] of variables.entries()) {
-							const variablePath = `${path}.variables[${String(variableIndex)}]`;
-							onlyKeys(variable, [
-								"name",
-								"value",
-								"type"
-							], variablePath, issues);
-							if (typeof variable.name !== "string" || variable.name.trim() === "") issues.push(`${variablePath}.name must be a non-empty string`);
-							else if (names.has(variable.name)) issues.push(`${variablePath}.name duplicates ${variable.name}`);
-							else names.add(variable.name);
-							validateTableValueV4(variable.value, `${variablePath}.value`, issues);
-							if (variable.type !== void 0) text(variable.type, `${variablePath}.type`, issues, 80);
-						}
-					}
-					if (!Array.isArray(step.stack) || step.stack.length > 16) issues.push(`${path}.stack must contain at most 16 frames`);
-					else {
-						const stack = step.stack.filter(record);
-						if (stack.length !== step.stack.length) issues.push(`${path}.stack entries must be objects`);
-						uniqueIds(stack, `${path}.stack`, issues);
-						for (const [frameIndex, frame] of stack.entries()) {
-							const framePath = `${path}.stack[${String(frameIndex)}]`;
-							onlyKeys(frame, [
-								"id",
-								"function",
-								"line"
-							], framePath, issues);
-							id(frame.id, `${framePath}.id`, issues);
-							text(frame.function, `${framePath}.function`, issues, 160);
-							if (frame.line !== void 0 && integer(frame.line, `${framePath}.line`, issues) && !lineNumbers.has(frame.line)) issues.push(`${framePath}.line must reference a declared source line`);
-						}
-					}
-					if (step.output !== void 0 && typeof step.output !== "string") issues.push(`${path}.output must be a string`);
-					else if (step.output !== void 0 && step.output.length > 4e3) issues.push(`${path}.output exceeds 4000 characters`);
-					if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
-				}
-			}
-			return focusIds;
-		}
-		function validateFieldGridV4(value, path, issues, components) {
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return;
-			}
-			onlyKeys(value, components === "scalar" ? [
-				"columns",
-				"rows",
-				"values"
-			] : [
-				"columns",
-				"rows",
-				"u",
-				"v"
-			], path, issues);
-			const columnsOk = integer(value.columns, `${path}.columns`, issues, 2) && value.columns <= 64;
-			const rowsOk = integer(value.rows, `${path}.rows`, issues, 2) && value.rows <= 64;
-			const expected = columnsOk && rowsOk ? value.columns * value.rows : void 0;
-			if (components === "scalar") {
-				if (!Array.isArray(value.values) || value.values.length < 1 || value.values.length > 4096) issues.push(`${path}.values must contain sampled values`);
-				else {
-					if (expected !== void 0 && value.values.length !== expected) issues.push(`${path}.values length must equal rows * columns`);
-					for (const [index, sample] of value.values.entries()) finite(sample, `${path}.values[${String(index)}]`, issues);
-				}
-			} else for (const component of ["u", "v"]) {
-				const samples = value[component];
-				if (!Array.isArray(samples) || samples.length < 1 || samples.length > 4096) issues.push(`${path}.${component} must contain sampled values`);
-				else {
-					if (expected !== void 0 && samples.length !== expected) issues.push(`${path}.${component} length must equal rows * columns`);
-					for (const [index, sample] of samples.entries()) finite(sample, `${path}.${component}[${String(index)}]`, issues);
-				}
-			}
-		}
-		function validateFieldAxisV4(value, path, issues) {
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return;
-			}
-			onlyKeys(value, [
-				"label",
-				"min",
-				"max",
-				"samples"
-			], path, issues);
-			if (value.label !== void 0) text(value.label, `${path}.label`, issues, 120);
-			const minOk = finite(value.min, `${path}.min`, issues);
-			const maxOk = finite(value.max, `${path}.max`, issues);
-			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-			if (value.samples !== void 0 && (!integer(value.samples, `${path}.samples`, issues, 2) || value.samples > 64)) issues.push(`${path}.samples must be an integer from 2 to 64`);
-		}
-		function validateField2DV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"xAxis",
-				"yAxis",
-				"scalar",
-				"vector"
-			], "visual.content", issues);
-			validateFieldAxisV4(value.xAxis, "visual.content.xAxis", issues);
-			validateFieldAxisV4(value.yAxis, "visual.content.yAxis", issues);
-			if (value.scalar === void 0 && value.vector === void 0) issues.push("visual.content must provide scalar or vector data");
-			const fieldVariables = /* @__PURE__ */ new Set(["y"]);
-			if (value.scalar !== void 0) {
-				if (!record(value.scalar)) issues.push("visual.content.scalar must be an object");
-				else {
-					onlyKeys(value.scalar, [
-						"samples",
-						"expression",
-						"min",
-						"max"
-					], "visual.content.scalar", issues);
-					if (value.scalar.samples === void 0 && value.scalar.expression === void 0) issues.push("visual.content.scalar must provide samples or expression");
-					if (value.scalar.samples !== void 0) validateFieldGridV4(value.scalar.samples, "visual.content.scalar.samples", issues, "scalar");
-					if (value.scalar.expression !== void 0) validateMath(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
-					const minOk = value.scalar.min === void 0 ? false : finite(value.scalar.min, "visual.content.scalar.min", issues);
-					const maxOk = value.scalar.max === void 0 ? false : finite(value.scalar.max, "visual.content.scalar.max", issues);
-					if (minOk && maxOk && value.scalar.min >= value.scalar.max) issues.push("visual.content.scalar.min must be less than max");
-				}
-			}
-			if (value.vector !== void 0) {
-				if (!record(value.vector)) issues.push("visual.content.vector must be an object");
-				else {
-					onlyKeys(value.vector, ["samples", "expression"], "visual.content.vector", issues);
-					if (value.vector.samples === void 0 && value.vector.expression === void 0) issues.push("visual.content.vector must provide samples or expression");
-					if (value.vector.samples !== void 0) validateFieldGridV4(value.vector.samples, "visual.content.vector.samples", issues, "vector");
-					if (value.vector.expression !== void 0) {
-						if (!record(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
-						else {
-							onlyKeys(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
-							validateMath(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
-							validateMath(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
-						}
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateCausalLoopV4(value, issues) {
-			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys(value, [
-				"kind",
-				"variables",
-				"links",
-				"loops"
-			], "visual.content", issues);
-			let variables = [];
-			if (!Array.isArray(value.variables) || value.variables.length < 2 || value.variables.length > 32) issues.push("visual.content.variables must contain 2 to 32 variables");
-			else {
-				variables = value.variables.filter(record);
-				if (variables.length !== value.variables.length) issues.push("visual.content.variables entries must be objects");
-				uniqueIds(variables, "visual.content.variables", issues);
-				for (const [index, variable] of variables.entries()) {
-					const path = `visual.content.variables[${String(index)}]`;
-					onlyKeys(variable, [
-						"id",
-						"label",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(variable.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, variable.id, `${path}.id`, issues);
-					text(variable.label, `${path}.label`, issues, 160);
-					if (variable.detail !== void 0) text(variable.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(variable.tone, `${path}.tone`, issues);
-				}
-			}
-			const variableIds = new Set(variables.flatMap((variable) => typeof variable.id === "string" ? [variable.id] : []));
-			let links = [];
-			if (!Array.isArray(value.links) || value.links.length < 1 || value.links.length > 96) issues.push("visual.content.links must contain 1 to 96 links");
-			else {
-				links = value.links.filter(record);
-				if (links.length !== value.links.length) issues.push("visual.content.links entries must be objects");
-				uniqueIds(links, "visual.content.links", issues);
-				for (const [index, link] of links.entries()) {
-					const path = `visual.content.links[${String(index)}]`;
-					onlyKeys(link, [
-						"id",
-						"from",
-						"to",
-						"polarity",
-						"delay",
-						"label",
-						"detail",
-						"tone"
-					], path, issues);
-					if (id(link.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, link.id, `${path}.id`, issues);
-					if (typeof link.from !== "string" || !variableIds.has(link.from)) issues.push(`${path}.from must reference a declared variable`);
-					if (typeof link.to !== "string" || !variableIds.has(link.to)) issues.push(`${path}.to must reference a declared variable`);
-					if (link.polarity !== "positive" && link.polarity !== "negative") issues.push(`${path}.polarity must be positive or negative`);
-					if (link.delay !== void 0 && (typeof link.delay !== "number" || !Number.isFinite(link.delay) || link.delay < 0)) issues.push(`${path}.delay must be a non-negative finite number`);
-					if (link.label !== void 0) text(link.label, `${path}.label`, issues, 160);
-					if (link.detail !== void 0) text(link.detail, `${path}.detail`, issues, 1e3);
-					validateVisualToneV4(link.tone, `${path}.tone`, issues);
-				}
-			}
-			const linkIds = new Set(links.flatMap((link) => typeof link.id === "string" ? [link.id] : []));
-			if (value.loops !== void 0) {
-				if (!Array.isArray(value.loops) || value.loops.length < 1 || value.loops.length > 12) issues.push("visual.content.loops must contain 1 to 12 loops");
-				else {
-					const loops = value.loops.filter(record);
-					if (loops.length !== value.loops.length) issues.push("visual.content.loops entries must be objects");
-					uniqueIds(loops, "visual.content.loops", issues);
-					for (const [index, loop] of loops.entries()) {
-						const path = `visual.content.loops[${String(index)}]`;
-						onlyKeys(loop, [
-							"id",
-							"label",
-							"type",
-							"linkIds",
-							"detail",
-							"tone"
-						], path, issues);
-						if (id(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
-						text(loop.label, `${path}.label`, issues, 160);
-						if (loop.type !== "reinforcing" && loop.type !== "balancing") issues.push(`${path}.type must be reinforcing or balancing`);
-						if (!Array.isArray(loop.linkIds) || loop.linkIds.length < 1 || loop.linkIds.length > 96) issues.push(`${path}.linkIds must contain 1 to 96 link ids`);
-						else {
-							const seen = /* @__PURE__ */ new Set();
-							for (const [linkIndex, linkId] of loop.linkIds.entries()) {
-								const linkPath = `${path}.linkIds[${String(linkIndex)}]`;
-								if (typeof linkId !== "string" || !linkIds.has(linkId)) issues.push(`${linkPath} must reference a declared link`);
-								else if (seen.has(linkId)) issues.push(`${linkPath} duplicates ${linkId}`);
-								else seen.add(linkId);
-							}
-						}
-						if (loop.detail !== void 0) text(loop.detail, `${path}.detail`, issues, 1e3);
-						validateVisualToneV4(loop.tone, `${path}.tone`, issues);
-					}
-				}
-			}
-			return focusIds;
-		}
-		function validateVisualSequenceV4(value, focusIds, issues) {
-			if (value === void 0) return;
-			if (!record(value)) {
-				issues.push("visual.sequence must be an object");
-				return;
-			}
-			onlyKeys(value, ["initialFrameId", "frames"], "visual.sequence", issues);
-			if (!Array.isArray(value.frames) || value.frames.length < 2 || value.frames.length > 12) {
-				issues.push("visual.sequence.frames must contain 2 to 12 frames");
-				return;
-			}
-			const frames = value.frames.filter(record);
-			if (frames.length !== value.frames.length) issues.push("visual.sequence.frames entries must be objects");
-			uniqueIds(frames, "visual.sequence.frames", issues);
-			const frameIds = /* @__PURE__ */ new Set();
-			for (const [index, frame] of frames.entries()) {
-				const path = `visual.sequence.frames[${String(index)}]`;
-				onlyKeys(frame, [
-					"id",
-					"label",
-					"description",
-					"focusIds"
-				], path, issues);
-				if (id(frame.id, `${path}.id`, issues)) frameIds.add(frame.id);
-				text(frame.label, `${path}.label`, issues, 120);
-				if (frame.description !== void 0) text(frame.description, `${path}.description`, issues, 1e3);
-				if (!Array.isArray(frame.focusIds) || frame.focusIds.length > 64) {
-					issues.push(`${path}.focusIds must contain at most 64 ids`);
-					continue;
-				}
-				const seen = /* @__PURE__ */ new Set();
-				for (const [focusIndex, focusId] of frame.focusIds.entries()) if (typeof focusId !== "string" || !focusIds.has(focusId)) issues.push(`${path}.focusIds[${String(focusIndex)}] must reference visual content`);
-				else if (seen.has(focusId)) issues.push(`${path}.focusIds duplicates ${focusId}`);
-				else seen.add(focusId);
-			}
-			if (value.initialFrameId !== void 0 && (typeof value.initialFrameId !== "string" || !frameIds.has(value.initialFrameId))) issues.push("visual.sequence.initialFrameId must reference a declared frame");
-		}
-		/** Validate the semantic, model-facing visual protocol while retaining V3 replay separately. */
-		function parseLearningVisualV4(value) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("visual must be serializable JSON");
-			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
-			onlyKeys(value, [
-				"protocol",
-				"title",
-				"description",
-				"content",
-				"sequence",
-				"fallbackMarkdown"
-			], "visual", issues);
-			if (value.protocol !== "dsh-learning/visual@4") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V4}`);
-			text(value.title, "visual.title", issues, 200);
-			if (value.description !== void 0) text(value.description, "visual.description", issues, 1e3);
-			if (value.fallbackMarkdown !== void 0) text(value.fallbackMarkdown, "visual.fallbackMarkdown", issues, 8e3);
-			let focusIds = /* @__PURE__ */ new Set();
-			if (!record(value.content)) issues.push("visual.content must be an object");
-			else if (value.content.kind === "plot") focusIds = validatePlotV4(value.content, issues);
-			else if (value.content.kind === "node_link") focusIds = validateNodeLinkV4(value.content, issues);
-			else if (value.content.kind === "scene_2d") focusIds = validateScene2DV4(value.content, issues);
-			else if (value.content.kind === "relation") focusIds = validateRelationV4(value.content, issues);
-			else if (value.content.kind === "timeline") focusIds = validateTimelineV4(value.content, issues);
-			else if (value.content.kind === "formula_steps") focusIds = validateFormulaStepsV4(value.content, issues);
-			else if (value.content.kind === "study_map") focusIds = validateStudyMapV4(value.content, issues);
-			else if (value.content.kind === "recall_deck") focusIds = validateRecallDeckV4(value.content, issues);
-			else if (value.content.kind === "data_table") focusIds = validateDataTableV4(value.content, issues);
-			else if (value.content.kind === "state_transition") focusIds = validateStateTransitionV4(value.content, issues);
-			else if (value.content.kind === "sequence_buffer") focusIds = validateSequenceBufferV4(value.content, issues);
-			else if (value.content.kind === "sequence_diagram") focusIds = validateSequenceDiagramV4(value.content, issues);
-			else if (value.content.kind === "code_trace") focusIds = validateCodeTraceV4(value.content, issues);
-			else if (value.content.kind === "field_2d") focusIds = validateField2DV4(value.content, issues);
-			else if (value.content.kind === "causal_loop") focusIds = validateCausalLoopV4(value.content, issues);
-			else issues.push(`visual.content.kind must be one of ${LEARNING_VISUAL_KINDS_V4.join(", ")}`);
-			validateVisualSequenceV4(value.sequence, focusIds, issues);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		function parseLearningVisualResultV4(value) {
-			const issues = [];
-			if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
-			onlyKeys(value, ["protocol", "status"], "visualResult", issues);
-			if (value.protocol !== "dsh-learning/visual-result@4") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`);
-			if (!LEARNING_VISUAL_STATUSES.includes(value.status)) issues.push(`visualResult.status must be one of ${LEARNING_VISUAL_STATUSES.join(", ")}`);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		function parseLearningVisualResultV3(value) {
-			const issues = [];
-			if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
-			onlyKeys(value, ["protocol", "status"], "visualResult", issues);
-			if (value.protocol !== "dsh-learning/visual-result@3") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V3}`);
-			if (value.status !== "ready") issues.push("visualResult.status must be ready");
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
@@ -2835,135 +4956,135 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningActivity.module.css.mjs
-		const css$14 = ".KyZuPW_inlineActivity{gap:var(--lx-space-xl);min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);flex-direction:column;line-height:28px;display:flex}.KyZuPW_scaffold{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);align-self:flex-start}.KyZuPW_scaffold summary{cursor:pointer}.KyZuPW_activityActions{align-items:center;gap:var(--lx-space-lg);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);margin-top:-6px;display:flex}.KyZuPW_error{color:var(--lx-label-error);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}.KyZuPW_activityContent,.KyZuPW_controls,.KyZuPW_answerField,.KyZuPW_stepFocus,.KyZuPW_prediction{flex-direction:column;display:flex}.KyZuPW_activityContent{gap:var(--lx-space-xl)}.KyZuPW_prompt{color:var(--lx-label-primary);font-size:var(--lx-text-md);margin:0;font-weight:400;line-height:28px}.KyZuPW_explorer{gap:var(--lx-space-xl);flex-direction:column;min-width:0;display:flex}.KyZuPW_controls{gap:var(--lx-space-lg) var(--lx-space-3xl);grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));display:grid}.KyZuPW_rangeField{min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}.KyZuPW_rangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);margin-bottom:6px;display:flex}.KyZuPW_rangeHeader label{color:var(--lx-label-primary);font-weight:500}.KyZuPW_rangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-base);font-variant-numeric:tabular-nums;font-weight:650}.KyZuPW_rangeControl{grid-template-rows:30px 16px;grid-template-columns:28px minmax(0,1fr) 28px;align-items:center;column-gap:9px;display:grid}.KyZuPW_stepButton{appearance:none;border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-xs);width:28px;height:28px;color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-lg);line-height:var(--lx-leading-lg);cursor:pointer;background:0 0;padding:0}.KyZuPW_stepButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}.KyZuPW_stepButton:disabled{cursor:default;opacity:.35}.KyZuPW_rangeInput{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-border-strongest) 0 var(--range-low), var(--lx-accent) var(--range-low) var(--range-high), var(--lx-border-strongest) var(--range-high) 100%);cursor:pointer;width:100%;height:4px}.KyZuPW_rangeInput:disabled{cursor:default;opacity:.55}.KyZuPW_rangeInput::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}.KyZuPW_rangeInput::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}.KyZuPW_rangeInput::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}.KyZuPW_rangeInput::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}.KyZuPW_rangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-2xs);grid-column:2;justify-content:space-between;display:flex;position:relative}.KyZuPW_rangeZero{position:absolute;transform:translate(-50%)}.KyZuPW_chartRegion{min-width:0}.KyZuPW_chart{width:100%;height:auto;display:block;overflow:visible}.KyZuPW_plotFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-strong);stroke-width:1px;vector-effect:non-scaling-stroke}.KyZuPW_gridLine{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.KyZuPW_zeroAxis{stroke:var(--lx-border-strongest);stroke-width:1.25px}.KyZuPW_tickLabel{fill:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}.KyZuPW_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:500}.KyZuPW_curve{fill:none;stroke:var(--lx-accent);stroke-width:3px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}.KyZuPW_curve[data-curve=\"1\"]{stroke:var(--lx-success);stroke-dasharray:9 5}.KyZuPW_curve[data-curve=\"2\"]{stroke:var(--lx-warn);stroke-dasharray:2 6}.KyZuPW_legend{gap:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);flex-wrap:wrap;margin:0 0 5px 64px;padding:0;list-style:none;display:flex}.KyZuPW_legend li:before{content:\"\";border-top:3px solid var(--lx-accent);vertical-align:middle;width:18px;height:0;margin-right:5px;display:inline-block}.KyZuPW_legend li[data-curve=\"1\"]:before{border-top-color:var(--lx-success);border-top-style:dashed}.KyZuPW_legend li[data-curve=\"2\"]:before{border-top-color:var(--lx-warn);border-top-style:dotted}.KyZuPW_answerField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}.KyZuPW_answerField textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0;border-radius:0;line-height:1.5}.KyZuPW_primaryRow,.KyZuPW_navigation{gap:var(--lx-space-sm);display:flex}.KyZuPW_primaryRow{justify-content:flex-start}.KyZuPW_navigation{justify-content:space-between}.KyZuPW_primaryButton,.KyZuPW_ghostButton,.KyZuPW_revealButton,.KyZuPW_textButton{min-height:var(--lx-control-height-md);appearance:none;border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-md);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;transition:background var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);justify-content:center;align-items:center;display:inline-flex}.KyZuPW_primaryButton:hover:not(:disabled),.KyZuPW_revealButton:hover:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 88%, var(--lx-label-primary))}.KyZuPW_ghostButton:hover:not(:disabled),.KyZuPW_textButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}.KyZuPW_primaryButton,.KyZuPW_revealButton{border:1px solid var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent,white)}.KyZuPW_ghostButton{border:1px solid var(--lx-border-default);color:var(--lx-label-secondary);background:0 0}.KyZuPW_textButton{color:var(--lx-label-tertiary);background:0 0;border:1px solid #0000}.KyZuPW_primaryButton:disabled,.KyZuPW_ghostButton:disabled,.KyZuPW_revealButton:disabled,.KyZuPW_textButton:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}.KyZuPW_stepMeta{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);justify-content:space-between;align-items:center;display:flex}.KyZuPW_processMap{grid-template-columns:repeat(var(--process-step-count), minmax(0, 1fr));margin:0;padding:0;list-style:none;display:grid}.KyZuPW_processStep{min-width:0;position:relative}.KyZuPW_processStep:not(:last-child):after{z-index:0;background:var(--lx-border-default);content:\"\";height:2px;position:absolute;top:13px;left:calc(50% + 16px);right:calc(16px - 50%)}.KyZuPW_processStep[data-connector-complete]:after{background:var(--lx-accent)}.KyZuPW_processStepButton{z-index:1;align-items:center;gap:var(--lx-space-xs);width:100%;min-width:0;padding:0 var(--lx-space-2xs);color:var(--lx-label-tertiary);text-align:center;font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;background:0 0;border:0;flex-direction:column;display:flex;position:relative}.KyZuPW_processStepButton:disabled{cursor:default}.KyZuPW_processNode{box-sizing:border-box;border:1px solid var(--lx-border-strongest);border-radius:var(--lx-radius-circle);background:var(--lx-surface-base);width:28px;height:28px;color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);font-variant-numeric:tabular-nums;place-items:center;line-height:1;display:grid}.KyZuPW_processTitle{-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;display:-webkit-box;overflow:hidden}.KyZuPW_processStep[data-state=current] .KyZuPW_processNode{border-color:var(--lx-accent);background:var(--lx-accent-soft);color:var(--lx-accent)}.KyZuPW_processStep[data-state=current] .KyZuPW_processTitle{color:var(--lx-label-primary);font-weight:500}.KyZuPW_processStep[data-state=complete] .KyZuPW_processNode{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-inverted)}.KyZuPW_processStep[data-state=complete] .KyZuPW_processTitle{color:var(--lx-label-secondary)}.KyZuPW_processMapVertical{grid-template-columns:1fr}.KyZuPW_processMapVertical .KyZuPW_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}.KyZuPW_processMapVertical .KyZuPW_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}.KyZuPW_processMapVertical .KyZuPW_processNode{flex:none}.KyZuPW_processMapVertical .KyZuPW_processTitle{-webkit-line-clamp:3;padding-top:4px}.KyZuPW_stepFocus{gap:var(--lx-space-lg);border-left:2px solid var(--lx-accent);padding-left:16px}.KyZuPW_stepFocus h3,.KyZuPW_prediction p{margin:0}.KyZuPW_stepFocus h3{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:500;line-height:var(--lx-leading-md)}.KyZuPW_stepFocus>.KyZuPW_revealButton{align-self:flex-start}.KyZuPW_prediction{gap:var(--lx-space-md);border:0;margin:0;padding:0}.KyZuPW_prediction legend{color:var(--lx-accent);font-size:var(--lx-text-xs);margin-bottom:8px;font-weight:500}.KyZuPW_prediction textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0}.KyZuPW_predictionOptions{grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0 18px;display:grid}.KyZuPW_option{gap:var(--lx-space-sm);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);cursor:pointer;align-items:flex-start;display:flex}.KyZuPW_option[data-selected]{color:var(--lx-label-primary)}.KyZuPW_option input{accent-color:var(--lx-accent);margin-top:3px}.KyZuPW_revealed{color:var(--lx-label-secondary);line-height:1.6}.KyZuPW_compareHeader,.KyZuPW_compareRow{grid-template-columns:minmax(0,1fr) minmax(16px,36px) 24px minmax(16px,36px) minmax(0,1fr);align-items:center;display:grid}.KyZuPW_compareHeader{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);padding-bottom:4px}.KyZuPW_compareHeader strong{min-width:0;font-weight:500}.KyZuPW_compareHeader strong[data-side=left]{text-align:right;grid-column:1}.KyZuPW_compareHeader strong[data-side=right]{text-align:left;grid-column:5}.KyZuPW_compareHeaderLink{color:var(--lx-label-tertiary);text-align:center;grid-column:3}.KyZuPW_compareRows{min-width:0}.KyZuPW_compareRow{min-width:0;padding:var(--lx-space-lg) 0;cursor:pointer;background:0 0;position:relative}.KyZuPW_compareRow+.KyZuPW_compareRow{border-top:1px solid var(--lx-border-default)}.KyZuPW_compareLine{background:var(--lx-border-strong);height:1px}.KyZuPW_compareRow[data-selected] .KyZuPW_compareLine{background:var(--lx-accent);height:2px}.KyZuPW_compareSelector{place-items:center;display:grid}.KyZuPW_compareSelector input{width:16px;height:16px;accent-color:var(--lx-accent);margin:0}.KyZuPW_compareItem{min-width:0;padding:0 var(--lx-space-xs);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:1.5}.KyZuPW_compareItem[data-side=left]{text-align:right}.KyZuPW_compareItem[data-side=right]{text-align:left}.KyZuPW_compareItem strong{font-weight:500}.KyZuPW_compareRow[data-selected] .KyZuPW_compareItem strong{color:var(--lx-accent)}.KyZuPW_compareItem p{color:var(--lx-label-tertiary);margin:4px 0 0}.KyZuPW_emptyCell{padding:0 var(--lx-space-xs);color:var(--lx-label-tertiary)}.KyZuPW_emptyCell[data-side=left]{text-align:right}.KyZuPW_emptyCell[data-side=right]{text-align:left}.KyZuPW_rowPrompt{max-width:80%;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);text-align:center;grid-column:1/6;justify-self:center;margin-top:6px}.KyZuPW_inlineStatus{align-items:center;gap:var(--lx-space-sm);width:max-content;max-width:100%;color:var(--lx-label-tertiary);text-align:left;font:inherit;font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);background:0 0;border:0;margin:0;padding:0;display:flex}.KyZuPW_runningDot{border-radius:var(--lx-radius-circle);background:var(--lx-accent);flex:none;width:6px;height:6px;animation:1.2s ease-in-out infinite KyZuPW_pulse}.KyZuPW_skeletonLine{border-radius:var(--lx-radius-pill);background:var(--lx-border-default);width:64px;height:6px;animation:1.2s ease-in-out infinite KyZuPW_skeletonPulse}.KyZuPW_inlineResult{align-items:baseline;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex-wrap:wrap;margin:0;display:flex}.KyZuPW_inlineFallback{gap:var(--lx-space-xs);border-left:2px solid var(--lx-danger);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 6%, transparent);flex-direction:column;display:flex}.KyZuPW_fallbackReason{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0}.KyZuPW_fallbackText{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}.KyZuPW_resultMark{color:var(--lx-success)}.KyZuPW_errorMark{color:var(--lx-label-error)}.KyZuPW_resultEvidence{color:var(--lx-label-secondary);font-variant-numeric:tabular-nums}.KyZuPW_resultAnswer{color:var(--lx-label-tertiary)}.KyZuPW_legacyReveal{gap:var(--lx-space-2xs);color:var(--lx-label-secondary);font-size:var(--lx-text-base);line-height:var(--lx-leading-md);display:grid}.KyZuPW_legacyReveal strong{color:var(--lx-label-primary);font-weight:550}.KyZuPW_srOnly{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}.KyZuPW_checkpoint{gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-lg);flex-direction:column;display:flex;container:KyZuPW_learning-checkpoint/inline-size}.KyZuPW_checkpointHeader,.KyZuPW_checkpointForm,.KyZuPW_checkpointField{flex-direction:column;min-width:0;display:flex}.KyZuPW_checkpointHeader{gap:var(--lx-space-xs)}.KyZuPW_checkpointForm{gap:var(--lx-space-md)}.KyZuPW_checkpointField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}.KyZuPW_checkpointEyebrow{border-radius:var(--lx-radius-pill);width:max-content;padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-accent-soft);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-xs)}.KyZuPW_checkpointHeader h2{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}.KyZuPW_checkpointHeader p{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}.KyZuPW_checkpointInput{box-sizing:border-box;resize:vertical;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-primary);font:inherit;background:0 0;line-height:1.5}.KyZuPW_checkpointCode{font-family:var(--lx-font-mono)}.KyZuPW_checkpointChoices{gap:var(--lx-space-xs);border:0;margin:0;padding:0;display:grid}.KyZuPW_checkpointChoices legend{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);margin-bottom:3px;padding:0}.KyZuPW_checkpointOption{align-items:flex-start;gap:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);cursor:pointer;display:flex}.KyZuPW_checkpointOption input{accent-color:var(--lx-accent);margin:4px 0 0}.KyZuPW_checkpointActions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}@container KyZuPW_learning-checkpoint (width<=340px){.KyZuPW_checkpointActions>button{flex:auto}.KyZuPW_checkpointActions>.KyZuPW_textButton{flex-basis:100%}}.KyZuPW_checkpointHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);margin:0}.KyZuPW_learningVisual{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;margin:4px 0 10px;display:flex}.KyZuPW_visualDescription,.KyZuPW_visualTextFallback{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}.KyZuPW_visualControls{gap:var(--lx-space-lg) 28px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));display:grid}.KyZuPW_visualRange{gap:var(--lx-space-3xs);cursor:pointer;grid-template-rows:auto 18px 14px;min-width:0;display:grid}.KyZuPW_visualRangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);display:flex}.KyZuPW_visualRangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-sm);font-variant-numeric:tabular-nums;font-weight:600}.KyZuPW_visualRange input{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-accent) 0 var(--visual-range-progress), var(--lx-border-default) var(--visual-range-progress) 100%);cursor:pointer;align-self:center;width:100%;height:4px}.KyZuPW_visualRange input::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}.KyZuPW_visualRange input::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}.KyZuPW_visualRange input::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}.KyZuPW_visualRange input::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}.KyZuPW_visualRangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-micro);justify-content:space-between;display:flex}.KyZuPW_visualMetrics{gap:var(--lx-space-sm) var(--lx-space-2xl);color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);flex-wrap:wrap;display:flex}.KyZuPW_visualMetrics>span{align-items:baseline;gap:var(--lx-space-sm);display:inline-flex}.KyZuPW_visualMetrics output{color:var(--lx-accent);font-variant-numeric:tabular-nums;font-weight:550}.KyZuPW_visualChartRegion{min-width:0}.KyZuPW_visualLegend{gap:var(--lx-space-sm) var(--lx-space-xl);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);flex-wrap:wrap;margin:3px 0 0 64px;padding:0;list-style:none;display:flex}.KyZuPW_visualLegend li{--visual-tone:var(--lx-accent);align-items:center;gap:var(--lx-space-xs);display:inline-flex}.KyZuPW_visualLegend li>span{border-top:2.5px solid var(--visual-tone);width:18px;height:0;display:inline-block}.KyZuPW_visualLegend li[data-series-type=points]>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);border:0;width:8px;height:8px}.KyZuPW_visualLegend li[data-stroke=dashed]>span{border-top-style:dashed}.KyZuPW_visualLegend li[data-stroke=dotted]>span{border-top-style:dotted}.KyZuPW_visualChart{width:100%;height:auto;display:block;overflow:visible}.KyZuPW_visualPlot{fill:var(--lx-surface-card);stroke:var(--lx-border-default);stroke-width:1px;vector-effect:non-scaling-stroke}.KyZuPW_visualGrid{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.KyZuPW_visualTick{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.KyZuPW_visualAxisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs)}.KyZuPW_visualCurve{--visual-tone:var(--lx-accent);fill:none;stroke:var(--visual-tone);stroke-width:2.5px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}.KyZuPW_visualCurve[data-stroke=dashed]{stroke-dasharray:8 5}.KyZuPW_visualCurve[data-stroke=dotted]{stroke-dasharray:2 5}.KyZuPW_visualPoint{--visual-tone:var(--lx-accent);fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;vector-effect:non-scaling-stroke}.KyZuPW_round{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;display:flex}.KyZuPW_roundHeader{gap:var(--lx-space-2xs);flex-direction:column;display:flex}.KyZuPW_roundHeader span{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}.KyZuPW_roundHeader h2,.KyZuPW_roundProcess h3,.KyZuPW_roundStructure h3,.KyZuPW_roundFeedback p{margin:0}.KyZuPW_roundHeader h2{font-size:var(--lx-text-lg);font-weight:500;line-height:var(--lx-leading-lg)}.KyZuPW_roundProcess{gap:var(--lx-space-md);border-left:2px solid var(--lx-accent);padding:var(--lx-space-md) 0 var(--lx-space-md) var(--lx-space-lg);grid-template-columns:30px minmax(0,1fr);display:grid}.KyZuPW_roundNode{border:1px solid var(--lx-accent);border-radius:var(--lx-radius-circle);width:28px;height:28px;color:var(--lx-accent);font-size:var(--lx-text-xs);place-items:center;display:grid}.KyZuPW_roundProcess[data-final] .KyZuPW_roundNode{background:var(--lx-accent);color:var(--lx-label-inverted)}.KyZuPW_roundParameter,.KyZuPW_roundParameterValues,.KyZuPW_roundCurveList{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.KyZuPW_roundParameter{flex-direction:column}.KyZuPW_roundParameterValues span,.KyZuPW_roundCurveList span{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}.KyZuPW_roundStructure{gap:var(--lx-space-sm) var(--lx-space-lg);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}.KyZuPW_roundStructure h3{font-size:var(--lx-text-sm);font-weight:500}.KyZuPW_roundAlignment{gap:var(--lx-space-sm);border-top:1px solid var(--lx-border-default);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);cursor:pointer;grid-column:1/3;grid-template-columns:20px 1fr 1fr;display:grid}.KyZuPW_roundAlignment input{accent-color:var(--lx-accent);margin-top:3px}.KyZuPW_roundAlignment small{color:var(--lx-label-tertiary);grid-column:2/4}.KyZuPW_roundAlignment[data-selected]{color:var(--lx-accent)}.KyZuPW_roundFeedback{gap:var(--lx-space-sm);color:var(--lx-label-secondary);display:grid}.KyZuPW_completedRound{min-width:0}.KyZuPW_revealTransition{animation:.7s both KyZuPW_revealCurrentFrame}.KyZuPW_round[data-round-state=completed] .KyZuPW_revealTransition,.KyZuPW_round[data-round-state=ready_to_continue] .KyZuPW_revealTransition,.KyZuPW_round[data-round-state=ack_submitting] .KyZuPW_revealTransition{animation:none}@keyframes KyZuPW_revealCurrentFrame{0%{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes KyZuPW_pulse{0%,to{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}@keyframes KyZuPW_skeletonPulse{0%,to{opacity:.35}50%{opacity:.75}}@media (width<=560px){.KyZuPW_processMap{grid-template-columns:1fr}.KyZuPW_processMap .KyZuPW_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}.KyZuPW_processMap .KyZuPW_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}.KyZuPW_processMap .KyZuPW_processNode{flex:none}.KyZuPW_processMap .KyZuPW_processTitle{-webkit-line-clamp:3;padding-top:4px}.KyZuPW_compareHeader,.KyZuPW_compareRow{grid-template-columns:minmax(0,1fr) 12px 22px 12px minmax(0,1fr)}.KyZuPW_rowPrompt{max-width:100%}}@media (width<=420px){.KyZuPW_legend{margin-left:56px}.KyZuPW_visualLegend{margin-left:54px}.KyZuPW_stepFocus{padding-left:12px}}@media (prefers-reduced-motion:reduce){.KyZuPW_runningDot,.KyZuPW_skeletonLine,.KyZuPW_revealTransition{animation:none}}";
-		const tagId$14 = "@dsh-portable/interactive-learning/LearningActivity.module.css";
+		const css$15 = "._7ar4Xq_inlineActivity{gap:var(--lx-space-xl);min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);flex-direction:column;line-height:28px;display:flex}._7ar4Xq_scaffold{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);align-self:flex-start}._7ar4Xq_scaffold summary{cursor:pointer}._7ar4Xq_activityActions{align-items:center;gap:var(--lx-space-lg);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);margin-top:-6px;display:flex}._7ar4Xq_error{color:var(--lx-label-error);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_activityContent,._7ar4Xq_controls,._7ar4Xq_answerField,._7ar4Xq_stepFocus,._7ar4Xq_prediction{flex-direction:column;display:flex}._7ar4Xq_activityContent{gap:var(--lx-space-xl)}._7ar4Xq_prompt{color:var(--lx-label-primary);font-size:var(--lx-text-md);margin:0;font-weight:400;line-height:28px}._7ar4Xq_explorer{gap:var(--lx-space-xl);flex-direction:column;min-width:0;display:flex}._7ar4Xq_controls{gap:var(--lx-space-lg) var(--lx-space-3xl);grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));display:grid}._7ar4Xq_rangeField{min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_rangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);margin-bottom:6px;display:flex}._7ar4Xq_rangeHeader label{color:var(--lx-label-primary);font-weight:500}._7ar4Xq_rangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-base);font-variant-numeric:tabular-nums;font-weight:650}._7ar4Xq_rangeControl{grid-template-rows:30px 16px;grid-template-columns:28px minmax(0,1fr) 28px;align-items:center;column-gap:9px;display:grid}._7ar4Xq_stepButton{appearance:none;border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-xs);width:28px;height:28px;color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-lg);line-height:var(--lx-leading-lg);cursor:pointer;background:0 0;padding:0}._7ar4Xq_stepButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._7ar4Xq_stepButton:disabled{cursor:default;opacity:.35}._7ar4Xq_rangeInput{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-border-strongest) 0 var(--range-low), var(--lx-accent) var(--range-low) var(--range-high), var(--lx-border-strongest) var(--range-high) 100%);cursor:pointer;width:100%;height:4px}._7ar4Xq_rangeInput:disabled{cursor:default;opacity:.55}._7ar4Xq_rangeInput::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_rangeInput::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}._7ar4Xq_rangeInput::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_rangeInput::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}._7ar4Xq_rangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-2xs);grid-column:2;justify-content:space-between;display:flex;position:relative}._7ar4Xq_rangeZero{position:absolute;transform:translate(-50%)}._7ar4Xq_chartRegion{min-width:0}._7ar4Xq_chart{width:100%;height:auto;display:block;overflow:visible}._7ar4Xq_plotFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-strong);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_gridLine{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_zeroAxis{stroke:var(--lx-border-strongest);stroke-width:1.25px}._7ar4Xq_tickLabel{fill:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._7ar4Xq_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:500}._7ar4Xq_curve{fill:none;stroke:var(--lx-accent);stroke-width:3px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}._7ar4Xq_curve[data-curve=\"1\"]{stroke:var(--lx-success);stroke-dasharray:9 5}._7ar4Xq_curve[data-curve=\"2\"]{stroke:var(--lx-warn);stroke-dasharray:2 6}._7ar4Xq_legend{gap:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);flex-wrap:wrap;margin:0 0 5px 64px;padding:0;list-style:none;display:flex}._7ar4Xq_legend li:before{content:\"\";border-top:3px solid var(--lx-accent);vertical-align:middle;width:18px;height:0;margin-right:5px;display:inline-block}._7ar4Xq_legend li[data-curve=\"1\"]:before{border-top-color:var(--lx-success);border-top-style:dashed}._7ar4Xq_legend li[data-curve=\"2\"]:before{border-top-color:var(--lx-warn);border-top-style:dotted}._7ar4Xq_answerField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_answerField textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0;border-radius:0;line-height:1.5}._7ar4Xq_primaryRow,._7ar4Xq_navigation{gap:var(--lx-space-sm);display:flex}._7ar4Xq_primaryRow{justify-content:flex-start}._7ar4Xq_navigation{justify-content:space-between}._7ar4Xq_primaryButton,._7ar4Xq_ghostButton,._7ar4Xq_revealButton,._7ar4Xq_textButton{min-height:var(--lx-control-height-md);appearance:none;border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-md);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;transition:background var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);justify-content:center;align-items:center;display:inline-flex}._7ar4Xq_primaryButton:hover:not(:disabled),._7ar4Xq_revealButton:hover:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 88%, var(--lx-label-primary))}._7ar4Xq_ghostButton:hover:not(:disabled),._7ar4Xq_textButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._7ar4Xq_primaryButton,._7ar4Xq_revealButton{border:1px solid var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent,white)}._7ar4Xq_ghostButton{border:1px solid var(--lx-border-default);color:var(--lx-label-secondary);background:0 0}._7ar4Xq_textButton{color:var(--lx-label-tertiary);background:0 0;border:1px solid #0000}._7ar4Xq_primaryButton:disabled,._7ar4Xq_ghostButton:disabled,._7ar4Xq_revealButton:disabled,._7ar4Xq_textButton:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._7ar4Xq_stepMeta{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);justify-content:space-between;align-items:center;display:flex}._7ar4Xq_processMap{grid-template-columns:repeat(var(--process-step-count), minmax(0, 1fr));margin:0;padding:0;list-style:none;display:grid}._7ar4Xq_processStep{min-width:0;position:relative}._7ar4Xq_processStep:not(:last-child):after{z-index:0;background:var(--lx-border-default);content:\"\";height:2px;position:absolute;top:13px;left:calc(50% + 16px);right:calc(16px - 50%)}._7ar4Xq_processStep[data-connector-complete]:after{background:var(--lx-accent)}._7ar4Xq_processStepButton{z-index:1;align-items:center;gap:var(--lx-space-xs);width:100%;min-width:0;padding:0 var(--lx-space-2xs);color:var(--lx-label-tertiary);text-align:center;font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;background:0 0;border:0;flex-direction:column;display:flex;position:relative}._7ar4Xq_processStepButton:disabled{cursor:default}._7ar4Xq_processNode{box-sizing:border-box;border:1px solid var(--lx-border-strongest);border-radius:var(--lx-radius-circle);background:var(--lx-surface-base);width:28px;height:28px;color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);font-variant-numeric:tabular-nums;place-items:center;line-height:1;display:grid}._7ar4Xq_processTitle{-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;display:-webkit-box;overflow:hidden}._7ar4Xq_processStep[data-state=current] ._7ar4Xq_processNode{border-color:var(--lx-accent);background:var(--lx-accent-soft);color:var(--lx-accent)}._7ar4Xq_processStep[data-state=current] ._7ar4Xq_processTitle{color:var(--lx-label-primary);font-weight:500}._7ar4Xq_processStep[data-state=complete] ._7ar4Xq_processNode{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-inverted)}._7ar4Xq_processStep[data-state=complete] ._7ar4Xq_processTitle{color:var(--lx-label-secondary)}._7ar4Xq_processMapVertical{grid-template-columns:1fr}._7ar4Xq_processMapVertical ._7ar4Xq_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}._7ar4Xq_processMapVertical ._7ar4Xq_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}._7ar4Xq_processMapVertical ._7ar4Xq_processNode{flex:none}._7ar4Xq_processMapVertical ._7ar4Xq_processTitle{-webkit-line-clamp:3;padding-top:4px}._7ar4Xq_stepFocus{gap:var(--lx-space-lg);border-left:2px solid var(--lx-accent);padding-left:16px}._7ar4Xq_stepFocus h3,._7ar4Xq_prediction p{margin:0}._7ar4Xq_stepFocus h3{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:500;line-height:var(--lx-leading-md)}._7ar4Xq_stepFocus>._7ar4Xq_revealButton{align-self:flex-start}._7ar4Xq_prediction{gap:var(--lx-space-md);border:0;margin:0;padding:0}._7ar4Xq_prediction legend{color:var(--lx-accent);font-size:var(--lx-text-xs);margin-bottom:8px;font-weight:500}._7ar4Xq_prediction textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0}._7ar4Xq_predictionOptions{grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0 18px;display:grid}._7ar4Xq_option{gap:var(--lx-space-sm);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);cursor:pointer;align-items:flex-start;display:flex}._7ar4Xq_option[data-selected]{color:var(--lx-label-primary)}._7ar4Xq_option input{accent-color:var(--lx-accent);margin-top:3px}._7ar4Xq_revealed{color:var(--lx-label-secondary);line-height:1.6}._7ar4Xq_compareHeader,._7ar4Xq_compareRow{grid-template-columns:minmax(0,1fr) minmax(16px,36px) 24px minmax(16px,36px) minmax(0,1fr);align-items:center;display:grid}._7ar4Xq_compareHeader{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);padding-bottom:4px}._7ar4Xq_compareHeader strong{min-width:0;font-weight:500}._7ar4Xq_compareHeader strong[data-side=left]{text-align:right;grid-column:1}._7ar4Xq_compareHeader strong[data-side=right]{text-align:left;grid-column:5}._7ar4Xq_compareHeaderLink{color:var(--lx-label-tertiary);text-align:center;grid-column:3}._7ar4Xq_compareRows{min-width:0}._7ar4Xq_compareRow{min-width:0;padding:var(--lx-space-lg) 0;cursor:pointer;background:0 0;position:relative}._7ar4Xq_compareRow+._7ar4Xq_compareRow{border-top:1px solid var(--lx-border-default)}._7ar4Xq_compareLine{background:var(--lx-border-strong);height:1px}._7ar4Xq_compareRow[data-selected] ._7ar4Xq_compareLine{background:var(--lx-accent);height:2px}._7ar4Xq_compareSelector{place-items:center;display:grid}._7ar4Xq_compareSelector input{width:16px;height:16px;accent-color:var(--lx-accent);margin:0}._7ar4Xq_compareItem{min-width:0;padding:0 var(--lx-space-xs);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:1.5}._7ar4Xq_compareItem[data-side=left]{text-align:right}._7ar4Xq_compareItem[data-side=right]{text-align:left}._7ar4Xq_compareItem strong{font-weight:500}._7ar4Xq_compareRow[data-selected] ._7ar4Xq_compareItem strong{color:var(--lx-accent)}._7ar4Xq_compareItem p{color:var(--lx-label-tertiary);margin:4px 0 0}._7ar4Xq_emptyCell{padding:0 var(--lx-space-xs);color:var(--lx-label-tertiary)}._7ar4Xq_emptyCell[data-side=left]{text-align:right}._7ar4Xq_emptyCell[data-side=right]{text-align:left}._7ar4Xq_rowPrompt{max-width:80%;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);text-align:center;grid-column:1/6;justify-self:center;margin-top:6px}._7ar4Xq_inlineStatus{align-items:center;gap:var(--lx-space-sm);width:max-content;max-width:100%;color:var(--lx-label-tertiary);text-align:left;font:inherit;font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);background:0 0;border:0;margin:0;padding:0;display:flex}._7ar4Xq_runningDot{border-radius:var(--lx-radius-circle);background:var(--lx-accent);flex:none;width:6px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_pulse}._7ar4Xq_skeletonLine{border-radius:var(--lx-radius-pill);background:var(--lx-border-default);width:64px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_skeletonPulse}._7ar4Xq_inlineResult{align-items:baseline;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex-wrap:wrap;margin:0;display:flex}._7ar4Xq_inlineFallback{gap:var(--lx-space-xs);border-left:2px solid var(--lx-danger);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 6%, transparent);flex-direction:column;display:flex}._7ar4Xq_fallbackReason{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0}._7ar4Xq_fallbackText{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._7ar4Xq_resultMark{color:var(--lx-success)}._7ar4Xq_errorMark{color:var(--lx-label-error)}._7ar4Xq_resultEvidence{color:var(--lx-label-secondary);font-variant-numeric:tabular-nums}._7ar4Xq_resultAnswer{color:var(--lx-label-tertiary)}._7ar4Xq_legacyReveal{gap:var(--lx-space-2xs);color:var(--lx-label-secondary);font-size:var(--lx-text-base);line-height:var(--lx-leading-md);display:grid}._7ar4Xq_legacyReveal strong{color:var(--lx-label-primary);font-weight:550}._7ar4Xq_srOnly{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}._7ar4Xq_checkpoint{gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-lg);flex-direction:column;display:flex;container:_7ar4Xq_learning-checkpoint/inline-size}._7ar4Xq_checkpointHeader,._7ar4Xq_checkpointForm,._7ar4Xq_checkpointField{flex-direction:column;min-width:0;display:flex}._7ar4Xq_checkpointHeader{gap:var(--lx-space-xs)}._7ar4Xq_checkpointForm{gap:var(--lx-space-md)}._7ar4Xq_checkpointField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_checkpointEyebrow{border-radius:var(--lx-radius-pill);width:max-content;padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-accent-soft);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-xs)}._7ar4Xq_checkpointHeader h2{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._7ar4Xq_checkpointHeader p{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_checkpointInput{box-sizing:border-box;resize:vertical;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-primary);font:inherit;background:0 0;line-height:1.5}._7ar4Xq_checkpointCode{font-family:var(--lx-font-mono)}._7ar4Xq_checkpointChoices{gap:var(--lx-space-xs);border:0;margin:0;padding:0;display:grid}._7ar4Xq_checkpointChoices legend{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);margin-bottom:3px;padding:0}._7ar4Xq_checkpointOption{align-items:flex-start;gap:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);cursor:pointer;display:flex}._7ar4Xq_checkpointOption input{accent-color:var(--lx-accent);margin:4px 0 0}._7ar4Xq_checkpointActions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}@container _7ar4Xq_learning-checkpoint (width<=340px){._7ar4Xq_checkpointActions>button{flex:auto}._7ar4Xq_checkpointActions>._7ar4Xq_textButton{flex-basis:100%}}._7ar4Xq_checkpointHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);margin:0}._7ar4Xq_learningVisual{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;margin:4px 0 10px;display:flex}._7ar4Xq_visualDescription,._7ar4Xq_visualTextFallback{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_visualControls{gap:var(--lx-space-lg) 28px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));display:grid}._7ar4Xq_visualRange{gap:var(--lx-space-3xs);cursor:pointer;grid-template-rows:auto 18px 14px;min-width:0;display:grid}._7ar4Xq_visualRangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);display:flex}._7ar4Xq_visualRangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-sm);font-variant-numeric:tabular-nums;font-weight:600}._7ar4Xq_visualRange input{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-accent) 0 var(--visual-range-progress), var(--lx-border-default) var(--visual-range-progress) 100%);cursor:pointer;align-self:center;width:100%;height:4px}._7ar4Xq_visualRange input::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_visualRange input::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}._7ar4Xq_visualRange input::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_visualRange input::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}._7ar4Xq_visualRangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-micro);justify-content:space-between;display:flex}._7ar4Xq_visualMetrics{gap:var(--lx-space-sm) var(--lx-space-2xl);color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);flex-wrap:wrap;display:flex}._7ar4Xq_visualMetrics>span{align-items:baseline;gap:var(--lx-space-sm);display:inline-flex}._7ar4Xq_visualMetrics output{color:var(--lx-accent);font-variant-numeric:tabular-nums;font-weight:550}._7ar4Xq_visualChartRegion{min-width:0}._7ar4Xq_visualLegend{gap:var(--lx-space-sm) var(--lx-space-xl);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);flex-wrap:wrap;margin:3px 0 0 64px;padding:0;list-style:none;display:flex}._7ar4Xq_visualLegend li{--visual-tone:var(--lx-accent);align-items:center;gap:var(--lx-space-xs);display:inline-flex}._7ar4Xq_visualLegend li>span{border-top:2.5px solid var(--visual-tone);width:18px;height:0;display:inline-block}._7ar4Xq_visualLegend li[data-series-type=points]>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);border:0;width:8px;height:8px}._7ar4Xq_visualLegend li[data-stroke=dashed]>span{border-top-style:dashed}._7ar4Xq_visualLegend li[data-stroke=dotted]>span{border-top-style:dotted}._7ar4Xq_visualChart{width:100%;height:auto;display:block;overflow:visible}._7ar4Xq_visualPlot{fill:var(--lx-surface-card);stroke:var(--lx-border-default);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_visualGrid{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_visualTick{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._7ar4Xq_visualAxisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs)}._7ar4Xq_visualCurve{--visual-tone:var(--lx-accent);fill:none;stroke:var(--visual-tone);stroke-width:2.5px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}._7ar4Xq_visualCurve[data-stroke=dashed]{stroke-dasharray:8 5}._7ar4Xq_visualCurve[data-stroke=dotted]{stroke-dasharray:2 5}._7ar4Xq_visualPoint{--visual-tone:var(--lx-accent);fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;vector-effect:non-scaling-stroke}._7ar4Xq_round{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;display:flex}._7ar4Xq_roundHeader{gap:var(--lx-space-2xs);flex-direction:column;display:flex}._7ar4Xq_roundHeader span{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}._7ar4Xq_roundHeader h2,._7ar4Xq_roundProcess h3,._7ar4Xq_roundStructure h3,._7ar4Xq_roundFeedback p{margin:0}._7ar4Xq_roundHeader h2{font-size:var(--lx-text-lg);font-weight:500;line-height:var(--lx-leading-lg)}._7ar4Xq_roundProcess{gap:var(--lx-space-md);border-left:2px solid var(--lx-accent);padding:var(--lx-space-md) 0 var(--lx-space-md) var(--lx-space-lg);grid-template-columns:30px minmax(0,1fr);display:grid}._7ar4Xq_roundNode{border:1px solid var(--lx-accent);border-radius:var(--lx-radius-circle);width:28px;height:28px;color:var(--lx-accent);font-size:var(--lx-text-xs);place-items:center;display:grid}._7ar4Xq_roundProcess[data-final] ._7ar4Xq_roundNode{background:var(--lx-accent);color:var(--lx-label-inverted)}._7ar4Xq_roundParameter,._7ar4Xq_roundParameterValues,._7ar4Xq_roundCurveList{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._7ar4Xq_roundParameter{flex-direction:column}._7ar4Xq_roundParameterValues span,._7ar4Xq_roundCurveList span{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}._7ar4Xq_roundStructure{gap:var(--lx-space-sm) var(--lx-space-lg);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._7ar4Xq_roundStructure h3{font-size:var(--lx-text-sm);font-weight:500}._7ar4Xq_roundAlignment{gap:var(--lx-space-sm);border-top:1px solid var(--lx-border-default);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);cursor:pointer;grid-column:1/3;grid-template-columns:20px 1fr 1fr;display:grid}._7ar4Xq_roundAlignment input{accent-color:var(--lx-accent);margin-top:3px}._7ar4Xq_roundAlignment small{color:var(--lx-label-tertiary);grid-column:2/4}._7ar4Xq_roundAlignment[data-selected]{color:var(--lx-accent)}._7ar4Xq_roundFeedback{gap:var(--lx-space-sm);color:var(--lx-label-secondary);display:grid}._7ar4Xq_completedRound{min-width:0}._7ar4Xq_revealTransition{animation:.7s both _7ar4Xq_revealCurrentFrame}._7ar4Xq_round[data-round-state=completed] ._7ar4Xq_revealTransition,._7ar4Xq_round[data-round-state=ready_to_continue] ._7ar4Xq_revealTransition,._7ar4Xq_round[data-round-state=ack_submitting] ._7ar4Xq_revealTransition{animation:none}@keyframes _7ar4Xq_revealCurrentFrame{0%{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes _7ar4Xq_pulse{0%,to{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}@keyframes _7ar4Xq_skeletonPulse{0%,to{opacity:.35}50%{opacity:.75}}@media (width<=560px){._7ar4Xq_processMap{grid-template-columns:1fr}._7ar4Xq_processMap ._7ar4Xq_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}._7ar4Xq_processMap ._7ar4Xq_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}._7ar4Xq_processMap ._7ar4Xq_processNode{flex:none}._7ar4Xq_processMap ._7ar4Xq_processTitle{-webkit-line-clamp:3;padding-top:4px}._7ar4Xq_compareHeader,._7ar4Xq_compareRow{grid-template-columns:minmax(0,1fr) 12px 22px 12px minmax(0,1fr)}._7ar4Xq_rowPrompt{max-width:100%}}@media (width<=420px){._7ar4Xq_legend{margin-left:56px}._7ar4Xq_visualLegend{margin-left:54px}._7ar4Xq_stepFocus{padding-left:12px}}@media (prefers-reduced-motion:reduce){._7ar4Xq_runningDot,._7ar4Xq_skeletonLine,._7ar4Xq_revealTransition{animation:none}}";
+		const tagId$15 = "@dsh-portable/interactive-learning/LearningActivity.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$15) + "]") === null) {
+			const tag = document.createElement("style");
+			tag.dataset.plugin = "@dsh-portable/interactive-learning";
+			tag.dataset.pluginCss = tagId$15;
+			tag.textContent = css$15;
+			document.head.appendChild(tag);
+		}
+		var LearningActivity_module_css_default = {
+			"activityActions": "_7ar4Xq_activityActions",
+			"activityContent": "_7ar4Xq_activityContent",
+			"answerField": "_7ar4Xq_answerField",
+			"axisLabel": "_7ar4Xq_axisLabel",
+			"chart": "_7ar4Xq_chart",
+			"chartRegion": "_7ar4Xq_chartRegion",
+			"checkpoint": "_7ar4Xq_checkpoint",
+			"checkpointActions": "_7ar4Xq_checkpointActions",
+			"checkpointChoices": "_7ar4Xq_checkpointChoices",
+			"checkpointCode": "_7ar4Xq_checkpointCode",
+			"checkpointEyebrow": "_7ar4Xq_checkpointEyebrow",
+			"checkpointField": "_7ar4Xq_checkpointField",
+			"checkpointForm": "_7ar4Xq_checkpointForm",
+			"checkpointHeader": "_7ar4Xq_checkpointHeader",
+			"checkpointHint": "_7ar4Xq_checkpointHint",
+			"checkpointInput": "_7ar4Xq_checkpointInput",
+			"checkpointOption": "_7ar4Xq_checkpointOption",
+			"compareHeader": "_7ar4Xq_compareHeader",
+			"compareHeaderLink": "_7ar4Xq_compareHeaderLink",
+			"compareItem": "_7ar4Xq_compareItem",
+			"compareLine": "_7ar4Xq_compareLine",
+			"compareRow": "_7ar4Xq_compareRow",
+			"compareRows": "_7ar4Xq_compareRows",
+			"compareSelector": "_7ar4Xq_compareSelector",
+			"completedRound": "_7ar4Xq_completedRound",
+			"controls": "_7ar4Xq_controls",
+			"curve": "_7ar4Xq_curve",
+			"emptyCell": "_7ar4Xq_emptyCell",
+			"error": "_7ar4Xq_error",
+			"errorMark": "_7ar4Xq_errorMark",
+			"explorer": "_7ar4Xq_explorer",
+			"fallbackReason": "_7ar4Xq_fallbackReason",
+			"fallbackText": "_7ar4Xq_fallbackText",
+			"ghostButton": "_7ar4Xq_ghostButton",
+			"gridLine": "_7ar4Xq_gridLine",
+			"inlineActivity": "_7ar4Xq_inlineActivity",
+			"inlineFallback": "_7ar4Xq_inlineFallback",
+			"inlineResult": "_7ar4Xq_inlineResult",
+			"inlineStatus": "_7ar4Xq_inlineStatus",
+			"learning-checkpoint": "_7ar4Xq_learning-checkpoint",
+			"learningVisual": "_7ar4Xq_learningVisual",
+			"legacyReveal": "_7ar4Xq_legacyReveal",
+			"legend": "_7ar4Xq_legend",
+			"navigation": "_7ar4Xq_navigation",
+			"option": "_7ar4Xq_option",
+			"plotFrame": "_7ar4Xq_plotFrame",
+			"prediction": "_7ar4Xq_prediction",
+			"predictionOptions": "_7ar4Xq_predictionOptions",
+			"primaryButton": "_7ar4Xq_primaryButton",
+			"primaryRow": "_7ar4Xq_primaryRow",
+			"processMap": "_7ar4Xq_processMap",
+			"processMapVertical": "_7ar4Xq_processMapVertical",
+			"processNode": "_7ar4Xq_processNode",
+			"processStep": "_7ar4Xq_processStep",
+			"processStepButton": "_7ar4Xq_processStepButton",
+			"processTitle": "_7ar4Xq_processTitle",
+			"prompt": "_7ar4Xq_prompt",
+			"pulse": "_7ar4Xq_pulse",
+			"rangeControl": "_7ar4Xq_rangeControl",
+			"rangeEnds": "_7ar4Xq_rangeEnds",
+			"rangeField": "_7ar4Xq_rangeField",
+			"rangeHeader": "_7ar4Xq_rangeHeader",
+			"rangeInput": "_7ar4Xq_rangeInput",
+			"rangeZero": "_7ar4Xq_rangeZero",
+			"resultAnswer": "_7ar4Xq_resultAnswer",
+			"resultEvidence": "_7ar4Xq_resultEvidence",
+			"resultMark": "_7ar4Xq_resultMark",
+			"revealButton": "_7ar4Xq_revealButton",
+			"revealCurrentFrame": "_7ar4Xq_revealCurrentFrame",
+			"revealTransition": "_7ar4Xq_revealTransition",
+			"revealed": "_7ar4Xq_revealed",
+			"round": "_7ar4Xq_round",
+			"roundAlignment": "_7ar4Xq_roundAlignment",
+			"roundCurveList": "_7ar4Xq_roundCurveList",
+			"roundFeedback": "_7ar4Xq_roundFeedback",
+			"roundHeader": "_7ar4Xq_roundHeader",
+			"roundNode": "_7ar4Xq_roundNode",
+			"roundParameter": "_7ar4Xq_roundParameter",
+			"roundParameterValues": "_7ar4Xq_roundParameterValues",
+			"roundProcess": "_7ar4Xq_roundProcess",
+			"roundStructure": "_7ar4Xq_roundStructure",
+			"rowPrompt": "_7ar4Xq_rowPrompt",
+			"runningDot": "_7ar4Xq_runningDot",
+			"scaffold": "_7ar4Xq_scaffold",
+			"skeletonLine": "_7ar4Xq_skeletonLine",
+			"skeletonPulse": "_7ar4Xq_skeletonPulse",
+			"srOnly": "_7ar4Xq_srOnly",
+			"stepButton": "_7ar4Xq_stepButton",
+			"stepFocus": "_7ar4Xq_stepFocus",
+			"stepMeta": "_7ar4Xq_stepMeta",
+			"textButton": "_7ar4Xq_textButton",
+			"tickLabel": "_7ar4Xq_tickLabel",
+			"visualAxisLabel": "_7ar4Xq_visualAxisLabel",
+			"visualChart": "_7ar4Xq_visualChart",
+			"visualChartRegion": "_7ar4Xq_visualChartRegion",
+			"visualControls": "_7ar4Xq_visualControls",
+			"visualCurve": "_7ar4Xq_visualCurve",
+			"visualDescription": "_7ar4Xq_visualDescription",
+			"visualGrid": "_7ar4Xq_visualGrid",
+			"visualLegend": "_7ar4Xq_visualLegend",
+			"visualMetrics": "_7ar4Xq_visualMetrics",
+			"visualPlot": "_7ar4Xq_visualPlot",
+			"visualPoint": "_7ar4Xq_visualPoint",
+			"visualRange": "_7ar4Xq_visualRange",
+			"visualRangeEnds": "_7ar4Xq_visualRangeEnds",
+			"visualRangeHeader": "_7ar4Xq_visualRangeHeader",
+			"visualTextFallback": "_7ar4Xq_visualTextFallback",
+			"visualTick": "_7ar4Xq_visualTick",
+			"zeroAxis": "_7ar4Xq_zeroAxis"
+		};
+		//#endregion
+		//#region \0dsh-css:src/client/tokens.module.css.mjs
+		const css$14 = "[data-learning-scope]{--lx-text-micro:11px;--lx-leading-micro:16px;--lx-text-2xs:12px;--lx-leading-2xs:17px;--lx-text-xs:13px;--lx-leading-xs:20px;--lx-text-sm:14px;--lx-leading-sm:21px;--lx-text-base:15px;--lx-leading-base:23px;--lx-text-md:16px;--lx-leading-md:25px;--lx-text-lg:18px;--lx-leading-lg:27px;--lx-text-xl:clamp(18px, 4cqi, 22px);--lx-leading-xl:1.5;--lx-text-formula:clamp(16px, 3cqi, 20px);--lx-leading-formula:27px;--lx-weight-regular:400;--lx-weight-medium:550;--lx-weight-strong:650;--lx-tracking-eyebrow:.08em;--lx-font-mono:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Consolas, monospace);--lx-space-3xs:2px;--lx-space-2xs:4px;--lx-space-xs:6px;--lx-space-sm:8px;--lx-space-md:10px;--lx-space-lg:12px;--lx-space-xl:16px;--lx-space-2xl:20px;--lx-space-3xl:24px;--lx-radius-xs:6px;--lx-radius-sm:8px;--lx-radius-md:10px;--lx-radius-lg:12px;--lx-radius-xl:16px;--lx-radius-pill:999px;--lx-radius-circle:50%;--lx-host-bg:var(--dsw-alias-bg-layer-1,Canvas);--lx-host-label:var(--dsw-alias-label-primary,CanvasText);--lx-host-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--lx-host-accent-soft:var(--dsw-alias-state-business-tertiary,color-mix(in srgb, var(--lx-host-accent) 14%, transparent));--lx-surface-base:var(--lx-host-bg);--lx-surface-card:color-mix(in srgb, var(--lx-host-bg) 96%, transparent);--lx-surface-raised:color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);--lx-surface-sunken:color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));--lx-surface-accent:color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);--lx-border-subtle:var(--dsw-alias-border-l1,color-mix(in srgb, var(--lx-host-label) 12%, transparent));--lx-border-default:var(--dsw-alias-border-l2,color-mix(in srgb, var(--lx-host-label) 18%, transparent));--lx-border-strong:var(--dsw-alias-border-l3,color-mix(in srgb, var(--lx-host-label) 28%, transparent));--lx-border-strongest:var(--dsw-alias-border-l4,color-mix(in srgb, var(--lx-host-label) 38%, transparent));--lx-label-primary:var(--lx-host-label);--lx-label-secondary:var(--dsw-alias-label-secondary,color-mix(in srgb, var(--lx-host-label) 76%, transparent));--lx-label-tertiary:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--lx-label-on-accent:var(--dsw-alias-label-on-primary,white);--lx-accent:var(--lx-host-accent);--lx-accent-soft:var(--lx-host-accent-soft);--lx-success:var(--dsw-alias-state-success-primary,#2f9e5f);--lx-warn:var(--dsw-alias-state-warn-primary,#d1741f);--lx-danger:var(--dsw-alias-state-error-primary,#df4f4f);--lx-label-error:var(--dsw-alias-label-error,var(--lx-danger));--lx-label-inverted:var(--dsw-alias-label-primary-inverted,var(--lx-surface-base));--lx-card-border:1px solid var(--lx-border-default);--lx-card-radius:var(--lx-radius-xl);--lx-card-padding:clamp(16px, 2.8cqi, 22px);--lx-card-background:var(--lx-surface-card);--lx-shadow-sm:0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-md:0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-lg:0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);--lx-focus-color:var(--lx-accent);--lx-focus-width:2px;--lx-focus-offset:3px;--lx-control-height-sm:30px;--lx-control-height-md:34px;--lx-control-padding-sm:var(--lx-space-2xs) var(--lx-space-md);--lx-control-padding-md:var(--lx-space-xs) var(--lx-space-lg);--lx-control-disabled-opacity:.42;--lx-motion-fast:.14s;--lx-motion-base:.2s;--lx-easing:cubic-bezier(.16, 1, .3, 1);--lx-spring-easing:cubic-bezier(.16, 1, .3, 1);--lx-tone-blue:var(--lx-accent);--lx-tone-green:var(--lx-success);--lx-tone-red:var(--lx-danger);--lx-tone-orange:var(--lx-warn);--lx-tone-purple:color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger));--lx-tone-gray:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--visual-tone:var(--lx-tone-blue);--visual-tone-glow:color-mix(in srgb, var(--visual-tone) 24%, transparent);--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state]{--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state=current]{--lx-vs-alpha:1;--lx-vs-ring:1;--lx-vs-lift:1}[data-learning-scope] [data-visual-state=selected]{--lx-vs-alpha:1;--lx-vs-ring:1}[data-learning-scope] [data-visual-state=related]{--lx-vs-alpha:.92}[data-learning-scope] [data-visual-state=visited]{--lx-vs-alpha:.78}[data-learning-scope] [data-visual-state=context]{--lx-vs-alpha:.62}[data-learning-scope] [data-visual-state=inactive]{--lx-vs-alpha:.55}[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:.38;pointer-events:none}[data-learning-scope] [data-tone=blue]{--visual-tone:var(--lx-tone-blue)}[data-learning-scope] [data-tone=green]{--visual-tone:var(--lx-tone-green)}[data-learning-scope] [data-tone=red]{--visual-tone:var(--lx-tone-red)}[data-learning-scope] [data-tone=orange]{--visual-tone:var(--lx-tone-orange)}[data-learning-scope] [data-tone=purple]{--visual-tone:var(--lx-tone-purple)}[data-learning-scope] [data-tone=gray]{--visual-tone:var(--lx-tone-gray)}[data-learning-scope] :focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}@media (prefers-reduced-motion:reduce){[data-learning-scope]{--lx-motion-fast:0s;--lx-motion-base:0s}}@media (forced-colors:active){[data-learning-scope] [data-visual-state],[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:1}}";
+		const tagId$14 = "@dsh-portable/interactive-learning/tokens.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$14) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
 			tag.dataset.pluginCss = tagId$14;
 			tag.textContent = css$14;
-			document.head.appendChild(tag);
-		}
-		var LearningActivity_module_css_default = {
-			"activityActions": "KyZuPW_activityActions",
-			"activityContent": "KyZuPW_activityContent",
-			"answerField": "KyZuPW_answerField",
-			"axisLabel": "KyZuPW_axisLabel",
-			"chart": "KyZuPW_chart",
-			"chartRegion": "KyZuPW_chartRegion",
-			"checkpoint": "KyZuPW_checkpoint",
-			"checkpointActions": "KyZuPW_checkpointActions",
-			"checkpointChoices": "KyZuPW_checkpointChoices",
-			"checkpointCode": "KyZuPW_checkpointCode",
-			"checkpointEyebrow": "KyZuPW_checkpointEyebrow",
-			"checkpointField": "KyZuPW_checkpointField",
-			"checkpointForm": "KyZuPW_checkpointForm",
-			"checkpointHeader": "KyZuPW_checkpointHeader",
-			"checkpointHint": "KyZuPW_checkpointHint",
-			"checkpointInput": "KyZuPW_checkpointInput",
-			"checkpointOption": "KyZuPW_checkpointOption",
-			"compareHeader": "KyZuPW_compareHeader",
-			"compareHeaderLink": "KyZuPW_compareHeaderLink",
-			"compareItem": "KyZuPW_compareItem",
-			"compareLine": "KyZuPW_compareLine",
-			"compareRow": "KyZuPW_compareRow",
-			"compareRows": "KyZuPW_compareRows",
-			"compareSelector": "KyZuPW_compareSelector",
-			"completedRound": "KyZuPW_completedRound",
-			"controls": "KyZuPW_controls",
-			"curve": "KyZuPW_curve",
-			"emptyCell": "KyZuPW_emptyCell",
-			"error": "KyZuPW_error",
-			"errorMark": "KyZuPW_errorMark",
-			"explorer": "KyZuPW_explorer",
-			"fallbackReason": "KyZuPW_fallbackReason",
-			"fallbackText": "KyZuPW_fallbackText",
-			"ghostButton": "KyZuPW_ghostButton",
-			"gridLine": "KyZuPW_gridLine",
-			"inlineActivity": "KyZuPW_inlineActivity",
-			"inlineFallback": "KyZuPW_inlineFallback",
-			"inlineResult": "KyZuPW_inlineResult",
-			"inlineStatus": "KyZuPW_inlineStatus",
-			"learning-checkpoint": "KyZuPW_learning-checkpoint",
-			"learningVisual": "KyZuPW_learningVisual",
-			"legacyReveal": "KyZuPW_legacyReveal",
-			"legend": "KyZuPW_legend",
-			"navigation": "KyZuPW_navigation",
-			"option": "KyZuPW_option",
-			"plotFrame": "KyZuPW_plotFrame",
-			"prediction": "KyZuPW_prediction",
-			"predictionOptions": "KyZuPW_predictionOptions",
-			"primaryButton": "KyZuPW_primaryButton",
-			"primaryRow": "KyZuPW_primaryRow",
-			"processMap": "KyZuPW_processMap",
-			"processMapVertical": "KyZuPW_processMapVertical",
-			"processNode": "KyZuPW_processNode",
-			"processStep": "KyZuPW_processStep",
-			"processStepButton": "KyZuPW_processStepButton",
-			"processTitle": "KyZuPW_processTitle",
-			"prompt": "KyZuPW_prompt",
-			"pulse": "KyZuPW_pulse",
-			"rangeControl": "KyZuPW_rangeControl",
-			"rangeEnds": "KyZuPW_rangeEnds",
-			"rangeField": "KyZuPW_rangeField",
-			"rangeHeader": "KyZuPW_rangeHeader",
-			"rangeInput": "KyZuPW_rangeInput",
-			"rangeZero": "KyZuPW_rangeZero",
-			"resultAnswer": "KyZuPW_resultAnswer",
-			"resultEvidence": "KyZuPW_resultEvidence",
-			"resultMark": "KyZuPW_resultMark",
-			"revealButton": "KyZuPW_revealButton",
-			"revealCurrentFrame": "KyZuPW_revealCurrentFrame",
-			"revealTransition": "KyZuPW_revealTransition",
-			"revealed": "KyZuPW_revealed",
-			"round": "KyZuPW_round",
-			"roundAlignment": "KyZuPW_roundAlignment",
-			"roundCurveList": "KyZuPW_roundCurveList",
-			"roundFeedback": "KyZuPW_roundFeedback",
-			"roundHeader": "KyZuPW_roundHeader",
-			"roundNode": "KyZuPW_roundNode",
-			"roundParameter": "KyZuPW_roundParameter",
-			"roundParameterValues": "KyZuPW_roundParameterValues",
-			"roundProcess": "KyZuPW_roundProcess",
-			"roundStructure": "KyZuPW_roundStructure",
-			"rowPrompt": "KyZuPW_rowPrompt",
-			"runningDot": "KyZuPW_runningDot",
-			"scaffold": "KyZuPW_scaffold",
-			"skeletonLine": "KyZuPW_skeletonLine",
-			"skeletonPulse": "KyZuPW_skeletonPulse",
-			"srOnly": "KyZuPW_srOnly",
-			"stepButton": "KyZuPW_stepButton",
-			"stepFocus": "KyZuPW_stepFocus",
-			"stepMeta": "KyZuPW_stepMeta",
-			"textButton": "KyZuPW_textButton",
-			"tickLabel": "KyZuPW_tickLabel",
-			"visualAxisLabel": "KyZuPW_visualAxisLabel",
-			"visualChart": "KyZuPW_visualChart",
-			"visualChartRegion": "KyZuPW_visualChartRegion",
-			"visualControls": "KyZuPW_visualControls",
-			"visualCurve": "KyZuPW_visualCurve",
-			"visualDescription": "KyZuPW_visualDescription",
-			"visualGrid": "KyZuPW_visualGrid",
-			"visualLegend": "KyZuPW_visualLegend",
-			"visualMetrics": "KyZuPW_visualMetrics",
-			"visualPlot": "KyZuPW_visualPlot",
-			"visualPoint": "KyZuPW_visualPoint",
-			"visualRange": "KyZuPW_visualRange",
-			"visualRangeEnds": "KyZuPW_visualRangeEnds",
-			"visualRangeHeader": "KyZuPW_visualRangeHeader",
-			"visualTextFallback": "KyZuPW_visualTextFallback",
-			"visualTick": "KyZuPW_visualTick",
-			"zeroAxis": "KyZuPW_zeroAxis"
-		};
-		//#endregion
-		//#region \0dsh-css:src/client/tokens.module.css.mjs
-		const css$13 = "[data-learning-scope]{--lx-text-micro:11px;--lx-leading-micro:16px;--lx-text-2xs:12px;--lx-leading-2xs:17px;--lx-text-xs:13px;--lx-leading-xs:20px;--lx-text-sm:14px;--lx-leading-sm:21px;--lx-text-base:15px;--lx-leading-base:23px;--lx-text-md:16px;--lx-leading-md:25px;--lx-text-lg:18px;--lx-leading-lg:27px;--lx-text-xl:clamp(18px, 4cqi, 22px);--lx-leading-xl:1.5;--lx-text-formula:clamp(16px, 3cqi, 20px);--lx-leading-formula:27px;--lx-weight-regular:400;--lx-weight-medium:550;--lx-weight-strong:650;--lx-tracking-eyebrow:.08em;--lx-font-mono:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Consolas, monospace);--lx-space-3xs:2px;--lx-space-2xs:4px;--lx-space-xs:6px;--lx-space-sm:8px;--lx-space-md:10px;--lx-space-lg:12px;--lx-space-xl:16px;--lx-space-2xl:20px;--lx-space-3xl:24px;--lx-radius-xs:6px;--lx-radius-sm:8px;--lx-radius-md:10px;--lx-radius-lg:12px;--lx-radius-xl:16px;--lx-radius-pill:999px;--lx-radius-circle:50%;--lx-host-bg:var(--dsw-alias-bg-layer-1,Canvas);--lx-host-label:var(--dsw-alias-label-primary,CanvasText);--lx-host-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--lx-host-accent-soft:var(--dsw-alias-state-business-tertiary,color-mix(in srgb, var(--lx-host-accent) 14%, transparent));--lx-surface-base:var(--lx-host-bg);--lx-surface-card:color-mix(in srgb, var(--lx-host-bg) 96%, transparent);--lx-surface-raised:color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);--lx-surface-sunken:color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));--lx-surface-accent:color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);--lx-border-subtle:var(--dsw-alias-border-l1,color-mix(in srgb, var(--lx-host-label) 12%, transparent));--lx-border-default:var(--dsw-alias-border-l2,color-mix(in srgb, var(--lx-host-label) 18%, transparent));--lx-border-strong:var(--dsw-alias-border-l3,color-mix(in srgb, var(--lx-host-label) 28%, transparent));--lx-border-strongest:var(--dsw-alias-border-l4,color-mix(in srgb, var(--lx-host-label) 38%, transparent));--lx-label-primary:var(--lx-host-label);--lx-label-secondary:var(--dsw-alias-label-secondary,color-mix(in srgb, var(--lx-host-label) 76%, transparent));--lx-label-tertiary:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--lx-label-on-accent:var(--dsw-alias-label-on-primary,white);--lx-accent:var(--lx-host-accent);--lx-accent-soft:var(--lx-host-accent-soft);--lx-success:var(--dsw-alias-state-success-primary,#2f9e5f);--lx-warn:var(--dsw-alias-state-warn-primary,#d1741f);--lx-danger:var(--dsw-alias-state-error-primary,#df4f4f);--lx-label-error:var(--dsw-alias-label-error,var(--lx-danger));--lx-label-inverted:var(--dsw-alias-label-primary-inverted,var(--lx-surface-base));--lx-card-border:1px solid var(--lx-border-default);--lx-card-radius:var(--lx-radius-xl);--lx-card-padding:clamp(16px, 2.8cqi, 22px);--lx-card-background:var(--lx-surface-card);--lx-shadow-sm:0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-md:0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-lg:0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);--lx-focus-color:var(--lx-accent);--lx-focus-width:2px;--lx-focus-offset:3px;--lx-control-height-sm:30px;--lx-control-height-md:34px;--lx-control-padding-sm:var(--lx-space-2xs) var(--lx-space-md);--lx-control-padding-md:var(--lx-space-xs) var(--lx-space-lg);--lx-control-disabled-opacity:.42;--lx-motion-fast:.14s;--lx-motion-base:.2s;--lx-easing:cubic-bezier(.16, 1, .3, 1);--lx-spring-easing:cubic-bezier(.16, 1, .3, 1);--lx-tone-blue:var(--lx-accent);--lx-tone-green:var(--lx-success);--lx-tone-red:var(--lx-danger);--lx-tone-orange:var(--lx-warn);--lx-tone-purple:color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger));--lx-tone-gray:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--visual-tone:var(--lx-tone-blue);--visual-tone-glow:color-mix(in srgb, var(--visual-tone) 24%, transparent);--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state]{--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state=current]{--lx-vs-alpha:1;--lx-vs-ring:1;--lx-vs-lift:1}[data-learning-scope] [data-visual-state=selected]{--lx-vs-alpha:1;--lx-vs-ring:1}[data-learning-scope] [data-visual-state=related]{--lx-vs-alpha:.92}[data-learning-scope] [data-visual-state=visited]{--lx-vs-alpha:.78}[data-learning-scope] [data-visual-state=context]{--lx-vs-alpha:.62}[data-learning-scope] [data-visual-state=inactive]{--lx-vs-alpha:.55}[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:.38;pointer-events:none}[data-learning-scope] [data-tone=blue]{--visual-tone:var(--lx-tone-blue)}[data-learning-scope] [data-tone=green]{--visual-tone:var(--lx-tone-green)}[data-learning-scope] [data-tone=red]{--visual-tone:var(--lx-tone-red)}[data-learning-scope] [data-tone=orange]{--visual-tone:var(--lx-tone-orange)}[data-learning-scope] [data-tone=purple]{--visual-tone:var(--lx-tone-purple)}[data-learning-scope] [data-tone=gray]{--visual-tone:var(--lx-tone-gray)}[data-learning-scope] :focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}@media (prefers-reduced-motion:reduce){[data-learning-scope]{--lx-motion-fast:0s;--lx-motion-base:0s}}@media (forced-colors:active){[data-learning-scope] [data-visual-state],[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:1}}";
-		const tagId$13 = "@dsh-portable/interactive-learning/tokens.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$13) + "]") === null) {
-			const tag = document.createElement("style");
-			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$13;
-			tag.textContent = css$13;
 			document.head.appendChild(tag);
 		}
 		//#endregion
@@ -4520,15 +6641,17 @@ window.__ModuleLoader__.load({
 			} catch {}
 		}
 		/** A compact, answer-free gate for one learner contribution. */
-		function LearningCheckpoint({ checkpoint, storageKey, busy, error, onSubmit, onSkip, onCancel, t }) {
+		function LearningCheckpoint({ checkpoint, storageKey, busy, error, onSubmit, onSkip, onCancel, onDraftRecovery, t }) {
 			const headingId = (0, react.useId)();
 			const inputId = (0, react.useId)();
 			const contextId = (0, react.useId)();
 			const hintId = (0, react.useId)();
 			const [draft, setDraft] = (0, react.useState)(() => readDraft(storageKey));
 			(0, react.useEffect)(() => {
-				setDraft(readDraft(storageKey));
-			}, [storageKey]);
+				const restored = readDraft(storageKey);
+				setDraft(restored);
+				onDraftRecovery?.(restored !== "");
+			}, [onDraftRecovery, storageKey]);
 			(0, react.useEffect)(() => {
 				writeDraft(storageKey, draft);
 			}, [draft, storageKey]);
@@ -4700,8 +6823,12 @@ window.__ModuleLoader__.load({
 			const [busy, setBusy] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)(null);
 			const responseInFlight = (0, react.useRef)(null);
+			const checkpointDraftRecovered = (0, react.useRef)(false);
+			const noteCheckpointDraftRecovery = (0, react.useCallback)((value) => {
+				checkpointDraftRecovered.current = value;
+			}, []);
 			if (envelope === void 0) return null;
-			const send = (response) => {
+			const send = (response, checkpointMeta) => {
 				if (responseInFlight.current !== null) return responseInFlight.current;
 				const question = matched.payload.questions[0];
 				if (question === void 0) return Promise.resolve();
@@ -4715,7 +6842,10 @@ window.__ModuleLoader__.load({
 							answer: { answers: [{
 								id: question.id,
 								selected: [],
-								custom: JSON.stringify(response)
+								custom: JSON.stringify(checkpointMeta === void 0 ? response : {
+									checkpointResult: response,
+									clientMeta: checkpointMeta
+								})
 							}] }
 						}
 					});
@@ -4741,21 +6871,21 @@ window.__ModuleLoader__.load({
 						...common,
 						status: "submitted",
 						response
-					});
+					}, { draftRecovered: checkpointDraftRecovered.current });
 				};
 				const skip = async () => {
 					await send({
 						...common,
 						status: "skipped",
 						reason: "learner-skipped"
-					});
+					}, { draftRecovered: checkpointDraftRecovered.current });
 				};
 				const cancel = async () => {
 					await send({
 						...common,
 						status: "cancelled",
 						reason: "learner-cancelled"
-					});
+					}, { draftRecovered: checkpointDraftRecovered.current });
 				};
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningCheckpoint, {
 					checkpoint: envelope.checkpoint,
@@ -4765,13 +6895,14 @@ window.__ModuleLoader__.load({
 					onSubmit: submit,
 					onSkip: skip,
 					onCancel: cancel,
+					onDraftRecovery: noteCheckpointDraftRecovery,
 					t
 				});
 			}
 			if ("waitId" in envelope) {
 				const stableReceiptId = `receipt_${envelope.waitId}`;
 				const common = {
-					protocol: RESPONSE_PROTOCOL_V2,
+					protocol: RESPONSE_PROTOCOL_V2$1,
 					activityId: envelope.activityId,
 					lessonToken: envelope.lessonToken,
 					roundToken: envelope.roundToken,
@@ -4827,14 +6958,14 @@ window.__ModuleLoader__.load({
 				send(response).catch(() => {});
 			};
 			const submit = ({ answer, interactionState }) => respond({
-				protocol: RESPONSE_PROTOCOL,
+				protocol: RESPONSE_PROTOCOL$1,
 				activityId: envelope.activityId,
 				action: "submit",
 				answer,
 				interactionState
 			});
 			const skip = () => respond({
-				protocol: RESPONSE_PROTOCOL,
+				protocol: RESPONSE_PROTOCOL$1,
 				activityId: envelope.activityId,
 				action: "skip"
 			});
@@ -5315,39 +7446,39 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/shell.module.css.mjs
-		const css$12 = ".NIRgaG_visualShell{--visual-tone:var(--lx-accent);gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-md);transition:box-shadow var(--lx-motion-base) var(--lx-easing);flex-direction:column;display:flex;container:NIRgaG_learning-visual-v4/inline-size}.NIRgaG_visualHeader{gap:var(--lx-space-2xs) var(--lx-space-md);flex-wrap:wrap;align-items:baseline;min-width:0;display:flex}.NIRgaG_visualEyebrow{border:1px solid color-mix(in srgb, var(--lx-accent) 24%, transparent);border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--lx-accent-soft) 55%, transparent);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-micro);box-shadow:0 1px 2px color-mix(in srgb, var(--lx-accent) 12%, transparent);flex:none}.NIRgaG_visualHeader h3{min-width:0;font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);letter-spacing:-.01em;line-height:var(--lx-leading-lg);flex:12ch;margin:0}.NIRgaG_visualHeader p{margin:var(--lx-space-2xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex:100%}.NIRgaG_srOnly{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}.NIRgaG_errorFallback{gap:var(--lx-space-2xs);border-left:3px solid var(--lx-danger);padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 8%, transparent);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);display:grid}.NIRgaG_errorFallback strong{color:var(--lx-label-error)}.NIRgaG_errorFallback pre{max-height:240px;margin:var(--lx-space-xs) 0 0;white-space:pre-wrap;font:inherit;overflow:auto}.NIRgaG_emptyState{gap:var(--lx-space-2xs);border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-lg);padding:var(--lx-space-2xl) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);text-align:center;display:grid}.NIRgaG_control{min-height:var(--lx-control-height-sm);justify-content:center;align-items:center;gap:var(--lx-space-xs);appearance:none;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-sm);background:var(--lx-surface-base);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);display:inline-flex}.NIRgaG_control:hover:not(:disabled){border-color:var(--lx-border-strong);background:color-mix(in srgb, var(--lx-accent) 8%, var(--lx-surface-base));color:var(--lx-label-primary)}.NIRgaG_control:active:not(:disabled){border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 14%, var(--lx-surface-base))}.NIRgaG_control:disabled{border-color:var(--lx-border-subtle);color:var(--lx-label-tertiary);opacity:var(--lx-control-disabled-opacity);cursor:not-allowed}.NIRgaG_controlPrimary{min-height:var(--lx-control-height-md);border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent);font-weight:var(--lx-weight-medium)}.NIRgaG_controlPrimary:hover:not(:disabled){border-color:color-mix(in srgb, var(--lx-accent) 84%, var(--lx-label-primary));background:color-mix(in srgb, var(--lx-accent) 84%, var(--lx-label-primary));color:var(--lx-label-on-accent)}.NIRgaG_controlPrimary:active:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 72%, var(--lx-label-primary))}.NIRgaG_controlQuiet{color:var(--lx-label-secondary);background:0 0;border-color:#0000}.NIRgaG_controlQuiet:hover:not(:disabled){border-color:var(--lx-border-default);background:color-mix(in srgb, var(--lx-accent) 7%, transparent)}.NIRgaG_controlToned{border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary)}.NIRgaG_controlToned:hover:not(:disabled){border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.NIRgaG_controlRow{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.NIRgaG_closeButton{border-radius:var(--lx-radius-xs);width:28px;height:28px;min-height:28px;font-size:var(--lx-text-md);padding:0;line-height:1}.NIRgaG_sequence{gap:var(--lx-space-sm) var(--lx-space-lg);border:1px solid color-mix(in srgb, var(--lx-accent) 22%, var(--lx-border-default));border-radius:var(--lx-radius-lg);min-width:0;padding:var(--lx-space-md) var(--lx-space-lg);background:linear-gradient(135deg, color-mix(in srgb, var(--lx-accent-soft) 48%, transparent), color-mix(in srgb, var(--lx-surface-base) 80%, transparent));box-shadow:0 2px 8px -2px color-mix(in srgb, var(--lx-accent) 8%, transparent);grid-template-columns:minmax(0,1fr) auto;align-items:center;display:grid}.NIRgaG_sequenceText{gap:var(--lx-space-3xs) var(--lx-space-md);grid-template-columns:auto minmax(0,1fr);align-items:baseline;min-width:0;display:grid}.NIRgaG_sequenceText>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);letter-spacing:.04em}.NIRgaG_sequenceText strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm);overflow-wrap:anywhere}.NIRgaG_sequenceText p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.NIRgaG_sequenceActions{gap:var(--lx-space-xs);flex:none;display:flex}.NIRgaG_sequenceActions .NIRgaG_control{padding:var(--lx-control-padding-md)}.NIRgaG_sequenceRail{gap:var(--lx-space-2xs);flex-wrap:wrap;grid-column:1/-1;margin:0;padding:0;list-style:none;display:flex}.NIRgaG_sequenceRail button{appearance:none;border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-accent) 20%, var(--lx-border-default));cursor:pointer;width:100%;min-width:18px;height:6px;transition:background-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing);border:0;padding:0;display:block}.NIRgaG_sequenceRail li{flex:1 1 0;min-width:18px}.NIRgaG_sequenceRail button:hover{background:color-mix(in srgb, var(--lx-accent) 50%, transparent);transform:scaleY(1.2)}.NIRgaG_sequenceRail button[data-visual-state=visited]{background:color-mix(in srgb, var(--lx-accent) 64%, transparent)}.NIRgaG_sequenceRail button[data-visual-state=current]{background:var(--lx-accent);box-shadow:0 0 8px var(--lx-accent)}.NIRgaG_selectionSlot{min-height:var(--lx-control-height-md);align-content:center;display:grid}.NIRgaG_interactionHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}.NIRgaG_detailPanel{gap:var(--lx-space-3xs) var(--lx-space-sm);border:1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-left:3.5px solid var(--visual-tone);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm), 0 0 12px color-mix(in srgb, var(--visual-tone) 10%, transparent);transition:border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:auto minmax(0,1fr) 28px;align-items:baseline;display:grid}.NIRgaG_detailPanel>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xs);letter-spacing:.03em}.NIRgaG_detailPanel>strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow-wrap:anywhere}.NIRgaG_detailPanel>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/3}.NIRgaG_detailPanel>button{grid-area:1/3/3;align-self:start}.NIRgaG_rendererStack{gap:var(--lx-space-lg);flex-direction:column;min-width:0;display:flex}.NIRgaG_viewport{overscroll-behavior-inline:contain;border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-sunken);min-width:0;box-shadow:inset 0 1px 3px color-mix(in srgb, var(--lx-host-label) 3%, transparent);scrollbar-width:thin;position:relative;overflow-x:auto}.NIRgaG_viewport>svg{touch-action:pan-y;max-width:none;margin:0 auto;display:block;overflow:visible}.NIRgaG_stateLegend{gap:var(--lx-space-xs) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;margin:0;display:flex}.NIRgaG_stateLegend>span{align-items:center;gap:var(--lx-space-xs);display:inline-flex}.NIRgaG_stateLegend i{border-radius:var(--lx-radius-pill);background:var(--lx-label-tertiary);width:16px;height:3px;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing)}.NIRgaG_stateLegend>span[data-visual-state=current] i{background:var(--lx-accent);height:5px;box-shadow:0 0 6px var(--lx-accent)}@container NIRgaG_learning-visual-v4 (width<=560px){.NIRgaG_visualShell{gap:var(--lx-space-md);border-radius:var(--lx-radius-lg);padding:var(--lx-space-lg)}.NIRgaG_visualHeader h3{font-size:var(--lx-text-md);flex-basis:100%}.NIRgaG_sequence{grid-template-columns:minmax(0,1fr)}.NIRgaG_sequenceActions{justify-content:stretch}.NIRgaG_sequenceActions .NIRgaG_control{flex:1}.NIRgaG_sequenceActions .NIRgaG_control:last-child{flex:none}}@container NIRgaG_learning-visual-v4 (width<=360px){.NIRgaG_sequenceActions .NIRgaG_control>span:not([aria-hidden]){display:none}.NIRgaG_detailPanel{grid-template-columns:minmax(0,1fr) 28px}.NIRgaG_detailPanel>span,.NIRgaG_detailPanel>strong,.NIRgaG_detailPanel>p{grid-column:1}.NIRgaG_detailPanel>button{grid-column:2}}";
-		const tagId$12 = "@dsh-portable/interactive-learning/shell.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$12) + "]") === null) {
+		const css$13 = ".h8ir_G_visualShell{--visual-tone:var(--lx-accent);gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-md);transition:box-shadow var(--lx-motion-base) var(--lx-easing);flex-direction:column;display:flex;container:h8ir_G_learning-visual-v4/inline-size}.h8ir_G_visualHeader{gap:var(--lx-space-2xs) var(--lx-space-md);flex-wrap:wrap;align-items:baseline;min-width:0;display:flex}.h8ir_G_visualEyebrow{border:1px solid color-mix(in srgb, var(--lx-accent) 24%, transparent);border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--lx-accent-soft) 55%, transparent);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-micro);box-shadow:0 1px 2px color-mix(in srgb, var(--lx-accent) 12%, transparent);flex:none}.h8ir_G_visualHeader h3{min-width:0;font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);letter-spacing:-.01em;line-height:var(--lx-leading-lg);flex:12ch;margin:0}.h8ir_G_visualHeader p{margin:var(--lx-space-2xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex:100%}.h8ir_G_srOnly{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}.h8ir_G_errorFallback{gap:var(--lx-space-2xs);border-left:3px solid var(--lx-danger);padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 8%, transparent);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);display:grid}.h8ir_G_errorFallback strong{color:var(--lx-label-error)}.h8ir_G_errorFallback pre{max-height:240px;margin:var(--lx-space-xs) 0 0;white-space:pre-wrap;font:inherit;overflow:auto}.h8ir_G_emptyState{gap:var(--lx-space-2xs);border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-lg);padding:var(--lx-space-2xl) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);text-align:center;display:grid}.h8ir_G_control{min-height:var(--lx-control-height-sm);justify-content:center;align-items:center;gap:var(--lx-space-xs);appearance:none;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-sm);background:var(--lx-surface-base);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);display:inline-flex}.h8ir_G_control:hover:not(:disabled){border-color:var(--lx-border-strong);background:color-mix(in srgb, var(--lx-accent) 8%, var(--lx-surface-base));color:var(--lx-label-primary)}.h8ir_G_control:active:not(:disabled){border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 14%, var(--lx-surface-base))}.h8ir_G_control:disabled{border-color:var(--lx-border-subtle);color:var(--lx-label-tertiary);opacity:var(--lx-control-disabled-opacity);cursor:not-allowed}.h8ir_G_controlPrimary{min-height:var(--lx-control-height-md);border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent);font-weight:var(--lx-weight-medium)}.h8ir_G_controlPrimary:hover:not(:disabled){border-color:color-mix(in srgb, var(--lx-accent) 84%, var(--lx-label-primary));background:color-mix(in srgb, var(--lx-accent) 84%, var(--lx-label-primary));color:var(--lx-label-on-accent)}.h8ir_G_controlPrimary:active:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 72%, var(--lx-label-primary))}.h8ir_G_controlQuiet{color:var(--lx-label-secondary);background:0 0;border-color:#0000}.h8ir_G_controlQuiet:hover:not(:disabled){border-color:var(--lx-border-default);background:color-mix(in srgb, var(--lx-accent) 7%, transparent)}.h8ir_G_controlToned{border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary)}.h8ir_G_controlToned:hover:not(:disabled){border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.h8ir_G_controlRow{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.h8ir_G_closeButton{border-radius:var(--lx-radius-xs);width:28px;height:28px;min-height:28px;font-size:var(--lx-text-md);padding:0;line-height:1}.h8ir_G_sequence{gap:var(--lx-space-sm) var(--lx-space-lg);border:1px solid color-mix(in srgb, var(--lx-accent) 22%, var(--lx-border-default));border-radius:var(--lx-radius-lg);min-width:0;padding:var(--lx-space-md) var(--lx-space-lg);background:linear-gradient(135deg, color-mix(in srgb, var(--lx-accent-soft) 48%, transparent), color-mix(in srgb, var(--lx-surface-base) 80%, transparent));box-shadow:0 2px 8px -2px color-mix(in srgb, var(--lx-accent) 8%, transparent);grid-template-columns:minmax(0,1fr) auto;align-items:center;display:grid}.h8ir_G_sequenceText{gap:var(--lx-space-3xs) var(--lx-space-md);grid-template-columns:auto minmax(0,1fr);align-items:baseline;min-width:0;display:grid}.h8ir_G_sequenceText>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);letter-spacing:.04em}.h8ir_G_sequenceText strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm);overflow-wrap:anywhere}.h8ir_G_sequenceText p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.h8ir_G_sequenceActions{gap:var(--lx-space-xs);flex:none;display:flex}.h8ir_G_sequenceActions .h8ir_G_control{padding:var(--lx-control-padding-md)}.h8ir_G_sequenceRail{gap:var(--lx-space-2xs);flex-wrap:wrap;grid-column:1/-1;margin:0;padding:0;list-style:none;display:flex}.h8ir_G_sequenceRail button{appearance:none;border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-accent) 20%, var(--lx-border-default));cursor:pointer;width:100%;min-width:18px;height:6px;transition:background-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing);border:0;padding:0;display:block}.h8ir_G_sequenceRail li{flex:1 1 0;min-width:18px}.h8ir_G_sequenceRail button:hover{background:color-mix(in srgb, var(--lx-accent) 50%, transparent);transform:scaleY(1.2)}.h8ir_G_sequenceRail button[data-visual-state=visited]{background:color-mix(in srgb, var(--lx-accent) 64%, transparent)}.h8ir_G_sequenceRail button[data-visual-state=current]{background:var(--lx-accent);box-shadow:0 0 8px var(--lx-accent)}.h8ir_G_selectionSlot{min-height:var(--lx-control-height-md);align-content:center;display:grid}.h8ir_G_interactionHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}.h8ir_G_detailPanel{gap:var(--lx-space-3xs) var(--lx-space-sm);border:1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-left:3.5px solid var(--visual-tone);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm), 0 0 12px color-mix(in srgb, var(--visual-tone) 10%, transparent);transition:border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:auto minmax(0,1fr) 28px;align-items:baseline;display:grid}.h8ir_G_detailPanel>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xs);letter-spacing:.03em}.h8ir_G_detailPanel>strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow-wrap:anywhere}.h8ir_G_detailPanel>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/3}.h8ir_G_detailPanel>button{grid-area:1/3/3;align-self:start}.h8ir_G_rendererStack{gap:var(--lx-space-lg);flex-direction:column;min-width:0;display:flex}.h8ir_G_viewport{overscroll-behavior-inline:contain;border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-sunken);min-width:0;box-shadow:inset 0 1px 3px color-mix(in srgb, var(--lx-host-label) 3%, transparent);scrollbar-width:thin;position:relative;overflow-x:auto}.h8ir_G_viewport>svg{touch-action:pan-y;max-width:none;margin:0 auto;display:block;overflow:visible}.h8ir_G_stateLegend{gap:var(--lx-space-xs) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;margin:0;display:flex}.h8ir_G_stateLegend>span{align-items:center;gap:var(--lx-space-xs);display:inline-flex}.h8ir_G_stateLegend i{border-radius:var(--lx-radius-pill);background:var(--lx-label-tertiary);width:16px;height:3px;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing)}.h8ir_G_stateLegend>span[data-visual-state=current] i{background:var(--lx-accent);height:5px;box-shadow:0 0 6px var(--lx-accent)}@container h8ir_G_learning-visual-v4 (width<=560px){.h8ir_G_visualShell{gap:var(--lx-space-md);border-radius:var(--lx-radius-lg);padding:var(--lx-space-lg)}.h8ir_G_visualHeader h3{font-size:var(--lx-text-md);flex-basis:100%}.h8ir_G_sequence{grid-template-columns:minmax(0,1fr)}.h8ir_G_sequenceActions{justify-content:stretch}.h8ir_G_sequenceActions .h8ir_G_control{flex:1}.h8ir_G_sequenceActions .h8ir_G_control:last-child{flex:none}}@container h8ir_G_learning-visual-v4 (width<=360px){.h8ir_G_sequenceActions .h8ir_G_control>span:not([aria-hidden]){display:none}.h8ir_G_detailPanel{grid-template-columns:minmax(0,1fr) 28px}.h8ir_G_detailPanel>span,.h8ir_G_detailPanel>strong,.h8ir_G_detailPanel>p{grid-column:1}.h8ir_G_detailPanel>button{grid-column:2}}";
+		const tagId$13 = "@dsh-portable/interactive-learning/shell.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$13) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$12;
-			tag.textContent = css$12;
+			tag.dataset.pluginCss = tagId$13;
+			tag.textContent = css$13;
 			document.head.appendChild(tag);
 		}
 		var shell_module_css_default = {
-			"closeButton": "NIRgaG_closeButton",
-			"control": "NIRgaG_control",
-			"controlPrimary": "NIRgaG_controlPrimary",
-			"controlQuiet": "NIRgaG_controlQuiet",
-			"controlRow": "NIRgaG_controlRow",
-			"controlToned": "NIRgaG_controlToned",
-			"detailPanel": "NIRgaG_detailPanel",
-			"emptyState": "NIRgaG_emptyState",
-			"errorFallback": "NIRgaG_errorFallback",
-			"interactionHint": "NIRgaG_interactionHint",
-			"learning-visual-v4": "NIRgaG_learning-visual-v4",
-			"rendererStack": "NIRgaG_rendererStack",
-			"selectionSlot": "NIRgaG_selectionSlot",
-			"sequence": "NIRgaG_sequence",
-			"sequenceActions": "NIRgaG_sequenceActions",
-			"sequenceRail": "NIRgaG_sequenceRail",
-			"sequenceText": "NIRgaG_sequenceText",
-			"srOnly": "NIRgaG_srOnly",
-			"stateLegend": "NIRgaG_stateLegend",
-			"viewport": "NIRgaG_viewport",
-			"visualEyebrow": "NIRgaG_visualEyebrow",
-			"visualHeader": "NIRgaG_visualHeader",
-			"visualShell": "NIRgaG_visualShell"
+			"closeButton": "h8ir_G_closeButton",
+			"control": "h8ir_G_control",
+			"controlPrimary": "h8ir_G_controlPrimary",
+			"controlQuiet": "h8ir_G_controlQuiet",
+			"controlRow": "h8ir_G_controlRow",
+			"controlToned": "h8ir_G_controlToned",
+			"detailPanel": "h8ir_G_detailPanel",
+			"emptyState": "h8ir_G_emptyState",
+			"errorFallback": "h8ir_G_errorFallback",
+			"interactionHint": "h8ir_G_interactionHint",
+			"learning-visual-v4": "h8ir_G_learning-visual-v4",
+			"rendererStack": "h8ir_G_rendererStack",
+			"selectionSlot": "h8ir_G_selectionSlot",
+			"sequence": "h8ir_G_sequence",
+			"sequenceActions": "h8ir_G_sequenceActions",
+			"sequenceRail": "h8ir_G_sequenceRail",
+			"sequenceText": "h8ir_G_sequenceText",
+			"srOnly": "h8ir_G_srOnly",
+			"stateLegend": "h8ir_G_stateLegend",
+			"viewport": "h8ir_G_viewport",
+			"visualEyebrow": "h8ir_G_visualEyebrow",
+			"visualHeader": "h8ir_G_visualHeader",
+			"visualShell": "h8ir_G_visualShell"
 		};
 		//#endregion
 		//#region src/client/visuals/core/shell-parts.tsx
@@ -5731,48 +7862,48 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/plot.module.css.mjs
-		const css$11 = ".Oolcxq_plotSvg,.Oolcxq_sceneSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.Oolcxq_parameterGrid{gap:var(--lx-space-lg) var(--lx-space-3xl);grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));display:grid}.Oolcxq_parameter{grid-template-rows:auto 20px var(--lx-leading-micro);gap:var(--lx-space-3xs);cursor:pointer;min-width:0;opacity:var(--lx-vs-alpha);display:grid}.Oolcxq_parameterHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);display:flex}.Oolcxq_parameterHeader output{color:var(--lx-accent);font-size:var(--lx-text-sm);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong)}.Oolcxq_parameter input{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-accent) 0 var(--range-progress), var(--lx-border-default) var(--range-progress) 100%);cursor:pointer;align-self:center;width:100%;height:4px}.Oolcxq_parameter input::-webkit-slider-runnable-track{background:0 0;height:4px}.Oolcxq_parameter input::-moz-range-track{background:0 0;height:4px}.Oolcxq_parameter input::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:17px;height:17px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6.5px}.Oolcxq_parameter input::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:11px;height:11px;box-shadow:0 0 0 1px var(--lx-accent)}.Oolcxq_parameterEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-micro);justify-content:space-between;display:flex}.Oolcxq_metrics{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(128px,1fr));margin:0;display:grid}.Oolcxq_metrics>div{gap:var(--lx-space-3xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);opacity:var(--lx-vs-alpha);display:grid}.Oolcxq_metrics dt{color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.Oolcxq_metrics dd{color:var(--lx-accent);font-size:var(--lx-text-md);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}.Oolcxq_plotFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-default);stroke-width:1px;vector-effect:non-scaling-stroke}.Oolcxq_gridLine{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.Oolcxq_minorGridLine{stroke:color-mix(in srgb, var(--lx-border-subtle) 60%, transparent);stroke-width:.7px;stroke-dasharray:2 4;vector-effect:non-scaling-stroke}.Oolcxq_zeroAxis{stroke:var(--lx-border-strongest);stroke-width:1.4px;vector-effect:non-scaling-stroke}.Oolcxq_originMarker circle{fill:var(--lx-label-primary);stroke:var(--lx-surface-base);stroke-width:1.5px}.Oolcxq_originMarker text{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.Oolcxq_tickLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.Oolcxq_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.Oolcxq_seriesArea{opacity:var(--lx-vs-alpha);pointer-events:none;transition:opacity var(--lx-motion-base) var(--lx-easing)}.Oolcxq_seriesLine{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(2.5px + var(--lx-vs-ring) * .9px);stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 1px 2px color-mix(in srgb, var(--visual-tone) 25%, transparent));transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.Oolcxq_seriesPoint,.Oolcxq_probePoint{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha);stroke:var(--lx-surface-base);stroke-width:2px;vector-effect:non-scaling-stroke;transition:r var(--lx-motion-fast) var(--lx-easing)}.Oolcxq_probePoint{filter:drop-shadow(0 0 4px var(--visual-tone))}.Oolcxq_seriesBar{fill:color-mix(in srgb, var(--visual-tone) 65%, transparent);fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:1px;vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing)}.Oolcxq_probeLine{stroke:color-mix(in srgb, var(--lx-label-primary) 60%, transparent);stroke-width:1.2px;stroke-dasharray:4 4;pointer-events:none;vector-effect:non-scaling-stroke}.Oolcxq_probeCard{top:var(--lx-space-sm);right:var(--lx-space-sm);z-index:3;gap:var(--lx-space-3xs);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-strong));border-radius:var(--lx-radius-sm);width:max-content;max-width:220px;padding:var(--lx-space-xs) var(--lx-space-sm);background:var(--lx-surface-base);box-shadow:var(--lx-shadow-md), 0 0 10px color-mix(in srgb, var(--lx-accent) 12%, transparent);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);pointer-events:none;backdrop-filter:blur(8px);display:grid;position:absolute}.Oolcxq_probeCard strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs)}.Oolcxq_probeCard span:before{border-radius:var(--lx-radius-circle);background:var(--visual-tone);width:6px;height:6px;box-shadow:0 0 4px var(--visual-tone);content:\"\";margin-right:5px;display:inline-block}.Oolcxq_emptyPlotNotice{border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-md);width:max-content;max-width:min(92%,320px);padding:var(--lx-space-sm) var(--lx-space-lg);background:var(--lx-surface-base);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);text-align:center;pointer-events:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}.Oolcxq_seriesToggles{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.Oolcxq_seriesToggle{border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md)}.Oolcxq_seriesToggle>span{border-top:2.5px solid var(--visual-tone);width:18px;height:0;display:inline-block}.Oolcxq_seriesToggle[data-series-type=points]>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);border:0;width:8px;height:8px}.Oolcxq_seriesToggle[data-series-type=bars]>span{background:color-mix(in srgb, var(--visual-tone) 72%, transparent);border:0;border-radius:1px;width:9px;height:10px}.Oolcxq_seriesToggle[data-stroke=dashed]>span{border-top-style:dashed}.Oolcxq_seriesToggle[data-stroke=dotted]>span{border-top-style:dotted}.Oolcxq_seriesToggle[aria-pressed=false]{color:var(--lx-label-tertiary);text-decoration:line-through}.Oolcxq_seriesToggle[aria-pressed=false]>span{opacity:.55}.Oolcxq_seriesToggle[data-empty]{border-style:dashed}.Oolcxq_seriesToggle[data-empty]>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}.Oolcxq_sceneElement{cursor:pointer}.Oolcxq_sceneLine{stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(2.2px + var(--lx-vs-ring) * .8px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-width var(--lx-motion-fast) var(--lx-easing), stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.Oolcxq_sceneHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.Oolcxq_scenePoint{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha);stroke:var(--lx-surface-base);stroke-width:2px;filter:drop-shadow(0 0 3px color-mix(in srgb, var(--visual-tone) 45%, transparent));vector-effect:non-scaling-stroke;transition:transform var(--lx-motion-fast) var(--lx-easing)}.Oolcxq_sceneShape{fill:color-mix(in srgb, var(--visual-tone) 13%, transparent);fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:2px;vector-effect:non-scaling-stroke;transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.Oolcxq_sceneElement:hover .Oolcxq_sceneShape,.Oolcxq_sceneElement:focus-visible .Oolcxq_sceneShape,.Oolcxq_sceneElement[data-selected] .Oolcxq_sceneShape{fill:color-mix(in srgb, var(--visual-tone) 24%, transparent);fill-opacity:1;stroke-opacity:1;stroke-width:2.8px;filter:drop-shadow(0 0 6px color-mix(in srgb, var(--visual-tone) 30%, transparent))}.Oolcxq_sceneElement:hover .Oolcxq_sceneLine,.Oolcxq_sceneElement:focus-visible .Oolcxq_sceneLine,.Oolcxq_sceneElement[data-selected] .Oolcxq_sceneLine{stroke-opacity:1;stroke-width:3.2px;filter:drop-shadow(0 0 4px var(--visual-tone))}.Oolcxq_sceneText,.Oolcxq_shapeLabel{fill:var(--lx-label-primary);stroke:var(--lx-surface-base);stroke-width:3px;paint-order:stroke;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.Oolcxq_shapeLabel{fill:var(--visual-tone);font-weight:var(--lx-weight-strong)}.Oolcxq_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}@media (prefers-reduced-motion:reduce){.Oolcxq_seriesArea,.Oolcxq_seriesLine,.Oolcxq_probeCard{transition:none}}";
-		const tagId$11 = "@dsh-portable/interactive-learning/plot.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$11) + "]") === null) {
+		const css$12 = ".sAv75W_plotSvg,.sAv75W_sceneSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.sAv75W_parameterGrid{gap:var(--lx-space-lg) var(--lx-space-3xl);grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));display:grid}.sAv75W_parameter{grid-template-rows:auto 20px var(--lx-leading-micro);gap:var(--lx-space-3xs);cursor:pointer;min-width:0;opacity:var(--lx-vs-alpha);display:grid}.sAv75W_parameterHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);display:flex}.sAv75W_parameterHeader output{color:var(--lx-accent);font-size:var(--lx-text-sm);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong)}.sAv75W_parameter input{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-accent) 0 var(--range-progress), var(--lx-border-default) var(--range-progress) 100%);cursor:pointer;align-self:center;width:100%;height:4px}.sAv75W_parameter input::-webkit-slider-runnable-track{background:0 0;height:4px}.sAv75W_parameter input::-moz-range-track{background:0 0;height:4px}.sAv75W_parameter input::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:17px;height:17px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6.5px}.sAv75W_parameter input::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:11px;height:11px;box-shadow:0 0 0 1px var(--lx-accent)}.sAv75W_parameterEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-micro);justify-content:space-between;display:flex}.sAv75W_metrics{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(128px,1fr));margin:0;display:grid}.sAv75W_metrics>div{gap:var(--lx-space-3xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);opacity:var(--lx-vs-alpha);display:grid}.sAv75W_metrics dt{color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.sAv75W_metrics dd{color:var(--lx-accent);font-size:var(--lx-text-md);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}.sAv75W_plotFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-default);stroke-width:1px;vector-effect:non-scaling-stroke}.sAv75W_gridLine{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}.sAv75W_minorGridLine{stroke:color-mix(in srgb, var(--lx-border-subtle) 60%, transparent);stroke-width:.7px;stroke-dasharray:2 4;vector-effect:non-scaling-stroke}.sAv75W_zeroAxis{stroke:var(--lx-border-strongest);stroke-width:1.4px;vector-effect:non-scaling-stroke}.sAv75W_originMarker circle{fill:var(--lx-label-primary);stroke:var(--lx-surface-base);stroke-width:1.5px}.sAv75W_originMarker text{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.sAv75W_tickLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.sAv75W_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.sAv75W_seriesArea{opacity:var(--lx-vs-alpha);pointer-events:none;transition:opacity var(--lx-motion-base) var(--lx-easing)}.sAv75W_seriesLine{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(2.5px + var(--lx-vs-ring) * .9px);stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:drop-shadow(0 1px 2px color-mix(in srgb, var(--visual-tone) 25%, transparent));transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.sAv75W_seriesPoint,.sAv75W_probePoint{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha);stroke:var(--lx-surface-base);stroke-width:2px;vector-effect:non-scaling-stroke;transition:r var(--lx-motion-fast) var(--lx-easing)}.sAv75W_probePoint{filter:drop-shadow(0 0 4px var(--visual-tone))}.sAv75W_seriesBar{fill:color-mix(in srgb, var(--visual-tone) 65%, transparent);fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:1px;vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing)}.sAv75W_probeLine{stroke:color-mix(in srgb, var(--lx-label-primary) 60%, transparent);stroke-width:1.2px;stroke-dasharray:4 4;pointer-events:none;vector-effect:non-scaling-stroke}.sAv75W_probeCard{top:var(--lx-space-sm);right:var(--lx-space-sm);z-index:3;gap:var(--lx-space-3xs);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-strong));border-radius:var(--lx-radius-sm);width:max-content;max-width:220px;padding:var(--lx-space-xs) var(--lx-space-sm);background:var(--lx-surface-base);box-shadow:var(--lx-shadow-md), 0 0 10px color-mix(in srgb, var(--lx-accent) 12%, transparent);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);pointer-events:none;backdrop-filter:blur(8px);display:grid;position:absolute}.sAv75W_probeCard strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs)}.sAv75W_probeCard span:before{border-radius:var(--lx-radius-circle);background:var(--visual-tone);width:6px;height:6px;box-shadow:0 0 4px var(--visual-tone);content:\"\";margin-right:5px;display:inline-block}.sAv75W_emptyPlotNotice{border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-md);width:max-content;max-width:min(92%,320px);padding:var(--lx-space-sm) var(--lx-space-lg);background:var(--lx-surface-base);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);text-align:center;pointer-events:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}.sAv75W_seriesToggles{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.sAv75W_seriesToggle{border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md)}.sAv75W_seriesToggle>span{border-top:2.5px solid var(--visual-tone);width:18px;height:0;display:inline-block}.sAv75W_seriesToggle[data-series-type=points]>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);border:0;width:8px;height:8px}.sAv75W_seriesToggle[data-series-type=bars]>span{background:color-mix(in srgb, var(--visual-tone) 72%, transparent);border:0;border-radius:1px;width:9px;height:10px}.sAv75W_seriesToggle[data-stroke=dashed]>span{border-top-style:dashed}.sAv75W_seriesToggle[data-stroke=dotted]>span{border-top-style:dotted}.sAv75W_seriesToggle[aria-pressed=false]{color:var(--lx-label-tertiary);text-decoration:line-through}.sAv75W_seriesToggle[aria-pressed=false]>span{opacity:.55}.sAv75W_seriesToggle[data-empty]{border-style:dashed}.sAv75W_seriesToggle[data-empty]>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}.sAv75W_sceneElement{cursor:pointer}.sAv75W_sceneLine{stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(2.2px + var(--lx-vs-ring) * .8px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-width var(--lx-motion-fast) var(--lx-easing), stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.sAv75W_sceneHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.sAv75W_scenePoint{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha);stroke:var(--lx-surface-base);stroke-width:2px;filter:drop-shadow(0 0 3px color-mix(in srgb, var(--visual-tone) 45%, transparent));vector-effect:non-scaling-stroke;transition:transform var(--lx-motion-fast) var(--lx-easing)}.sAv75W_sceneShape{fill:color-mix(in srgb, var(--visual-tone) 13%, transparent);fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:2px;vector-effect:non-scaling-stroke;transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.sAv75W_sceneElement:hover .sAv75W_sceneShape,.sAv75W_sceneElement:focus-visible .sAv75W_sceneShape,.sAv75W_sceneElement[data-selected] .sAv75W_sceneShape{fill:color-mix(in srgb, var(--visual-tone) 24%, transparent);fill-opacity:1;stroke-opacity:1;stroke-width:2.8px;filter:drop-shadow(0 0 6px color-mix(in srgb, var(--visual-tone) 30%, transparent))}.sAv75W_sceneElement:hover .sAv75W_sceneLine,.sAv75W_sceneElement:focus-visible .sAv75W_sceneLine,.sAv75W_sceneElement[data-selected] .sAv75W_sceneLine{stroke-opacity:1;stroke-width:3.2px;filter:drop-shadow(0 0 4px var(--visual-tone))}.sAv75W_sceneText,.sAv75W_shapeLabel{fill:var(--lx-label-primary);stroke:var(--lx-surface-base);stroke-width:3px;paint-order:stroke;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.sAv75W_shapeLabel{fill:var(--visual-tone);font-weight:var(--lx-weight-strong)}.sAv75W_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}@media (prefers-reduced-motion:reduce){.sAv75W_seriesArea,.sAv75W_seriesLine,.sAv75W_probeCard{transition:none}}";
+		const tagId$12 = "@dsh-portable/interactive-learning/plot.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$12) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$11;
-			tag.textContent = css$11;
+			tag.dataset.pluginCss = tagId$12;
+			tag.textContent = css$12;
 			document.head.appendChild(tag);
 		}
 		var plot_module_css_default = {
-			"arrowMarker": "Oolcxq_arrowMarker",
-			"axisLabel": "Oolcxq_axisLabel",
-			"emptyPlotNotice": "Oolcxq_emptyPlotNotice",
-			"gridLine": "Oolcxq_gridLine",
-			"metrics": "Oolcxq_metrics",
-			"minorGridLine": "Oolcxq_minorGridLine",
-			"originMarker": "Oolcxq_originMarker",
-			"parameter": "Oolcxq_parameter",
-			"parameterEnds": "Oolcxq_parameterEnds",
-			"parameterGrid": "Oolcxq_parameterGrid",
-			"parameterHeader": "Oolcxq_parameterHeader",
-			"plotFrame": "Oolcxq_plotFrame",
-			"plotSvg": "Oolcxq_plotSvg",
-			"probeCard": "Oolcxq_probeCard",
-			"probeLine": "Oolcxq_probeLine",
-			"probePoint": "Oolcxq_probePoint",
-			"sceneElement": "Oolcxq_sceneElement",
-			"sceneHit": "Oolcxq_sceneHit",
-			"sceneLine": "Oolcxq_sceneLine",
-			"scenePoint": "Oolcxq_scenePoint",
-			"sceneShape": "Oolcxq_sceneShape",
-			"sceneSvg": "Oolcxq_sceneSvg",
-			"sceneText": "Oolcxq_sceneText",
-			"seriesArea": "Oolcxq_seriesArea",
-			"seriesBar": "Oolcxq_seriesBar",
-			"seriesLine": "Oolcxq_seriesLine",
-			"seriesPoint": "Oolcxq_seriesPoint",
-			"seriesToggle": "Oolcxq_seriesToggle",
-			"seriesToggles": "Oolcxq_seriesToggles",
-			"shapeLabel": "Oolcxq_shapeLabel",
-			"tickLabel": "Oolcxq_tickLabel",
-			"zeroAxis": "Oolcxq_zeroAxis"
+			"arrowMarker": "sAv75W_arrowMarker",
+			"axisLabel": "sAv75W_axisLabel",
+			"emptyPlotNotice": "sAv75W_emptyPlotNotice",
+			"gridLine": "sAv75W_gridLine",
+			"metrics": "sAv75W_metrics",
+			"minorGridLine": "sAv75W_minorGridLine",
+			"originMarker": "sAv75W_originMarker",
+			"parameter": "sAv75W_parameter",
+			"parameterEnds": "sAv75W_parameterEnds",
+			"parameterGrid": "sAv75W_parameterGrid",
+			"parameterHeader": "sAv75W_parameterHeader",
+			"plotFrame": "sAv75W_plotFrame",
+			"plotSvg": "sAv75W_plotSvg",
+			"probeCard": "sAv75W_probeCard",
+			"probeLine": "sAv75W_probeLine",
+			"probePoint": "sAv75W_probePoint",
+			"sceneElement": "sAv75W_sceneElement",
+			"sceneHit": "sAv75W_sceneHit",
+			"sceneLine": "sAv75W_sceneLine",
+			"scenePoint": "sAv75W_scenePoint",
+			"sceneShape": "sAv75W_sceneShape",
+			"sceneSvg": "sAv75W_sceneSvg",
+			"sceneText": "sAv75W_sceneText",
+			"seriesArea": "sAv75W_seriesArea",
+			"seriesBar": "sAv75W_seriesBar",
+			"seriesLine": "sAv75W_seriesLine",
+			"seriesPoint": "sAv75W_seriesPoint",
+			"seriesToggle": "sAv75W_seriesToggle",
+			"seriesToggles": "sAv75W_seriesToggles",
+			"shapeLabel": "sAv75W_shapeLabel",
+			"tickLabel": "sAv75W_tickLabel",
+			"zeroAxis": "sAv75W_zeroAxis"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/PlotRenderer.tsx
@@ -7045,29 +9176,29 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/graph.module.css.mjs
-		const css$10 = ".qL90la_graphSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.qL90la_layerBand rect{fill:color-mix(in srgb, var(--lx-label-primary) 6%, var(--lx-surface-base));stroke:color-mix(in srgb, var(--lx-border-default) 82%, transparent);stroke-width:1px;vector-effect:non-scaling-stroke}.qL90la_layerLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em;opacity:var(--lx-vs-alpha)}.qL90la_edgeGroup,.qL90la_nodeGroup{cursor:pointer}.qL90la_edgeVisible{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.7px + var(--lx-vs-ring) * 1.1px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.qL90la_edgeHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.qL90la_edgeGroup:hover .qL90la_edgeVisible,.qL90la_edgeGroup:focus-visible .qL90la_edgeVisible,.qL90la_edgeGroup[data-selected] .qL90la_edgeVisible,.qL90la_edgeGroup[data-connected] .qL90la_edgeVisible{stroke-opacity:1;stroke-width:3px;filter:drop-shadow(0 0 3px var(--visual-tone))}.qL90la_edgeGroup[data-dimmed] .qL90la_edgeVisible{stroke:color-mix(in srgb, var(--lx-border-strong) 72%, var(--lx-surface-base));stroke-width:1.2px}.qL90la_edgeGroup[data-dimmed] .qL90la_edgeLabel{visibility:hidden}.qL90la_edgeGroup[data-connected] .qL90la_edgeLabel,.qL90la_edgeGroup[data-selected] .qL90la_edgeLabel{opacity:1}.qL90la_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.qL90la_edgeLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke;opacity:var(--lx-vs-alpha)}.qL90la_edgeLabel text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha)}.qL90la_edgeLabel{pointer-events:none;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.qL90la_edgeTooltip{pointer-events:none;opacity:0;visibility:hidden;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.qL90la_edgeTooltip rect{fill:var(--lx-surface-base);stroke:var(--visual-tone);stroke-width:1.2px;vector-effect:non-scaling-stroke}.qL90la_edgeTooltip text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.qL90la_graphSvg[data-dense-edges] .qL90la_edgeLabel,.qL90la_edgeGroup[data-crowded] .qL90la_edgeLabel{opacity:0}.qL90la_graphSvg[data-dense-edges] .qL90la_edgeGroup:hover .qL90la_edgeTooltip,.qL90la_graphSvg[data-dense-edges] .qL90la_edgeGroup:focus-visible .qL90la_edgeTooltip{opacity:1;visibility:visible}.qL90la_edgeGroup[data-crowded]:hover .qL90la_edgeLabel,.qL90la_edgeGroup[data-crowded]:focus-visible .qL90la_edgeLabel,.qL90la_edgeGroup[data-crowded][data-selected] .qL90la_edgeLabel,.qL90la_edgeGroup[data-crowded][data-visual-state=current] .qL90la_edgeLabel{opacity:1}.qL90la_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-base) var(--lx-easing), stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.qL90la_nodeRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .34);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing)}.qL90la_nodeLabel{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.qL90la_nodeGroup[data-visual-state=current] .qL90la_nodeLabel,.qL90la_nodeGroup[data-visual-state=selected] .qL90la_nodeLabel{font-weight:var(--lx-weight-strong)}.qL90la_nodeGroup:hover .qL90la_nodeShape,.qL90la_nodeGroup:focus-visible .qL90la_nodeShape,.qL90la_nodeGroup[data-selected] .qL90la_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.6px}.qL90la_nodeGroup[data-selected] .qL90la_nodeRing{stroke-opacity:.5}[data-stroke=dashed] .qL90la_edgeVisible{stroke-dasharray:9 6}[data-stroke=dotted] .qL90la_edgeVisible{stroke-dasharray:2 6}@media (prefers-reduced-motion:reduce){.qL90la_edgeVisible,.qL90la_edgeLabel,.qL90la_nodeShape,.qL90la_nodeRing{transition:none}}@media (forced-colors:active){.qL90la_nodeShape{fill:canvas;stroke:canvastext}.qL90la_edgeVisible{stroke:canvastext}.qL90la_nodeGroup[data-visual-state=current] .qL90la_nodeShape,.qL90la_nodeGroup[data-selected] .qL90la_nodeShape{fill:highlight}}";
-		const tagId$10 = "@dsh-portable/interactive-learning/graph.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$10) + "]") === null) {
+		const css$11 = ".HtX4sa_graphSvg{touch-action:pan-y;max-width:none;display:block;overflow:visible}.HtX4sa_layerBand rect{fill:color-mix(in srgb, var(--lx-label-primary) 6%, var(--lx-surface-base));stroke:color-mix(in srgb, var(--lx-border-default) 82%, transparent);stroke-width:1px;vector-effect:non-scaling-stroke}.HtX4sa_layerLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeGroup,.HtX4sa_nodeGroup{cursor:pointer}.HtX4sa_edgeVisible{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.7px + var(--lx-vs-ring) * 1.1px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_edgeHit{fill:none;stroke:#0000;stroke-width:14px;pointer-events:stroke;vector-effect:non-scaling-stroke}.HtX4sa_edgeGroup:hover .HtX4sa_edgeVisible,.HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeVisible,.HtX4sa_edgeGroup[data-selected] .HtX4sa_edgeVisible,.HtX4sa_edgeGroup[data-connected] .HtX4sa_edgeVisible{stroke-opacity:1;stroke-width:3px;filter:drop-shadow(0 0 3px var(--visual-tone))}.HtX4sa_edgeGroup[data-dimmed] .HtX4sa_edgeVisible{stroke:color-mix(in srgb, var(--lx-border-strong) 72%, var(--lx-surface-base));stroke-width:1.2px}.HtX4sa_edgeGroup[data-dimmed] .HtX4sa_edgeLabel{visibility:hidden}.HtX4sa_edgeGroup[data-connected] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-selected] .HtX4sa_edgeLabel{opacity:1}.HtX4sa_arrowMarker path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke;opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha)}.HtX4sa_edgeLabel{pointer-events:none;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.HtX4sa_edgeTooltip{pointer-events:none;opacity:0;visibility:hidden;transition:opacity var(--lx-motion-fast) var(--lx-easing)}.HtX4sa_edgeTooltip rect{fill:var(--lx-surface-base);stroke:var(--visual-tone);stroke-width:1.2px;vector-effect:non-scaling-stroke}.HtX4sa_edgeTooltip text{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded] .HtX4sa_edgeLabel{opacity:0}.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:hover .HtX4sa_edgeTooltip,.HtX4sa_graphSvg[data-dense-edges] .HtX4sa_edgeGroup:focus-visible .HtX4sa_edgeTooltip{opacity:1;visibility:visible}.HtX4sa_edgeGroup[data-crowded]:hover .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded]:focus-visible .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-selected] .HtX4sa_edgeLabel,.HtX4sa_edgeGroup[data-crowded][data-visual-state=current] .HtX4sa_edgeLabel{opacity:1}.HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-base) var(--lx-easing), stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .34);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-base) var(--lx-easing)}.HtX4sa_nodeLabel{fill:var(--lx-label-primary);font-weight:var(--lx-weight-medium);opacity:var(--lx-vs-alpha);pointer-events:none}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeLabel,.HtX4sa_nodeGroup[data-visual-state=selected] .HtX4sa_nodeLabel{font-weight:var(--lx-weight-strong)}.HtX4sa_nodeGroup:hover .HtX4sa_nodeShape,.HtX4sa_nodeGroup:focus-visible .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.6px}.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeRing{stroke-opacity:.5}[data-stroke=dashed] .HtX4sa_edgeVisible{stroke-dasharray:9 6}[data-stroke=dotted] .HtX4sa_edgeVisible{stroke-dasharray:2 6}@media (prefers-reduced-motion:reduce){.HtX4sa_edgeVisible,.HtX4sa_edgeLabel,.HtX4sa_nodeShape,.HtX4sa_nodeRing{transition:none}}@media (forced-colors:active){.HtX4sa_nodeShape{fill:canvas;stroke:canvastext}.HtX4sa_edgeVisible{stroke:canvastext}.HtX4sa_nodeGroup[data-visual-state=current] .HtX4sa_nodeShape,.HtX4sa_nodeGroup[data-selected] .HtX4sa_nodeShape{fill:highlight}}";
+		const tagId$11 = "@dsh-portable/interactive-learning/graph.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$11) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$10;
-			tag.textContent = css$10;
+			tag.dataset.pluginCss = tagId$11;
+			tag.textContent = css$11;
 			document.head.appendChild(tag);
 		}
 		var graph_module_css_default = {
-			"arrowMarker": "qL90la_arrowMarker",
-			"edgeGroup": "qL90la_edgeGroup",
-			"edgeHit": "qL90la_edgeHit",
-			"edgeLabel": "qL90la_edgeLabel",
-			"edgeTooltip": "qL90la_edgeTooltip",
-			"edgeVisible": "qL90la_edgeVisible",
-			"graphSvg": "qL90la_graphSvg",
-			"layerBand": "qL90la_layerBand",
-			"layerLabel": "qL90la_layerLabel",
-			"nodeGroup": "qL90la_nodeGroup",
-			"nodeLabel": "qL90la_nodeLabel",
-			"nodeRing": "qL90la_nodeRing",
-			"nodeShape": "qL90la_nodeShape"
+			"arrowMarker": "HtX4sa_arrowMarker",
+			"edgeGroup": "HtX4sa_edgeGroup",
+			"edgeHit": "HtX4sa_edgeHit",
+			"edgeLabel": "HtX4sa_edgeLabel",
+			"edgeTooltip": "HtX4sa_edgeTooltip",
+			"edgeVisible": "HtX4sa_edgeVisible",
+			"graphSvg": "HtX4sa_graphSvg",
+			"layerBand": "HtX4sa_layerBand",
+			"layerLabel": "HtX4sa_layerLabel",
+			"nodeGroup": "HtX4sa_nodeGroup",
+			"nodeLabel": "HtX4sa_nodeLabel",
+			"nodeRing": "HtX4sa_nodeRing",
+			"nodeShape": "HtX4sa_nodeShape"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/NodeLinkRenderer.tsx
@@ -7887,38 +10018,38 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/relation.module.css.mjs
-		const css$9 = ".i4WFxq_tableViewport{padding:var(--lx-space-2xs)}.i4WFxq_relationTable{border-spacing:0;border-collapse:separate;table-layout:fixed;width:100%;min-width:460px;color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.i4WFxq_relationTable th,.i4WFxq_relationTable td{border-right:1px solid var(--lx-border-subtle);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);text-align:center;overflow-wrap:anywhere}.i4WFxq_relationTable tr>:last-child{border-right:0}.i4WFxq_relationTable tbody tr:last-child>*{border-bottom:0}.i4WFxq_relationTable thead th{background:color-mix(in srgb, var(--lx-accent-soft) 30%, transparent);color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong)}.i4WFxq_relationTable thead th:first-child,.i4WFxq_relationTable tbody th{width:24%}.i4WFxq_relationTable tbody th{background:var(--lx-surface-sunken);color:var(--lx-label-primary);text-align:left;font-weight:var(--lx-weight-medium)}.i4WFxq_relationTable td{color:var(--lx-label-secondary)}.i4WFxq_relationTable td[data-tone]{color:var(--visual-tone);font-weight:var(--lx-weight-medium);background:color-mix(in srgb, var(--visual-tone) 7%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--visual-tone) 10%, transparent)}.i4WFxq_relationTable th[data-visual-state],.i4WFxq_relationTable tr[data-visual-state]>*{opacity:var(--lx-vs-alpha)}.i4WFxq_relationTable th[data-visual-state=current]{box-shadow:inset 0 -3px 0 var(--lx-accent)}.i4WFxq_relationTable tr[data-visual-state=current]>th{box-shadow:inset 3px 0 0 var(--lx-accent)}.i4WFxq_cellButton{appearance:none;border-radius:var(--lx-radius-xs);max-width:100%;padding:var(--lx-space-3xs) var(--lx-space-xs);color:inherit;font:inherit;line-height:inherit;overflow-wrap:anywhere;cursor:pointer;background:0 0;border:1px solid #0000}.i4WFxq_cellButton:hover{border-color:var(--lx-border-default);background:color-mix(in srgb, var(--lx-accent) 8%, transparent)}.i4WFxq_cellButton:active{background:color-mix(in srgb, var(--lx-accent) 14%, transparent)}.i4WFxq_matrixTable td{padding:var(--lx-space-xs)}.i4WFxq_matrixCell{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 28%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);width:100%;min-height:38px;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--visual-tone) 10%, transparent);color:var(--visual-tone);font:inherit;font-size:var(--lx-text-2xs);opacity:var(--lx-vs-alpha);cursor:pointer}.i4WFxq_matrixCell:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 18%, transparent)}.i4WFxq_matrixCell[data-visual-state=current]{font-weight:var(--lx-weight-strong);border-width:2px}.i4WFxq_emptyCell{color:var(--lx-label-tertiary);font-size:var(--lx-text-md)}.i4WFxq_setMap{gap:var(--lx-space-lg);display:grid}.i4WFxq_setZones{gap:var(--lx-space-md);grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));display:grid}.i4WFxq_setZone{border:1.5px solid color-mix(in srgb, var(--visual-tone) 50%, transparent);border-radius:var(--lx-radius-lg);min-width:0;padding:var(--lx-space-lg);background:color-mix(in srgb, var(--visual-tone) 7%, transparent);opacity:var(--lx-vs-alpha);position:relative}.i4WFxq_setZone[data-visual-state=current]{border-width:2px}.i4WFxq_setZone h4,.i4WFxq_intersections h4{align-items:center;gap:var(--lx-space-sm);margin:0 0 var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm);display:flex}.i4WFxq_setZone h4>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);flex:none;width:8px;height:8px}.i4WFxq_setZone>div{gap:var(--lx-space-xs);flex-wrap:wrap;align-content:flex-start;min-height:34px;display:flex}.i4WFxq_setItem{border-color:color-mix(in srgb, var(--visual-tone) 28%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));opacity:var(--lx-vs-alpha)}.i4WFxq_emptySet{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);align-self:center}.i4WFxq_intersections{border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-lg);padding:var(--lx-space-md)}.i4WFxq_intersections>div{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));display:grid}.i4WFxq_intersectionItem{gap:var(--lx-space-3xs);padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);justify-items:start;display:grid}.i4WFxq_intersectionItem strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}.i4WFxq_intersectionItem span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.i4WFxq_vennContainer{padding:var(--lx-space-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-sunken);justify-content:center;align-items:center;display:flex}.i4WFxq_vennSvg{width:100%;max-width:480px;height:auto;overflow:visible}.i4WFxq_vennCircle{fill:color-mix(in srgb, var(--visual-tone) 14%, transparent);stroke:var(--visual-tone);stroke-width:2px;mix-blend-mode:multiply;transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}[data-theme=dark] .i4WFxq_vennCircle{mix-blend-mode:screen;fill:color-mix(in srgb, var(--visual-tone) 20%, transparent)}.i4WFxq_vennLabel{fill:var(--visual-tone);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em}.i4WFxq_vennIntersectionLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.i4WFxq_vennItems{pointer-events:none}.i4WFxq_vennItem{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}.i4WFxq_vennOverflow{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}@container i4WFxq_learning-visual-v4 (width<=560px){.i4WFxq_relationTable{min-width:420px}}";
-		const tagId$9 = "@dsh-portable/interactive-learning/relation.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$9) + "]") === null) {
+		const css$10 = ".f7pT7W_tableViewport{padding:var(--lx-space-2xs)}.f7pT7W_relationTable{border-spacing:0;border-collapse:separate;table-layout:fixed;width:100%;min-width:460px;color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.f7pT7W_relationTable th,.f7pT7W_relationTable td{border-right:1px solid var(--lx-border-subtle);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);text-align:center;overflow-wrap:anywhere}.f7pT7W_relationTable tr>:last-child{border-right:0}.f7pT7W_relationTable tbody tr:last-child>*{border-bottom:0}.f7pT7W_relationTable thead th{background:color-mix(in srgb, var(--lx-accent-soft) 30%, transparent);color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong)}.f7pT7W_relationTable thead th:first-child,.f7pT7W_relationTable tbody th{width:24%}.f7pT7W_relationTable tbody th{background:var(--lx-surface-sunken);color:var(--lx-label-primary);text-align:left;font-weight:var(--lx-weight-medium)}.f7pT7W_relationTable td{color:var(--lx-label-secondary)}.f7pT7W_relationTable td[data-tone]{color:var(--visual-tone);font-weight:var(--lx-weight-medium);background:color-mix(in srgb, var(--visual-tone) 7%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--visual-tone) 10%, transparent)}.f7pT7W_relationTable th[data-visual-state],.f7pT7W_relationTable tr[data-visual-state]>*{opacity:var(--lx-vs-alpha)}.f7pT7W_relationTable th[data-visual-state=current]{box-shadow:inset 0 -3px 0 var(--lx-accent)}.f7pT7W_relationTable tr[data-visual-state=current]>th{box-shadow:inset 3px 0 0 var(--lx-accent)}.f7pT7W_cellButton{appearance:none;border-radius:var(--lx-radius-xs);max-width:100%;padding:var(--lx-space-3xs) var(--lx-space-xs);color:inherit;font:inherit;line-height:inherit;overflow-wrap:anywhere;cursor:pointer;background:0 0;border:1px solid #0000}.f7pT7W_cellButton:hover{border-color:var(--lx-border-default);background:color-mix(in srgb, var(--lx-accent) 8%, transparent)}.f7pT7W_cellButton:active{background:color-mix(in srgb, var(--lx-accent) 14%, transparent)}.f7pT7W_matrixTable td{padding:var(--lx-space-xs)}.f7pT7W_matrixCell{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 28%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);width:100%;min-height:38px;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--visual-tone) 10%, transparent);color:var(--visual-tone);font:inherit;font-size:var(--lx-text-2xs);opacity:var(--lx-vs-alpha);cursor:pointer}.f7pT7W_matrixCell:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 18%, transparent)}.f7pT7W_matrixCell[data-visual-state=current]{font-weight:var(--lx-weight-strong);border-width:2px}.f7pT7W_emptyCell{color:var(--lx-label-tertiary);font-size:var(--lx-text-md)}.f7pT7W_setMap{gap:var(--lx-space-lg);display:grid}.f7pT7W_setZones{gap:var(--lx-space-md);grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));display:grid}.f7pT7W_setZone{border:1.5px solid color-mix(in srgb, var(--visual-tone) 50%, transparent);border-radius:var(--lx-radius-lg);min-width:0;padding:var(--lx-space-lg);background:color-mix(in srgb, var(--visual-tone) 7%, transparent);opacity:var(--lx-vs-alpha);position:relative}.f7pT7W_setZone[data-visual-state=current]{border-width:2px}.f7pT7W_setZone h4,.f7pT7W_intersections h4{align-items:center;gap:var(--lx-space-sm);margin:0 0 var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm);display:flex}.f7pT7W_setZone h4>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);flex:none;width:8px;height:8px}.f7pT7W_setZone>div{gap:var(--lx-space-xs);flex-wrap:wrap;align-content:flex-start;min-height:34px;display:flex}.f7pT7W_setItem{border-color:color-mix(in srgb, var(--visual-tone) 28%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));opacity:var(--lx-vs-alpha)}.f7pT7W_emptySet{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);align-self:center}.f7pT7W_intersections{border:1px dashed var(--lx-border-strong);border-radius:var(--lx-radius-lg);padding:var(--lx-space-md)}.f7pT7W_intersections>div{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));display:grid}.f7pT7W_intersectionItem{gap:var(--lx-space-3xs);padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);justify-items:start;display:grid}.f7pT7W_intersectionItem strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}.f7pT7W_intersectionItem span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.f7pT7W_vennContainer{padding:var(--lx-space-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-sunken);justify-content:center;align-items:center;display:flex}.f7pT7W_vennSvg{width:100%;max-width:480px;height:auto;overflow:visible}.f7pT7W_vennCircle{fill:color-mix(in srgb, var(--visual-tone) 14%, transparent);stroke:var(--visual-tone);stroke-width:2px;mix-blend-mode:multiply;transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}[data-theme=dark] .f7pT7W_vennCircle{mix-blend-mode:screen;fill:color-mix(in srgb, var(--visual-tone) 20%, transparent)}.f7pT7W_vennLabel{fill:var(--visual-tone);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);letter-spacing:.02em}.f7pT7W_vennIntersectionLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.f7pT7W_vennItems{pointer-events:none}.f7pT7W_vennItem{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}.f7pT7W_vennOverflow{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}@container f7pT7W_learning-visual-v4 (width<=560px){.f7pT7W_relationTable{min-width:420px}}";
+		const tagId$10 = "@dsh-portable/interactive-learning/relation.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$10) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$9;
-			tag.textContent = css$9;
+			tag.dataset.pluginCss = tagId$10;
+			tag.textContent = css$10;
 			document.head.appendChild(tag);
 		}
 		var relation_module_css_default = {
-			"cellButton": "i4WFxq_cellButton",
-			"emptyCell": "i4WFxq_emptyCell",
-			"emptySet": "i4WFxq_emptySet",
-			"intersectionItem": "i4WFxq_intersectionItem",
-			"intersections": "i4WFxq_intersections",
-			"learning-visual-v4": "i4WFxq_learning-visual-v4",
-			"matrixCell": "i4WFxq_matrixCell",
-			"matrixTable": "i4WFxq_matrixTable",
-			"relationTable": "i4WFxq_relationTable",
-			"setItem": "i4WFxq_setItem",
-			"setMap": "i4WFxq_setMap",
-			"setZone": "i4WFxq_setZone",
-			"setZones": "i4WFxq_setZones",
-			"tableViewport": "i4WFxq_tableViewport",
-			"vennCircle": "i4WFxq_vennCircle",
-			"vennContainer": "i4WFxq_vennContainer",
-			"vennIntersectionLabel": "i4WFxq_vennIntersectionLabel",
-			"vennItem": "i4WFxq_vennItem",
-			"vennItems": "i4WFxq_vennItems",
-			"vennLabel": "i4WFxq_vennLabel",
-			"vennOverflow": "i4WFxq_vennOverflow",
-			"vennSvg": "i4WFxq_vennSvg"
+			"cellButton": "f7pT7W_cellButton",
+			"emptyCell": "f7pT7W_emptyCell",
+			"emptySet": "f7pT7W_emptySet",
+			"intersectionItem": "f7pT7W_intersectionItem",
+			"intersections": "f7pT7W_intersections",
+			"learning-visual-v4": "f7pT7W_learning-visual-v4",
+			"matrixCell": "f7pT7W_matrixCell",
+			"matrixTable": "f7pT7W_matrixTable",
+			"relationTable": "f7pT7W_relationTable",
+			"setItem": "f7pT7W_setItem",
+			"setMap": "f7pT7W_setMap",
+			"setZone": "f7pT7W_setZone",
+			"setZones": "f7pT7W_setZones",
+			"tableViewport": "f7pT7W_tableViewport",
+			"vennCircle": "f7pT7W_vennCircle",
+			"vennContainer": "f7pT7W_vennContainer",
+			"vennIntersectionLabel": "f7pT7W_vennIntersectionLabel",
+			"vennItem": "f7pT7W_vennItem",
+			"vennItems": "f7pT7W_vennItems",
+			"vennLabel": "f7pT7W_vennLabel",
+			"vennOverflow": "f7pT7W_vennOverflow",
+			"vennSvg": "f7pT7W_vennSvg"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/RelationRenderer.tsx
@@ -8202,24 +10333,24 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/timeline.module.css.mjs
-		const css$8 = ".VsPl3G_timelineCanvas{min-width:0;position:relative}.VsPl3G_timelineAxis{border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-border-strong) 80%, var(--lx-accent));height:2.5px;position:absolute;left:66px;right:66px}.VsPl3G_timelineAxis:after{border-top:5px solid #0000;border-bottom:5px solid #0000;border-left:8px solid var(--lx-border-strong);content:\"\";position:absolute;top:-4px;right:-2px}.VsPl3G_timelineEra,.VsPl3G_timelineEvent{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), background-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing)}.VsPl3G_timelineEra{z-index:1;border-radius:var(--lx-radius-pill);min-height:26px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;position:absolute;overflow:hidden;box-shadow:0 1px 3px #0000000d}.VsPl3G_timelineEvent{z-index:2;box-sizing:border-box;gap:var(--lx-space-3xs);border-radius:var(--lx-radius-md);width:156px;min-height:64px;padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;box-shadow:var(--lx-shadow-sm);display:grid;position:absolute;transform:translate(-50%)}.VsPl3G_timelineEvent:before{border:2.5px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);width:12px;height:12px;box-shadow:0 0 4px var(--visual-tone);content:\"\";position:absolute;left:calc(50% - 6px)}.VsPl3G_timelineEvent:after{background:color-mix(in srgb, var(--visual-tone) 75%, transparent);content:\"\";width:1.5px;height:20px;position:absolute;left:50%}.VsPl3G_timelineEvent[data-side=top]:before{bottom:-33px}.VsPl3G_timelineEvent[data-side=top]:after{bottom:-21px}.VsPl3G_timelineEvent[data-side=bottom]:before{top:-33px}.VsPl3G_timelineEvent[data-side=bottom]:after{top:-21px}.VsPl3G_timelineEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro)}.VsPl3G_timelineEvent>strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere;-webkit-line-clamp:3;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.VsPl3G_timelineEra:hover,.VsPl3G_timelineEvent:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.VsPl3G_timelineEra[data-visual-state=current],.VsPl3G_timelineEvent[data-visual-state=current]{border-color:var(--visual-tone);box-shadow:0 0 0 3px color-mix(in srgb, var(--visual-tone) 18%, transparent);border-width:2px}.VsPl3G_timelineEraChips{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.VsPl3G_eraChip{border-color:color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;justify-items:start;gap:0;display:inline-grid}.VsPl3G_eraChip strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs)}.VsPl3G_eraChip span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.VsPl3G_timelineVertical{padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-md);gap:0;margin:0;list-style:none;display:grid}.VsPl3G_timelineVertical li{border-left:2px solid color-mix(in srgb, var(--visual-tone) 46%, var(--lx-border-default));padding:0 0 var(--lx-space-lg) var(--lx-space-2xl);opacity:var(--lx-vs-alpha);position:relative}.VsPl3G_timelineVertical li:last-child{padding-bottom:0}.VsPl3G_timelineVertical li:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:9px;height:9px;position:absolute;top:15px;left:-6px}.VsPl3G_verticalEvent{gap:var(--lx-space-3xs) var(--lx-space-lg);border-radius:var(--lx-radius-md);width:min(100%,620px);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;grid-template-columns:minmax(72px,auto) minmax(0,1fr);display:grid}.VsPl3G_verticalEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.VsPl3G_verticalEvent>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);overflow-wrap:anywhere}.VsPl3G_verticalEvent>small{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-column:1/-1}.VsPl3G_timelineVertical li[data-visual-state=current]{border-left-color:var(--visual-tone);border-left-width:3px}@media (prefers-reduced-motion:reduce){.VsPl3G_timelineEra,.VsPl3G_timelineEvent{transition:none}}";
-		const tagId$8 = "@dsh-portable/interactive-learning/timeline.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$8) + "]") === null) {
+		const css$9 = ".zYjJda_timelineCanvas{min-width:0;position:relative}.zYjJda_timelineAxis{border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-border-strong) 80%, var(--lx-accent));height:2.5px;position:absolute;left:66px;right:66px}.zYjJda_timelineAxis:after{border-top:5px solid #0000;border-bottom:5px solid #0000;border-left:8px solid var(--lx-border-strong);content:\"\";position:absolute;top:-4px;right:-2px}.zYjJda_timelineEra,.zYjJda_timelineEvent{appearance:none;border:1px solid color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), background-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing)}.zYjJda_timelineEra{z-index:1;border-radius:var(--lx-radius-pill);min-height:26px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro);text-overflow:ellipsis;white-space:nowrap;position:absolute;overflow:hidden;box-shadow:0 1px 3px #0000000d}.zYjJda_timelineEvent{z-index:2;box-sizing:border-box;gap:var(--lx-space-3xs);border-radius:var(--lx-radius-md);width:156px;min-height:64px;padding:var(--lx-space-xs) var(--lx-space-sm);text-align:left;box-shadow:var(--lx-shadow-sm);display:grid;position:absolute;transform:translate(-50%)}.zYjJda_timelineEvent:before{border:2.5px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);width:12px;height:12px;box-shadow:0 0 4px var(--visual-tone);content:\"\";position:absolute;left:calc(50% - 6px)}.zYjJda_timelineEvent:after{background:color-mix(in srgb, var(--visual-tone) 75%, transparent);content:\"\";width:1.5px;height:20px;position:absolute;left:50%}.zYjJda_timelineEvent[data-side=top]:before{bottom:-33px}.zYjJda_timelineEvent[data-side=top]:after{bottom:-21px}.zYjJda_timelineEvent[data-side=bottom]:before{top:-33px}.zYjJda_timelineEvent[data-side=bottom]:after{top:-21px}.zYjJda_timelineEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-micro)}.zYjJda_timelineEvent>strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere;-webkit-line-clamp:3;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.zYjJda_timelineEra:hover,.zYjJda_timelineEvent:hover{border-color:var(--visual-tone);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base))}.zYjJda_timelineEra[data-visual-state=current],.zYjJda_timelineEvent[data-visual-state=current]{border-color:var(--visual-tone);box-shadow:0 0 0 3px color-mix(in srgb, var(--visual-tone) 18%, transparent);border-width:2px}.zYjJda_timelineEraChips{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.zYjJda_eraChip{border-color:color-mix(in srgb, var(--visual-tone) 42%, var(--lx-border-subtle));border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 9%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;justify-items:start;gap:0;display:inline-grid}.zYjJda_eraChip strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs)}.zYjJda_eraChip span{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.zYjJda_timelineVertical{padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-md);gap:0;margin:0;list-style:none;display:grid}.zYjJda_timelineVertical li{border-left:2px solid color-mix(in srgb, var(--visual-tone) 46%, var(--lx-border-default));padding:0 0 var(--lx-space-lg) var(--lx-space-2xl);opacity:var(--lx-vs-alpha);position:relative}.zYjJda_timelineVertical li:last-child{padding-bottom:0}.zYjJda_timelineVertical li:before{border:2px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--visual-tone);content:\"\";width:9px;height:9px;position:absolute;top:15px;left:-6px}.zYjJda_verticalEvent{gap:var(--lx-space-3xs) var(--lx-space-lg);border-radius:var(--lx-radius-md);width:min(100%,620px);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;grid-template-columns:minmax(72px,auto) minmax(0,1fr);display:grid}.zYjJda_verticalEvent>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.zYjJda_verticalEvent>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);overflow-wrap:anywhere}.zYjJda_verticalEvent>small{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-column:1/-1}.zYjJda_timelineVertical li[data-visual-state=current]{border-left-color:var(--visual-tone);border-left-width:3px}@media (prefers-reduced-motion:reduce){.zYjJda_timelineEra,.zYjJda_timelineEvent{transition:none}}";
+		const tagId$9 = "@dsh-portable/interactive-learning/timeline.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$9) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$8;
-			tag.textContent = css$8;
+			tag.dataset.pluginCss = tagId$9;
+			tag.textContent = css$9;
 			document.head.appendChild(tag);
 		}
 		var timeline_module_css_default = {
-			"eraChip": "VsPl3G_eraChip",
-			"timelineAxis": "VsPl3G_timelineAxis",
-			"timelineCanvas": "VsPl3G_timelineCanvas",
-			"timelineEra": "VsPl3G_timelineEra",
-			"timelineEraChips": "VsPl3G_timelineEraChips",
-			"timelineEvent": "VsPl3G_timelineEvent",
-			"timelineVertical": "VsPl3G_timelineVertical",
-			"verticalEvent": "VsPl3G_verticalEvent"
+			"eraChip": "zYjJda_eraChip",
+			"timelineAxis": "zYjJda_timelineAxis",
+			"timelineCanvas": "zYjJda_timelineCanvas",
+			"timelineEra": "zYjJda_timelineEra",
+			"timelineEraChips": "zYjJda_timelineEraChips",
+			"timelineEvent": "zYjJda_timelineEvent",
+			"timelineVertical": "zYjJda_timelineVertical",
+			"verticalEvent": "zYjJda_verticalEvent"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/TimelineRenderer.tsx
@@ -8411,24 +10542,24 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/formula.module.css.mjs
-		const css$7 = ".XXavkq_formulaMeta{justify-content:space-between;align-items:center;gap:var(--lx-space-lg);min-width:0;color:var(--lx-accent);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs);display:flex}.XXavkq_formulaMeta code{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-xs);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-regular);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.XXavkq_formulaSteps{gap:0;margin:0;padding:0;list-style:none;display:grid}.XXavkq_formulaSteps>li{min-width:0;opacity:var(--lx-vs-alpha)}.XXavkq_formulaStepCard{gap:var(--lx-space-md);border:1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));grid-template-columns:30px minmax(0,1fr);align-items:start;display:grid;box-shadow:0 1px 3px #0000000a}.XXavkq_formulaSteps>li[data-visual-state=current] .XXavkq_formulaStepCard{border-width:2px;border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 30%, transparent)}.XXavkq_formulaStepCard>span{border-radius:var(--lx-radius-circle);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));width:28px;height:28px;color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);place-items:center;display:grid}.XXavkq_formulaStepCard>div{gap:var(--lx-space-2xs);min-width:0;display:grid}.XXavkq_formulaExpression{padding:var(--lx-space-sm) 0;color:var(--lx-label-primary);font-size:var(--lx-text-formula);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-formula);scrollbar-width:thin;overflow:auto hidden}.XXavkq_formulaExpression>div{min-width:max-content}.XXavkq_formulaExpression .katex-display{text-align:left;margin:2px 0}.XXavkq_formulaStepCard strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}.XXavkq_formulaStepCard p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.XXavkq_formulaRule{gap:var(--lx-space-xs) var(--lx-space-md);border-left:2px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));min-height:44px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-template-columns:30px auto minmax(0,1fr);align-items:center;margin-left:14px;display:grid}.XXavkq_formulaRule>span:first-child{color:var(--visual-tone);font-size:var(--lx-text-lg);text-align:center}.XXavkq_formulaRule strong{color:var(--visual-tone);font-size:var(--lx-text-micro);letter-spacing:.04em;text-transform:uppercase}.XXavkq_formulaUnknown{gap:var(--lx-space-md);padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-tertiary);grid-template-columns:30px minmax(0,1fr);align-items:center;display:grid}.XXavkq_formulaUnknown>span:first-child{color:var(--visual-tone);font-size:var(--lx-text-lg);text-align:center}.XXavkq_formulaUnknown>span:last-child{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-md);min-height:38px;padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);align-items:center;display:flex}.XXavkq_formulaConclusion{gap:var(--lx-space-3xs);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-success);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-success) 10%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);display:grid}.XXavkq_formulaConclusion span{color:var(--lx-success);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.XXavkq_formulaConclusion strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}@container XXavkq_learning-visual-v4 (width<=360px){.XXavkq_formulaStepCard{padding:var(--lx-space-sm);grid-template-columns:24px minmax(0,1fr)}.XXavkq_formulaStepCard>span{width:23px;height:23px}.XXavkq_formulaRule{grid-template-columns:24px minmax(0,1fr)}.XXavkq_formulaRule strong,.XXavkq_formulaRule>span:last-child{grid-column:2}}";
-		const tagId$7 = "@dsh-portable/interactive-learning/formula.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$7) + "]") === null) {
+		const css$8 = "._8Y0KAW_formulaMeta{justify-content:space-between;align-items:center;gap:var(--lx-space-lg);min-width:0;color:var(--lx-accent);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs);display:flex}._8Y0KAW_formulaMeta code{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-xs);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-regular);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._8Y0KAW_formulaSteps{gap:0;margin:0;padding:0;list-style:none;display:grid}._8Y0KAW_formulaSteps>li{min-width:0;opacity:var(--lx-vs-alpha)}._8Y0KAW_formulaStepCard{gap:var(--lx-space-md);border:1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));grid-template-columns:30px minmax(0,1fr);align-items:start;display:grid;box-shadow:0 1px 3px #0000000a}._8Y0KAW_formulaSteps>li[data-visual-state=current] ._8Y0KAW_formulaStepCard{border-width:2px;border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 30%, transparent)}._8Y0KAW_formulaStepCard>span{border-radius:var(--lx-radius-circle);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));width:28px;height:28px;color:var(--visual-tone);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);place-items:center;display:grid}._8Y0KAW_formulaStepCard>div{gap:var(--lx-space-2xs);min-width:0;display:grid}._8Y0KAW_formulaExpression{padding:var(--lx-space-sm) 0;color:var(--lx-label-primary);font-size:var(--lx-text-formula);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-formula);scrollbar-width:thin;overflow:auto hidden}._8Y0KAW_formulaExpression>div{min-width:max-content}._8Y0KAW_formulaExpression .katex-display{text-align:left;margin:2px 0}._8Y0KAW_formulaStepCard strong{color:var(--visual-tone);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._8Y0KAW_formulaStepCard p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}._8Y0KAW_formulaRule{gap:var(--lx-space-xs) var(--lx-space-md);border-left:2px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));min-height:44px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-template-columns:30px auto minmax(0,1fr);align-items:center;margin-left:14px;display:grid}._8Y0KAW_formulaRule>span:first-child{color:var(--visual-tone);font-size:var(--lx-text-lg);text-align:center}._8Y0KAW_formulaRule strong{color:var(--visual-tone);font-size:var(--lx-text-micro);letter-spacing:.04em;text-transform:uppercase}._8Y0KAW_formulaUnknown{gap:var(--lx-space-md);padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-tertiary);grid-template-columns:30px minmax(0,1fr);align-items:center;display:grid}._8Y0KAW_formulaUnknown>span:first-child{color:var(--visual-tone);font-size:var(--lx-text-lg);text-align:center}._8Y0KAW_formulaUnknown>span:last-child{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-md);min-height:38px;padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);align-items:center;display:flex}._8Y0KAW_formulaConclusion{gap:var(--lx-space-3xs);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-success);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-success) 10%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);display:grid}._8Y0KAW_formulaConclusion span{color:var(--lx-success);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._8Y0KAW_formulaConclusion strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}@container _8Y0KAW_learning-visual-v4 (width<=360px){._8Y0KAW_formulaStepCard{padding:var(--lx-space-sm);grid-template-columns:24px minmax(0,1fr)}._8Y0KAW_formulaStepCard>span{width:23px;height:23px}._8Y0KAW_formulaRule{grid-template-columns:24px minmax(0,1fr)}._8Y0KAW_formulaRule strong,._8Y0KAW_formulaRule>span:last-child{grid-column:2}}";
+		const tagId$8 = "@dsh-portable/interactive-learning/formula.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$8) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$7;
-			tag.textContent = css$7;
+			tag.dataset.pluginCss = tagId$8;
+			tag.textContent = css$8;
 			document.head.appendChild(tag);
 		}
 		var formula_module_css_default = {
-			"formulaConclusion": "XXavkq_formulaConclusion",
-			"formulaExpression": "XXavkq_formulaExpression",
-			"formulaMeta": "XXavkq_formulaMeta",
-			"formulaRule": "XXavkq_formulaRule",
-			"formulaStepCard": "XXavkq_formulaStepCard",
-			"formulaSteps": "XXavkq_formulaSteps",
-			"formulaUnknown": "XXavkq_formulaUnknown",
-			"learning-visual-v4": "XXavkq_learning-visual-v4"
+			"formulaConclusion": "_8Y0KAW_formulaConclusion",
+			"formulaExpression": "_8Y0KAW_formulaExpression",
+			"formulaMeta": "_8Y0KAW_formulaMeta",
+			"formulaRule": "_8Y0KAW_formulaRule",
+			"formulaStepCard": "_8Y0KAW_formulaStepCard",
+			"formulaSteps": "_8Y0KAW_formulaSteps",
+			"formulaUnknown": "_8Y0KAW_formulaUnknown",
+			"learning-visual-v4": "_8Y0KAW_learning-visual-v4"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/FormulaStepsRenderer.tsx
@@ -8566,30 +10697,30 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/study.module.css.mjs
-		const css$6 = ".S3_Q6G_studySource{gap:var(--lx-space-3xs) var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 22%, var(--lx-surface-base));grid-template-columns:auto minmax(0,1fr);align-items:baseline;display:grid}.S3_Q6G_studySource>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.S3_Q6G_studySource>strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}.S3_Q6G_studySource>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.S3_Q6G_studySource>p b{margin-right:var(--lx-space-xs);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.S3_Q6G_studyDependencyMap{gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:grid}.S3_Q6G_studyDependencyHeader{justify-content:space-between;gap:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;display:flex}.S3_Q6G_studyDependencyTrack{grid-template-columns:subgrid;gap:var(--lx-space-sm);grid-column:1/-1;min-width:0;display:grid}.S3_Q6G_studyDependencyLevel{gap:var(--lx-space-xs);align-content:start;min-width:0;display:grid;position:relative}.S3_Q6G_studyDependencyLevel:not(:last-child):after{top:50%;right:calc(var(--lx-space-sm) * -1);color:var(--lx-accent);content:\"→\";font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);position:absolute}.S3_Q6G_studyDependencyNode{border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--lx-accent-soft) 18%, var(--lx-surface-base));color:var(--lx-label-primary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere}.S3_Q6G_studyDependencyNode[data-role=foundation]{border-color:color-mix(in srgb, var(--lx-success) 36%, var(--lx-border-subtle))}.S3_Q6G_studyDependencyNode[data-role=practice]{border-style:dashed}.S3_Q6G_studyLayout{gap:var(--lx-space-lg);grid-template-columns:minmax(160px,.32fr) minmax(0,1fr);min-width:0;display:grid}.S3_Q6G_studySections{gap:var(--lx-space-xs);flex-direction:column;min-width:0;display:flex}.S3_Q6G_sectionTab{gap:0 var(--lx-space-sm);min-width:0;padding:var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:24px minmax(0,1fr);justify-items:start;display:grid}.S3_Q6G_sectionTab>span{border-radius:var(--lx-radius-circle);background:var(--lx-border-subtle);width:22px;height:22px;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);grid-row:1/3;place-items:center;display:grid}.S3_Q6G_sectionTab>strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.S3_Q6G_sectionTab>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.S3_Q6G_sectionTab[aria-selected=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 42%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm)}.S3_Q6G_sectionTab[aria-selected=true]>span{background:var(--lx-accent);color:var(--lx-label-on-accent)}.S3_Q6G_studySectionPanel{gap:var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-lg);background:var(--lx-surface-sunken);flex-direction:column;display:flex}.S3_Q6G_studySectionPanel>header{gap:var(--lx-space-xs);display:grid}.S3_Q6G_studySectionPanel>header span{color:var(--lx-accent);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.S3_Q6G_studySectionPanel>header h4{color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);margin:0}.S3_Q6G_studySectionPanel>header p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.S3_Q6G_studyConcepts{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));display:grid}.S3_Q6G_conceptCard{gap:var(--lx-space-3xs);border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);justify-items:start;display:grid;box-shadow:0 1px 3px #0000000a}.S3_Q6G_conceptCard:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.S3_Q6G_conceptCard>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.S3_Q6G_conceptCard>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.S3_Q6G_conceptCard>small{gap:var(--lx-space-3xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);display:grid}.S3_Q6G_conceptCard>small b{color:var(--lx-label-secondary);font-weight:var(--lx-weight-medium)}.S3_Q6G_conceptCard[data-selected]{border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);border-width:2px}.S3_Q6G_studyDetail{gap:var(--lx-space-xs) var(--lx-space-md);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 24%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);grid-template-columns:minmax(0,1fr) 28px;display:grid;position:relative}.S3_Q6G_studyDetail>div{gap:var(--lx-space-sm);align-items:baseline;min-width:0;display:flex}.S3_Q6G_studyDetail>div span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);flex:none}.S3_Q6G_studyDetail>div strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);overflow-wrap:anywhere}.S3_Q6G_studyDetail>p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1;margin:0}.S3_Q6G_studyDetail>dl{gap:var(--lx-space-sm);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);grid-column:1;margin:0;display:flex}.S3_Q6G_studyDetail dt{color:var(--lx-label-tertiary)}.S3_Q6G_studyDetail dd{color:var(--lx-label-secondary);margin:0}.S3_Q6G_studyDetail>button{grid-area:1/2/4;align-self:start}@container S3_Q6G_learning-visual-v4 (width<=560px){.S3_Q6G_studyLayout{grid-template-columns:1fr}.S3_Q6G_studySections{scrollbar-width:thin;flex-direction:row;padding-bottom:3px;overflow-x:auto}.S3_Q6G_sectionTab{min-width:156px}}";
-		const tagId$6 = "@dsh-portable/interactive-learning/study.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$6) + "]") === null) {
+		const css$7 = ".ApA5Lq_studySource{gap:var(--lx-space-3xs) var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 22%, var(--lx-surface-base));grid-template-columns:auto minmax(0,1fr);align-items:baseline;display:grid}.ApA5Lq_studySource>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.ApA5Lq_studySource>strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}.ApA5Lq_studySource>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.ApA5Lq_studySource>p b{margin-right:var(--lx-space-xs);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.ApA5Lq_studyDependencyMap{gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:grid}.ApA5Lq_studyDependencyHeader{justify-content:space-between;gap:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;display:flex}.ApA5Lq_studyDependencyTrack{grid-template-columns:subgrid;gap:var(--lx-space-sm);grid-column:1/-1;min-width:0;display:grid}.ApA5Lq_studyDependencyLevel{gap:var(--lx-space-xs);align-content:start;min-width:0;display:grid;position:relative}.ApA5Lq_studyDependencyLevel:not(:last-child):after{top:50%;right:calc(var(--lx-space-sm) * -1);color:var(--lx-accent);content:\"→\";font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);position:absolute}.ApA5Lq_studyDependencyNode{border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--lx-accent-soft) 18%, var(--lx-surface-base));color:var(--lx-label-primary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere}.ApA5Lq_studyDependencyNode[data-role=foundation]{border-color:color-mix(in srgb, var(--lx-success) 36%, var(--lx-border-subtle))}.ApA5Lq_studyDependencyNode[data-role=practice]{border-style:dashed}.ApA5Lq_studyLayout{gap:var(--lx-space-lg);grid-template-columns:minmax(160px,.32fr) minmax(0,1fr);min-width:0;display:grid}.ApA5Lq_studySections{gap:var(--lx-space-xs);flex-direction:column;min-width:0;display:flex}.ApA5Lq_sectionTab{gap:0 var(--lx-space-sm);min-width:0;padding:var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:24px minmax(0,1fr);justify-items:start;display:grid}.ApA5Lq_sectionTab>span{border-radius:var(--lx-radius-circle);background:var(--lx-border-subtle);width:22px;height:22px;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);grid-row:1/3;place-items:center;display:grid}.ApA5Lq_sectionTab>strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab[aria-selected=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 42%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm)}.ApA5Lq_sectionTab[aria-selected=true]>span{background:var(--lx-accent);color:var(--lx-label-on-accent)}.ApA5Lq_studySectionPanel{gap:var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-lg);background:var(--lx-surface-sunken);flex-direction:column;display:flex}.ApA5Lq_studySectionPanel>header{gap:var(--lx-space-xs);display:grid}.ApA5Lq_studySectionPanel>header span{color:var(--lx-accent);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.ApA5Lq_studySectionPanel>header h4{color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);margin:0}.ApA5Lq_studySectionPanel>header p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.ApA5Lq_studyConcepts{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));display:grid}.ApA5Lq_conceptCard{gap:var(--lx-space-3xs);border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));opacity:var(--lx-vs-alpha);text-align:left;transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);justify-items:start;display:grid;box-shadow:0 1px 3px #0000000a}.ApA5Lq_conceptCard:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.ApA5Lq_conceptCard>span{color:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.ApA5Lq_conceptCard>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.ApA5Lq_conceptCard>small{gap:var(--lx-space-3xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);display:grid}.ApA5Lq_conceptCard>small b{color:var(--lx-label-secondary);font-weight:var(--lx-weight-medium)}.ApA5Lq_conceptCard[data-selected]{border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);border-width:2px}.ApA5Lq_studyDetail{gap:var(--lx-space-xs) var(--lx-space-md);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 24%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);grid-template-columns:minmax(0,1fr) 28px;display:grid;position:relative}.ApA5Lq_studyDetail>div{gap:var(--lx-space-sm);align-items:baseline;min-width:0;display:flex}.ApA5Lq_studyDetail>div span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);flex:none}.ApA5Lq_studyDetail>div strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);overflow-wrap:anywhere}.ApA5Lq_studyDetail>p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1;margin:0}.ApA5Lq_studyDetail>dl{gap:var(--lx-space-sm);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);grid-column:1;margin:0;display:flex}.ApA5Lq_studyDetail dt{color:var(--lx-label-tertiary)}.ApA5Lq_studyDetail dd{color:var(--lx-label-secondary);margin:0}.ApA5Lq_studyDetail>button{grid-area:1/2/4;align-self:start}@container ApA5Lq_learning-visual-v4 (width<=560px){.ApA5Lq_studyLayout{grid-template-columns:1fr}.ApA5Lq_studySections{scrollbar-width:thin;flex-direction:row;padding-bottom:3px;overflow-x:auto}.ApA5Lq_sectionTab{min-width:156px}}";
+		const tagId$7 = "@dsh-portable/interactive-learning/study.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$7) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$6;
-			tag.textContent = css$6;
+			tag.dataset.pluginCss = tagId$7;
+			tag.textContent = css$7;
 			document.head.appendChild(tag);
 		}
 		var study_module_css_default = {
-			"conceptCard": "S3_Q6G_conceptCard",
-			"learning-visual-v4": "S3_Q6G_learning-visual-v4",
-			"sectionTab": "S3_Q6G_sectionTab",
-			"studyConcepts": "S3_Q6G_studyConcepts",
-			"studyDependencyHeader": "S3_Q6G_studyDependencyHeader",
-			"studyDependencyLevel": "S3_Q6G_studyDependencyLevel",
-			"studyDependencyMap": "S3_Q6G_studyDependencyMap",
-			"studyDependencyNode": "S3_Q6G_studyDependencyNode",
-			"studyDependencyTrack": "S3_Q6G_studyDependencyTrack",
-			"studyDetail": "S3_Q6G_studyDetail",
-			"studyLayout": "S3_Q6G_studyLayout",
-			"studySectionPanel": "S3_Q6G_studySectionPanel",
-			"studySections": "S3_Q6G_studySections",
-			"studySource": "S3_Q6G_studySource"
+			"conceptCard": "ApA5Lq_conceptCard",
+			"learning-visual-v4": "ApA5Lq_learning-visual-v4",
+			"sectionTab": "ApA5Lq_sectionTab",
+			"studyConcepts": "ApA5Lq_studyConcepts",
+			"studyDependencyHeader": "ApA5Lq_studyDependencyHeader",
+			"studyDependencyLevel": "ApA5Lq_studyDependencyLevel",
+			"studyDependencyMap": "ApA5Lq_studyDependencyMap",
+			"studyDependencyNode": "ApA5Lq_studyDependencyNode",
+			"studyDependencyTrack": "ApA5Lq_studyDependencyTrack",
+			"studyDetail": "ApA5Lq_studyDetail",
+			"studyLayout": "ApA5Lq_studyLayout",
+			"studySectionPanel": "ApA5Lq_studySectionPanel",
+			"studySections": "ApA5Lq_studySections",
+			"studySource": "ApA5Lq_studySource"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/StudyMapRenderer.tsx
@@ -8772,29 +10903,29 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/recall.module.css.mjs
-		const css$5 = ".zG9k5W_recallToolbar{justify-content:space-between;align-items:baseline;gap:var(--lx-space-xs) var(--lx-space-lg);min-width:0;color:var(--lx-accent);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);flex-wrap:wrap;display:flex}.zG9k5W_recallToolbar output{color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-regular)}.zG9k5W_recallInstructions{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.zG9k5W_recallCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-base);min-height:200px;box-shadow:var(--lx-shadow-md);opacity:var(--lx-vs-alpha);transition:box-shadow var(--lx-motion-base) var(--lx-easing);align-content:start;padding:clamp(16px,3.2cqi,24px);display:grid}.zG9k5W_recallCardHeader{justify-content:space-between;align-items:center;gap:var(--lx-space-lg);display:flex}.zG9k5W_recallCardHeader>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.zG9k5W_recallCardHeader>small{border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);border:1px solid var(--lx-border-subtle);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}.zG9k5W_recallCardHeader>small[data-status=mastered]{border-color:color-mix(in srgb, var(--lx-success) 30%, transparent);background:color-mix(in srgb, var(--lx-success) 12%, transparent);color:var(--lx-success)}.zG9k5W_recallCardHeader>small[data-status=review]{border-color:color-mix(in srgb, var(--lx-warn) 30%, transparent);background:color-mix(in srgb, var(--lx-warn) 12%, transparent);color:var(--lx-warn)}.zG9k5W_recallCard>h4{color:var(--lx-label-primary);font-size:clamp(16px,3.4cqi,20px);font-weight:var(--lx-weight-strong);margin:0;line-height:1.5}.zG9k5W_recallTags{gap:var(--lx-space-xs);flex-wrap:wrap;margin:-3px 0 0;padding:0;list-style:none;display:flex}.zG9k5W_recallTags li{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.zG9k5W_recallRevealSlot{align-content:start;min-height:56px;display:grid}.zG9k5W_recallRevealPlaceholder{min-height:56px;display:block}.zG9k5W_recallReveal{gap:var(--lx-space-2xs);border-left:3.5px solid var(--lx-warn);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-warn) 8%, var(--lx-surface-base));display:grid}.zG9k5W_recallReveal[data-kind=answer]{border-left-color:var(--lx-success);background:color-mix(in srgb, var(--lx-success) 8%, var(--lx-surface-base))}.zG9k5W_recallReveal>span{color:var(--lx-warn);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.zG9k5W_recallReveal[data-kind=answer]>span{color:var(--lx-success)}.zG9k5W_recallReveal>p{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}.zG9k5W_recallRevealButton{justify-self:start;width:max-content;min-width:128px}.zG9k5W_recallRating{align-self:end}.zG9k5W_ratingButton[aria-pressed=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 50%, transparent);color:var(--lx-accent);font-weight:var(--lx-weight-medium)}.zG9k5W_recallNavigation>:last-child{margin-left:auto}@container zG9k5W_learning-visual-v4 (width<=560px){.zG9k5W_recallNavigation>*{flex:1}.zG9k5W_recallNavigation>:last-child{flex-basis:100%;margin-left:0}.zG9k5W_recallCard{min-height:190px}}@container zG9k5W_learning-visual-v4 (width<=360px){.zG9k5W_recallToolbar{align-items:flex-start;gap:var(--lx-space-3xs);flex-direction:column}}";
-		const tagId$5 = "@dsh-portable/interactive-learning/recall.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$5) + "]") === null) {
+		const css$6 = "._4HHZCG_recallToolbar{justify-content:space-between;align-items:baseline;gap:var(--lx-space-xs) var(--lx-space-lg);min-width:0;color:var(--lx-accent);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);flex-wrap:wrap;display:flex}._4HHZCG_recallToolbar output{color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-regular)}._4HHZCG_recallInstructions{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}._4HHZCG_recallCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-base);min-height:200px;box-shadow:var(--lx-shadow-md);opacity:var(--lx-vs-alpha);transition:box-shadow var(--lx-motion-base) var(--lx-easing);align-content:start;padding:clamp(16px,3.2cqi,24px);display:grid}._4HHZCG_recallCardHeader{justify-content:space-between;align-items:center;gap:var(--lx-space-lg);display:flex}._4HHZCG_recallCardHeader>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._4HHZCG_recallCardHeader>small{border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);border:1px solid var(--lx-border-subtle);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}._4HHZCG_recallCardHeader>small[data-status=mastered]{border-color:color-mix(in srgb, var(--lx-success) 30%, transparent);background:color-mix(in srgb, var(--lx-success) 12%, transparent);color:var(--lx-success)}._4HHZCG_recallCardHeader>small[data-status=review]{border-color:color-mix(in srgb, var(--lx-warn) 30%, transparent);background:color-mix(in srgb, var(--lx-warn) 12%, transparent);color:var(--lx-warn)}._4HHZCG_recallCard>h4{color:var(--lx-label-primary);font-size:clamp(16px,3.4cqi,20px);font-weight:var(--lx-weight-strong);margin:0;line-height:1.5}._4HHZCG_recallTags{gap:var(--lx-space-xs);flex-wrap:wrap;margin:-3px 0 0;padding:0;list-style:none;display:flex}._4HHZCG_recallTags li{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}._4HHZCG_recallRevealSlot{align-content:start;min-height:56px;display:grid}._4HHZCG_recallRevealPlaceholder{min-height:56px;display:block}._4HHZCG_recallReveal{gap:var(--lx-space-2xs);border-left:3.5px solid var(--lx-warn);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-warn) 8%, var(--lx-surface-base));display:grid}._4HHZCG_recallReveal[data-kind=answer]{border-left-color:var(--lx-success);background:color-mix(in srgb, var(--lx-success) 8%, var(--lx-surface-base))}._4HHZCG_recallReveal>span{color:var(--lx-warn);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}._4HHZCG_recallReveal[data-kind=answer]>span{color:var(--lx-success)}._4HHZCG_recallReveal>p{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}._4HHZCG_recallRevealButton{justify-self:start;width:max-content;min-width:128px}._4HHZCG_recallRating{align-self:end}._4HHZCG_ratingButton[aria-pressed=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 50%, transparent);color:var(--lx-accent);font-weight:var(--lx-weight-medium)}._4HHZCG_recallNavigation>:last-child{margin-left:auto}@container _4HHZCG_learning-visual-v4 (width<=560px){._4HHZCG_recallNavigation>*{flex:1}._4HHZCG_recallNavigation>:last-child{flex-basis:100%;margin-left:0}._4HHZCG_recallCard{min-height:190px}}@container _4HHZCG_learning-visual-v4 (width<=360px){._4HHZCG_recallToolbar{align-items:flex-start;gap:var(--lx-space-3xs);flex-direction:column}}";
+		const tagId$6 = "@dsh-portable/interactive-learning/recall.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$6) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$5;
-			tag.textContent = css$5;
+			tag.dataset.pluginCss = tagId$6;
+			tag.textContent = css$6;
 			document.head.appendChild(tag);
 		}
 		var recall_module_css_default = {
-			"learning-visual-v4": "zG9k5W_learning-visual-v4",
-			"ratingButton": "zG9k5W_ratingButton",
-			"recallCard": "zG9k5W_recallCard",
-			"recallCardHeader": "zG9k5W_recallCardHeader",
-			"recallInstructions": "zG9k5W_recallInstructions",
-			"recallNavigation": "zG9k5W_recallNavigation",
-			"recallRating": "zG9k5W_recallRating",
-			"recallReveal": "zG9k5W_recallReveal",
-			"recallRevealButton": "zG9k5W_recallRevealButton",
-			"recallRevealPlaceholder": "zG9k5W_recallRevealPlaceholder",
-			"recallRevealSlot": "zG9k5W_recallRevealSlot",
-			"recallTags": "zG9k5W_recallTags",
-			"recallToolbar": "zG9k5W_recallToolbar"
+			"learning-visual-v4": "_4HHZCG_learning-visual-v4",
+			"ratingButton": "_4HHZCG_ratingButton",
+			"recallCard": "_4HHZCG_recallCard",
+			"recallCardHeader": "_4HHZCG_recallCardHeader",
+			"recallInstructions": "_4HHZCG_recallInstructions",
+			"recallNavigation": "_4HHZCG_recallNavigation",
+			"recallRating": "_4HHZCG_recallRating",
+			"recallReveal": "_4HHZCG_recallReveal",
+			"recallRevealButton": "_4HHZCG_recallRevealButton",
+			"recallRevealPlaceholder": "_4HHZCG_recallRevealPlaceholder",
+			"recallRevealSlot": "_4HHZCG_recallRevealSlot",
+			"recallTags": "_4HHZCG_recallTags",
+			"recallToolbar": "_4HHZCG_recallToolbar"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/RecallDeckRenderer.tsx
@@ -9003,34 +11134,34 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/data-table.module.css.mjs
-		const css$4 = ".X9YIgG_toolbar{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.X9YIgG_search{flex:220px}.X9YIgG_search input{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-xs) var(--lx-space-md);background:var(--lx-surface-base);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing)}.X9YIgG_search input:focus{border-color:var(--lx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--lx-accent) 15%, transparent);outline:none}.X9YIgG_toolbar output{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-medium)}.X9YIgG_tableViewport{padding:var(--lx-space-2xs);border-radius:var(--lx-radius-md);box-shadow:var(--lx-shadow-sm)}.X9YIgG_table{border-spacing:0;border-collapse:separate;width:100%;min-width:520px;color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.X9YIgG_table th,.X9YIgG_table td{border-right:1px solid var(--lx-border-subtle);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;white-space:nowrap}.X9YIgG_table tr>:last-child{border-right:0}.X9YIgG_table tbody tr:last-child>*{border-bottom:0}.X9YIgG_table thead th{z-index:1;background:var(--lx-surface-sunken);opacity:var(--lx-vs-alpha);border-bottom:1.5px solid var(--lx-border-subtle);padding:0;position:sticky;top:0}.X9YIgG_table thead button{align-items:center;gap:var(--lx-space-xs);width:100%;min-height:40px;padding:var(--lx-space-sm) var(--lx-space-md);color:inherit;font:inherit;font-weight:var(--lx-weight-strong);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing);background:0 0;border:0;display:flex}.X9YIgG_table thead button:hover{background:color-mix(in srgb, var(--lx-accent) 9%, transparent)}.X9YIgG_table thead small{color:var(--lx-label-tertiary);font-weight:var(--lx-weight-regular)}.X9YIgG_table thead i{color:var(--lx-label-tertiary);margin-left:auto;font-style:normal}.X9YIgG_table tbody tr{opacity:var(--lx-vs-alpha);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing)}.X9YIgG_table tbody tr:nth-child(2n)>*{background:color-mix(in srgb, var(--lx-surface-sunken) 50%, var(--lx-surface-base))}.X9YIgG_table tbody tr:hover>*{background:color-mix(in srgb, var(--lx-accent) 9%, transparent)!important}.X9YIgG_table tbody tr[data-selected]>*{background:color-mix(in srgb, var(--lx-accent) 15%, transparent)!important}.X9YIgG_table tbody tr[data-outlier]>:first-child{box-shadow:inset 3.5px 0 0 var(--lx-danger,#d94b4b)}.X9YIgG_table tbody th{font-weight:var(--lx-weight-medium)}.X9YIgG_table td{color:var(--lx-label-secondary)}.X9YIgG_table [data-missing]{color:var(--lx-label-tertiary);font-style:italic}.X9YIgG_outlierMark{width:17px;height:17px;margin-right:var(--lx-space-xs);border-radius:var(--lx-radius-circle);background:color-mix(in srgb, var(--lx-danger,#d94b4b) 14%, transparent);color:var(--lx-danger,#d94b4b);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);place-items:center;display:inline-grid}.X9YIgG_empty{padding:var(--lx-space-xl);color:var(--lx-label-tertiary);text-align:center;margin:0}.X9YIgG_chartViewport{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);width:100%;box-shadow:var(--lx-shadow-sm);overflow-x:auto}.X9YIgG_chart{width:100%;min-width:360px;display:block}.X9YIgG_chartFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-subtle)}.X9YIgG_chartGrid{stroke:color-mix(in srgb, var(--lx-border-subtle) 72%, transparent);stroke-width:1px;stroke-dasharray:2 4;vector-effect:non-scaling-stroke}.X9YIgG_xLabel,.X9YIgG_yLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);text-anchor:middle}.X9YIgG_tick{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.X9YIgG_chartLine{fill:none;stroke:var(--visual-tone);stroke-width:2.25px;stroke-linejoin:round;filter:drop-shadow(0 0 3px color-mix(in srgb, var(--visual-tone) 40%, transparent));vector-effect:non-scaling-stroke}.X9YIgG_chartPoint{fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;cursor:pointer;filter:drop-shadow(0 0 2px var(--visual-tone));vector-effect:non-scaling-stroke}.X9YIgG_chartBar{fill:color-mix(in srgb, var(--visual-tone) 72%, transparent);stroke:var(--visual-tone);cursor:pointer;vector-effect:non-scaling-stroke}.X9YIgG_chartPoint[data-outlier],.X9YIgG_chartBar[data-outlier]{stroke:var(--lx-danger,#d94b4b);stroke-width:2.5px;filter:drop-shadow(0 0 4px color-mix(in srgb, var(--lx-danger,#d94b4b) 60%, transparent))}.X9YIgG_chartPoint[data-selected],.X9YIgG_chartBar[data-selected]{stroke:var(--lx-label-primary);stroke-width:3px}.X9YIgG_chartTooltip{pointer-events:none}.X9YIgG_chartTooltip rect{fill:var(--lx-surface-base);stroke:var(--lx-border-strong);stroke-width:1px;filter:drop-shadow(0 2px 5px color-mix(in srgb, var(--lx-label-primary) 16%, transparent))}.X9YIgG_chartTooltip text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}@container X9YIgG_learning-visual-v4 (width<=560px){.X9YIgG_table{min-width:460px}}";
-		const tagId$4 = "@dsh-portable/interactive-learning/data-table.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$4) + "]") === null) {
+		const css$5 = ".rTBj_a_toolbar{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}.rTBj_a_search{flex:220px}.rTBj_a_search input{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-xs) var(--lx-space-md);background:var(--lx-surface-base);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing)}.rTBj_a_search input:focus{border-color:var(--lx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--lx-accent) 15%, transparent);outline:none}.rTBj_a_toolbar output{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-medium)}.rTBj_a_tableViewport{padding:var(--lx-space-2xs);border-radius:var(--lx-radius-md);box-shadow:var(--lx-shadow-sm)}.rTBj_a_table{border-spacing:0;border-collapse:separate;width:100%;min-width:520px;color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.rTBj_a_table th,.rTBj_a_table td{border-right:1px solid var(--lx-border-subtle);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);text-align:left;white-space:nowrap}.rTBj_a_table tr>:last-child{border-right:0}.rTBj_a_table tbody tr:last-child>*{border-bottom:0}.rTBj_a_table thead th{z-index:1;background:var(--lx-surface-sunken);opacity:var(--lx-vs-alpha);border-bottom:1.5px solid var(--lx-border-subtle);padding:0;position:sticky;top:0}.rTBj_a_table thead button{align-items:center;gap:var(--lx-space-xs);width:100%;min-height:40px;padding:var(--lx-space-sm) var(--lx-space-md);color:inherit;font:inherit;font-weight:var(--lx-weight-strong);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing);background:0 0;border:0;display:flex}.rTBj_a_table thead button:hover{background:color-mix(in srgb, var(--lx-accent) 9%, transparent)}.rTBj_a_table thead small{color:var(--lx-label-tertiary);font-weight:var(--lx-weight-regular)}.rTBj_a_table thead i{color:var(--lx-label-tertiary);margin-left:auto;font-style:normal}.rTBj_a_table tbody tr{opacity:var(--lx-vs-alpha);cursor:pointer;transition:background-color var(--lx-motion-fast) var(--lx-easing)}.rTBj_a_table tbody tr:nth-child(2n)>*{background:color-mix(in srgb, var(--lx-surface-sunken) 50%, var(--lx-surface-base))}.rTBj_a_table tbody tr:hover>*{background:color-mix(in srgb, var(--lx-accent) 9%, transparent)!important}.rTBj_a_table tbody tr[data-selected]>*{background:color-mix(in srgb, var(--lx-accent) 15%, transparent)!important}.rTBj_a_table tbody tr[data-outlier]>:first-child{box-shadow:inset 3.5px 0 0 var(--lx-danger,#d94b4b)}.rTBj_a_table tbody th{font-weight:var(--lx-weight-medium)}.rTBj_a_table td{color:var(--lx-label-secondary)}.rTBj_a_table [data-missing]{color:var(--lx-label-tertiary);font-style:italic}.rTBj_a_outlierMark{width:17px;height:17px;margin-right:var(--lx-space-xs);border-radius:var(--lx-radius-circle);background:color-mix(in srgb, var(--lx-danger,#d94b4b) 14%, transparent);color:var(--lx-danger,#d94b4b);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);place-items:center;display:inline-grid}.rTBj_a_empty{padding:var(--lx-space-xl);color:var(--lx-label-tertiary);text-align:center;margin:0}.rTBj_a_chartViewport{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);width:100%;box-shadow:var(--lx-shadow-sm);overflow-x:auto}.rTBj_a_chart{width:100%;min-width:360px;display:block}.rTBj_a_chartFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-subtle)}.rTBj_a_chartGrid{stroke:color-mix(in srgb, var(--lx-border-subtle) 72%, transparent);stroke-width:1px;stroke-dasharray:2 4;vector-effect:non-scaling-stroke}.rTBj_a_xLabel,.rTBj_a_yLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);text-anchor:middle}.rTBj_a_tick{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.rTBj_a_chartLine{fill:none;stroke:var(--visual-tone);stroke-width:2.25px;stroke-linejoin:round;filter:drop-shadow(0 0 3px color-mix(in srgb, var(--visual-tone) 40%, transparent));vector-effect:non-scaling-stroke}.rTBj_a_chartPoint{fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;cursor:pointer;filter:drop-shadow(0 0 2px var(--visual-tone));vector-effect:non-scaling-stroke}.rTBj_a_chartBar{fill:color-mix(in srgb, var(--visual-tone) 72%, transparent);stroke:var(--visual-tone);cursor:pointer;vector-effect:non-scaling-stroke}.rTBj_a_chartPoint[data-outlier],.rTBj_a_chartBar[data-outlier]{stroke:var(--lx-danger,#d94b4b);stroke-width:2.5px;filter:drop-shadow(0 0 4px color-mix(in srgb, var(--lx-danger,#d94b4b) 60%, transparent))}.rTBj_a_chartPoint[data-selected],.rTBj_a_chartBar[data-selected]{stroke:var(--lx-label-primary);stroke-width:3px}.rTBj_a_chartTooltip{pointer-events:none}.rTBj_a_chartTooltip rect{fill:var(--lx-surface-base);stroke:var(--lx-border-strong);stroke-width:1px;filter:drop-shadow(0 2px 5px color-mix(in srgb, var(--lx-label-primary) 16%, transparent))}.rTBj_a_chartTooltip text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}@container rTBj_a_learning-visual-v4 (width<=560px){.rTBj_a_table{min-width:460px}}";
+		const tagId$5 = "@dsh-portable/interactive-learning/data-table.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$5) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$4;
-			tag.textContent = css$4;
+			tag.dataset.pluginCss = tagId$5;
+			tag.textContent = css$5;
 			document.head.appendChild(tag);
 		}
 		var data_table_module_css_default = {
-			"chart": "X9YIgG_chart",
-			"chartBar": "X9YIgG_chartBar",
-			"chartFrame": "X9YIgG_chartFrame",
-			"chartGrid": "X9YIgG_chartGrid",
-			"chartLine": "X9YIgG_chartLine",
-			"chartPoint": "X9YIgG_chartPoint",
-			"chartTooltip": "X9YIgG_chartTooltip",
-			"chartViewport": "X9YIgG_chartViewport",
-			"empty": "X9YIgG_empty",
-			"learning-visual-v4": "X9YIgG_learning-visual-v4",
-			"outlierMark": "X9YIgG_outlierMark",
-			"search": "X9YIgG_search",
-			"table": "X9YIgG_table",
-			"tableViewport": "X9YIgG_tableViewport",
-			"tick": "X9YIgG_tick",
-			"toolbar": "X9YIgG_toolbar",
-			"xLabel": "X9YIgG_xLabel",
-			"yLabel": "X9YIgG_yLabel"
+			"chart": "rTBj_a_chart",
+			"chartBar": "rTBj_a_chartBar",
+			"chartFrame": "rTBj_a_chartFrame",
+			"chartGrid": "rTBj_a_chartGrid",
+			"chartLine": "rTBj_a_chartLine",
+			"chartPoint": "rTBj_a_chartPoint",
+			"chartTooltip": "rTBj_a_chartTooltip",
+			"chartViewport": "rTBj_a_chartViewport",
+			"empty": "rTBj_a_empty",
+			"learning-visual-v4": "rTBj_a_learning-visual-v4",
+			"outlierMark": "rTBj_a_outlierMark",
+			"search": "rTBj_a_search",
+			"table": "rTBj_a_table",
+			"tableViewport": "rTBj_a_tableViewport",
+			"tick": "rTBj_a_tick",
+			"toolbar": "rTBj_a_toolbar",
+			"xLabel": "rTBj_a_xLabel",
+			"yLabel": "rTBj_a_yLabel"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/DataTableRenderer.tsx
@@ -9438,55 +11569,55 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/process.module.css.mjs
-		const css$3 = ".DwGMpG_processViewport{overscroll-behavior-inline:contain;border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-sunken);scrollbar-width:thin;min-width:0;position:relative;overflow-x:auto}.DwGMpG_processSvg{touch-action:pan-y;min-width:100%;max-width:none;display:block;overflow:visible}.DwGMpG_processSvg text{font-family:inherit}.DwGMpG_processArrow path,.DwGMpG_diagramArrow path,.DwGMpG_causalArrow path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.DwGMpG_transitionGroup,.DwGMpG_stateGroup,.DwGMpG_messageGroup,.DwGMpG_participantGroup,.DwGMpG_causalLink,.DwGMpG_causalVariable,.DwGMpG_causalLoop{--visual-tone:var(--lx-accent);cursor:pointer;outline:none}.DwGMpG_transitionLine{fill:none;stroke:var(--visual-tone);stroke-width:calc(1.7px + var(--lx-vs-ring) * .8px);stroke-opacity:var(--lx-vs-alpha);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_transitionHit{fill:none;stroke:#0000;stroke-width:16px;pointer-events:stroke;vector-effect:non-scaling-stroke}.DwGMpG_transitionLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 34%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke}.DwGMpG_transitionLabel text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium);pointer-events:none}.DwGMpG_stateRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .4);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_stateShape{fill:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_stateLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);opacity:var(--lx-vs-alpha);pointer-events:none}.DwGMpG_stateMarker{fill:var(--visual-tone);font-size:9px;font-weight:var(--lx-weight-strong);letter-spacing:.05em;pointer-events:none}.DwGMpG_currentStateMarker{fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;vector-effect:non-scaling-stroke}.DwGMpG_transitionGroup:hover .DwGMpG_transitionLine,.DwGMpG_transitionGroup:focus-visible .DwGMpG_transitionLine,.DwGMpG_transitionGroup[data-visual-state=selected] .DwGMpG_transitionLine{stroke-opacity:1;stroke-width:3px}.DwGMpG_stateGroup:hover .DwGMpG_stateShape,.DwGMpG_stateGroup:focus-visible .DwGMpG_stateShape,.DwGMpG_stateGroup[data-visual-state=selected] .DwGMpG_stateShape,.DwGMpG_stateGroup[data-visual-state=current] .DwGMpG_stateShape{fill:color-mix(in srgb, var(--visual-tone) 20%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.8px}.DwGMpG_stateGroup[data-visual-state=current] .DwGMpG_stateRing,.DwGMpG_stateGroup[data-visual-state=selected] .DwGMpG_stateRing{stroke-opacity:.58}.DwGMpG_participantCard{fill:color-mix(in srgb, var(--visual-tone) 11%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:1.5px;vector-effect:non-scaling-stroke}.DwGMpG_participantLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);pointer-events:none}.DwGMpG_lifeline{fill:none;stroke:var(--visual-tone);stroke-dasharray:4 5;stroke-opacity:.58;stroke-width:1.2px;vector-effect:non-scaling-stroke}.DwGMpG_activation{fill:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-width:1.5px;vector-effect:non-scaling-stroke}.DwGMpG_messageLine{fill:none;stroke:var(--visual-tone);stroke-width:1.8px;stroke-opacity:var(--lx-vs-alpha);vector-effect:non-scaling-stroke}.DwGMpG_messageGroup[data-message-type=return] .DwGMpG_messageLine{stroke-dasharray:7 5;stroke-opacity:.78}.DwGMpG_messageGroup[data-message-type=async] .DwGMpG_messageLine{stroke-dasharray:2 5}.DwGMpG_messageGroup[data-stroke=dashed] .DwGMpG_messageLine{stroke-dasharray:7 5}.DwGMpG_messageHit{fill:none;stroke:#0000;stroke-width:16px;pointer-events:stroke;vector-effect:non-scaling-stroke}.DwGMpG_messageLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 30%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke}.DwGMpG_messageLabel text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium);pointer-events:none}.DwGMpG_messageGroup[data-message-type=return] .DwGMpG_messageLabel rect{stroke-dasharray:4 3}.DwGMpG_messageGroup[data-message-type=async] .DwGMpG_messageLabel rect{stroke-dasharray:1 3}.DwGMpG_messageGroup:hover .DwGMpG_messageLine,.DwGMpG_messageGroup:focus-visible .DwGMpG_messageLine,.DwGMpG_messageGroup[data-visual-state=selected] .DwGMpG_messageLine{stroke-width:3px;stroke-opacity:1}.DwGMpG_participantGroup:hover .DwGMpG_participantCard,.DwGMpG_participantGroup:focus-visible .DwGMpG_participantCard,.DwGMpG_participantGroup[data-visual-state=selected] .DwGMpG_participantCard,.DwGMpG_participantGroup[data-visual-state=current] .DwGMpG_participantCard{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));stroke-width:2.6px;stroke-opacity:1}.DwGMpG_participantGroup[data-visual-state=current] .DwGMpG_participantCard{filter:drop-shadow(0 0 .2rem color-mix(in srgb, var(--visual-tone) 28%, transparent))}.DwGMpG_causalLinkPath{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.8px + var(--lx-vs-ring) * .7px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-width var(--lx-motion-fast) var(--lx-easing), stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_causalLinkHit{fill:none;stroke:#0000;stroke-width:18px;pointer-events:stroke;vector-effect:non-scaling-stroke}.DwGMpG_causalSign rect,.DwGMpG_causalDelay rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 44%, var(--lx-border-subtle));stroke-width:1.2px;vector-effect:non-scaling-stroke;box-shadow:0 1px 3px #0000000f}.DwGMpG_causalSign text,.DwGMpG_causalDelay text,.DwGMpG_causalLinkLabel{fill:var(--visual-tone);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong)}.DwGMpG_causalLabelGroup{pointer-events:none}.DwGMpG_causalLabelBg{fill:var(--lx-surface-base);fill-opacity:.94;stroke:color-mix(in srgb, var(--visual-tone) 24%, var(--lx-border-subtle));stroke-width:1px}.DwGMpG_causalLinkLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}.DwGMpG_causalVariableShape{fill:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_causalVariableLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);pointer-events:none}.DwGMpG_causalLoopBadge rect{fill:color-mix(in srgb, var(--visual-tone) 14%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-width:1.5px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 6px color-mix(in srgb, var(--visual-tone) 16%, transparent));transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.DwGMpG_causalLoopBadge text{fill:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:.02em;pointer-events:none}.DwGMpG_causalLink:hover .DwGMpG_causalLinkPath,.DwGMpG_causalLink:focus-visible .DwGMpG_causalLinkPath,.DwGMpG_causalLink[data-visual-state=selected] .DwGMpG_causalLinkPath{stroke-width:3px;stroke-opacity:1;filter:drop-shadow(0 0 4px var(--visual-tone))}.DwGMpG_causalVariable:hover .DwGMpG_causalVariableShape,.DwGMpG_causalVariable:focus-visible .DwGMpG_causalVariableShape,.DwGMpG_causalVariable[data-visual-state=selected] .DwGMpG_causalVariableShape,.DwGMpG_causalVariable[data-visual-state=current] .DwGMpG_causalVariableShape{fill:color-mix(in srgb, var(--visual-tone) 24%, var(--lx-surface-base));fill-opacity:1;stroke-width:2.8px;stroke-opacity:1;filter:drop-shadow(0 0 6px color-mix(in srgb, var(--visual-tone) 30%, transparent))}.DwGMpG_causalLoop:hover .DwGMpG_causalLoopBadge rect,.DwGMpG_causalLoop:focus-visible .DwGMpG_causalLoopBadge rect,.DwGMpG_causalLoop[data-visual-state=selected] .DwGMpG_causalLoopBadge rect{fill:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-surface-base));stroke-width:2.2px;filter:drop-shadow(0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent))}.DwGMpG_causalLoopBadge[data-loop-kind=balancing] rect{stroke-dasharray:5 3}.DwGMpG_processSteps{gap:var(--lx-space-xs);margin:0;padding:0;list-style:none;display:grid}.DwGMpG_processSteps li{gap:var(--lx-space-3xs);border-left:3px solid var(--lx-border-default);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);display:grid}.DwGMpG_processSteps li[data-active]{border-left-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 7%, transparent)}.DwGMpG_processSteps strong{color:var(--lx-label-primary);font-weight:var(--lx-weight-strong)}.DwGMpG_stepButton{justify-items:start;gap:var(--lx-space-3xs);text-align:left;background:0 0;border-color:#0000;width:100%;display:grid}.DwGMpG_stepButton span{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}@media (width<=560px){.DwGMpG_processSvg{min-width:520px}}@media (prefers-reduced-motion:reduce){.DwGMpG_transitionLine,.DwGMpG_stateShape,.DwGMpG_stateRing,.DwGMpG_messageLine,.DwGMpG_causalLinkPath{transition:none}}@media (forced-colors:active){.DwGMpG_stateShape,.DwGMpG_participantCard,.DwGMpG_causalVariableShape{fill:canvas;stroke:canvastext}.DwGMpG_transitionLine,.DwGMpG_messageLine,.DwGMpG_causalLinkPath{stroke:canvastext}.DwGMpG_stateGroup[data-visual-state=current] .DwGMpG_stateShape,.DwGMpG_participantGroup[data-visual-state=current] .DwGMpG_participantCard,.DwGMpG_causalVariable[data-visual-state=current] .DwGMpG_causalVariableShape{fill:highlight}}";
-		const tagId$3 = "@dsh-portable/interactive-learning/process.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$3) + "]") === null) {
+		const css$4 = ".yjamoq_processViewport{overscroll-behavior-inline:contain;border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-lg);background:var(--lx-surface-sunken);scrollbar-width:thin;min-width:0;position:relative;overflow-x:auto}.yjamoq_processSvg{touch-action:pan-y;min-width:100%;max-width:none;display:block;overflow:visible}.yjamoq_processSvg text{font-family:inherit}.yjamoq_processArrow path,.yjamoq_diagramArrow path,.yjamoq_causalArrow path{fill:var(--visual-tone);fill-opacity:var(--lx-vs-alpha)}.yjamoq_transitionGroup,.yjamoq_stateGroup,.yjamoq_messageGroup,.yjamoq_participantGroup,.yjamoq_causalLink,.yjamoq_causalVariable,.yjamoq_causalLoop{--visual-tone:var(--lx-accent);cursor:pointer;outline:none}.yjamoq_transitionLine{fill:none;stroke:var(--visual-tone);stroke-width:calc(1.7px + var(--lx-vs-ring) * .8px);stroke-opacity:var(--lx-vs-alpha);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.yjamoq_transitionHit{fill:none;stroke:#0000;stroke-width:16px;pointer-events:stroke;vector-effect:non-scaling-stroke}.yjamoq_transitionLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 34%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke}.yjamoq_transitionLabel text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium);pointer-events:none}.yjamoq_stateRing{fill:none;stroke:var(--visual-tone);stroke-width:2px;stroke-opacity:calc(var(--lx-vs-ring) * .4);vector-effect:non-scaling-stroke;transition:stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.yjamoq_stateShape{fill:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.yjamoq_stateLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);opacity:var(--lx-vs-alpha);pointer-events:none}.yjamoq_stateMarker{fill:var(--visual-tone);font-size:9px;font-weight:var(--lx-weight-strong);letter-spacing:.05em;pointer-events:none}.yjamoq_currentStateMarker{fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;vector-effect:non-scaling-stroke}.yjamoq_transitionGroup:hover .yjamoq_transitionLine,.yjamoq_transitionGroup:focus-visible .yjamoq_transitionLine,.yjamoq_transitionGroup[data-visual-state=selected] .yjamoq_transitionLine{stroke-opacity:1;stroke-width:3px}.yjamoq_stateGroup:hover .yjamoq_stateShape,.yjamoq_stateGroup:focus-visible .yjamoq_stateShape,.yjamoq_stateGroup[data-visual-state=selected] .yjamoq_stateShape,.yjamoq_stateGroup[data-visual-state=current] .yjamoq_stateShape{fill:color-mix(in srgb, var(--visual-tone) 20%, var(--lx-surface-base));fill-opacity:1;stroke-opacity:1;stroke-width:2.8px}.yjamoq_stateGroup[data-visual-state=current] .yjamoq_stateRing,.yjamoq_stateGroup[data-visual-state=selected] .yjamoq_stateRing{stroke-opacity:.58}.yjamoq_participantCard{fill:color-mix(in srgb, var(--visual-tone) 11%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:1.5px;vector-effect:non-scaling-stroke}.yjamoq_participantLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);pointer-events:none}.yjamoq_lifeline{fill:none;stroke:var(--visual-tone);stroke-dasharray:4 5;stroke-opacity:.58;stroke-width:1.2px;vector-effect:non-scaling-stroke}.yjamoq_activation{fill:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-width:1.5px;vector-effect:non-scaling-stroke}.yjamoq_messageLine{fill:none;stroke:var(--visual-tone);stroke-width:1.8px;stroke-opacity:var(--lx-vs-alpha);vector-effect:non-scaling-stroke}.yjamoq_messageGroup[data-message-type=return] .yjamoq_messageLine{stroke-dasharray:7 5;stroke-opacity:.78}.yjamoq_messageGroup[data-message-type=async] .yjamoq_messageLine{stroke-dasharray:2 5}.yjamoq_messageGroup[data-stroke=dashed] .yjamoq_messageLine{stroke-dasharray:7 5}.yjamoq_messageHit{fill:none;stroke:#0000;stroke-width:16px;pointer-events:stroke;vector-effect:non-scaling-stroke}.yjamoq_messageLabel rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 30%, var(--lx-border-subtle));stroke-width:1px;vector-effect:non-scaling-stroke}.yjamoq_messageLabel text{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium);pointer-events:none}.yjamoq_messageGroup[data-message-type=return] .yjamoq_messageLabel rect{stroke-dasharray:4 3}.yjamoq_messageGroup[data-message-type=async] .yjamoq_messageLabel rect{stroke-dasharray:1 3}.yjamoq_messageGroup:hover .yjamoq_messageLine,.yjamoq_messageGroup:focus-visible .yjamoq_messageLine,.yjamoq_messageGroup[data-visual-state=selected] .yjamoq_messageLine{stroke-width:3px;stroke-opacity:1}.yjamoq_participantGroup:hover .yjamoq_participantCard,.yjamoq_participantGroup:focus-visible .yjamoq_participantCard,.yjamoq_participantGroup[data-visual-state=selected] .yjamoq_participantCard,.yjamoq_participantGroup[data-visual-state=current] .yjamoq_participantCard{fill:color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));stroke-width:2.6px;stroke-opacity:1}.yjamoq_participantGroup[data-visual-state=current] .yjamoq_participantCard{filter:drop-shadow(0 0 .2rem color-mix(in srgb, var(--visual-tone) 28%, transparent))}.yjamoq_causalLinkPath{fill:none;stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.8px + var(--lx-vs-ring) * .7px);stroke-linecap:round;vector-effect:non-scaling-stroke;transition:stroke-width var(--lx-motion-fast) var(--lx-easing), stroke-opacity var(--lx-motion-fast) var(--lx-easing)}.yjamoq_causalLinkHit{fill:none;stroke:#0000;stroke-width:18px;pointer-events:stroke;vector-effect:non-scaling-stroke}.yjamoq_causalSign rect,.yjamoq_causalDelay rect{fill:var(--lx-surface-base);stroke:color-mix(in srgb, var(--visual-tone) 44%, var(--lx-border-subtle));stroke-width:1.2px;vector-effect:non-scaling-stroke;box-shadow:0 1px 3px #0000000f}.yjamoq_causalSign text,.yjamoq_causalDelay text,.yjamoq_causalLinkLabel{fill:var(--visual-tone);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong)}.yjamoq_causalLabelGroup{pointer-events:none}.yjamoq_causalLabelBg{fill:var(--lx-surface-base);fill-opacity:.94;stroke:color-mix(in srgb, var(--visual-tone) 24%, var(--lx-border-subtle));stroke-width:1px}.yjamoq_causalLinkLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-medium)}.yjamoq_causalVariableShape{fill:color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));fill-opacity:var(--lx-vs-alpha);stroke:var(--visual-tone);stroke-opacity:var(--lx-vs-alpha);stroke-width:calc(1.6px + var(--lx-vs-ring) * 1.2px);vector-effect:non-scaling-stroke;transition:fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.yjamoq_causalVariableLabel{fill:var(--lx-label-primary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);pointer-events:none}.yjamoq_causalLoopBadge rect{fill:color-mix(in srgb, var(--visual-tone) 14%, var(--lx-surface-base));stroke:var(--visual-tone);stroke-width:1.5px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 6px color-mix(in srgb, var(--visual-tone) 16%, transparent));transition:fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing)}.yjamoq_causalLoopBadge text{fill:var(--visual-tone);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:.02em;pointer-events:none}.yjamoq_causalLink:hover .yjamoq_causalLinkPath,.yjamoq_causalLink:focus-visible .yjamoq_causalLinkPath,.yjamoq_causalLink[data-visual-state=selected] .yjamoq_causalLinkPath{stroke-width:3px;stroke-opacity:1;filter:drop-shadow(0 0 4px var(--visual-tone))}.yjamoq_causalVariable:hover .yjamoq_causalVariableShape,.yjamoq_causalVariable:focus-visible .yjamoq_causalVariableShape,.yjamoq_causalVariable[data-visual-state=selected] .yjamoq_causalVariableShape,.yjamoq_causalVariable[data-visual-state=current] .yjamoq_causalVariableShape{fill:color-mix(in srgb, var(--visual-tone) 24%, var(--lx-surface-base));fill-opacity:1;stroke-width:2.8px;stroke-opacity:1;filter:drop-shadow(0 0 6px color-mix(in srgb, var(--visual-tone) 30%, transparent))}.yjamoq_causalLoop:hover .yjamoq_causalLoopBadge rect,.yjamoq_causalLoop:focus-visible .yjamoq_causalLoopBadge rect,.yjamoq_causalLoop[data-visual-state=selected] .yjamoq_causalLoopBadge rect{fill:color-mix(in srgb, var(--visual-tone) 26%, var(--lx-surface-base));stroke-width:2.2px;filter:drop-shadow(0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent))}.yjamoq_causalLoopBadge[data-loop-kind=balancing] rect{stroke-dasharray:5 3}.yjamoq_processSteps{gap:var(--lx-space-xs);margin:0;padding:0;list-style:none;display:grid}.yjamoq_processSteps li{gap:var(--lx-space-3xs);border-left:3px solid var(--lx-border-default);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);display:grid}.yjamoq_processSteps li[data-active]{border-left-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 7%, transparent)}.yjamoq_processSteps strong{color:var(--lx-label-primary);font-weight:var(--lx-weight-strong)}.yjamoq_stepButton{justify-items:start;gap:var(--lx-space-3xs);text-align:left;background:0 0;border-color:#0000;width:100%;display:grid}.yjamoq_stepButton span{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}@media (width<=560px){.yjamoq_processSvg{min-width:520px}}@media (prefers-reduced-motion:reduce){.yjamoq_transitionLine,.yjamoq_stateShape,.yjamoq_stateRing,.yjamoq_messageLine,.yjamoq_causalLinkPath{transition:none}}@media (forced-colors:active){.yjamoq_stateShape,.yjamoq_participantCard,.yjamoq_causalVariableShape{fill:canvas;stroke:canvastext}.yjamoq_transitionLine,.yjamoq_messageLine,.yjamoq_causalLinkPath{stroke:canvastext}.yjamoq_stateGroup[data-visual-state=current] .yjamoq_stateShape,.yjamoq_participantGroup[data-visual-state=current] .yjamoq_participantCard,.yjamoq_causalVariable[data-visual-state=current] .yjamoq_causalVariableShape{fill:highlight}}";
+		const tagId$4 = "@dsh-portable/interactive-learning/process.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$4) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$3;
-			tag.textContent = css$3;
+			tag.dataset.pluginCss = tagId$4;
+			tag.textContent = css$4;
 			document.head.appendChild(tag);
 		}
 		var process_module_css_default = {
-			"activation": "DwGMpG_activation",
-			"causalArrow": "DwGMpG_causalArrow",
-			"causalDelay": "DwGMpG_causalDelay",
-			"causalLabelBg": "DwGMpG_causalLabelBg",
-			"causalLabelGroup": "DwGMpG_causalLabelGroup",
-			"causalLink": "DwGMpG_causalLink",
-			"causalLinkHit": "DwGMpG_causalLinkHit",
-			"causalLinkLabel": "DwGMpG_causalLinkLabel",
-			"causalLinkPath": "DwGMpG_causalLinkPath",
-			"causalLoop": "DwGMpG_causalLoop",
-			"causalLoopBadge": "DwGMpG_causalLoopBadge",
-			"causalSign": "DwGMpG_causalSign",
-			"causalVariable": "DwGMpG_causalVariable",
-			"causalVariableLabel": "DwGMpG_causalVariableLabel",
-			"causalVariableShape": "DwGMpG_causalVariableShape",
-			"currentStateMarker": "DwGMpG_currentStateMarker",
-			"diagramArrow": "DwGMpG_diagramArrow",
-			"lifeline": "DwGMpG_lifeline",
-			"messageGroup": "DwGMpG_messageGroup",
-			"messageHit": "DwGMpG_messageHit",
-			"messageLabel": "DwGMpG_messageLabel",
-			"messageLine": "DwGMpG_messageLine",
-			"participantCard": "DwGMpG_participantCard",
-			"participantGroup": "DwGMpG_participantGroup",
-			"participantLabel": "DwGMpG_participantLabel",
-			"processArrow": "DwGMpG_processArrow",
-			"processSteps": "DwGMpG_processSteps",
-			"processSvg": "DwGMpG_processSvg",
-			"processViewport": "DwGMpG_processViewport",
-			"stateGroup": "DwGMpG_stateGroup",
-			"stateLabel": "DwGMpG_stateLabel",
-			"stateMarker": "DwGMpG_stateMarker",
-			"stateRing": "DwGMpG_stateRing",
-			"stateShape": "DwGMpG_stateShape",
-			"stepButton": "DwGMpG_stepButton",
-			"transitionGroup": "DwGMpG_transitionGroup",
-			"transitionHit": "DwGMpG_transitionHit",
-			"transitionLabel": "DwGMpG_transitionLabel",
-			"transitionLine": "DwGMpG_transitionLine"
+			"activation": "yjamoq_activation",
+			"causalArrow": "yjamoq_causalArrow",
+			"causalDelay": "yjamoq_causalDelay",
+			"causalLabelBg": "yjamoq_causalLabelBg",
+			"causalLabelGroup": "yjamoq_causalLabelGroup",
+			"causalLink": "yjamoq_causalLink",
+			"causalLinkHit": "yjamoq_causalLinkHit",
+			"causalLinkLabel": "yjamoq_causalLinkLabel",
+			"causalLinkPath": "yjamoq_causalLinkPath",
+			"causalLoop": "yjamoq_causalLoop",
+			"causalLoopBadge": "yjamoq_causalLoopBadge",
+			"causalSign": "yjamoq_causalSign",
+			"causalVariable": "yjamoq_causalVariable",
+			"causalVariableLabel": "yjamoq_causalVariableLabel",
+			"causalVariableShape": "yjamoq_causalVariableShape",
+			"currentStateMarker": "yjamoq_currentStateMarker",
+			"diagramArrow": "yjamoq_diagramArrow",
+			"lifeline": "yjamoq_lifeline",
+			"messageGroup": "yjamoq_messageGroup",
+			"messageHit": "yjamoq_messageHit",
+			"messageLabel": "yjamoq_messageLabel",
+			"messageLine": "yjamoq_messageLine",
+			"participantCard": "yjamoq_participantCard",
+			"participantGroup": "yjamoq_participantGroup",
+			"participantLabel": "yjamoq_participantLabel",
+			"processArrow": "yjamoq_processArrow",
+			"processSteps": "yjamoq_processSteps",
+			"processSvg": "yjamoq_processSvg",
+			"processViewport": "yjamoq_processViewport",
+			"stateGroup": "yjamoq_stateGroup",
+			"stateLabel": "yjamoq_stateLabel",
+			"stateMarker": "yjamoq_stateMarker",
+			"stateRing": "yjamoq_stateRing",
+			"stateShape": "yjamoq_stateShape",
+			"stepButton": "yjamoq_stepButton",
+			"transitionGroup": "yjamoq_transitionGroup",
+			"transitionHit": "yjamoq_transitionHit",
+			"transitionLabel": "yjamoq_transitionLabel",
+			"transitionLine": "yjamoq_transitionLine"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/StateTransitionRenderer.tsx
@@ -9850,23 +11981,23 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/sequence-buffer.module.css.mjs
-		const css$2 = ".X-EYUW_viewport{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);width:100%;padding:var(--lx-space-md);background:var(--lx-surface-sunken);overflow-x:auto}.X-EYUW_buffer{grid-template-columns:repeat(var(--buffer-columns), minmax(64px, 1fr));gap:var(--lx-space-xs);align-items:end;min-width:max-content;display:grid}.X-EYUW_range{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border:1.5px solid color-mix(in srgb, var(--visual-tone) 58%, var(--lx-border-default));border-radius:var(--lx-radius-pill);min-height:34px;padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);overflow-wrap:anywhere;opacity:var(--lx-vs-alpha);cursor:pointer;transition:transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);display:flex;box-shadow:0 1px 3px #0000000d}.X-EYUW_range span{overflow-wrap:anywhere;min-width:0}.X-EYUW_range small{color:var(--lx-label-tertiary);font-variant-numeric:tabular-nums;flex:none}.X-EYUW_range[data-visual-state=current],.X-EYUW_range[data-visual-state=selected]{box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent);border-width:2px}.X-EYUW_slotGrid,.X-EYUW_pointerGrid{grid-column:1/-1;grid-template-columns:repeat(var(--buffer-columns), minmax(64px, 1fr));gap:var(--lx-space-xs);display:grid}.X-EYUW_slot{grid-template-rows:minmax(var(--lx-leading-micro), auto) 1fr var(--lx-leading-micro);gap:var(--lx-space-3xs);border:1.2px solid color-mix(in srgb, var(--visual-tone) 38%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:64px;min-height:80px;padding:var(--lx-space-xs);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;text-align:center;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);align-items:center;display:grid;box-shadow:0 1px 3px #0000000a}.X-EYUW_slot:hover,.X-EYUW_pointer:hover,.X-EYUW_range:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.X-EYUW_slot[data-visual-state=current],.X-EYUW_slot[data-visual-state=selected]{border-width:2px;border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent)}.X-EYUW_slot small{min-height:var(--lx-leading-micro);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-medium)}.X-EYUW_slot strong{overflow-wrap:anywhere;color:var(--visual-tone);font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm)}.X-EYUW_slot>span{border-radius:var(--lx-radius-xs);background:var(--lx-surface-sunken);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;padding:1px 4px;display:inline-block}.X-EYUW_slot[data-missing] strong{color:var(--lx-label-tertiary);font-weight:var(--lx-weight-regular)}.X-EYUW_pointerGrid{align-items:start;row-gap:var(--lx-space-xs);grid-auto-rows:minmax(34px,auto)}.X-EYUW_pointer{border-radius:var(--lx-radius-sm);min-width:0;padding:2px var(--lx-space-3xs) var(--lx-space-3xs);color:var(--visual-tone);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);opacity:var(--lx-vs-alpha);cursor:pointer;transition:transform var(--lx-motion-fast) var(--lx-easing);background:0 0;border:1px solid #0000;justify-items:center;gap:2px;display:grid}.X-EYUW_pointer i{font-size:var(--lx-text-base);filter:drop-shadow(0 0 2px var(--visual-tone));font-style:normal;line-height:1}.X-EYUW_pointer span{overflow-wrap:anywhere;text-align:center;max-width:100%}.X-EYUW_pointer small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.X-EYUW_pointer[data-visual-state=current],.X-EYUW_pointer[data-visual-state=selected]{background:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));border-color:color-mix(in srgb, var(--visual-tone) 40%, transparent)}";
-		const tagId$2 = "@dsh-portable/interactive-learning/sequence-buffer.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$2) + "]") === null) {
+		const css$3 = ".blGfpW_viewport{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);width:100%;padding:var(--lx-space-md);background:var(--lx-surface-sunken);overflow-x:auto}.blGfpW_buffer{grid-template-columns:repeat(var(--buffer-columns), minmax(64px, 1fr));gap:var(--lx-space-xs);align-items:end;min-width:max-content;display:grid}.blGfpW_range{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border:1.5px solid color-mix(in srgb, var(--visual-tone) 58%, var(--lx-border-default));border-radius:var(--lx-radius-pill);min-height:34px;padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);overflow-wrap:anywhere;opacity:var(--lx-vs-alpha);cursor:pointer;transition:transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);display:flex;box-shadow:0 1px 3px #0000000d}.blGfpW_range span{overflow-wrap:anywhere;min-width:0}.blGfpW_range small{color:var(--lx-label-tertiary);font-variant-numeric:tabular-nums;flex:none}.blGfpW_range[data-visual-state=current],.blGfpW_range[data-visual-state=selected]{box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent);border-width:2px}.blGfpW_slotGrid,.blGfpW_pointerGrid{grid-column:1/-1;grid-template-columns:repeat(var(--buffer-columns), minmax(64px, 1fr));gap:var(--lx-space-xs);display:grid}.blGfpW_slot{grid-template-rows:minmax(var(--lx-leading-micro), auto) 1fr var(--lx-leading-micro);gap:var(--lx-space-3xs);border:1.2px solid color-mix(in srgb, var(--visual-tone) 38%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:64px;min-height:80px;padding:var(--lx-space-xs);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));color:var(--lx-label-primary);font:inherit;text-align:center;opacity:var(--lx-vs-alpha);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);align-items:center;display:grid;box-shadow:0 1px 3px #0000000a}.blGfpW_slot:hover,.blGfpW_pointer:hover,.blGfpW_range:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.blGfpW_slot[data-visual-state=current],.blGfpW_slot[data-visual-state=selected]{border-width:2px;border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent)}.blGfpW_slot small{min-height:var(--lx-leading-micro);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-medium)}.blGfpW_slot strong{overflow-wrap:anywhere;color:var(--visual-tone);font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm)}.blGfpW_slot>span{border-radius:var(--lx-radius-xs);background:var(--lx-surface-sunken);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;padding:1px 4px;display:inline-block}.blGfpW_slot[data-missing] strong{color:var(--lx-label-tertiary);font-weight:var(--lx-weight-regular)}.blGfpW_pointerGrid{align-items:start;row-gap:var(--lx-space-xs);grid-auto-rows:minmax(34px,auto)}.blGfpW_pointer{border-radius:var(--lx-radius-sm);min-width:0;padding:2px var(--lx-space-3xs) var(--lx-space-3xs);color:var(--visual-tone);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);opacity:var(--lx-vs-alpha);cursor:pointer;transition:transform var(--lx-motion-fast) var(--lx-easing);background:0 0;border:1px solid #0000;justify-items:center;gap:2px;display:grid}.blGfpW_pointer i{font-size:var(--lx-text-base);filter:drop-shadow(0 0 2px var(--visual-tone));font-style:normal;line-height:1}.blGfpW_pointer span{overflow-wrap:anywhere;text-align:center;max-width:100%}.blGfpW_pointer small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.blGfpW_pointer[data-visual-state=current],.blGfpW_pointer[data-visual-state=selected]{background:color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));border-color:color-mix(in srgb, var(--visual-tone) 40%, transparent)}";
+		const tagId$3 = "@dsh-portable/interactive-learning/sequence-buffer.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$3) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$2;
-			tag.textContent = css$2;
+			tag.dataset.pluginCss = tagId$3;
+			tag.textContent = css$3;
 			document.head.appendChild(tag);
 		}
 		var sequence_buffer_module_css_default = {
-			"buffer": "X-EYUW_buffer",
-			"pointer": "X-EYUW_pointer",
-			"pointerGrid": "X-EYUW_pointerGrid",
-			"range": "X-EYUW_range",
-			"slot": "X-EYUW_slot",
-			"slotGrid": "X-EYUW_slotGrid",
-			"viewport": "X-EYUW_viewport"
+			"buffer": "blGfpW_buffer",
+			"pointer": "blGfpW_pointer",
+			"pointerGrid": "blGfpW_pointerGrid",
+			"range": "blGfpW_range",
+			"slot": "blGfpW_slot",
+			"slotGrid": "blGfpW_slotGrid",
+			"viewport": "blGfpW_viewport"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/SequenceBufferRenderer.tsx
@@ -10251,35 +12382,35 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/code-trace.module.css.mjs
-		const css$1 = "._4SXU0q_workspace{gap:var(--lx-space-md);grid-template-columns:minmax(0,1.65fr) minmax(220px,.85fr);align-items:start;display:grid}._4SXU0q_source,._4SXU0q_panel{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);min-width:0;overflow:hidden}._4SXU0q_source>header{justify-content:space-between;align-items:center;gap:var(--lx-space-md);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:flex}._4SXU0q_source>header span{border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--lx-accent) 11%, transparent);color:var(--lx-accent);font-size:var(--lx-text-micro);text-transform:uppercase}._4SXU0q_source>header strong{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._4SXU0q_source ol{max-height:430px;padding:var(--lx-space-xs) 0;counter-reset:none;margin:0;list-style:none;overflow:auto}._4SXU0q_codeLine{min-width:max-content;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);border-left:3.5px solid #0000;grid-template-columns:48px minmax(300px,1fr);display:grid}._4SXU0q_lineGutter{justify-content:flex-end;align-items:center;gap:var(--lx-space-2xs);padding:2px var(--lx-space-sm) 2px var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;user-select:none;display:flex}._4SXU0q_stepArrow{color:var(--lx-accent);filter:drop-shadow(0 0 3px var(--lx-accent));font-size:9px;font-style:normal;line-height:1}._4SXU0q_codeLine code{padding:2px var(--lx-space-md) 2px var(--lx-space-sm);color:var(--lx-label-primary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);white-space:pre;line-height:1.65;display:block}._4SXU0q_codeLine[data-current]{border-left-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 12%, transparent)}._4SXU0q_codeLine[data-current] ._4SXU0q_lineGutter{color:var(--lx-accent);font-weight:var(--lx-weight-strong)}._4SXU0q_token_keyword{color:var(--lx-tone-purple);font-weight:var(--lx-weight-medium)}._4SXU0q_token_type{color:var(--lx-tone-blue);font-weight:var(--lx-weight-medium)}._4SXU0q_token_string{color:var(--lx-tone-green)}._4SXU0q_token_number{color:var(--lx-tone-orange);font-variant-numeric:tabular-nums}._4SXU0q_token_comment{color:var(--lx-label-tertiary);font-style:italic}._4SXU0q_token_operator{color:color-mix(in srgb, var(--lx-label-primary) 85%, transparent)}._4SXU0q_inspector{gap:var(--lx-space-md);min-width:0;display:grid}._4SXU0q_panel h4{border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xs);margin:0}._4SXU0q_variables{margin:0;display:grid}._4SXU0q_variables>div{justify-content:space-between;gap:var(--lx-space-sm);min-width:0;padding:var(--lx-space-xs) var(--lx-space-md);border-bottom:1px solid var(--lx-border-subtle);transition:background-color var(--lx-motion-base) var(--lx-easing);display:flex}._4SXU0q_variables>div:last-child{border-bottom:0}._4SXU0q_variables dt{min-width:0;color:var(--lx-label-secondary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs)}._4SXU0q_variables dt small{margin-left:var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:inherit;font-size:var(--lx-text-micro)}._4SXU0q_variables dd{overflow-wrap:anywhere;max-width:60%;color:var(--lx-accent);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);text-align:right;margin:0}._4SXU0q_stack{padding:var(--lx-space-xs);margin:0;list-style:none;display:grid}._4SXU0q_stack li{align-items:baseline;gap:var(--lx-space-xs);border-radius:var(--lx-radius-xs);min-width:0;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);opacity:var(--lx-vs-alpha);display:flex}._4SXU0q_stack li:first-child{background:color-mix(in srgb, var(--lx-accent) 12%, transparent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}._4SXU0q_stack li>span{color:var(--lx-accent);font-size:var(--lx-text-micro)}._4SXU0q_stack li strong{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._4SXU0q_stack li small{color:var(--lx-label-tertiary);font-variant-numeric:tabular-nums;margin-left:auto}._4SXU0q_output{min-height:46px;max-height:150px;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);color:var(--lx-label-primary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);white-space:pre-wrap;margin:0;overflow:auto}._4SXU0q_empty{padding:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);margin:0}._4SXU0q_description{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);margin:0}@container _4SXU0q_learning-visual-v4 (width<=650px){._4SXU0q_workspace{grid-template-columns:1fr}._4SXU0q_inspector{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}}";
-		const tagId$1 = "@dsh-portable/interactive-learning/code-trace.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
+		const css$2 = ".fRUyxG_workspace{gap:var(--lx-space-md);grid-template-columns:minmax(0,1.65fr) minmax(220px,.85fr);align-items:start;display:grid}.fRUyxG_source,.fRUyxG_panel{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);min-width:0;overflow:hidden}.fRUyxG_source>header{justify-content:space-between;align-items:center;gap:var(--lx-space-md);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:flex}.fRUyxG_source>header span{border-radius:var(--lx-radius-pill);padding:var(--lx-space-3xs) var(--lx-space-sm);background:color-mix(in srgb, var(--lx-accent) 11%, transparent);color:var(--lx-accent);font-size:var(--lx-text-micro);text-transform:uppercase}.fRUyxG_source>header strong{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.fRUyxG_source ol{max-height:430px;padding:var(--lx-space-xs) 0;counter-reset:none;margin:0;list-style:none;overflow:auto}.fRUyxG_codeLine{min-width:max-content;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);border-left:3.5px solid #0000;grid-template-columns:48px minmax(300px,1fr);display:grid}.fRUyxG_lineGutter{justify-content:flex-end;align-items:center;gap:var(--lx-space-2xs);padding:2px var(--lx-space-sm) 2px var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;user-select:none;display:flex}.fRUyxG_stepArrow{color:var(--lx-accent);filter:drop-shadow(0 0 3px var(--lx-accent));font-size:9px;font-style:normal;line-height:1}.fRUyxG_codeLine code{padding:2px var(--lx-space-md) 2px var(--lx-space-sm);color:var(--lx-label-primary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);white-space:pre;line-height:1.65;display:block}.fRUyxG_codeLine[data-current]{border-left-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent) 12%, transparent)}.fRUyxG_codeLine[data-current] .fRUyxG_lineGutter{color:var(--lx-accent);font-weight:var(--lx-weight-strong)}.fRUyxG_token_keyword{color:var(--lx-tone-purple);font-weight:var(--lx-weight-medium)}.fRUyxG_token_type{color:var(--lx-tone-blue);font-weight:var(--lx-weight-medium)}.fRUyxG_token_string{color:var(--lx-tone-green)}.fRUyxG_token_number{color:var(--lx-tone-orange);font-variant-numeric:tabular-nums}.fRUyxG_token_comment{color:var(--lx-label-tertiary);font-style:italic}.fRUyxG_token_operator{color:color-mix(in srgb, var(--lx-label-primary) 85%, transparent)}.fRUyxG_inspector{gap:var(--lx-space-md);min-width:0;display:grid}.fRUyxG_panel h4{border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xs);margin:0}.fRUyxG_variables{margin:0;display:grid}.fRUyxG_variables>div{justify-content:space-between;gap:var(--lx-space-sm);min-width:0;padding:var(--lx-space-xs) var(--lx-space-md);border-bottom:1px solid var(--lx-border-subtle);transition:background-color var(--lx-motion-base) var(--lx-easing);display:flex}.fRUyxG_variables>div:last-child{border-bottom:0}.fRUyxG_variables dt{min-width:0;color:var(--lx-label-secondary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs)}.fRUyxG_variables dt small{margin-left:var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:inherit;font-size:var(--lx-text-micro)}.fRUyxG_variables dd{overflow-wrap:anywhere;max-width:60%;color:var(--lx-accent);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);font-weight:var(--lx-weight-strong);text-align:right;margin:0}.fRUyxG_stack{padding:var(--lx-space-xs);margin:0;list-style:none;display:grid}.fRUyxG_stack li{align-items:baseline;gap:var(--lx-space-xs);border-radius:var(--lx-radius-xs);min-width:0;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);opacity:var(--lx-vs-alpha);display:flex}.fRUyxG_stack li:first-child{background:color-mix(in srgb, var(--lx-accent) 12%, transparent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.fRUyxG_stack li>span{color:var(--lx-accent);font-size:var(--lx-text-micro)}.fRUyxG_stack li strong{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.fRUyxG_stack li small{color:var(--lx-label-tertiary);font-variant-numeric:tabular-nums;margin-left:auto}.fRUyxG_output{min-height:46px;max-height:150px;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);color:var(--lx-label-primary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);white-space:pre-wrap;margin:0;overflow:auto}.fRUyxG_empty{padding:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);margin:0}.fRUyxG_description{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);margin:0}@container fRUyxG_learning-visual-v4 (width<=650px){.fRUyxG_workspace{grid-template-columns:1fr}.fRUyxG_inspector{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}}";
+		const tagId$2 = "@dsh-portable/interactive-learning/code-trace.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$2) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId$1;
-			tag.textContent = css$1;
+			tag.dataset.pluginCss = tagId$2;
+			tag.textContent = css$2;
 			document.head.appendChild(tag);
 		}
 		var code_trace_module_css_default = {
-			"codeLine": "_4SXU0q_codeLine",
-			"description": "_4SXU0q_description",
-			"empty": "_4SXU0q_empty",
-			"inspector": "_4SXU0q_inspector",
-			"learning-visual-v4": "_4SXU0q_learning-visual-v4",
-			"lineGutter": "_4SXU0q_lineGutter",
-			"output": "_4SXU0q_output",
-			"panel": "_4SXU0q_panel",
-			"source": "_4SXU0q_source",
-			"stack": "_4SXU0q_stack",
-			"stepArrow": "_4SXU0q_stepArrow",
-			"token_comment": "_4SXU0q_token_comment",
-			"token_keyword": "_4SXU0q_token_keyword",
-			"token_number": "_4SXU0q_token_number",
-			"token_operator": "_4SXU0q_token_operator",
-			"token_string": "_4SXU0q_token_string",
-			"token_type": "_4SXU0q_token_type",
-			"variables": "_4SXU0q_variables",
-			"workspace": "_4SXU0q_workspace"
+			"codeLine": "fRUyxG_codeLine",
+			"description": "fRUyxG_description",
+			"empty": "fRUyxG_empty",
+			"inspector": "fRUyxG_inspector",
+			"learning-visual-v4": "fRUyxG_learning-visual-v4",
+			"lineGutter": "fRUyxG_lineGutter",
+			"output": "fRUyxG_output",
+			"panel": "fRUyxG_panel",
+			"source": "fRUyxG_source",
+			"stack": "fRUyxG_stack",
+			"stepArrow": "fRUyxG_stepArrow",
+			"token_comment": "fRUyxG_token_comment",
+			"token_keyword": "fRUyxG_token_keyword",
+			"token_number": "fRUyxG_token_number",
+			"token_operator": "fRUyxG_token_operator",
+			"token_string": "fRUyxG_token_string",
+			"token_type": "fRUyxG_token_type",
+			"variables": "fRUyxG_variables",
+			"workspace": "fRUyxG_workspace"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/CodeTraceRenderer.tsx
@@ -10537,28 +12668,28 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/field-2d.module.css.mjs
-		const css = ".YIoF6W_field{touch-action:pan-y;outline:none;max-width:none;display:block}.YIoF6W_field:focus-visible{outline:2px solid var(--lx-accent);outline-offset:-2px}.YIoF6W_frame{fill:var(--lx-surface-sunken);stroke:var(--lx-border-subtle);vector-effect:non-scaling-stroke}.YIoF6W_heatCell{shape-rendering:geometricprecision}.YIoF6W_contour{fill:none;stroke:#ffffffd9;stroke-width:1.35px;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:.88;filter:drop-shadow(0 0 1px #00000080);vector-effect:non-scaling-stroke}.YIoF6W_vector{stroke:var(--lx-label-primary);stroke-width:1.5px;stroke-linecap:round;stroke-opacity:.76;filter:drop-shadow(0 0 1px #0000004d);vector-effect:non-scaling-stroke}.YIoF6W_arrowHead path{fill:var(--lx-label-primary)}.YIoF6W_zeroVector{fill:var(--lx-label-primary);fill-opacity:.7}.YIoF6W_tick{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.YIoF6W_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.YIoF6W_probe line{stroke:var(--lx-accent);stroke-width:1.2px;stroke-dasharray:4 3;stroke-opacity:.9;filter:drop-shadow(0 0 2px var(--lx-accent));vector-effect:non-scaling-stroke}.YIoF6W_readout{align-items:center;gap:var(--lx-space-sm) var(--lx-space-lg);min-height:36px;padding:var(--lx-space-xs) var(--lx-space-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);flex-wrap:wrap;display:flex}.YIoF6W_readout output{color:var(--lx-label-primary);font-weight:var(--lx-weight-medium);flex:240px}.YIoF6W_legend{align-items:center;gap:var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;grid-template-columns:auto 120px auto;display:grid}.YIoF6W_legend i{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);background:linear-gradient(90deg,#3e4be0,#24db9e,#c3e61a,#ee5f2f);height:10px;box-shadow:0 1px 3px #0000001f}";
-		const tagId = "@dsh-portable/interactive-learning/field-2d.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
+		const css$1 = ".FbZwwq_field{touch-action:pan-y;outline:none;max-width:none;display:block}.FbZwwq_field:focus-visible{outline:2px solid var(--lx-accent);outline-offset:-2px}.FbZwwq_frame{fill:var(--lx-surface-sunken);stroke:var(--lx-border-subtle);vector-effect:non-scaling-stroke}.FbZwwq_heatCell{shape-rendering:geometricprecision}.FbZwwq_contour{fill:none;stroke:#ffffffd9;stroke-width:1.35px;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:.88;filter:drop-shadow(0 0 1px #00000080);vector-effect:non-scaling-stroke}.FbZwwq_vector{stroke:var(--lx-label-primary);stroke-width:1.5px;stroke-linecap:round;stroke-opacity:.76;filter:drop-shadow(0 0 1px #0000004d);vector-effect:non-scaling-stroke}.FbZwwq_arrowHead path{fill:var(--lx-label-primary)}.FbZwwq_zeroVector{fill:var(--lx-label-primary);fill-opacity:.7}.FbZwwq_tick{fill:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}.FbZwwq_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}.FbZwwq_probe line{stroke:var(--lx-accent);stroke-width:1.2px;stroke-dasharray:4 3;stroke-opacity:.9;filter:drop-shadow(0 0 2px var(--lx-accent));vector-effect:non-scaling-stroke}.FbZwwq_readout{align-items:center;gap:var(--lx-space-sm) var(--lx-space-lg);min-height:36px;padding:var(--lx-space-xs) var(--lx-space-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-base);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);flex-wrap:wrap;display:flex}.FbZwwq_readout output{color:var(--lx-label-primary);font-weight:var(--lx-weight-medium);flex:240px}.FbZwwq_legend{align-items:center;gap:var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;grid-template-columns:auto 120px auto;display:grid}.FbZwwq_legend i{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);background:linear-gradient(90deg,#3e4be0,#24db9e,#c3e61a,#ee5f2f);height:10px;box-shadow:0 1px 3px #0000001f}";
+		const tagId$1 = "@dsh-portable/interactive-learning/field-2d.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/interactive-learning";
-			tag.dataset.pluginCss = tagId;
-			tag.textContent = css;
+			tag.dataset.pluginCss = tagId$1;
+			tag.textContent = css$1;
 			document.head.appendChild(tag);
 		}
 		var field_2d_module_css_default = {
-			"arrowHead": "YIoF6W_arrowHead",
-			"axisLabel": "YIoF6W_axisLabel",
-			"contour": "YIoF6W_contour",
-			"field": "YIoF6W_field",
-			"frame": "YIoF6W_frame",
-			"heatCell": "YIoF6W_heatCell",
-			"legend": "YIoF6W_legend",
-			"probe": "YIoF6W_probe",
-			"readout": "YIoF6W_readout",
-			"tick": "YIoF6W_tick",
-			"vector": "YIoF6W_vector",
-			"zeroVector": "YIoF6W_zeroVector"
+			"arrowHead": "FbZwwq_arrowHead",
+			"axisLabel": "FbZwwq_axisLabel",
+			"contour": "FbZwwq_contour",
+			"field": "FbZwwq_field",
+			"frame": "FbZwwq_frame",
+			"heatCell": "FbZwwq_heatCell",
+			"legend": "FbZwwq_legend",
+			"probe": "FbZwwq_probe",
+			"readout": "FbZwwq_readout",
+			"tick": "FbZwwq_tick",
+			"vector": "FbZwwq_vector",
+			"zeroVector": "FbZwwq_zeroVector"
 		};
 		//#endregion
 		//#region src/client/visuals/renderers/Field2DRenderer.tsx
@@ -11944,7 +14075,7 @@ window.__ModuleLoader__.load({
 					headline: t("invalidResult"),
 					markdown: definition.fallbackMarkdown,
 					state: "error",
-					protocol: ACTIVITY_PROTOCOL_V2,
+					protocol: ACTIVITY_PROTOCOL_V2$1,
 					t
 				});
 				if (definition.phase === "question") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningReceipt, {
@@ -11967,7 +14098,7 @@ window.__ModuleLoader__.load({
 				headline: t("invalidResult"),
 				markdown: definition.fallbackMarkdown,
 				state: "unknown",
-				protocol: RESPONSE_PROTOCOL,
+				protocol: RESPONSE_PROTOCOL$1,
 				t
 			});
 			const legacyResponse = result.protocol === "dsh-learning/response@1" ? result : void 0;
@@ -11976,6 +14107,380 @@ window.__ModuleLoader__.load({
 				status: legacyResponse?.action === "submit" ? t("completed") : legacyResponse?.action === "skip" ? t("skipped") : legacyResponse?.action === "cancel" ? t("cancelled") : t("invalidResult"),
 				evidence: evidenceOf(definition, legacyResponse, t),
 				answer: explanationOf(legacyResponse)
+			});
+		}
+		//#endregion
+		//#region src/learning-boundary.ts
+		/** Lightweight explicit segment boundaries shared by Host routing and Client notes. */
+		const LEARNING_RESET = /^(?:reset|start\s+over|restart|new\s+topic|different\s+topic|switch\s+topics?|change\s+topics?|forget\s+(?:that|this)|重新开始|重置|换个话题|换一个主题|从头来)/i;
+		const LEARNING_TOPIC_SWITCH = /^(?:let['’]?s|can\s+we|i['’]?d\s+like\s+to|i\s+want\s+to)\s+(?:switch|move|change|start)\b.*\b(?:topic|subject|to)\b/i;
+		const LEARNING_ACKNOWLEDGEMENT = /^(?:thanks?|thank\s+you|got\s+it|understood|okay|ok|done|finished|complete|completed|all\s+done|that['’]?s\s+enough|明白了?|懂了|完成了?|结束了?)[.!?]?$/i;
+		const SMALL_TALK = /^(?:hi|hello(?:\s+there)?|hey(?:\s+there)?|good\s+(?:morning|afternoon|evening)|你好|您好|嗨|哈喽|早上好|下午好|晚上好)[.!?，。！]?$/iu;
+		function normalize(text) {
+			return text.replace(/\s+/g, " ").trim();
+		}
+		function isLearningAcknowledgement(input) {
+			return LEARNING_ACKNOWLEDGEMENT.test(normalize(input));
+		}
+		function isLearningSmallTalk(input) {
+			return SMALL_TALK.test(normalize(input));
+		}
+		/** A user-authored boundary that can be projected without running the full intent classifier. */
+		function isExplicitLearningBoundary(input) {
+			const text = normalize(input);
+			return text !== "" && (LEARNING_RESET.test(text) || LEARNING_TOPIC_SWITCH.test(text) || isLearningAcknowledgement(text) || isLearningSmallTalk(text));
+		}
+		//#endregion
+		//#region \0dsh-css:src/client/LearningNotes.module.css.mjs
+		const css = "._3YTW7W_notes{box-sizing:border-box;width:100%;margin-top:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._3YTW7W_summary{cursor:pointer;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-medium);letter-spacing:.01em}._3YTW7W_body{gap:var(--lx-space-md) var(--lx-space-xl);margin-top:var(--lx-space-sm);padding:var(--lx-space-md) var(--lx-space-lg);border:var(--lx-card-border);border-radius:var(--lx-radius-md);background:var(--lx-surface-sunken);grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));display:grid}._3YTW7W_section{min-width:0}._3YTW7W_section h3{margin:0 0 var(--lx-space-2xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_section p,._3YTW7W_section ul{margin:0}._3YTW7W_section ul{gap:var(--lx-space-2xs);padding-left:var(--lx-space-xl);display:grid}._3YTW7W_objective{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);margin-top:var(--lx-space-2xs)!important}._3YTW7W_actions{align-items:center;gap:var(--lx-space-xs);padding-top:var(--lx-space-xs);border-top:1px solid var(--lx-border-subtle);flex-wrap:wrap;grid-column:1/-1;display:flex}._3YTW7W_actions button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;background:0 0}._3YTW7W_actions button:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._3YTW7W_actions button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._3YTW7W_actions ._3YTW7W_endAction{border-color:var(--lx-border-default);color:var(--lx-label-tertiary);margin-left:auto}";
+		const tagId = "@dsh-portable/interactive-learning/LearningNotes.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
+			const tag = document.createElement("style");
+			tag.dataset.plugin = "@dsh-portable/interactive-learning";
+			tag.dataset.pluginCss = tagId;
+			tag.textContent = css;
+			document.head.appendChild(tag);
+		}
+		var LearningNotes_module_css_default = {
+			"actions": "_3YTW7W_actions",
+			"body": "_3YTW7W_body",
+			"endAction": "_3YTW7W_endAction",
+			"notes": "_3YTW7W_notes",
+			"objective": "_3YTW7W_objective",
+			"section": "_3YTW7W_section",
+			"summary": "_3YTW7W_summary"
+		};
+		//#endregion
+		//#region src/client/LearningNotes.tsx
+		const LEARNING_CALLS = /* @__PURE__ */ new Set([
+			"learning_visual",
+			"learning_checkpoint",
+			"learning_activity",
+			"learning_question",
+			"learning_reveal"
+		]);
+		const PHASE_LABELS = {
+			orient: ["learningNotesPhaseOrient", "learningNotesPhaseOrient"],
+			teach: ["learningNotesPhaseTeach", "learningNotesPhaseTeach"],
+			practice: ["learningNotesPhasePractice", "learningNotesPhasePractice"],
+			repair: ["learningNotesPhaseRepair", "learningNotesPhaseRepair"],
+			transfer: ["learningNotesPhaseTransfer", "learningNotesPhaseTransfer"],
+			complete: ["learningNotesPhaseComplete", "learningNotesPhaseComplete"]
+		};
+		function recordOf(value) {
+			return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+		}
+		function textOf(value, max = 320) {
+			if (typeof value !== "string") return void 0;
+			const text = value.trim();
+			if (text === "") return void 0;
+			return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+		}
+		function parseJson(value) {
+			if (typeof value !== "string" || value === "") return void 0;
+			try {
+				return recordOf(JSON.parse(value));
+			} catch {
+				return;
+			}
+		}
+		function nodeCall(node) {
+			const record = recordOf(node);
+			if (record === void 0) return void 0;
+			if (record.kind === "tool-result") {
+				const call = recordOf(record.call);
+				const name = textOf(call?.name, 80);
+				const argsRaw = typeof call?.argsRaw === "string" ? call.argsRaw : void 0;
+				if (name === void 0 || argsRaw === void 0) return void 0;
+				return {
+					name,
+					argsRaw,
+					content: record.content
+				};
+			}
+			if (record.kind === "tool-call") {
+				const name = textOf(record.name, 80);
+				const argsRaw = typeof record.argsRaw === "string" ? record.argsRaw : void 0;
+				if (name === void 0 || argsRaw === void 0) return void 0;
+				return {
+					name,
+					argsRaw,
+					content: void 0
+				};
+			}
+		}
+		function nodeContentText(content) {
+			if (!Array.isArray(content)) return "";
+			return content.map((item) => recordOf(item)?.type === "text" ? recordOf(item)?.text : void 0).filter((item) => typeof item === "string").join("");
+		}
+		function userNodeText(node) {
+			const record = recordOf(node);
+			if (record?.kind !== "user" && record?.kind !== "steering") return void 0;
+			const text = nodeContentText(record.content).trim();
+			return text === "" ? void 0 : text;
+		}
+		function answerText(value) {
+			const record = recordOf(value);
+			if (record === void 0) return textOf(value);
+			for (const key of [
+				"text",
+				"explanation",
+				"answer",
+				"selected"
+			]) {
+				const text = textOf(record[key], 320);
+				if (text !== void 0) return text;
+			}
+		}
+		function addEvidence(evidence, value) {
+			const text = textOf(value);
+			if (text === void 0 || evidence.includes(text)) return;
+			evidence.push(text);
+			if (evidence.length > 5) evidence.splice(0, evidence.length - 5);
+		}
+		function contentNodes(session) {
+			if (Array.isArray(session.nodes) && session.nodes.length > 0) return session.nodes;
+			try {
+				const nodes = session.chat.nodes.values();
+				return nodes.length > 0 ? nodes : Array.isArray(session.nodes) ? session.nodes : [];
+			} catch {
+				return Array.isArray(session.nodes) ? session.nodes : [];
+			}
+		}
+		function allLearningCalls(session) {
+			const calls = contentNodes(session).flatMap((node, index) => {
+				const call = nodeCall(node);
+				return call === void 0 || !LEARNING_CALLS.has(call.name) && call.name !== "learning_state_update" ? [] : [{
+					call,
+					order: index
+				}];
+			});
+			for (const [index, running] of session.runningCalls.entries()) {
+				const call = nodeCall({
+					kind: "tool-call",
+					name: running.name,
+					argsRaw: running.argsRaw
+				});
+				if (call === void 0 || !LEARNING_CALLS.has(call.name) && call.name !== "learning_state_update") continue;
+				if (!calls.some((item) => item.call.name === call.name && item.call.argsRaw === call.argsRaw)) calls.push({
+					call,
+					order: contentNodes(session).length + index
+				});
+			}
+			return calls.sort((left, right) => left.order - right.order);
+		}
+		function phaseOf(value) {
+			const phase = textOf(value, 30);
+			return phase !== void 0 && phase in PHASE_LABELS ? phase : null;
+		}
+		function stepsOf(value) {
+			if (!Array.isArray(value)) return [];
+			return value.flatMap((step) => {
+				const item = recordOf(step);
+				const id = textOf(item?.id, 80);
+				const label = textOf(item?.label, 160);
+				return id === void 0 || label === void 0 ? [] : [{
+					id,
+					label
+				}];
+			});
+		}
+		function resultAnswer(content) {
+			const result = parseJson(nodeContentText(content));
+			if (result === void 0 || result.status !== "submitted") return void 0;
+			return answerText(result.response ?? result.answer);
+		}
+		/**
+		* Project durable learning calls into the small note shown to the learner.
+		* This deliberately consumes only visible session nodes; it never exposes
+		* learner-state internals such as mastery, confidence, or assessment labels.
+		*/
+		function projectLearningNotes(session) {
+			const calls = allLearningCalls(session);
+			const evidence = [];
+			let goal = null;
+			let phase = null;
+			let plan = null;
+			let latestTitle = null;
+			let closed = false;
+			let learningMoves = 0;
+			for (const { call } of calls) {
+				const args = parseJson(call.argsRaw);
+				if (args === void 0) continue;
+				if (call.name === "learning_state_update") {
+					const action = textOf(args.action, 30);
+					if (action === "reset") {
+						closed = true;
+						goal = null;
+						phase = null;
+						plan = null;
+						evidence.length = 0;
+						latestTitle = null;
+						learningMoves = 0;
+					}
+					const event = recordOf(args.event);
+					const correction = recordOf(args.correction);
+					const eventType = textOf(event?.type, 60);
+					const eventGoal = textOf(event?.goal);
+					const correctionGoal = typeof correction?.goal === "string" ? textOf(correction.goal) : void 0;
+					if (eventGoal !== void 0) goal = eventGoal;
+					if (correctionGoal !== void 0) goal = correctionGoal;
+					if (correction?.goal === null) goal = null;
+					if (eventType === "learner_evidence_observed") addEvidence(evidence, recordOf(event?.evidence)?.summary);
+					else if (eventType === "failed_move_observed") {
+						const failedMove = recordOf(event?.failedMove);
+						addEvidence(evidence, failedMove?.summary ?? failedMove?.failureReason);
+					}
+					if (Array.isArray(correction?.evidence)) for (const item of correction.evidence) addEvidence(evidence, recordOf(item)?.summary);
+					const objective = textOf(event?.objective);
+					const steps = stepsOf(event?.steps);
+					if (eventType === "plan_observed" && objective !== void 0 && steps.length > 0) {
+						plan = {
+							objective,
+							steps,
+							activeStepId: textOf(event?.activeStepId, 80),
+							completedStepIds: /* @__PURE__ */ new Set()
+						};
+						if (goal === null) goal = objective;
+					}
+					if (eventType === "plan_step_evidenced" && plan !== null) {
+						const stepId = textOf(event?.stepId, 80);
+						if (stepId !== void 0) plan = {
+							...plan,
+							completedStepIds: /* @__PURE__ */ new Set([...plan.completedStepIds, stepId])
+						};
+					}
+					const eventPhase = phaseOf(event?.phase);
+					if (eventPhase !== null) phase = eventPhase;
+					const nextMove = textOf(event?.nextMove, 30);
+					if (action === "update" && (eventPhase === "complete" || nextMove === "complete")) {
+						closed = true;
+						if (nextMove === "complete") phase = "complete";
+					}
+					if (action === "correct") {
+						const correctedPhase = phaseOf(correction?.phase);
+						const correctedNextMove = textOf(correction?.nextMove, 30);
+						if (correctedPhase !== null) phase = correctedPhase;
+						closed = correctedPhase === "complete" || correctedNextMove === "complete";
+					}
+					continue;
+				}
+				learningMoves += 1;
+				const title = textOf(args.title) ?? textOf(recordOf(args.focus)?.title) ?? textOf(args.prompt);
+				if (title !== void 0) latestTitle = title;
+				if (goal === null) {
+					const visualGoal = textOf(args.description) ?? title;
+					if (visualGoal !== void 0) goal = visualGoal;
+				}
+				const result = resultAnswer(call.content);
+				if (result !== void 0) addEvidence(evidence, result);
+				const resultRecord = parseJson(nodeContentText(call.content));
+				if (resultRecord?.action === "submit") addEvidence(evidence, answerText(resultRecord.answer));
+				const activityPhase = phaseOf(args.phase);
+				if (activityPhase !== null) phase = activityPhase;
+				if (closed) closed = false;
+			}
+			const latestLearningOrder = calls.at(-1)?.order ?? -1;
+			if (contentNodes(session).some((node, index) => {
+				const text = index > latestLearningOrder ? userNodeText(node) : void 0;
+				return text !== void 0 && isExplicitLearningBoundary(text);
+			})) closed = true;
+			if (goal === null && latestTitle !== null) goal = latestTitle;
+			return {
+				visible: calls.length > 0,
+				active: calls.length > 0 && !closed,
+				goal,
+				evidence,
+				phase,
+				plan,
+				learningMoves
+			};
+		}
+		function phaseLabel(t, phase) {
+			return t(PHASE_LABELS[phase][0]);
+		}
+		function routeProgress(notes, t) {
+			if (notes.plan !== null) {
+				const total = notes.plan.steps.length;
+				const completed = [...notes.plan.completedStepIds].filter((id) => notes.plan?.steps.some((step) => step.id === id)).length;
+				return t("learningNotesStep", {
+					current: Math.min(total, Math.max(1, completed + (notes.plan.activeStepId === void 0 ? 0 : 1))),
+					total
+				});
+			}
+			if (notes.phase !== null) return t("learningNotesPhase", { phase: phaseLabel(t, notes.phase) });
+			return t("learningNotesStarted", { count: notes.learningMoves });
+		}
+		function sendIntent(inputActions, input, prompt) {
+			if (input.phase !== "plain") return;
+			inputActions.setDraft(prompt);
+			inputActions.submit();
+		}
+		function LearningSessionNotes({ session, input, inputActions, t }) {
+			const notes = projectLearningNotes(session);
+			if (!notes.visible) return null;
+			const disabled = session.removed || session.running || input.phase !== "plain";
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+				className: LearningNotes_module_css_default.notes,
+				...learningScope,
+				"data-learning-notes": "session",
+				"data-learning-segment-active": notes.active || void 0,
+				open: true,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", {
+					className: LearningNotes_module_css_default.summary,
+					children: t("learningNotesTitle")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: LearningNotes_module_css_default.body,
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: LearningNotes_module_css_default.section,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: t("learningNotesGoal") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: notes.goal ?? t("learningNotesUnknown") })]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: LearningNotes_module_css_default.section,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: t("learningNotesEvidence") }), notes.evidence.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("learningNotesNoEvidence") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", { children: notes.evidence.map((item, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: item }, `${item}:${String(index)}`)) })]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: LearningNotes_module_css_default.section,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: t("learningNotesRoute") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: routeProgress(notes, t) }),
+								notes.plan?.objective === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: LearningNotes_module_css_default.objective,
+									children: notes.plan.objective
+								})
+							]
+						}),
+						notes.active && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: LearningNotes_module_css_default.actions,
+							"aria-label": t("learningNotesActions"),
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled,
+									"data-learning-segment-action": "deepen",
+									onClick: () => sendIntent(inputActions, input, t("learningNotesDeepenPrompt")),
+									children: t("learningNotesDeepen")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled,
+									"data-learning-segment-action": "rephrase",
+									onClick: () => sendIntent(inputActions, input, t("learningNotesRephrasePrompt")),
+									children: t("learningNotesRephrase")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: LearningNotes_module_css_default.endAction,
+									disabled,
+									"data-learning-segment-action": "end",
+									onClick: () => sendIntent(inputActions, input, t("learningNotesEndPrompt")),
+									children: t("learningNotesEnd")
+								})
+							]
+						})
+					]
+				})]
 			});
 		}
 		//#endregion
@@ -12018,6 +14523,28 @@ window.__ModuleLoader__.load({
 			awaitingReveal: "回答已提交，正在等待讲解…",
 			continue: "继续",
 			roundProgress: "第 {current} / {total} 轮",
+			learningNotesTitle: "会话学习笔记",
+			learningNotesGoal: "学习目标",
+			learningNotesEvidence: "证据要点",
+			learningNotesRoute: "路线进度",
+			learningNotesUnknown: "尚未记录明确目标",
+			learningNotesNoEvidence: "尚未记录证据要点",
+			learningNotesStep: "第 {current} / {total} 步",
+			learningNotesPhase: "当前环节：{phase}",
+			learningNotesStarted: "已记录 {count} 个学习动作",
+			learningNotesPhaseOrient: "定位",
+			learningNotesPhaseTeach: "讲解",
+			learningNotesPhasePractice: "练习",
+			learningNotesPhaseRepair: "纠正",
+			learningNotesPhaseTransfer: "迁移",
+			learningNotesPhaseComplete: "已完成",
+			learningNotesActions: "片段操作",
+			learningNotesDeepen: "继续深挖",
+			learningNotesRephrase: "换种讲法",
+			learningNotesEnd: "结束本片段",
+			learningNotesDeepenPrompt: "继续深挖当前学习片段。",
+			learningNotesRephrasePrompt: "换一种讲法解释刚才的内容。",
+			learningNotesEndPrompt: "完成了",
 			checkpointEyebrow: "学习检查点",
 			checkpointEvidenceAttempt: "试着作答",
 			checkpointEvidencePrediction: "先做预测",
@@ -12154,6 +14681,28 @@ window.__ModuleLoader__.load({
 			awaitingReveal: "Answer submitted. Waiting for the reveal…",
 			continue: "Continue",
 			roundProgress: "Round {current} / {total}",
+			learningNotesTitle: "Session learning notes",
+			learningNotesGoal: "Learning goal",
+			learningNotesEvidence: "Evidence points",
+			learningNotesRoute: "Route progress",
+			learningNotesUnknown: "No clear goal recorded yet",
+			learningNotesNoEvidence: "No evidence points recorded yet",
+			learningNotesStep: "Step {current} / {total}",
+			learningNotesPhase: "Current phase: {phase}",
+			learningNotesStarted: "{count} learning moves recorded",
+			learningNotesPhaseOrient: "Orient",
+			learningNotesPhaseTeach: "Teach",
+			learningNotesPhasePractice: "Practice",
+			learningNotesPhaseRepair: "Repair",
+			learningNotesPhaseTransfer: "Transfer",
+			learningNotesPhaseComplete: "Complete",
+			learningNotesActions: "Segment actions",
+			learningNotesDeepen: "Explore further",
+			learningNotesRephrase: "Explain another way",
+			learningNotesEnd: "End this segment",
+			learningNotesDeepenPrompt: "Continue exploring this learning segment.",
+			learningNotesRephrasePrompt: "Explain the last idea another way.",
+			learningNotesEndPrompt: "Done.",
 			checkpointEyebrow: "Learning checkpoint",
 			checkpointEvidenceAttempt: "Make an attempt",
 			checkpointEvidencePrediction: "Make a prediction",
@@ -12311,6 +14860,12 @@ window.__ModuleLoader__.load({
 					locale: NS
 				}, LearningToolView));
 			}
+			ctx.slots.inject("conversation.composer.dock", () => ctx.slots.register({
+				name: "conversation.composer.dock",
+				id: "learning-session-notes",
+				order: -1,
+				locale: NS
+			}, LearningSessionNotes));
 		}
 		//#endregion
 		exports.ActivityRendererRegistry = ActivityRendererRegistry;

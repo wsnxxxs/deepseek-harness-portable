@@ -47,4 +47,3 @@ allowBuilds:
   node-addon-require-builtin: false
   dsh-plugin-marketplace: false
   electron-winstaller: false
-  tesseract.js: false

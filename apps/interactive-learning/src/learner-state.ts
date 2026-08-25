@@ -12,6 +12,12 @@ import { KNOWN_SESSION_EVENT_TYPES, type SessionEvent } from '@deepseek-ai/dsh-s
 export const LEARNER_STATE_PROTOCOL = 'dsh-learning/learner-state@1' as const
 export const LEARNER_STATE_EVENT_PROTOCOL = 'dsh-learning/state-event@1' as const
 export const LEARNER_STATE_SESSION_EVENT_TYPE = 'learning/state' as const
+/** Log-only anchor for restoring an active Learning route after refresh. */
+export const LEARNING_SEGMENT_EVENT_PROTOCOL = 'dsh-learning/segment@1' as const
+export const LEARNING_SEGMENT_SESSION_EVENT_TYPE = 'learning/segment' as const
+/** Answer-free aggregate used to decide whether checkpoint UI should evolve. */
+export const LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL = 'dsh-learning/checkpoint-metrics@1' as const
+export const LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE = 'learning/checkpoint-metrics' as const
 export const MAX_LEARNER_EVIDENCE = 8
 export const MAX_APPLIED_EVENT_IDS = 64
 export const MAX_PRIOR_KNOWLEDGE = 8
@@ -20,6 +26,33 @@ export const MAX_SOURCE_ANCHORS = 8
 export const MAX_PLAN_STEPS = 6
 export const MAX_FAILED_MOVES = 6
 export const DEFAULT_TRANSCRIPT_TOKEN_BUDGET = 300
+
+export const LEARNING_CHECKPOINT_METRIC_KINDS = [
+  'free_text', 'single_choice', 'numeric', 'prediction', 'code_slot',
+] as const
+export type LearningCheckpointMetricKind = typeof LEARNING_CHECKPOINT_METRIC_KINDS[number]
+export const LEARNING_CHECKPOINT_METRIC_STATUSES = ['submitted', 'skipped', 'cancelled'] as const
+export type LearningCheckpointMetricStatus = typeof LEARNING_CHECKPOINT_METRIC_STATUSES[number]
+
+export interface LearningSegmentAnchorEvent {
+  protocol: typeof LEARNING_SEGMENT_EVENT_PROTOCOL
+  route: 'learn'
+  segment: 'active' | 'closed'
+  /** Session-local user turn; never an account or agent identity. */
+  turn: number
+}
+
+export interface LearningCheckpointAggregate {
+  usageCount: number
+  kindCounts: Record<LearningCheckpointMetricKind, number>
+  terminalCounts: Record<LearningCheckpointMetricStatus, number>
+  draftRecovery: { attempts: number; hits: number }
+}
+
+export interface LearningCheckpointMetricsEvent {
+  protocol: typeof LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL
+  aggregate: LearningCheckpointAggregate
+}
 
 const MAX_STORED_TEXT = 240
 
@@ -170,7 +203,10 @@ interface LearnerEvidenceBase {
   correctness: LearnerEvidenceCorrectness
   independence: LearnerEvidenceIndependence
   source: Extract<ObservableEventSource, 'learner-message' | 'learner-action' | 'user-correction'>
-  turn?: number
+  /** Host-verified source user turn; evidence never floats without provenance. */
+  turn: number
+  /** Required whenever correctness was evaluated rather than left unknown. */
+  justification?: string
 }
 
 export type LearnerEvidence =
@@ -184,6 +220,8 @@ interface LearnerEvidenceInputBase {
   correctness?: LearnerEvidenceCorrectness
   /** Unknown for a bare checkpoint submission; guided work cannot prove mastery. */
   independence?: LearnerEvidenceIndependence
+  /** Required for evaluated (`correct`/`partial`/`incorrect`) evidence. */
+  justification?: string
 }
 
 export type LearnerEvidenceInput =
@@ -380,6 +418,10 @@ declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /** Full, log-only learner-state snapshot; never projected into model history. */
     'learning/state': LearnerStateSnapshotEvent
+    /** Identity-free route anchor; never projected into model history. */
+    'learning/segment': LearningSegmentAnchorEvent
+    /** Identity-free checkpoint usage aggregate; never projected into model history. */
+    'learning/checkpoint-metrics': LearningCheckpointMetricsEvent
   }
 }
 
@@ -391,6 +433,8 @@ declare module '@deepseek-ai/dsh-session/types' {
  */
 export function registerLearningSessionEventType(): void {
   ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(LEARNER_STATE_SESSION_EVENT_TYPE)
+  ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+  ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)
 }
 
 const REQUEST_KINDS: ReadonlySet<string> = new Set<LearnerRequestKind>([
@@ -589,22 +633,33 @@ function normalizeEvidence(
   if (!['learner-message', 'learner-action', 'user-correction'].includes(observation.source)) {
     throw new TypeError('Learner evidence must come from a learner action, learner message, or user correction')
   }
+  if (observation.turn === undefined) {
+    throw new TypeError('learner_evidence_observed requires observation.turn')
+  }
   const kind = assertEnum(input.kind, EVIDENCE_KINDS, 'evidence.kind') as LearnerEvidenceKind
+  const correctness = assertEnum(
+    input.correctness ?? 'unknown',
+    EVIDENCE_CORRECTNESS,
+    'evidence.correctness',
+  )
+  const justification = input.justification === undefined
+    ? undefined
+    : normalizeRequiredText(input.justification, 'evidence.justification')
+  if (correctness !== 'unknown' && justification === undefined) {
+    throw new TypeError('evaluated learner evidence requires evidence.justification')
+  }
   const base = {
     summary: normalizeRequiredText(input.summary, 'evidence.summary'),
     confidence: assertEnum(input.confidence ?? 'medium', EVIDENCE_CONFIDENCE, 'evidence.confidence'),
-    correctness: assertEnum(
-      input.correctness ?? 'unknown',
-      EVIDENCE_CORRECTNESS,
-      'evidence.correctness',
-    ),
+    correctness,
     independence: assertEnum(
       input.independence ?? 'unknown',
       EVIDENCE_INDEPENDENCE,
       'evidence.independence',
     ),
     source: observation.source as LearnerEvidence['source'],
-    ...(observation.turn === undefined ? {} : { turn: observation.turn }),
+    turn: observation.turn,
+    ...(justification === undefined ? {} : { justification }),
   }
   if (kind === 'transfer') {
     return Object.freeze({
@@ -731,7 +786,10 @@ function evidenceMastery(evidence: readonly LearnerEvidence[]): LearnerMastery {
   const independentlyCorrect = evidence.filter(isIndependentlyCorrectEvidence)
   if (independentlyCorrect.some(item =>
     item.kind === 'transfer' && item.transferContext === 'fresh')) return 'transfer'
-  if (independentlyCorrect.length > 0) return 'emerging'
+  // One correct answer can be a lucky or context-bound success. Emerging is a
+  // cross-turn signal, so count distinct user turns rather than event count.
+  const turns = new Set(independentlyCorrect.map(item => item.turn))
+  if (turns.size >= 2) return 'emerging'
   return 'unseen'
 }
 
@@ -752,15 +810,43 @@ function evidenceSupportsMastery(evidence: LearnerEvidence, mastery: LearnerMast
     : mastery === 'emerging'
 }
 
+function emergingEvidenceTurns(evidence: readonly LearnerEvidence[]): Set<number> {
+  return new Set(evidence.filter(isIndependentlyCorrectEvidence).map(item => item.turn))
+}
+
 function boundEvidence(
   evidence: readonly LearnerEvidence[],
   mastery: LearnerMastery,
 ): readonly LearnerEvidence[] {
   const recent = evidence.slice(-MAX_LEARNER_EVIDENCE)
-  if (mastery === 'unseen' || recent.some(item => evidenceSupportsMastery(item, mastery))) {
+  if (mastery === 'unseen') {
+    return freezeEvidence(recent)
+  }
+  if (mastery === 'emerging' && emergingEvidenceTurns(recent).size >= 2) {
+    return freezeEvidence(recent)
+  }
+  if (mastery === 'transfer' && recent.some(item => evidenceSupportsMastery(item, mastery))) {
     return freezeEvidence(recent)
   }
   const support = [...evidence].reverse().find(item => evidenceSupportsMastery(item, mastery))
+  if (mastery === 'emerging') {
+    const supports: LearnerEvidence[] = []
+    const seenTurns = new Set<number>()
+    for (const item of [...evidence].reverse()) {
+      if (!isIndependentlyCorrectEvidence(item) || seenTurns.has(item.turn)) continue
+      seenTurns.add(item.turn)
+      supports.push(item)
+      if (supports.length >= 2) break
+    }
+    if (supports.length >= 2) {
+      const supportIds = new Set(supports)
+      const preserved = supports.reverse()
+      const tail = recent
+        .filter(item => !supportIds.has(item))
+        .slice(-(MAX_LEARNER_EVIDENCE - preserved.length))
+      return freezeEvidence([...preserved, ...tail])
+    }
+  }
   if (!support) return freezeEvidence(recent)
   return freezeEvidence([support, ...recent.slice(-(MAX_LEARNER_EVIDENCE - 1))])
 }
@@ -773,8 +859,8 @@ function assertMasteryEvidenceConsistency(
   if (state.mastery === 'transfer' && supported !== 'transfer') {
     throw new TypeError('transfer mastery requires correct, independent learner transfer evidence')
   }
-  if (state.mastery === 'emerging' && supported === 'unseen') {
-    throw new TypeError('emerging mastery requires correct, independent learner evidence')
+  if (state.mastery === 'emerging' && supported !== 'emerging' && supported !== 'transfer') {
+    throw new TypeError('emerging mastery requires correct, independent evidence from two user turns')
   }
 }
 
@@ -1064,12 +1150,13 @@ export function reduceLearnerState(state: LearnerState, event: LearnerStateEvent
       break
     case 'learner_evidence_observed': {
       const evidence = normalizeEvidence(event.evidence, observation)
-      const observedMastery = evidenceMastery([evidence])
-      next.mastery = masteryFromEvidence(state.mastery, [evidence])
+      const observedEvidence = [...state.evidence, evidence]
+      const observedMastery = evidenceMastery(observedEvidence)
+      next.mastery = masteryFromEvidence(state.mastery, observedEvidence)
       next.masteryBasis = observedMastery !== 'unseen' && observedMastery === next.mastery
         ? 'evidence'
         : state.masteryBasis
-      next.evidence = boundEvidence([...state.evidence, evidence], next.mastery)
+      next.evidence = boundEvidence(observedEvidence, next.mastery)
       next.learnerResponseAssessment = evidence.correctness === 'correct'
         ? 'correct'
         : evidence.correctness === 'partial'
@@ -1323,7 +1410,7 @@ function parseSnapshotEvidence(value: unknown): readonly LearnerEvidence[] {
         'kind', 'summary', 'confidence', 'correctness', 'independence', 'source',
         ...(kind === 'transfer' ? ['transferContext'] : []),
       ],
-      ['turn'],
+      ['turn', 'justification'],
       `learner state snapshot evidence[${index}]`,
     )
     const source = assertEnum(
@@ -1331,9 +1418,18 @@ function parseSnapshotEvidence(value: unknown): readonly LearnerEvidence[] {
       new Set(['learner-message', 'learner-action', 'user-correction']),
       `learner state snapshot evidence[${index}].source`,
     ) as LearnerEvidence['source']
-    const turn = record.turn === undefined
+    const turn = strictNonNegativeInteger(record.turn, `learner state snapshot evidence[${index}].turn`)
+    const correctness = assertEnum(
+      strictString(record.correctness, `learner state snapshot evidence[${index}].correctness`),
+      EVIDENCE_CORRECTNESS,
+      `learner state snapshot evidence[${index}].correctness`,
+    ) as LearnerEvidenceCorrectness
+    const justification = record.justification === undefined
       ? undefined
-      : strictNonNegativeInteger(record.turn, `learner state snapshot evidence[${index}].turn`)
+      : strictString(record.justification, `learner state snapshot evidence[${index}].justification`)
+    if (correctness !== 'unknown' && justification === undefined) {
+      throw new TypeError(`learner state snapshot evidence[${index}] requires justification for evaluated correctness`)
+    }
     const base = {
       summary: strictString(record.summary, `learner state snapshot evidence[${index}].summary`),
       confidence: assertEnum(
@@ -1341,18 +1437,15 @@ function parseSnapshotEvidence(value: unknown): readonly LearnerEvidence[] {
         EVIDENCE_CONFIDENCE,
         `learner state snapshot evidence[${index}].confidence`,
       ) as LearnerEvidenceConfidence,
-      correctness: assertEnum(
-        strictString(record.correctness, `learner state snapshot evidence[${index}].correctness`),
-        EVIDENCE_CORRECTNESS,
-        `learner state snapshot evidence[${index}].correctness`,
-      ) as LearnerEvidenceCorrectness,
+      correctness,
       independence: assertEnum(
         strictString(record.independence, `learner state snapshot evidence[${index}].independence`),
         EVIDENCE_INDEPENDENCE,
         `learner state snapshot evidence[${index}].independence`,
       ) as LearnerEvidenceIndependence,
       source,
-      ...(turn === undefined ? {} : { turn }),
+      turn,
+      ...(justification === undefined ? {} : { justification }),
     }
     if (kind === 'transfer') {
       return {

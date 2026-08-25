@@ -9,6 +9,12 @@ import { type SessionEvent } from '@deepseek-ai/dsh-session';
 export declare const LEARNER_STATE_PROTOCOL: "dsh-learning/learner-state@1";
 export declare const LEARNER_STATE_EVENT_PROTOCOL: "dsh-learning/state-event@1";
 export declare const LEARNER_STATE_SESSION_EVENT_TYPE: "learning/state";
+/** Log-only anchor for restoring an active Learning route after refresh. */
+export declare const LEARNING_SEGMENT_EVENT_PROTOCOL: "dsh-learning/segment@1";
+export declare const LEARNING_SEGMENT_SESSION_EVENT_TYPE: "learning/segment";
+/** Answer-free aggregate used to decide whether checkpoint UI should evolve. */
+export declare const LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL: "dsh-learning/checkpoint-metrics@1";
+export declare const LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE: "learning/checkpoint-metrics";
 export declare const MAX_LEARNER_EVIDENCE = 8;
 export declare const MAX_APPLIED_EVENT_IDS = 64;
 export declare const MAX_PRIOR_KNOWLEDGE = 8;
@@ -17,6 +23,30 @@ export declare const MAX_SOURCE_ANCHORS = 8;
 export declare const MAX_PLAN_STEPS = 6;
 export declare const MAX_FAILED_MOVES = 6;
 export declare const DEFAULT_TRANSCRIPT_TOKEN_BUDGET = 300;
+export declare const LEARNING_CHECKPOINT_METRIC_KINDS: readonly ["free_text", "single_choice", "numeric", "prediction", "code_slot"];
+export type LearningCheckpointMetricKind = typeof LEARNING_CHECKPOINT_METRIC_KINDS[number];
+export declare const LEARNING_CHECKPOINT_METRIC_STATUSES: readonly ["submitted", "skipped", "cancelled"];
+export type LearningCheckpointMetricStatus = typeof LEARNING_CHECKPOINT_METRIC_STATUSES[number];
+export interface LearningSegmentAnchorEvent {
+    protocol: typeof LEARNING_SEGMENT_EVENT_PROTOCOL;
+    route: 'learn';
+    segment: 'active' | 'closed';
+    /** Session-local user turn; never an account or agent identity. */
+    turn: number;
+}
+export interface LearningCheckpointAggregate {
+    usageCount: number;
+    kindCounts: Record<LearningCheckpointMetricKind, number>;
+    terminalCounts: Record<LearningCheckpointMetricStatus, number>;
+    draftRecovery: {
+        attempts: number;
+        hits: number;
+    };
+}
+export interface LearningCheckpointMetricsEvent {
+    protocol: typeof LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL;
+    aggregate: LearningCheckpointAggregate;
+}
 export type LearnerRequestKind = 'concept' | 'procedure' | 'topic' | 'source-study' | 'practice' | 'resource' | 'direct-task' | 'unknown';
 export type LearnerLevel = 'novice' | 'intermediate' | 'advanced' | 'unknown';
 export type LearnerGap = 'concept' | 'procedure' | 'notation' | 'task-model' | 'prerequisite' | 'unknown';
@@ -82,7 +112,10 @@ interface LearnerEvidenceBase {
     correctness: LearnerEvidenceCorrectness;
     independence: LearnerEvidenceIndependence;
     source: Extract<ObservableEventSource, 'learner-message' | 'learner-action' | 'user-correction'>;
-    turn?: number;
+    /** Host-verified source user turn; evidence never floats without provenance. */
+    turn: number;
+    /** Required whenever correctness was evaluated rather than left unknown. */
+    justification?: string;
 }
 export type LearnerEvidence = (LearnerEvidenceBase & {
     kind: 'transfer';
@@ -98,6 +131,8 @@ interface LearnerEvidenceInputBase {
     correctness?: LearnerEvidenceCorrectness;
     /** Unknown for a bare checkpoint submission; guided work cannot prove mastery. */
     independence?: LearnerEvidenceIndependence;
+    /** Required for evaluated (`correct`/`partial`/`incorrect`) evidence. */
+    justification?: string;
 }
 export type LearnerEvidenceInput = (LearnerEvidenceInputBase & {
     kind: 'transfer';
@@ -279,6 +314,10 @@ declare module '@deepseek-ai/dsh-session/types' {
     interface SessionEventMap {
         /** Full, log-only learner-state snapshot; never projected into model history. */
         'learning/state': LearnerStateSnapshotEvent;
+        /** Identity-free route anchor; never projected into model history. */
+        'learning/segment': LearningSegmentAnchorEvent;
+        /** Identity-free checkpoint usage aggregate; never projected into model history. */
+        'learning/checkpoint-metrics': LearningCheckpointMetricsEvent;
     }
 }
 /**

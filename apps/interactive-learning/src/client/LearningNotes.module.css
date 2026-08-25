@@ -1,0 +1,95 @@
+.notes {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--lx-space-sm);
+  color: var(--lx-label-primary);
+  font-size: var(--lx-text-sm);
+  line-height: var(--lx-leading-base);
+}
+
+.summary {
+  cursor: pointer;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-medium);
+  letter-spacing: 0.01em;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: var(--lx-space-md) var(--lx-space-xl);
+  margin-top: var(--lx-space-sm);
+  padding: var(--lx-space-md) var(--lx-space-lg);
+  border: var(--lx-card-border);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-surface-sunken);
+}
+
+.section {
+  min-width: 0;
+}
+
+.section h3 {
+  margin: 0 0 var(--lx-space-2xs);
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-medium);
+  letter-spacing: var(--lx-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.section p,
+.section ul {
+  margin: 0;
+}
+
+.section ul {
+  display: grid;
+  gap: var(--lx-space-2xs);
+  padding-left: var(--lx-space-xl);
+}
+
+.objective {
+  margin-top: var(--lx-space-2xs) !important;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-xs);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+  gap: var(--lx-space-xs);
+  padding-top: var(--lx-space-xs);
+  border-top: 1px solid var(--lx-border-subtle);
+}
+
+.actions button {
+  min-height: var(--lx-control-height-sm);
+  border: 1px solid var(--lx-border-strong);
+  border-radius: var(--lx-radius-pill);
+  padding: var(--lx-control-padding-sm);
+  background: transparent;
+  color: var(--lx-label-secondary);
+  font: inherit;
+  font-size: var(--lx-text-xs);
+  cursor: pointer;
+}
+
+.actions button:hover:not(:disabled) {
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+}
+
+.actions button:disabled {
+  cursor: default;
+  opacity: var(--lx-control-disabled-opacity);
+}
+
+.actions .endAction {
+  margin-left: auto;
+  border-color: var(--lx-border-default);
+  color: var(--lx-label-tertiary);
+}

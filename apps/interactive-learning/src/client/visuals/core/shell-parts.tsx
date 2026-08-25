@@ -13,7 +13,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import type { LearningVisualV4 as LearningVisualV4Definition } from '../../../protocol.ts'
+import type { LearningVisualV4 as LearningVisualV4Definition } from '../../../protocol-current.ts'
 import { labelTemplate, useVisualLabels, type LearningVisualV4Labels } from './labels.ts'
 import type { SelectedItem, VisualTone } from './types.ts'
 import type { VisualState } from '../state/visual-state.ts'

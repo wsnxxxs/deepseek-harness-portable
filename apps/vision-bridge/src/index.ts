@@ -2,10 +2,11 @@
  * Host-side Cordis plugin entrypoint for @dsh-portable/vision-bridge.
  *
  * The plugin contributes one explicit `view_image` tool that analyzes local
- * image files or re-analyzes durable images already referenced by the current
- * session. Everything underneath it — provider credentials, model capability,
- * durable image storage, retry and metering — belongs to the kernel services
- * this plugin injects, so there is no parallel endpoint or secret to configure.
+ * image files, renders local PDF pages, or re-analyzes durable images already
+ * referenced by the current session. Everything underneath it — provider
+ * credentials, model capability, durable image storage, retry and metering —
+ * belongs to the kernel services this plugin injects, so there is no parallel
+ * endpoint or secret to configure.
  * @module @dsh-portable/vision-bridge
  */
 
@@ -96,9 +97,11 @@ export function apply(ctx: Context, config: Config = {}): void {
     defineTool({
       name: 'view_image',
       description:
-        'Inspect and describe an image using a configured image-capable model. For a local PNG, JPEG, WebP, or GIF '
-        + 'provide path; to re-analyze an image already present in this session history, provide attachmentId. '
-        + 'Use this tool whenever you need to view screenshots, UI layouts, diagrams, charts, or images.',
+        'Inspect and describe a local PNG, JPEG, WebP, GIF, or one page of a PDF using a configured image-capable model. '
+        + 'Provide path for a local file; for PDF, page is 1-based and defaults to 1. The tool renders the requested PDF '
+        + 'page locally before analysis; for a multi-page PDF, use the returned pageCount and call the tool again for other pages '
+        + 'instead of asking the user to convert screenshots. To re-analyze an image already present in this session history, provide attachmentId. '
+        + 'Use this tool whenever you need to view screenshots, UI layouts, diagrams, charts, PDF pages, or images.',
       parameters: {
         path: {
           type: 'string',
@@ -111,6 +114,10 @@ export function apply(ctx: Context, config: Config = {}): void {
         prompt: {
           type: 'string',
           description: 'Specific question or instruction for the vision model (e.g. "Extract the error code from this dialog").',
+        },
+        page: {
+          type: 'number',
+          description: '1-based PDF page to render. Defaults to 1; valid only when path points to a PDF.',
         },
       },
       output: {
@@ -127,6 +134,8 @@ export function apply(ctx: Context, config: Config = {}): void {
             bytes: { type: 'number' },
             width: { type: 'number' },
             height: { type: 'number' },
+            page: { type: 'number' },
+            pageCount: { type: 'number' },
             reason: { type: 'string' },
             isError: { type: 'boolean' },
           },
@@ -144,6 +153,8 @@ export function apply(ctx: Context, config: Config = {}): void {
             provider: result.provider,
             model: result.model,
             bytes: result.bytes,
+            ...result.page === undefined ? {} : { page: result.page },
+            ...result.pageCount === undefined ? {} : { pageCount: result.pageCount },
             isError: result.isError === true,
           }
         },
@@ -159,7 +170,9 @@ export function apply(ctx: Context, config: Config = {}): void {
         return {
           card: 'generic',
           title: attachmentId === undefined
-            ? `Inspect image ${path ?? ''}`
+            ? path?.toLowerCase().endsWith('.pdf')
+              ? `Inspect PDF ${path}${typeof args.page === 'number' ? ` · page ${String(args.page)}` : ' · page 1'}`
+              : `Inspect image ${path ?? ''}`
             : `Inspect historical image ${attachmentId}`,
           kind: 'read',
           ...attachmentId === undefined && path !== undefined ? { locations: [{ path }] } : {},
@@ -177,6 +190,9 @@ export function apply(ctx: Context, config: Config = {}): void {
           ? meta.attachmentId
           : undefined
         const leaf = path?.replaceAll('\\', '/').split('/').at(-1)
+        const page = typeof meta === 'object' && meta !== null && 'page' in meta && typeof meta.page === 'number'
+          ? meta.page
+          : undefined
         return {
           card: 'generic',
           title: source === 'history'
@@ -185,7 +201,7 @@ export function apply(ctx: Context, config: Config = {}): void {
               : `Historical image analyzed${attachmentId === undefined ? '' : ` · ${attachmentId}`}`
             : result.isError
               ? `Image inspection failed${leaf === undefined ? '' : ` · ${leaf}`}`
-              : `Image analyzed${leaf === undefined ? '' : ` · ${leaf}`}`,
+              : `Image analyzed${leaf === undefined ? '' : ` · ${leaf}`}${page === undefined ? '' : ` · page ${String(page)}`}`,
         }
       },
     }),
@@ -197,7 +213,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     text: () => currentConfig().enabled
       ? 'Pasted or uploaded images use Hybrid Vision Bridge automatically. If the current model accepts images, keep '
         + 'the native image input. Otherwise, the configured vision model produces structured OCR, layout, object, coordinate, '
-        + 'and semantic evidence for the original text model. Use view_image for local image files that need visual analysis. '
+        + 'and semantic evidence for the original text model. Use view_image for local image files or PDF pages that need visual analysis. '
+        + 'For a PDF, pass its path and a 1-based page number; the page is rendered locally before it is analyzed. For a multi-page PDF, '
+        + 'use the returned pageCount to inspect additional pages instead of asking the user to make screenshots. '
         + 'To revisit an image already saved in this session, pass its opaque attachmentId from history; this reuses the '
         + 'durable reference and does not upload it again.'
       : 'Hybrid Vision Bridge and view_image are disabled. Native model image capabilities are unchanged.',

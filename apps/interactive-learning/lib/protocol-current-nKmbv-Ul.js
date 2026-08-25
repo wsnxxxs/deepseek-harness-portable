@@ -1,19 +1,56 @@
-//#region lib/types/protocol.js
-/** Versioned, declarative protocol shared by the Host, Agent, and Client. */
-const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
-const RESPONSE_PROTOCOL = "dsh-learning/response@1";
-const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
-const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
-const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
-const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
-const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
-const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
+import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
+//#region lib/types/protocol-schema.js
+function schemaPath(path) {
+	return path === "" ? "value" : path;
+}
+function propertyPath(path, key) {
+	return path === "" ? key : `${path}.${key}`;
+}
+function isRecord(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+/**
+* Validate the local schema DSL without pulling the host-only tool registry
+* into the browser bundle. The same schema object is still passed to dsh-tools
+* when the Host registers the model-facing tool.
+*/
+function validateSchemaValue(schema, value, path) {
+	if (schema.oneOf !== void 0) {
+		const matches = schema.oneOf.filter((branch) => validateSchemaValue(branch, value, path).length === 0).length;
+		return matches === 1 ? [] : [`"${schemaPath(path)}" must match exactly one oneOf branch (matched ${matches})`];
+	}
+	if (schema.type === void 0) return [];
+	if (schema.type === "object") {
+		if (!isRecord(value)) return [`"${schemaPath(path)}" must be an object`];
+		const properties = schema.properties ?? {};
+		const issues = [];
+		for (const [key, child] of Object.entries(properties)) {
+			const childPath = propertyPath(path, key);
+			if (child.required === true && (!Object.hasOwn(value, key) || value[key] === void 0)) {
+				issues.push(`missing required property "${childPath}"`);
+				continue;
+			}
+			if (Object.hasOwn(value, key) && value[key] !== void 0) issues.push(...validateSchemaValue(child, value[key], childPath));
+		}
+		if (schema.additionalProperties === false) {
+			for (const key of Object.keys(value)) if (!Object.hasOwn(properties, key)) issues.push(`"${propertyPath(path, key)}" is not a declared property (additionalProperties: false)`);
+		}
+		return issues;
+	}
+	if (schema.type === "array") {
+		if (!Array.isArray(value)) return [`"${schemaPath(path)}" must be an array`];
+		return schema.items === void 0 ? [] : value.flatMap((entry, index) => validateSchemaValue(schema.items, entry, `${path}[${index}]`));
+	}
+	if (!(schema.type === "null" ? value === null : schema.type === "number" ? typeof value === "number" && Number.isFinite(value) : schema.type === "integer" ? typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) : typeof value === schema.type)) return [`"${schemaPath(path)}" must be a ${schema.type}`];
+	if (schema.enum !== void 0 && !schema.enum.includes(value)) return [`"${schemaPath(path)}" must be one of ${JSON.stringify(schema.enum)}`];
+	if (Object.hasOwn(schema, "const") && value !== schema.const) return [`"${schemaPath(path)}" must be ${JSON.stringify(schema.const)}`];
+	return [];
+}
 const VISUAL_PROTOCOL_V4 = "dsh-learning/visual@4";
 const VISUAL_RESULT_PROTOCOL_V4 = "dsh-learning/visual-result@4";
-const RECALL_FEEDBACK_PROTOCOL_V1 = "dsh-learning/recall-feedback@1";
+const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
 const CHECKPOINT_PROTOCOL = "dsh-learning/checkpoint@1";
 const CHECKPOINT_RESULT_PROTOCOL = "dsh-learning/checkpoint-result@1";
-const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
 const LEARNING_CHECKPOINT_KINDS = [
 	"free_text",
 	"single_choice",
@@ -45,15 +82,6 @@ const LEARNING_VISUAL_KINDS_V4 = [
 	"field_2d",
 	"causal_loop"
 ];
-const LEARNING_ACTIVITY_KINDS = [
-	"parameter_explorer",
-	"process_stepper",
-	"structure_compare"
-];
-const MAX_ACTIVITY_BYTES = 65536;
-const MAX_RESPONSE_BYTES = 32768;
-const MAX_MATH_DEPTH = 8;
-const MAX_MATH_NODES = 64;
 const MAX_VISUAL_MATH_DEPTH = 4;
 const MATH_BINARY_OPERATORS = [
 	"add",
@@ -82,23 +110,2221 @@ const MATH_UNARY_OPERATORS = [
 	"floor",
 	"ceil"
 ];
-const LEARNING_VISUAL_STATUSES = ["ready", "unavailable"];
+const parameter = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			type: "string",
+			description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.",
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		min: {
+			type: "number",
+			required: true
+		},
+		max: {
+			type: "number",
+			required: true
+		},
+		step: {
+			type: "number",
+			required: true
+		},
+		initial: {
+			type: "number",
+			required: true
+		}
+	}
+};
+function mathExpressionSchema(depth) {
+	const leaves = [{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			op: {
+				type: "string",
+				const: "constant",
+				required: true
+			},
+			value: {
+				type: "number",
+				required: true
+			}
+		}
+	}, {
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			op: {
+				type: "string",
+				const: "variable",
+				required: true
+			},
+			name: {
+				type: "string",
+				description: "Use x or one of this visual's parameter ids.",
+				required: true
+			}
+		}
+	}];
+	if (depth <= 1) return { oneOf: leaves };
+	const nested = mathExpressionSchema(depth - 1);
+	return { oneOf: [
+		...leaves,
+		{
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				op: {
+					type: "string",
+					enum: MATH_UNARY_OPERATORS,
+					required: true
+				},
+				value: {
+					...nested,
+					required: true
+				}
+			}
+		},
+		{
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				op: {
+					type: "string",
+					enum: MATH_BINARY_OPERATORS,
+					required: true
+				},
+				left: {
+					...nested,
+					required: true
+				},
+				right: {
+					...nested,
+					required: true
+				}
+			}
+		}
+	] };
+}
+function required(schema) {
+	return {
+		...schema,
+		required: true
+	};
+}
+const expression = mathExpressionSchema(4);
+const requiredExpression = required(expression);
+const mathExpressionDescription = "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+const identifier = {
+	type: "string",
+	description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -."
+};
+const tone = {
+	type: "string",
+	enum: [
+		"blue",
+		"green",
+		"red",
+		"orange",
+		"purple",
+		"gray"
+	]
+};
+const stroke = {
+	type: "string",
+	enum: [
+		"solid",
+		"dashed",
+		"dotted"
+	]
+};
+const point = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		x: {
+			type: "number",
+			required: true
+		},
+		y: {
+			type: "number",
+			required: true
+		},
+		label: { type: "string" }
+	}
+};
+const coordinate = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		x: {
+			type: "number",
+			required: true
+		},
+		y: {
+			type: "number",
+			required: true
+		}
+	}
+};
+const axis = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		label: { type: "string" },
+		min: {
+			type: "number",
+			required: true
+		},
+		max: {
+			type: "number",
+			required: true
+		}
+	}
+};
+const curveSeries = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		type: {
+			type: "string",
+			const: "curve",
+			required: true
+		},
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		expression: {
+			...requiredExpression,
+			description: mathExpressionDescription
+		},
+		tone,
+		stroke
+	}
+};
+const pointSeries = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		type: {
+			type: "string",
+			const: "points",
+			required: true
+		},
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		points: {
+			type: "array",
+			required: true,
+			items: point,
+			description: "1 to 256 points."
+		},
+		tone
+	}
+};
+const lineSeries = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		type: {
+			type: "string",
+			const: "line",
+			required: true
+		},
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		points: {
+			type: "array",
+			required: true,
+			items: point,
+			description: "1 to 256 points."
+		},
+		tone,
+		stroke
+	}
+};
+const barSeries = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		type: {
+			type: "string",
+			const: "bars",
+			required: true
+		},
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		points: {
+			type: "array",
+			required: true,
+			items: point,
+			description: "1 to 64 bars."
+		},
+		tone
+	}
+};
+const plotContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "plot",
+			required: true,
+			description: "Functions, quantitative data, probability, distributions, or tangent/secant geometry on Cartesian axes."
+		},
+		parameters: {
+			type: "array",
+			items: parameter,
+			description: [
+				"Optional; omit for a static plot. Use at most three only when changing the value teaches the mechanism.",
+				"A slider is a teaching metaphor that puts the learner's hand on the parameter: ask them to predict first, then drag it.",
+				"Do not silently treat movement as assessed evidence; like recall self-rating it has low confidence and unknown correctness until the learner explains what they observed.",
+				"可选；滑块用于“先预测、再拖动”的教学比喻，不得静默采集为已判定正确的学习证据。"
+			].join(" ")
+		},
+		xAxis: {
+			...axis,
+			required: true,
+			properties: {
+				...axis.properties,
+				samples: {
+					type: "integer",
+					description: "Optional curve samples from 24 to 256."
+				}
+			}
+		},
+		yAxis: required(axis),
+		series: {
+			type: "array",
+			required: true,
+			items: { oneOf: [
+				curveSeries,
+				pointSeries,
+				lineSeries,
+				barSeries
+			] },
+			description: "1 to 8 series."
+		},
+		metrics: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					expression: {
+						...requiredExpression,
+						description: mathExpressionDescription
+					},
+					digits: { type: "integer" },
+					suffix: { type: "string" }
+				}
+			},
+			description: "Optional; at most 4 metrics."
+		}
+	}
+};
+const nodeGroup = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		}
+	}
+};
+const node = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		detail: { type: "string" },
+		group: { type: "string" },
+		tone
+	}
+};
+const edge = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		from: {
+			type: "string",
+			required: true
+		},
+		to: {
+			type: "string",
+			required: true
+		},
+		label: { type: "string" },
+		detail: { type: "string" },
+		tone,
+		stroke,
+		directed: { type: "boolean" }
+	}
+};
+const nodeLinkContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "node_link",
+			required: true,
+			description: "Networks, fully connected layers, trees, causality, concept maps, state transitions, and dependency topology."
+		},
+		layout: {
+			type: "string",
+			enum: [
+				"layered",
+				"hierarchy",
+				"radial"
+			],
+			required: true
+		},
+		groups: {
+			type: "array",
+			items: nodeGroup,
+			description: "Optional 1 to 12 ordered layers for layered layout; every node must reference one group."
+		},
+		nodes: {
+			type: "array",
+			items: node,
+			required: true,
+			description: "2 to 48 nodes."
+		},
+		edges: {
+			type: "array",
+			items: edge,
+			required: true,
+			description: "1 to 160 edges; include every semantically required connection."
+		}
+	}
+};
+const sceneBase = {
+	id: {
+		...identifier,
+		required: true
+	},
+	label: { type: "string" },
+	detail: { type: "string" },
+	tone
+};
+const sceneElement = { oneOf: [
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				const: "point",
+				required: true
+			},
+			...sceneBase,
+			x: {
+				type: "number",
+				required: true
+			},
+			y: {
+				type: "number",
+				required: true
+			},
+			size: { type: "number" }
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				enum: ["segment", "arrow"],
+				required: true
+			},
+			...sceneBase,
+			x1: {
+				type: "number",
+				required: true
+			},
+			y1: {
+				type: "number",
+				required: true
+			},
+			x2: {
+				type: "number",
+				required: true
+			},
+			y2: {
+				type: "number",
+				required: true
+			},
+			stroke
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				const: "circle",
+				required: true
+			},
+			...sceneBase,
+			cx: {
+				type: "number",
+				required: true
+			},
+			cy: {
+				type: "number",
+				required: true
+			},
+			r: {
+				type: "number",
+				required: true
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				const: "rect",
+				required: true
+			},
+			...sceneBase,
+			x: {
+				type: "number",
+				required: true
+			},
+			y: {
+				type: "number",
+				required: true
+			},
+			width: {
+				type: "number",
+				required: true
+			},
+			height: {
+				type: "number",
+				required: true
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				const: "polygon",
+				required: true
+			},
+			...sceneBase,
+			points: {
+				type: "array",
+				required: true,
+				items: coordinate,
+				description: "3 to 24 polygon vertices."
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			type: {
+				type: "string",
+				const: "label",
+				required: true
+			},
+			...sceneBase,
+			x: {
+				type: "number",
+				required: true
+			},
+			y: {
+				type: "number",
+				required: true
+			},
+			text: {
+				type: "string",
+				required: true
+			}
+		}
+	}
+] };
+const sceneContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "scene_2d",
+			required: true,
+			description: "Geometry, vectors, forces, spatial relationships, and annotated scientific schematics."
+		},
+		xAxis: required(axis),
+		yAxis: required(axis),
+		grid: { type: "boolean" },
+		elements: {
+			type: "array",
+			items: sceneElement,
+			required: true,
+			description: "1 to 64 scene elements."
+		}
+	}
+};
+const relationSubject = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		},
+		detail: { type: "string" },
+		tone
+	}
+};
+const relationAxisItem = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		}
+	}
+};
+const relationContent = { oneOf: [
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			kind: {
+				type: "string",
+				const: "relation",
+				required: true
+			},
+			variant: {
+				type: "string",
+				const: "comparison",
+				required: true
+			},
+			subjects: {
+				type: "array",
+				items: relationSubject,
+				required: true,
+				description: "2 to 4 subjects."
+			},
+			rows: {
+				type: "array",
+				required: true,
+				items: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						id: {
+							...identifier,
+							required: true
+						},
+						label: {
+							type: "string",
+							required: true
+						},
+						detail: { type: "string" },
+						cells: {
+							type: "array",
+							required: true,
+							items: {
+								type: "object",
+								additionalProperties: false,
+								properties: {
+									subjectId: {
+										type: "string",
+										required: true
+									},
+									value: {
+										type: "string",
+										required: true
+									},
+									tone
+								}
+							},
+							description: "1 to 4 cells; each subjectId must reference a declared subject."
+						}
+					}
+				},
+				description: "1 to 16 comparison rows."
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			kind: {
+				type: "string",
+				const: "relation",
+				required: true
+			},
+			variant: {
+				type: "string",
+				const: "matrix",
+				required: true
+			},
+			rows: {
+				type: "array",
+				items: relationAxisItem,
+				required: true,
+				description: "1 to 10 matrix rows."
+			},
+			columns: {
+				type: "array",
+				items: relationAxisItem,
+				required: true,
+				description: "1 to 10 matrix columns."
+			},
+			cells: {
+				type: "array",
+				required: true,
+				items: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						id: {
+							...identifier,
+							required: true
+						},
+						rowId: {
+							type: "string",
+							required: true
+						},
+						columnId: {
+							type: "string",
+							required: true
+						},
+						label: {
+							type: "string",
+							required: true
+						},
+						detail: { type: "string" },
+						tone
+					}
+				},
+				description: "1 to 64 matrix cells; rowId and columnId must reference declared axes."
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			kind: {
+				type: "string",
+				const: "relation",
+				required: true
+			},
+			variant: {
+				type: "string",
+				const: "sets",
+				required: true
+			},
+			sets: {
+				type: "array",
+				items: relationSubject,
+				required: true,
+				description: "2 to 3 sets."
+			},
+			items: {
+				type: "array",
+				required: true,
+				items: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						id: {
+							...identifier,
+							required: true
+						},
+						label: {
+							type: "string",
+							required: true
+						},
+						setIds: {
+							type: "array",
+							items: { type: "string" },
+							required: true,
+							description: "1 to 3 unique ids referencing declared sets."
+						},
+						detail: { type: "string" }
+					}
+				},
+				description: "1 to 24 set items."
+			}
+		}
+	}
+] };
+const timelineContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "timeline",
+			required: true,
+			description: "Ordered historical events, scientific discoveries, biographies, eras, or other chronology where time order is the structure."
+		},
+		orientation: {
+			type: "string",
+			enum: ["horizontal", "vertical"]
+		},
+		events: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					time: {
+						type: "string",
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					position: {
+						type: "number",
+						description: "Optional normalized position from 0 to 1. Provide it for every event or omit it for every event."
+					},
+					tone
+				}
+			},
+			required: true,
+			description: "2 to 32 events in chronological order."
+		},
+		eras: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					startEventId: {
+						type: "string",
+						required: true
+					},
+					endEventId: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "Optional 1 to 8 eras; startEventId and endEventId must reference declared events in order."
+		}
+	}
+};
+const formulaStepsContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "formula_steps",
+			required: true,
+			description: "A derivation, algebraic transformation, proof chain, or symbolic simplification where the rule between steps matters. Not for merely recalling one formula."
+		},
+		notation: {
+			type: "string",
+			description: "Optional short notation key used across the derivation."
+		},
+		steps: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					expression: {
+						type: "string",
+						required: true,
+						description: "One LaTeX display expression without dollar delimiters; use commands such as \\lim_{h \\to 0} and ^{\\prime}."
+					},
+					label: { type: "string" },
+					rule: { type: "string" },
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "2 to 16 formula steps."
+		},
+		conclusion: { type: "string" }
+	}
+};
+const studyMapContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "study_map",
+			required: true,
+			description: "A navigable overview of a supplied document, chapter, slide deck, or multi-concept learning source. Preserve source sections and anchors instead of flattening the material."
+		},
+		sourceLabel: {
+			type: "string",
+			required: true
+		},
+		goal: { type: "string" },
+		sections: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					anchor: {
+						type: "string",
+						description: "Human-readable source location, such as Chapter 2 or pp. 18–23."
+					},
+					summary: { type: "string" }
+				}
+			},
+			description: "1 to 16 source sections."
+		},
+		concepts: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					sectionId: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					prerequisiteIds: {
+						type: "array",
+						items: { type: "string" },
+						description: "Optional; at most 8 unique declared concept ids, excluding this concept, with no cycles."
+					},
+					role: {
+						type: "string",
+						enum: [
+							"foundation",
+							"core",
+							"extension",
+							"practice"
+						]
+					},
+					tone
+				}
+			},
+			description: "1 to 48 concepts; every sectionId must reference a declared section."
+		}
+	}
+};
+const recallDeckContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "recall_deck",
+			required: true,
+			description: "A requested flashcard or active-recall set with hidden answers, hints, and local review state. Use only after the relevant material is known."
+		},
+		instructions: { type: "string" },
+		cards: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					prompt: {
+						type: "string",
+						required: true
+					},
+					answer: {
+						type: "string",
+						required: true
+					},
+					hint: { type: "string" },
+					tags: {
+						type: "array",
+						items: { type: "string" },
+						description: "Optional; at most 6 unique labels."
+					}
+				}
+			},
+			description: "2 to 32 recall cards."
+		}
+	}
+};
+const tableValue = { oneOf: [
+	{ type: "string" },
+	{ type: "number" },
+	{ type: "boolean" },
+	{ type: "null" }
+] };
+const dataTableContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "data_table",
+			required: true,
+			description: "A typed record table for inspecting real data, filtering rows, sorting values, marking outliers, or linking tabular values to a chart."
+		},
+		columns: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					type: {
+						type: "string",
+						enum: [
+							"string",
+							"number",
+							"boolean",
+							"date"
+						],
+						required: true
+					},
+					unit: { type: "string" }
+				}
+			},
+			description: "1 to 24 typed columns."
+		},
+		rows: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					detail: { type: "string" },
+					cells: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								columnId: {
+									type: "string",
+									required: true
+								},
+								value: {
+									...tableValue,
+									required: true
+								}
+							}
+						},
+						description: "One cell per declared column; columnId must reference a declared column."
+					}
+				}
+			},
+			description: "1 to 128 records."
+		},
+		outlierIds: {
+			type: "array",
+			items: { type: "string" },
+			description: "Optional row ids to emphasize as anomalies."
+		},
+		initialSort: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				columnId: {
+					type: "string",
+					required: true
+				},
+				direction: {
+					type: "string",
+					enum: ["asc", "desc"],
+					required: true
+				}
+			}
+		},
+		initialFilter: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				columnId: {
+					type: "string",
+					required: true
+				},
+				operator: {
+					type: "string",
+					enum: [
+						"equals",
+						"not_equals",
+						"contains",
+						"gt",
+						"gte",
+						"lt",
+						"lte"
+					],
+					required: true
+				},
+				value: {
+					...tableValue,
+					required: true
+				}
+			}
+		},
+		chart: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				type: {
+					type: "string",
+					enum: [
+						"line",
+						"bar",
+						"scatter"
+					],
+					required: true
+				},
+				xColumnId: {
+					type: "string",
+					required: true
+				},
+				yColumnId: {
+					type: "string",
+					required: true
+				},
+				seriesColumnId: { type: "string" }
+			}
+		}
+	}
+};
+const stateTransitionContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "state_transition",
+			required: true,
+			description: "A state machine where an event triggers a transition from one explicit state to another, optionally with guard and action."
+		},
+		states: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					tone,
+					initial: { type: "boolean" },
+					final: { type: "boolean" }
+				}
+			},
+			description: "2 to 32 states; mark initial/final states when the lifecycle has them."
+		},
+		transitions: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					from: {
+						type: "string",
+						required: true
+					},
+					to: {
+						type: "string",
+						required: true
+					},
+					trigger: {
+						type: "string",
+						required: true
+					},
+					guard: { type: "string" },
+					action: { type: "string" },
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "1 to 96 transitions; from and to must reference declared states."
+		},
+		steps: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					currentStateId: {
+						type: "string",
+						required: true
+					},
+					transitionId: { type: "string" },
+					description: { type: "string" }
+				}
+			},
+			description: "Optional 2 to 16 execution steps; each names the current state and optional transition just taken."
+		}
+	}
+};
+const sequenceBufferContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "sequence_buffer",
+			required: true,
+			description: "Discrete indexed slots with moving pointers, highlighted intervals, and snapshots for array, window, parsing, or protocol algorithms."
+		},
+		slots: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					index: {
+						type: "integer",
+						required: true
+					},
+					value: {
+						...tableValue,
+						required: true
+					},
+					label: { type: "string" },
+					tone
+				}
+			},
+			description: "1 to 128 ordered slots; index values must be unique."
+		},
+		pointers: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					index: {
+						type: "integer",
+						required: true
+					},
+					tone
+				}
+			},
+			description: "Optional 1 to 8 named pointers."
+		},
+		ranges: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					start: {
+						type: "integer",
+						required: true
+					},
+					end: {
+						type: "integer",
+						required: true
+					},
+					tone
+				}
+			},
+			description: "Optional 1 to 8 inclusive index intervals."
+		},
+		steps: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					description: { type: "string" },
+					slots: {
+						type: "array",
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								slotId: {
+									type: "string",
+									required: true
+								},
+								value: { ...tableValue }
+							}
+						}
+					},
+					pointers: {
+						type: "array",
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								pointerId: {
+									type: "string",
+									required: true
+								},
+								index: {
+									type: "integer",
+									required: true
+								}
+							}
+						}
+					},
+					ranges: {
+						type: "array",
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								rangeId: {
+									type: "string",
+									required: true
+								},
+								start: {
+									type: "integer",
+									required: true
+								},
+								end: {
+									type: "integer",
+									required: true
+								}
+							}
+						}
+					}
+				}
+			},
+			description: "Optional 2 to 16 snapshots. Include only the collections that change in each snapshot."
+		}
+	}
+};
+const sequenceDiagramContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "sequence_diagram",
+			required: true,
+			description: "Ordered messages exchanged by API clients, services, protocols, cells, or collaborating roles."
+		},
+		participants: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "2 to 16 lifeline participants."
+		},
+		messages: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					from: {
+						type: "string",
+						required: true
+					},
+					to: {
+						type: "string",
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					type: {
+						type: "string",
+						enum: [
+							"sync",
+							"async",
+							"return",
+							"self"
+						],
+						required: true
+					},
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "1 to 96 messages in top-to-bottom order; from and to must reference participants."
+		}
+	}
+};
+const codeTraceContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "code_trace",
+			required: true,
+			description: "Source lines paired with execution steps, current line, variable values, call stack, and output."
+		},
+		language: {
+			type: "string",
+			required: true
+		},
+		code: {
+			type: "string",
+			required: true,
+			description: "Complete source text shown above or beside the trace."
+		},
+		lines: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					number: {
+						type: "integer",
+						required: true
+					},
+					text: {
+						type: "string",
+						required: true
+					}
+				}
+			},
+			description: "1 to 256 numbered source lines."
+		},
+		steps: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					currentLine: {
+						type: "integer",
+						required: true
+					},
+					variables: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								name: {
+									type: "string",
+									required: true
+								},
+								value: {
+									...tableValue,
+									required: true
+								},
+								type: { type: "string" }
+							}
+						}
+					},
+					stack: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								id: {
+									...identifier,
+									required: true
+								},
+								function: {
+									type: "string",
+									required: true
+								},
+								line: { type: "integer" }
+							}
+						}
+					},
+					output: { type: "string" },
+					description: { type: "string" }
+				}
+			},
+			description: "2 to 32 execution snapshots."
+		}
+	}
+};
+const fieldGrid = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		columns: {
+			type: "integer",
+			required: true
+		},
+		rows: {
+			type: "integer",
+			required: true
+		}
+	}
+};
+const scalarFieldSamples = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		...fieldGrid.properties,
+		values: {
+			type: "array",
+			items: { type: "number" },
+			required: true,
+			description: "Flattened row-major values; length must equal rows * columns."
+		}
+	}
+};
+const vectorFieldSamples = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		...fieldGrid.properties,
+		u: {
+			type: "array",
+			items: { type: "number" },
+			required: true,
+			description: "Flattened horizontal components; length must equal rows * columns."
+		},
+		v: {
+			type: "array",
+			items: { type: "number" },
+			required: true,
+			description: "Flattened vertical components; length must equal rows * columns."
+		}
+	}
+};
+const field2DContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "field_2d",
+			required: true,
+			description: "A sampled or mathematically defined scalar heatmap, contour field, vector field, or gradient over two axes."
+		},
+		xAxis: {
+			...axis,
+			required: true,
+			properties: {
+				...axis.properties,
+				samples: { type: "integer" }
+			}
+		},
+		yAxis: {
+			...axis,
+			required: true,
+			properties: {
+				...axis.properties,
+				samples: { type: "integer" }
+			}
+		},
+		scalar: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				samples: scalarFieldSamples,
+				expression: {
+					...expression,
+					description: "Closed math AST using x and y variables."
+				},
+				min: { type: "number" },
+				max: { type: "number" }
+			}
+		},
+		vector: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				samples: vectorFieldSamples,
+				expression: {
+					type: "object",
+					additionalProperties: false,
+					properties: {
+						u: {
+							...requiredExpression,
+							description: "Horizontal component using x and y variables."
+						},
+						v: {
+							...requiredExpression,
+							description: "Vertical component using x and y variables."
+						}
+					}
+				}
+			}
+		}
+	}
+};
+const causalLoopContent = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		kind: {
+			type: "string",
+			const: "causal_loop",
+			required: true,
+			description: "A causal feedback diagram with positive or negative polarity, optional delay, and named reinforcing or balancing loops."
+		},
+		variables: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "2 to 32 causal variables."
+		},
+		links: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					from: {
+						type: "string",
+						required: true
+					},
+					to: {
+						type: "string",
+						required: true
+					},
+					polarity: {
+						type: "string",
+						enum: ["positive", "negative"],
+						required: true
+					},
+					delay: { type: "number" },
+					label: { type: "string" },
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "1 to 96 directed links; from and to must reference variables."
+		},
+		loops: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					type: {
+						type: "string",
+						enum: ["reinforcing", "balancing"],
+						required: true
+					},
+					linkIds: {
+						type: "array",
+						items: { type: "string" },
+						required: true
+					},
+					detail: { type: "string" },
+					tone
+				}
+			},
+			description: "Optional 1 to 12 named feedback loops; linkIds must reference declared links in cycle order."
+		}
+	}
+};
+const LEARNING_VISUAL_SEQUENCE_SCHEMA_V4 = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		initialFrameId: { type: "string" },
+		frames: {
+			type: "array",
+			required: true,
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						...identifier,
+						required: true
+					},
+					label: {
+						type: "string",
+						required: true
+					},
+					description: { type: "string" },
+					focusIds: {
+						type: "array",
+						items: { type: "string" },
+						required: true,
+						description: "At most 64 unique ids already declared by content."
+					}
+				}
+			},
+			description: "2 to 12 sequence frames."
+		}
+	}
+};
+const LEARNING_CHECKPOINT_OPTION_SCHEMA_V1 = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		id: {
+			...identifier,
+			required: true
+		},
+		label: {
+			type: "string",
+			required: true
+		}
+	}
+};
+const LEARNING_CHECKPOINT_RESPONSE_SCHEMA_V1 = { oneOf: [
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: { text: {
+			type: "string",
+			required: true
+		} }
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: { optionId: {
+			...identifier,
+			required: true
+		} }
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: { number: {
+			type: "number",
+			required: true
+		} }
+	}
+] };
+const LEARNING_CHECKPOINT_RESULT_SCHEMA_V1 = { oneOf: [
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			protocol: {
+				type: "string",
+				const: CHECKPOINT_RESULT_PROTOCOL,
+				required: true
+			},
+			checkpointId: {
+				type: "string",
+				required: true
+			},
+			status: {
+				type: "string",
+				const: "submitted",
+				required: true
+			},
+			response: {
+				...LEARNING_CHECKPOINT_RESPONSE_SCHEMA_V1,
+				required: true
+			},
+			receiptId: {
+				type: "string",
+				required: true
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			protocol: {
+				type: "string",
+				const: CHECKPOINT_RESULT_PROTOCOL,
+				required: true
+			},
+			checkpointId: {
+				type: "string",
+				required: true
+			},
+			status: {
+				type: "string",
+				const: "skipped",
+				required: true
+			},
+			reason: {
+				type: "string",
+				enum: [
+					"learner-skipped",
+					"client-unavailable",
+					"client-response-timeout",
+					"host-unavailable",
+					"provider-failure"
+				]
+			},
+			receiptId: {
+				type: "string",
+				required: true
+			}
+		}
+	},
+	{
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			protocol: {
+				type: "string",
+				const: CHECKPOINT_RESULT_PROTOCOL,
+				required: true
+			},
+			checkpointId: {
+				type: "string",
+				required: true
+			},
+			status: {
+				type: "string",
+				const: "cancelled",
+				required: true
+			},
+			reason: {
+				type: "string",
+				enum: [
+					"learner-cancelled",
+					"session-aborted",
+					"plugin-disposed"
+				]
+			},
+			receiptId: {
+				type: "string",
+				required: true
+			}
+		}
+	}
+] };
+const LEARNING_VISUAL_CONTENT_SCHEMAS_V4 = {
+	plot: plotContent,
+	node_link: nodeLinkContent,
+	scene_2d: sceneContent,
+	relation: relationContent,
+	timeline: timelineContent,
+	formula_steps: formulaStepsContent,
+	study_map: studyMapContent,
+	recall_deck: recallDeckContent,
+	data_table: dataTableContent,
+	state_transition: stateTransitionContent,
+	sequence_buffer: sequenceBufferContent,
+	sequence_diagram: sequenceDiagramContent,
+	code_trace: codeTraceContent,
+	field_2d: field2DContent,
+	causal_loop: causalLoopContent
+};
+const LEARNING_VISUAL_SCHEMA_V4 = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		protocol: {
+			type: "string",
+			const: VISUAL_PROTOCOL_V4,
+			required: true
+		},
+		title: {
+			type: "string",
+			required: true
+		},
+		description: { type: "string" },
+		content: {
+			oneOf: [
+				plotContent,
+				nodeLinkContent,
+				sceneContent,
+				relationContent,
+				timelineContent,
+				formulaStepsContent,
+				studyMapContent,
+				recallDeckContent,
+				dataTableContent,
+				stateTransitionContent,
+				sequenceBufferContent,
+				sequenceDiagramContent,
+				codeTraceContent,
+				field2DContent,
+				causalLoopContent
+			],
+			required: true
+		},
+		sequence: LEARNING_VISUAL_SEQUENCE_SCHEMA_V4,
+		fallbackMarkdown: { type: "string" }
+	}
+};
+const LEARNING_VISUAL_RESULT_SCHEMA_V4 = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		protocol: {
+			type: "string",
+			const: VISUAL_RESULT_PROTOCOL_V4,
+			required: true
+		},
+		status: {
+			type: "string",
+			enum: LEARNING_VISUAL_STATUSES,
+			required: true
+		}
+	}
+};
+const LEARNING_CHECKPOINT_SCHEMA_V1 = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		protocol: {
+			type: "string",
+			const: CHECKPOINT_PROTOCOL,
+			required: true
+		},
+		kind: {
+			type: "string",
+			enum: LEARNING_CHECKPOINT_KINDS,
+			required: true
+		},
+		prompt: {
+			type: "string",
+			required: true
+		},
+		context: { type: "string" },
+		expectedEvidence: {
+			type: "string",
+			enum: LEARNING_CHECKPOINT_EVIDENCE_KINDS,
+			required: true
+		},
+		options: {
+			type: "array",
+			items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1
+		},
+		fallbackMarkdown: {
+			type: "string",
+			required: true
+		}
+	}
+};
+const visualJsonSchemaV4 = LEARNING_VISUAL_SCHEMA_V4;
+const visualResultJsonSchemaV4 = LEARNING_VISUAL_RESULT_SCHEMA_V4;
+const checkpointJsonSchemaV1 = LEARNING_CHECKPOINT_SCHEMA_V1;
+const checkpointResultJsonSchemaV1 = LEARNING_CHECKPOINT_RESULT_SCHEMA_V1;
+/** Generated structural validator; semantic bounds and cross-references remain in protocol.ts. */
+function validateLearningVisualSchemaV4(value) {
+	return validateSchemaValue(visualJsonSchemaV4, value, "visual");
+}
+function validateLearningVisualResultSchemaV4(value) {
+	return validateSchemaValue(visualResultJsonSchemaV4, value, "visualResult");
+}
+/** Generated structural validator; answer-free copy checks remain in protocol.ts. */
+function validateLearningCheckpointSchemaV1(value) {
+	return validateSchemaValue(checkpointJsonSchemaV1, value, "checkpoint");
+}
+/** Generated structural validator for the closed checkpoint receipt union. */
+function validateLearningCheckpointResultSchemaV1(value) {
+	return validateSchemaValue(checkpointResultJsonSchemaV1, value, "checkpointResult");
+}
+function learningVisualParametersV4(kind) {
+	return {
+		protocol: {
+			type: "string",
+			const: VISUAL_PROTOCOL_V4,
+			required: true
+		},
+		title: {
+			type: "string",
+			description: "Concise visible and accessible visual title.",
+			required: true
+		},
+		description: {
+			type: "string",
+			description: "Optional one-sentence exploration hint; do not repeat surrounding prose."
+		},
+		content: required(LEARNING_VISUAL_CONTENT_SCHEMAS_V4[kind]),
+		sequence: LEARNING_VISUAL_SEQUENCE_SCHEMA_V4,
+		fallbackMarkdown: {
+			type: "string",
+			description: "Optional concise text equivalent for accessibility or an unavailable renderer."
+		}
+	};
+}
+function learningCheckpointParametersV1(selection) {
+	return {
+		protocol: {
+			type: "string",
+			const: CHECKPOINT_PROTOCOL,
+			required: true
+		},
+		kind: {
+			type: "string",
+			const: selection.kind,
+			required: true
+		},
+		prompt: {
+			type: "string",
+			const: selection.prompt,
+			required: true
+		},
+		context: { type: "string" },
+		expectedEvidence: {
+			type: "string",
+			const: selection.expectedEvidence,
+			required: true
+		},
+		...selection.kind === "single_choice" ? { options: {
+			type: "array",
+			required: true,
+			items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1,
+			description: "Two to eight answer-free choices. No correct-answer or rubric field exists."
+		} } : {},
+		fallbackMarkdown: {
+			type: "string",
+			required: true,
+			description: "Self-sufficient ordinary-conversation fallback; never include the answer."
+		}
+	};
+}
+//#endregion
+//#region lib/types/protocol-current.js
+/** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
+const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
+const RESPONSE_PROTOCOL = "dsh-learning/response@1";
+const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
+const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
+const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
+const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
+const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
+const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
+const RECALL_FEEDBACK_PROTOCOL_V1 = "dsh-learning/recall-feedback@1";
+const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
+const LEARNING_ACTIVITY_KINDS = [
+	"parameter_explorer",
+	"process_stepper",
+	"structure_compare"
+];
+const MAX_ACTIVITY_BYTES = 65536;
+const MAX_RESPONSE_BYTES = 32768;
+const MAX_MATH_DEPTH = 8;
+const MAX_MATH_NODES = 64;
 /** A learner's explicit recall interaction, sent from the visual Client to Host. */
 const LEARNING_RECALL_STATUSES = [
 	"revealed",
 	"mastered",
 	"review"
 ];
-/** A stable, actionable protocol rejection surfaced to the tool call. */
-var LearningProtocolError = class extends Error {
-	issues;
-	code = "INVALID_LEARNING_ACTIVITY";
-	constructor(issues) {
-		super(`Invalid Learning Activity: ${issues.join("; ")}`);
-		this.issues = issues;
-		this.name = "LearningProtocolError";
-	}
-};
 function record(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -148,50 +2374,6 @@ function jsonBytes(value) {
 	} catch {
 		return;
 	}
-}
-function validateJson(value, path, issues) {
-	const stack = [{
-		value,
-		path,
-		depth: 0
-	}];
-	let nodes = 0;
-	while (stack.length > 0) {
-		const current = stack.pop();
-		nodes += 1;
-		if (nodes > 512) {
-			issues.push(`${path} exceeds 512 JSON nodes`);
-			return false;
-		}
-		if (current.depth > 12) {
-			issues.push(`${current.path} exceeds JSON depth 12`);
-			return false;
-		}
-		const item = current.value;
-		if (item === null || typeof item === "string" || typeof item === "boolean") continue;
-		if (typeof item === "number") {
-			if (!Number.isFinite(item)) issues.push(`${current.path} must contain finite numbers`);
-			continue;
-		}
-		if (Array.isArray(item)) {
-			for (let index = item.length - 1; index >= 0; index -= 1) stack.push({
-				value: item[index],
-				path: `${current.path}[${String(index)}]`,
-				depth: current.depth + 1
-			});
-			continue;
-		}
-		if (record(item)) {
-			for (const [key, child] of Object.entries(item)) stack.push({
-				value: child,
-				path: `${current.path}.${key}`,
-				depth: current.depth + 1
-			});
-			continue;
-		}
-		issues.push(`${current.path} must be lossless JSON`);
-	}
-	return issues.length === 0;
 }
 function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth = 8) {
 	const binary = new Set(MATH_BINARY_OPERATORS);
@@ -250,240 +2432,6 @@ function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth
 		} else issues.push(`${node.path}.op is unknown`);
 	}
 }
-function validateParameterExplorer(payload, issues) {
-	if (!record(payload)) {
-		issues.push("activity.payload must be an object");
-		return;
-	}
-	onlyKeys(payload, [
-		"parameters",
-		"xAxis",
-		"curves",
-		"question"
-	], "activity.payload", issues);
-	if (!Array.isArray(payload.parameters) || payload.parameters.length < 1 || payload.parameters.length > 2) {
-		issues.push("activity.payload.parameters must contain 1 or 2 parameters");
-		return;
-	}
-	const parameters = payload.parameters.filter(record);
-	if (parameters.length !== payload.parameters.length) issues.push("activity.payload.parameters entries must be objects");
-	uniqueIds(parameters, "activity.payload.parameters", issues);
-	for (const [index, parameter] of parameters.entries()) {
-		const path = `activity.payload.parameters[${String(index)}]`;
-		onlyKeys(parameter, [
-			"id",
-			"label",
-			"min",
-			"max",
-			"step",
-			"initial"
-		], path, issues);
-		id(parameter.id, `${path}.id`, issues);
-		text(parameter.label, `${path}.label`, issues, 120);
-		const min = parameter.min;
-		const max = parameter.max;
-		const step = parameter.step;
-		const initial = parameter.initial;
-		const minOk = finite(min, `${path}.min`, issues);
-		const maxOk = finite(max, `${path}.max`, issues);
-		const stepOk = finite(step, `${path}.step`, issues);
-		const initialOk = finite(initial, `${path}.initial`, issues);
-		if (minOk && maxOk && min >= max) issues.push(`${path}.min must be less than max`);
-		if (stepOk && step <= 0) issues.push(`${path}.step must be positive`);
-		if (minOk && maxOk && stepOk && step > max - min) issues.push(`${path}.step must not exceed the parameter range`);
-		if (minOk && maxOk && initialOk && (initial < min || initial > max)) issues.push(`${path}.initial must be inside the parameter range`);
-	}
-	if (!record(payload.xAxis)) issues.push("activity.payload.xAxis must be an object");
-	else {
-		onlyKeys(payload.xAxis, [
-			"label",
-			"min",
-			"max",
-			"samples"
-		], "activity.payload.xAxis", issues);
-		if (payload.xAxis.label !== void 0) text(payload.xAxis.label, "activity.payload.xAxis.label", issues, 120);
-		const xMin = payload.xAxis.min;
-		const xMax = payload.xAxis.max;
-		const samples = payload.xAxis.samples;
-		const minOk = finite(xMin, "activity.payload.xAxis.min", issues);
-		const maxOk = finite(xMax, "activity.payload.xAxis.max", issues);
-		if (minOk && maxOk && xMin >= xMax) issues.push("activity.payload.xAxis.min must be less than max");
-		if (samples !== void 0 && (typeof samples !== "number" || !Number.isInteger(samples) || samples < 16 || samples > 256)) issues.push("activity.payload.xAxis.samples must be an integer from 16 to 256");
-	}
-	if (!Array.isArray(payload.curves) || payload.curves.length < 1 || payload.curves.length > 3) issues.push("activity.payload.curves must contain 1 to 3 curves");
-	else {
-		const curves = payload.curves.filter(record);
-		if (curves.length !== payload.curves.length) issues.push("activity.payload.curves entries must be objects");
-		uniqueIds(curves, "activity.payload.curves", issues);
-		const parameterIds = new Set(parameters.map((item) => typeof item.id === "string" ? item.id : ""));
-		for (const [index, curve] of curves.entries()) {
-			const path = `activity.payload.curves[${String(index)}]`;
-			onlyKeys(curve, [
-				"id",
-				"label",
-				"expression"
-			], path, issues);
-			id(curve.id, `${path}.id`, issues);
-			text(curve.label, `${path}.label`, issues, 120);
-			validateMath(curve.expression, parameterIds, `${path}.expression`, issues);
-		}
-	}
-	if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
-}
-function validateProcessStepper(payload, issues) {
-	if (!record(payload)) {
-		issues.push("activity.payload must be an object");
-		return;
-	}
-	onlyKeys(payload, ["steps", "question"], "activity.payload", issues);
-	if (!Array.isArray(payload.steps) || payload.steps.length < 2 || payload.steps.length > 12) {
-		issues.push("activity.payload.steps must contain 2 to 12 steps");
-		return;
-	}
-	const steps = payload.steps.filter(record);
-	if (steps.length !== payload.steps.length) issues.push("activity.payload.steps entries must be objects");
-	uniqueIds(steps, "activity.payload.steps", issues);
-	for (const [index, step] of steps.entries()) {
-		const path = `activity.payload.steps[${String(index)}]`;
-		onlyKeys(step, [
-			"id",
-			"title",
-			"content",
-			"checkpoint"
-		], path, issues);
-		id(step.id, `${path}.id`, issues);
-		text(step.title, `${path}.title`, issues, 200);
-		text(step.content, `${path}.content`, issues, 4e3);
-		if (step.checkpoint !== void 0) {
-			if (!record(step.checkpoint)) issues.push(`${path}.checkpoint must be an object`);
-			else {
-				onlyKeys(step.checkpoint, ["question", "options"], `${path}.checkpoint`, issues);
-				text(step.checkpoint.question, `${path}.checkpoint.question`, issues, 2e3);
-				if (step.checkpoint.options !== void 0) {
-					if (!Array.isArray(step.checkpoint.options) || step.checkpoint.options.length < 2 || step.checkpoint.options.length > 6 || !step.checkpoint.options.every((option) => typeof option === "string" && option.trim() !== "")) issues.push(`${path}.checkpoint.options must contain 2 to 6 non-empty strings`);
-				}
-			}
-		}
-	}
-	if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
-}
-function validateStructureSide(value, path, issues) {
-	if (!record(value)) {
-		issues.push(`${path} must be an object`);
-		return [];
-	}
-	onlyKeys(value, ["title", "items"], path, issues);
-	text(value.title, `${path}.title`, issues, 200);
-	if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 20) {
-		issues.push(`${path}.items must contain 1 to 20 items`);
-		return [];
-	}
-	const items = value.items.filter(record);
-	if (items.length !== value.items.length) issues.push(`${path}.items entries must be objects`);
-	uniqueIds(items, `${path}.items`, issues);
-	for (const [index, item] of items.entries()) {
-		const itemPath = `${path}.items[${String(index)}]`;
-		onlyKeys(item, [
-			"id",
-			"label",
-			"detail"
-		], itemPath, issues);
-		id(item.id, `${itemPath}.id`, issues);
-		text(item.label, `${itemPath}.label`, issues, 500);
-		if (item.detail !== void 0) text(item.detail, `${itemPath}.detail`, issues, 2e3);
-	}
-	return items;
-}
-function validateStructureCompare(payload, issues) {
-	if (!record(payload)) {
-		issues.push("activity.payload must be an object");
-		return;
-	}
-	onlyKeys(payload, [
-		"left",
-		"right",
-		"alignments",
-		"question"
-	], "activity.payload", issues);
-	const left = validateStructureSide(payload.left, "activity.payload.left", issues);
-	const right = validateStructureSide(payload.right, "activity.payload.right", issues);
-	const leftIds = new Set(left.map((item) => typeof item.id === "string" ? item.id : ""));
-	const rightIds = new Set(right.map((item) => typeof item.id === "string" ? item.id : ""));
-	if (!Array.isArray(payload.alignments) || payload.alignments.length < 1 || payload.alignments.length > 24) issues.push("activity.payload.alignments must contain 1 to 24 rows");
-	else {
-		const alignments = payload.alignments.filter(record);
-		if (alignments.length !== payload.alignments.length) issues.push("activity.payload.alignments entries must be objects");
-		uniqueIds(alignments, "activity.payload.alignments", issues);
-		for (const [index, alignment] of alignments.entries()) {
-			const path = `activity.payload.alignments[${String(index)}]`;
-			onlyKeys(alignment, [
-				"id",
-				"leftId",
-				"rightId",
-				"prompt"
-			], path, issues);
-			id(alignment.id, `${path}.id`, issues);
-			if (alignment.leftId === void 0 && alignment.rightId === void 0) issues.push(`${path} must reference at least one side`);
-			if (alignment.leftId !== void 0 && (typeof alignment.leftId !== "string" || !leftIds.has(alignment.leftId))) issues.push(`${path}.leftId must reference a left item`);
-			if (alignment.rightId !== void 0 && (typeof alignment.rightId !== "string" || !rightIds.has(alignment.rightId))) issues.push(`${path}.rightId must reference a right item`);
-			if (alignment.prompt !== void 0) text(alignment.prompt, `${path}.prompt`, issues, 1e3);
-		}
-	}
-	if (payload.question !== void 0) text(payload.question, "activity.payload.question", issues, 2e3);
-}
-/** Validate and narrow an untrusted model-provided activity. */
-function parseLearningActivity(value) {
-	const issues = [];
-	const bytes = jsonBytes(value);
-	if (bytes === void 0) issues.push("activity must be serializable JSON");
-	else if (bytes > 65536) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-	if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
-	onlyKeys(value, [
-		"protocol",
-		"kind",
-		"title",
-		"objective",
-		"prompt",
-		"scaffold",
-		"payload",
-		"fallbackMarkdown"
-	], "activity", issues);
-	if (value.protocol !== "dsh-learning/activity@1") issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL}`);
-	if (!LEARNING_ACTIVITY_KINDS.includes(value.kind)) issues.push("activity.kind is unknown");
-	text(value.title, "activity.title", issues, 200);
-	text(value.objective, "activity.objective", issues, 1e3);
-	text(value.prompt, "activity.prompt", issues, 2e3);
-	if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
-	text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-	if (value.kind === "parameter_explorer") validateParameterExplorer(value.payload, issues);
-	else if (value.kind === "process_stepper") validateProcessStepper(value.payload, issues);
-	else if (value.kind === "structure_compare") validateStructureCompare(value.payload, issues);
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
-}
-/** Validate and narrow a Client response before it returns to the model. */
-function parseLearningResponse(value, expectedActivityId) {
-	const issues = [];
-	const bytes = jsonBytes(value);
-	if (bytes === void 0) issues.push("response must be serializable JSON");
-	else if (bytes > 32768) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
-	if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
-	onlyKeys(value, [
-		"protocol",
-		"activityId",
-		"action",
-		"answer",
-		"interactionState"
-	], "response", issues);
-	if (value.protocol !== "dsh-learning/response@1") issues.push(`response.protocol must be ${RESPONSE_PROTOCOL}`);
-	if (typeof value.activityId !== "string" || value.activityId === "") issues.push("response.activityId must be a non-empty string");
-	if (expectedActivityId !== void 0 && value.activityId !== expectedActivityId) issues.push("response.activityId does not match the pending activity");
-	if (value.action !== "submit" && value.action !== "skip" && value.action !== "cancel") issues.push("response.action is unknown");
-	if (value.answer !== void 0) validateJson(value.answer, "response.answer", issues);
-	if (value.interactionState !== void 0) validateJson(value.interactionState, "response.interactionState", issues);
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
-}
 function integer(value, path, issues, min = 0) {
 	if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
 		issues.push(`${path} must be an integer >= ${String(min)}`);
@@ -497,308 +2445,6 @@ function token(value, path, issues) {
 		return false;
 	}
 	return true;
-}
-function validateFocusV2(value, path, issues) {
-	if (!record(value)) {
-		issues.push(`${path} must be an object`);
-		return;
-	}
-	onlyKeys(value, ["title", "progress"], path, issues);
-	text(value.title, `${path}.title`, issues, 200);
-	if (value.progress !== void 0) {
-		if (!record(value.progress)) issues.push(`${path}.progress must be an object`);
-		else {
-			onlyKeys(value.progress, ["current", "total"], `${path}.progress`, issues);
-			const currentOk = integer(value.progress.current, `${path}.progress.current`, issues, 1);
-			const totalOk = value.progress.total === void 0 ? false : integer(value.progress.total, `${path}.progress.total`, issues, 1);
-			if (currentOk && totalOk && value.progress.current > value.progress.total) issues.push(`${path}.progress.current must not exceed total`);
-		}
-	}
-}
-function validateInputV2(value, issues) {
-	const path = "activity.input";
-	if (!record(value)) {
-		issues.push(`${path} must be an object`);
-		return;
-	}
-	if (value.kind === "single_choice") {
-		onlyKeys(value, ["kind", "options"], path, issues);
-		if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) {
-			issues.push(`${path}.options must contain 2 to 8 options`);
-			return;
-		}
-		const options = value.options.filter(record);
-		if (options.length !== value.options.length) issues.push(`${path}.options entries must be objects`);
-		uniqueIds(options, `${path}.options`, issues);
-		for (const [index, option] of options.entries()) {
-			const optionPath = `${path}.options[${String(index)}]`;
-			onlyKeys(option, ["id", "label"], optionPath, issues);
-			id(option.id, `${optionPath}.id`, issues);
-			text(option.label, `${optionPath}.label`, issues, 500);
-		}
-	} else if (value.kind === "short_text") {
-		onlyKeys(value, [
-			"kind",
-			"placeholder",
-			"maxLength"
-		], path, issues);
-		if (value.placeholder !== void 0) text(value.placeholder, `${path}.placeholder`, issues, 500);
-		if (value.maxLength !== void 0 && (!integer(value.maxLength, `${path}.maxLength`, issues, 1) || value.maxLength > 8e3)) issues.push(`${path}.maxLength must not exceed 8000`);
-	} else if (value.kind === "number") {
-		onlyKeys(value, [
-			"kind",
-			"min",
-			"max",
-			"step"
-		], path, issues);
-		const minOk = value.min === void 0 ? false : finite(value.min, `${path}.min`, issues);
-		const maxOk = value.max === void 0 ? false : finite(value.max, `${path}.max`, issues);
-		const stepOk = value.step === void 0 ? false : finite(value.step, `${path}.step`, issues);
-		if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-		if (stepOk && value.step <= 0) issues.push(`${path}.step must be positive`);
-	} else issues.push(`${path}.kind is unknown`);
-}
-function validateFrameV2(value, path, issues) {
-	if (!record(value)) {
-		issues.push(`${path} must be an object`);
-		return;
-	}
-	onlyKeys(value, [
-		"id",
-		"title",
-		"content"
-	], path, issues);
-	id(value.id, `${path}.id`, issues);
-	text(value.title, `${path}.title`, issues, 200);
-	if (value.content !== void 0) text(value.content, `${path}.content`, issues, 4e3);
-}
-function validateParameterVisualV2(value, path, issues, reveal) {
-	onlyKeys(value, reveal ? [
-		"kind",
-		"parameters",
-		"xAxis",
-		"curves",
-		"emphasis"
-	] : [
-		"kind",
-		"parameters",
-		"xAxis",
-		"curves"
-	], path, issues);
-	validateParameterExplorer({
-		parameters: value.parameters,
-		xAxis: value.xAxis,
-		curves: value.curves
-	}, issues);
-	if (reveal && value.emphasis !== void 0) text(value.emphasis, `${path}.emphasis`, issues, 2e3);
-}
-function validateStructureVisualV2(value, path, issues, reveal) {
-	onlyKeys(value, reveal ? [
-		"kind",
-		"left",
-		"right",
-		"alignments",
-		"emphasisAlignmentIds"
-	] : [
-		"kind",
-		"left",
-		"right",
-		"alignments"
-	], path, issues);
-	validateStructureCompare({
-		left: value.left,
-		right: value.right,
-		alignments: value.alignments
-	}, issues);
-	if (reveal && value.emphasisAlignmentIds !== void 0) {
-		if (!Array.isArray(value.emphasisAlignmentIds) || !value.emphasisAlignmentIds.every((item) => typeof item === "string")) issues.push(`${path}.emphasisAlignmentIds must be an array of ids`);
-	}
-}
-function validateVisualV2(value, phase, issues) {
-	const path = "activity.visual";
-	if (!record(value)) {
-		issues.push(`${path} must be an object`);
-		return;
-	}
-	if (value.kind === "process") {
-		if (phase === "question") {
-			onlyKeys(value, ["kind", "frame"], path, issues);
-			validateFrameV2(value.frame, `${path}.frame`, issues);
-		} else {
-			onlyKeys(value, [
-				"kind",
-				"before",
-				"after"
-			], path, issues);
-			validateFrameV2(value.before, `${path}.before`, issues);
-			validateFrameV2(value.after, `${path}.after`, issues);
-		}
-	} else if (value.kind === "parameter") validateParameterVisualV2(value, path, issues, phase === "reveal");
-	else if (value.kind === "structure") validateStructureVisualV2(value, path, issues, phase === "reveal");
-	else issues.push(`${path}.kind is unknown`);
-}
-/** Strict live protocol. V1 is intentionally parsed separately for legacy replay only. */
-function parseLearningActivityV2(value) {
-	const issues = [];
-	const bytes = jsonBytes(value);
-	if (bytes === void 0) issues.push("activity must be serializable JSON");
-	else if (bytes > 65536) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-	if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
-	if (value.protocol !== "dsh-learning/activity@2") issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL_V2}`);
-	if (value.phase === "question") {
-		onlyKeys(value, [
-			"protocol",
-			"phase",
-			"lessonToken",
-			"seq",
-			"focus",
-			"prompt",
-			"scaffold",
-			"input",
-			"visual",
-			"fallbackMarkdown"
-		], "activity", issues);
-		if (value.lessonToken !== void 0) token(value.lessonToken, "activity.lessonToken", issues);
-		integer(value.seq, "activity.seq", issues);
-		validateFocusV2(value.focus, "activity.focus", issues);
-		text(value.prompt, "activity.prompt", issues, 2e3);
-		if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
-		validateInputV2(value.input, issues);
-		if (value.visual !== void 0) validateVisualV2(value.visual, "question", issues);
-		text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-	} else if (value.phase === "reveal") {
-		onlyKeys(value, [
-			"protocol",
-			"phase",
-			"lessonToken",
-			"roundToken",
-			"seq",
-			"focus",
-			"feedback",
-			"visual",
-			"animation",
-			"advance",
-			"fallbackMarkdown"
-		], "activity", issues);
-		token(value.lessonToken, "activity.lessonToken", issues);
-		token(value.roundToken, "activity.roundToken", issues);
-		integer(value.seq, "activity.seq", issues);
-		validateFocusV2(value.focus, "activity.focus", issues);
-		if (!record(value.feedback)) issues.push("activity.feedback must be an object");
-		else {
-			onlyKeys(value.feedback, [
-				"verdict",
-				"learnerEcho",
-				"explanation",
-				"answer"
-			], "activity.feedback", issues);
-			if (value.feedback.verdict !== void 0 && ![
-				"correct",
-				"partial",
-				"misconception",
-				"neutral"
-			].includes(value.feedback.verdict)) issues.push("activity.feedback.verdict is unknown");
-			if (value.feedback.learnerEcho !== void 0) text(value.feedback.learnerEcho, "activity.feedback.learnerEcho", issues, 2e3);
-			text(value.feedback.explanation, "activity.feedback.explanation", issues, 8e3);
-			if (value.feedback.answer !== void 0) text(value.feedback.answer, "activity.feedback.answer", issues, 4e3);
-		}
-		if (value.visual !== void 0) validateVisualV2(value.visual, "reveal", issues);
-		if (!record(value.animation)) issues.push("activity.animation must be an object");
-		else {
-			onlyKeys(value.animation, [
-				"kind",
-				"preferredDurationMs",
-				"reducedMotion"
-			], "activity.animation", issues);
-			if (![
-				"draw",
-				"morph",
-				"highlight",
-				"step_complete"
-			].includes(value.animation.kind)) issues.push("activity.animation.kind is unknown");
-			if (value.animation.preferredDurationMs !== void 0 && (!integer(value.animation.preferredDurationMs, "activity.animation.preferredDurationMs", issues, 0) || value.animation.preferredDurationMs > 1e4)) issues.push("activity.animation.preferredDurationMs must not exceed 10000");
-			if (value.animation.reducedMotion !== "commit-final-state") issues.push("activity.animation.reducedMotion must be commit-final-state");
-		}
-		if (!record(value.advance)) issues.push("activity.advance must be an object");
-		else {
-			onlyKeys(value.advance, ["mode", "label"], "activity.advance", issues);
-			if (value.advance.mode !== "user-after-animation") issues.push("activity.advance.mode must be user-after-animation");
-			if (value.advance.label !== void 0) text(value.advance.label, "activity.advance.label", issues, 120);
-		}
-		text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-	} else issues.push("activity.phase must be question or reveal");
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
-}
-/** Validate a phase-bound Client receipt before the Broker changes lesson state. */
-function parseLearningResponseV2(value, expected = {}) {
-	const issues = [];
-	const bytes = jsonBytes(value);
-	if (bytes === void 0) issues.push("response must be serializable JSON");
-	else if (bytes > 32768) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
-	if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
-	if (value.phase === "question") {
-		onlyKeys(value, [
-			"protocol",
-			"phase",
-			"activityId",
-			"lessonToken",
-			"roundToken",
-			"seq",
-			"action",
-			"answer",
-			"receiptId",
-			"interactionState"
-		], "response", issues);
-		if (![
-			"submit",
-			"skip",
-			"cancel"
-		].includes(value.action)) issues.push("response.action is unknown");
-		if (value.answer !== void 0) validateJson(value.answer, "response.answer", issues);
-	} else if (value.phase === "reveal") {
-		onlyKeys(value, [
-			"protocol",
-			"phase",
-			"activityId",
-			"lessonToken",
-			"roundToken",
-			"seq",
-			"action",
-			"animation",
-			"receiptId",
-			"interactionState"
-		], "response", issues);
-		if (![
-			"continue",
-			"skip",
-			"cancel"
-		].includes(value.action)) issues.push("response.action is unknown");
-		if (!record(value.animation)) issues.push("response.animation must be an object");
-		else {
-			onlyKeys(value.animation, [
-				"completed",
-				"skipped",
-				"reducedMotion",
-				"error"
-			], "response.animation", issues);
-			if (typeof value.animation.completed !== "boolean") issues.push("response.animation.completed must be boolean");
-			if (value.animation.skipped !== void 0 && typeof value.animation.skipped !== "boolean") issues.push("response.animation.skipped must be boolean");
-			if (value.animation.reducedMotion !== void 0 && typeof value.animation.reducedMotion !== "boolean") issues.push("response.animation.reducedMotion must be boolean");
-			if (value.animation.error !== void 0 && typeof value.animation.error !== "string") issues.push("response.animation.error must be a string");
-			if (value.action === "continue" && value.animation.completed !== true) issues.push("response.animation.completed must be true before continue");
-		}
-	} else issues.push("response.phase must be question or reveal");
-	if (value.protocol !== "dsh-learning/response@2") issues.push(`response.protocol must be ${RESPONSE_PROTOCOL_V2}`);
-	token(value.activityId, "response.activityId", issues);
-	token(value.lessonToken, "response.lessonToken", issues);
-	token(value.roundToken, "response.roundToken", issues);
-	integer(value.seq, "response.seq", issues);
-	token(value.receiptId, "response.receiptId", issues);
-	if (value.interactionState !== void 0) validateJson(value.interactionState, "response.interactionState", issues);
-	for (const [key, expectedValue] of Object.entries(expected)) if (expectedValue !== void 0 && value[key] !== expectedValue) issues.push(`response.${key} does not match the pending activity`);
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
 }
 const CHECKPOINT_RAW_HTML = /<(?:!DOCTYPE\b|!--|\/?[A-Za-z][^<>]*>)/i;
 const CHECKPOINT_LEAKAGE_COPY = /\b(?:correct\s+answer|model\s+answer|answer\s+key|(?:the\s+)?answer\s*(?:is|was|[:：])|solution\s*[:：]|expected\s+(?:answer|response|result)\s*[:：]|grading\s+rubric|scoring\s+rubric|future\s+(?:step|question)|next\s+question\s*:)|(?:正确|标准|参考|模型)(?:答案|解答)|标准解\s*[:：]?|(?:答案|解答)\s*[:：]|答案(?:是|为)|评分(?:标准|细则)|下一(?:步|题|个问题)|后续步骤|未来步骤/iu;
@@ -816,7 +2462,7 @@ function checkpointDisplayText(value, path, issues, max) {
 }
 /** Strict, answer-free protocol for one optional learner checkpoint. */
 function parseLearningCheckpointV1(value) {
-	const issues = [];
+	const issues = [...validateLearningCheckpointSchemaV1(value)];
 	const bytes = jsonBytes(value);
 	if (bytes === void 0) issues.push("checkpoint must be serializable JSON");
 	else if (bytes > 65536) issues.push(`checkpoint exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
@@ -855,7 +2501,7 @@ function parseLearningCheckpointV1(value) {
 }
 /** Validate one phase-bound checkpoint receipt before the Host accepts it. */
 function parseLearningCheckpointResultV1(value, expected = {}) {
-	const issues = [];
+	const issues = [...validateLearningCheckpointResultSchemaV1(value)];
 	const bytes = jsonBytes(value);
 	if (bytes === void 0) issues.push("checkpoint result must be serializable JSON");
 	else if (bytes > 32768) issues.push(`checkpoint result exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
@@ -2639,7 +4285,7 @@ function validateVisualSequenceV4(value, focusIds, issues) {
 }
 /** Validate the semantic, model-facing visual protocol while retaining V3 replay separately. */
 function parseLearningVisualV4(value) {
-	const issues = [];
+	const issues = [...validateLearningVisualSchemaV4(value)];
 	const bytes = jsonBytes(value);
 	if (bytes === void 0) issues.push("visual must be serializable JSON");
 	else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
@@ -2679,7 +4325,7 @@ function parseLearningVisualV4(value) {
 	return value;
 }
 function parseLearningVisualResultV4(value) {
-	const issues = [];
+	const issues = [...validateLearningVisualResultSchemaV4(value)];
 	if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
 	onlyKeys(value, ["protocol", "status"], "visualResult", issues);
 	if (value.protocol !== "dsh-learning/visual-result@4") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`);
@@ -2716,4 +4362,4 @@ function parseLearningVisualResultV3(value) {
 	return value;
 }
 //#endregion
-export { parseLearningActivity as A, parseLearningVisualV4 as B, TRANSPORT_PROTOCOL as C, VISUAL_RESULT_PROTOCOL_V3 as D, VISUAL_PROTOCOL_V4 as E, parseLearningResponse as F, parseLearningResponseV2 as I, parseLearningVisualResultV3 as L, parseLearningCheckpointResultV1 as M, parseLearningCheckpointV1 as N, VISUAL_RESULT_PROTOCOL_V4 as O, parseLearningRecallFeedbackV1 as P, parseLearningVisualResultV4 as R, RESPONSE_PROTOCOL_V2 as S, VISUAL_PROTOCOL_V3 as T, MAX_MATH_NODES as _, CHECKPOINT_TRANSPORT_PROTOCOL as a, RECALL_FEEDBACK_PROTOCOL_V1 as b, LEARNING_CHECKPOINT_KINDS as c, LEARNING_VISUAL_STATUSES as d, LearningProtocolError as f, MAX_MATH_DEPTH as g, MAX_ACTIVITY_BYTES as h, CHECKPOINT_RESULT_PROTOCOL as i, parseLearningActivityV2 as j, isLearningCheckpointDisplayTextSafe as k, LEARNING_RECALL_STATUSES as l, MATH_UNARY_OPERATORS as m, ACTIVITY_PROTOCOL_V2 as n, LEARNING_ACTIVITY_KINDS as o, MATH_BINARY_OPERATORS as p, CHECKPOINT_PROTOCOL as r, LEARNING_CHECKPOINT_EVIDENCE_KINDS as s, ACTIVITY_PROTOCOL as t, LEARNING_VISUAL_KINDS_V4 as u, MAX_RESPONSE_BYTES as v, TRANSPORT_PROTOCOL_V2 as w, RESPONSE_PROTOCOL as x, MAX_VISUAL_MATH_DEPTH as y, parseLearningVisualV3 as z };
+export { LEARNING_VISUAL_KINDS_V4 as A, parseLearningVisualV3 as C, LEARNING_CHECKPOINT_EVIDENCE_KINDS as D, CHECKPOINT_RESULT_PROTOCOL as E, MAX_VISUAL_MATH_DEPTH as F, VISUAL_PROTOCOL_V4 as I, VISUAL_RESULT_PROTOCOL_V4 as L, LEARNING_VISUAL_STATUSES as M, MATH_BINARY_OPERATORS as N, LEARNING_CHECKPOINT_KINDS as O, MATH_UNARY_OPERATORS as P, learningCheckpointParametersV1 as R, parseLearningVisualResultV4 as S, CHECKPOINT_PROTOCOL as T, isLearningCheckpointDisplayTextSafe as _, LEARNING_RECALL_STATUSES as a, parseLearningRecallFeedbackV1 as b, MAX_MATH_NODES as c, RESPONSE_PROTOCOL as d, RESPONSE_PROTOCOL_V2 as f, VISUAL_RESULT_PROTOCOL_V3 as g, VISUAL_PROTOCOL_V3 as h, LEARNING_ACTIVITY_KINDS as i, LEARNING_VISUAL_RESULT_SCHEMA_V4 as j, LEARNING_CHECKPOINT_RESULT_SCHEMA_V1 as k, MAX_RESPONSE_BYTES as l, TRANSPORT_PROTOCOL_V2 as m, ACTIVITY_PROTOCOL_V2 as n, MAX_ACTIVITY_BYTES as o, TRANSPORT_PROTOCOL as p, CHECKPOINT_TRANSPORT_PROTOCOL as r, MAX_MATH_DEPTH as s, ACTIVITY_PROTOCOL as t, RECALL_FEEDBACK_PROTOCOL_V1 as u, parseLearningCheckpointResultV1 as v, parseLearningVisualV4 as w, parseLearningVisualResultV3 as x, parseLearningCheckpointV1 as y, learningVisualParametersV4 as z };

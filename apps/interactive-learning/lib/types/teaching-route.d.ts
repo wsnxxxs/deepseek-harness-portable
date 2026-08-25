@@ -5,12 +5,14 @@
  * exists so the high-priority ambiguity rule is testable and reusable by
  * canaries without copying prompt prose into another subsystem.
  */
-import { type LearnIntentDecision } from './learn-intent.ts';
+import { type LearnIntentConfidence, type LearnIntentDecision } from './learn-intent.ts';
 export type LearningRoute = 'calibrate' | 'teach-minimum' | 'overview' | 'direct' | 'continue';
 export interface LearningRouteDecision {
     route: LearningRoute;
     reason: 'short-learning-request' | 'explicit-learning' | 'explicit-beginner' | 'initial-urgent-blocker' | 'explicit-overview' | 'current-or-contested' | 'specific-goal' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'resource-creation' | 'active-segment' | 'direct';
     intent: LearnIntentDecision;
+    /** Mirrors intent confidence for route-context consumers. */
+    confidence: LearnIntentConfidence;
 }
 /** Session-local route memory. This is not learner state and is never a profile. */
 export interface LearningRouteSession {

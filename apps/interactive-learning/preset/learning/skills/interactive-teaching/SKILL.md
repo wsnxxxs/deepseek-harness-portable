@@ -9,6 +9,10 @@ description: Use in the Learning preset when a learning request needs detailed d
 
 The standing `learning:policy` injected from `src/teaching-policy.ts` is the single authoritative source for request routing, diagnosis, teaching moves, scaffolding, learner pressure, tool restraint, feedback, stopping, and academic integrity. Follow that policy throughout the lesson. This Skill only routes to detailed construction references; it must not restate, weaken, or override the standing policy.
 
+## Per-session reference budget
+
+Read each linked design/reference guide silently at most once per Learning session. Keep the relevant guidance in working context for later turns; do not reread the same guide on every turn unless the session explicitly replaces the source or the guide was unavailable/failed to load. The standing policy and the learner's current words still control each turn.
+
 ## Progressive references
 
 Read only the references needed for the current turn:

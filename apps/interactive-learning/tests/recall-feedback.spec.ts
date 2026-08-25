@@ -9,7 +9,14 @@ import {
 } from '../src/protocol.ts'
 
 function stubAgent(id: string): Agent {
-  const log: Array<{ type: string; seq: number; time: number; data: unknown }> = []
+  const log: Array<{ type: string; seq: number; time: number; data: unknown }> = [
+    { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
+    {
+      type: 'user/message', seq: 1, time: 1,
+      data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'Review this recall deck.' }] },
+    },
+    { type: 'turn/end', seq: 2, time: 2, data: { turn: 1, reason: { kind: 'success' } } },
+  ]
   const session = {
     id,
     header: { delegationDepth: 0 },

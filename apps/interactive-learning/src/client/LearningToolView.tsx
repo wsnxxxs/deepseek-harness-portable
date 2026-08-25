@@ -7,14 +7,10 @@ import {
   parseLearningCheckpointV1,
   parseLearningCheckpointResultV1,
   isLearningCheckpointDisplayTextSafe,
-  parseLearningActivity,
-  parseLearningActivityV2,
   parseLearningVisualV3,
   parseLearningVisualResultV3,
   parseLearningVisualV4,
   parseLearningVisualResultV4,
-  parseLearningResponse,
-  parseLearningResponseV2,
   LearningProtocolError,
   CHECKPOINT_PROTOCOL,
   CHECKPOINT_RESULT_PROTOCOL,
@@ -35,7 +31,13 @@ import {
   type LearningVisualResultV3,
   type LearningVisualV4 as LearningVisualV4Definition,
   type LearningVisualResultV4,
-} from '../protocol.ts'
+} from '../protocol-current.ts'
+import {
+  parseLearningActivity,
+  parseLearningActivityV2,
+  parseLearningResponse,
+  parseLearningResponseV2,
+} from '../legacy-protocol.ts'
 import { envelopeOf, LearningInteraction, type LearningQuestionWait } from './LearningComposer.tsx'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
@@ -368,7 +370,7 @@ function explanationOf(response: LearningResponseV1 | undefined): string | undef
   return typeof explanation === 'string' && explanation.trim() !== '' ? explanation.trim() : undefined
 }
 
-function compactAnswer(answer: import('../protocol.ts').LearningJson | undefined): string | undefined {
+function compactAnswer(answer: import('../protocol-current.ts').LearningJson | undefined): string | undefined {
   if (answer === undefined || answer === null) return undefined
   if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') return String(answer)
   if (!Array.isArray(answer)) {

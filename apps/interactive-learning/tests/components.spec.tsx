@@ -154,12 +154,26 @@ function completedCheckpointBlock(
   }
 }
 
-function customResponseOf(respond: ReturnType<typeof vi.fn>, call = 0): unknown {
+function customEnvelopeOf(respond: ReturnType<typeof vi.fn>, call = 0): unknown {
   const request = respond.mock.calls[call]?.[0] as {
     value?: { answer?: { answers?: Array<{ custom?: string }> } }
   } | undefined
   const custom = request?.value?.answer?.answers?.[0]?.custom
   return custom === undefined ? undefined : JSON.parse(custom)
+}
+
+function customResponseOf(respond: ReturnType<typeof vi.fn>, call = 0): unknown {
+  const envelope = customEnvelopeOf(respond, call)
+  return typeof envelope === 'object' && envelope !== null && 'checkpointResult' in envelope
+    ? (envelope as { checkpointResult: unknown }).checkpointResult
+    : envelope
+}
+
+function checkpointClientMetaOf(respond: ReturnType<typeof vi.fn>, call = 0): unknown {
+  const envelope = customEnvelopeOf(respond, call)
+  return typeof envelope === 'object' && envelope !== null && 'clientMeta' in envelope
+    ? (envelope as { clientMeta: unknown }).clientMeta
+    : undefined
 }
 
 afterEach(() => {
@@ -678,6 +692,7 @@ describe('learning_checkpoint client gate and replay', () => {
       status: 'submitted',
       response: { text: 'FIFO preserves insertion order' },
     })
+    expect(checkpointClientMetaOf(harness.respond)).toEqual({ draftRecovered: true })
     await waitFor(() => expect(sessionStorage.getItem(`dsh-learning/checkpoint@1:${harness.waitId}`)).toBeNull())
     refreshed.unmount()
 

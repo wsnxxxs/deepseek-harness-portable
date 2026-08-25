@@ -1,6 +1,6 @@
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState } from 'react'
-import type { LearningJson, StructureItemV1 } from '../protocol.ts'
+import type { LearningJson, StructureItemV1 } from '../protocol-current.ts'
 import type { ActivityRendererProps } from './types.ts'
 import css from './LearningActivity.module.css'
 

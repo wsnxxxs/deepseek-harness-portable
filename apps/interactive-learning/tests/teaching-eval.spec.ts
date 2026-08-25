@@ -167,8 +167,8 @@ describe('non-blocking teaching behavior evaluation', () => {
     ]) {
       expect(referenceMaterials).toContain(phrase)
     }
-    expect(agent).toContain("import { LEARNING_TEACHING_POLICY } from './teaching-policy.ts'")
-    expect(agent).toContain('text: LEARNING_TEACHING_POLICY')
+    expect(agent).toContain("import { buildLearningTeachingPolicy } from './teaching-policy.ts'")
+    expect(agent).toContain('buildLearningTeachingPolicy({')
     expect(agent).not.toContain('assertLearningGateAvailable')
     expect(agent).not.toContain("name: 'learning_question'")
     expect(agent).not.toContain("name: 'learning_reveal'")

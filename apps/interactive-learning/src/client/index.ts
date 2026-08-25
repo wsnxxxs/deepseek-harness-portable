@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { LearningComposer, selectLearningActivity } from './LearningComposer.tsx'
 import { LearningToolView } from './LearningToolView.tsx'
+import { LearningSessionNotes } from './LearningNotes.tsx'
 import { subscribeLearningUiLifecycle } from './lifecycle.ts'
 import { en, zh } from './locales.ts'
 
@@ -87,4 +88,11 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
     }, LearningToolView))
   }
+
+  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+    name: 'conversation.composer.dock',
+    id: 'learning-session-notes',
+    order: -1,
+    locale: NS,
+  }, LearningSessionNotes))
 }

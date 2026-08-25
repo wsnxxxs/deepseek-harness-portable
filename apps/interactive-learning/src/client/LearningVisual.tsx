@@ -6,7 +6,7 @@ import type {
   LearningVisualToneV3,
   LearningVisualV3,
   ParameterDefinitionV1,
-} from '../protocol.ts'
+} from '../protocol-current.ts'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
 

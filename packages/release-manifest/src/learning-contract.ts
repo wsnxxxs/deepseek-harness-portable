@@ -39,8 +39,13 @@ export const INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILES = [
   'lib/types/installer.d.ts',
   'lib/types/learn-intent.d.ts',
   'lib/types/learner-state.d.ts',
+  'lib/types/legacy-protocol.d.ts',
   'lib/types/preset.d.ts',
+  'lib/types/protocol-current.d.ts',
+  'lib/types/protocol-errors.d.ts',
   'lib/types/protocol.d.ts',
+  'lib/types/protocol-schema.d.ts',
+  'lib/types/teaching-policy.d.ts',
   'lib/types/teaching-route.d.ts',
 ] as const
 

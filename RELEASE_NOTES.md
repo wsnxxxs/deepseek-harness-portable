@@ -4,23 +4,17 @@
 
 Windows x64, macOS Apple Silicon, and Linux x64 desktop release · 2026-08-25
 
-v1.5.5 is a feature and bug-fix release following v1.5.4.
+v1.5.5 focuses on local file references, native image paste handling, and a simpler attachment flow.
 
-## Major Features
+## Highlights
 
-- **Local file attachments**: paste, drop, or select images, PDF, DOCX, XLSX, PPTX, text, data, and common source-code files for local extraction and model-assisted reading.
-- **Learning Mode visual system**: added richer semantic renderers with clearer labels, less crowding, and feedback-aware layouts.
-- **Attachment continuation**: retained file handles expose bounded previews, `read_attachment` continuation reads, raw downloads, and ZIP export.
-
-## Runtime and Compatibility
-
-- **Local extraction** uses bounded worker capacity and rejects unsupported scanned, encrypted, damaged, legacy Office, archive, and arbitrary binary inputs.
-- **Non-image attachment previews** use the same provider-neutral projection for DeepSeek and pi-ai requests.
+- **Local file references**: ordinary PDF, Office, text, data, and source files are sent as `@file` path references; their bytes are not uploaded or parsed automatically.
+- **Native image attachments**: paste, drop, or select images and keep them as native image data for image-capable models.
+- **Learning Mode UI**: added session learning notes for goals, evidence, and route progress, with clearer visual activities and feedback layouts.
 
 ## Fixes
 
-- **Refresh generated Learning client bundles and add regression coverage for the new visual and attachment paths.**
-- **Keep image-only command behavior unchanged while rejecting unsupported non-image files before submission.**
+- **Simplify submission by removing document-parser/upload paths while preserving image-only commands and rejecting unsupported non-image files.**
 
 ## Components
 

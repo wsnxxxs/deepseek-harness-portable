@@ -1,83 +1,15 @@
-import { a as LEARNER_STATE_SESSION_EVENT_TYPE, c as createLearnerStateSnapshotEvent, d as parseLearnerStateSnapshotEvent, f as reduceLearnerState, g as serializeLearnerStateSnapshot, h as resetLearnerState, i as LEARNER_STATE_PROTOCOL, l as foldLearnerStateSession, m as renderLearnerStateTranscript, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as MAX_FAILED_MOVES, p as registerLearningSessionEventType, r as LEARNER_STATE_EVENT_PROTOCOL, s as createInitialLearnerState, t as registerInteractiveLearningSessionCompatibility, u as hydrateLearnerStateSnapshot } from "./bootstrap-BE-8d8_G.js";
-import { a as classifyLearnIntent, i as LEARN_INTENT, n as routeLearningTurn, o as isLearnIntent, r as LEARNING_INTENT_POLICY, s as isLearningBoundary, t as routeLearningRequest } from "./teaching-route-BI25RyQs.js";
-import { A as parseLearningActivity, I as parseLearningResponseV2, M as parseLearningCheckpointResultV1, N as parseLearningCheckpointV1, P as parseLearningRecallFeedbackV1, S as RESPONSE_PROTOCOL_V2, a as CHECKPOINT_TRANSPORT_PROTOCOL, f as LearningProtocolError, h as MAX_ACTIVITY_BYTES, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningActivityV2, w as TRANSPORT_PROTOCOL_V2, x as RESPONSE_PROTOCOL } from "./protocol-CvIeIaVp.js";
+import { S as serializeLearnerStateSnapshot, _ as parseLearnerStateSnapshotEvent, a as LEARNER_STATE_SESSION_EVENT_TYPE, b as renderLearnerStateTranscript, c as LEARNING_CHECKPOINT_METRIC_KINDS, d as LEARNING_SEGMENT_SESSION_EVENT_TYPE, f as MAX_FAILED_MOVES, g as hydrateLearnerStateSnapshot, h as foldLearnerStateSession, i as LEARNER_STATE_PROTOCOL, l as LEARNING_CHECKPOINT_METRIC_STATUSES, m as createLearnerStateSnapshotEvent, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, p as createInitialLearnerState, r as LEARNER_STATE_EVENT_PROTOCOL, s as LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, t as registerInteractiveLearningSessionCompatibility, u as LEARNING_SEGMENT_EVENT_PROTOCOL, v as reduceLearnerState, x as resetLearnerState, y as registerLearningSessionEventType } from "./bootstrap-BWi6OfwS.js";
+import { a as LEARNING_VISUAL_POLICY, c as routeLearningTurn, d as LEARN_INTENT_MODEL_GUIDANCE, f as LEARN_INTENT_NATURAL_LANGUAGE_RULES, g as isLearningBoundary, h as isLearnIntent, i as LEARNING_TEACHING_POLICY_CORE, l as LEARNING_INTENT_POLICY, m as classifyLearnIntent, n as LEARNING_GRADED_POLICY, o as buildLearningTeachingPolicy, p as LEARN_INTENT_RULES, r as LEARNING_TEACHING_POLICY, s as routeLearningRequest, t as LEARNING_CHINESE_TEMPLATES, u as LEARN_INTENT } from "./teaching-policy-CecVsZ4k.js";
+import { E as CHECKPOINT_RESULT_PROTOCOL, b as parseLearningRecallFeedbackV1, d as RESPONSE_PROTOCOL, v as parseLearningCheckpointResultV1, y as parseLearningCheckpointV1 } from "./protocol-current-nKmbv-Ul.js";
+import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
+import { r as learningCheckpointQuestionId, t as encodeLearningCheckpointDetail } from "./host-transport-B4sQooBx.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
-//#region lib/types/transport.js
-const MARKER_SUFFIX = "-->";
-const WAIT_MARKER_PREFIX = "<!--dsh-learning/wait@2:";
-const WAIT_QUESTION_ID_PREFIX = "dsh-learning/wait@2:";
-const CHECKPOINT_WAIT_MARKER_PREFIX = "<!--dsh-learning/checkpoint-wait@1:";
-const CHECKPOINT_WAIT_QUESTION_ID_PREFIX = "dsh-learning/checkpoint-wait@1:";
-const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-Math.ceil((MAX_ACTIVITY_BYTES + 8192) * 4 / 3);
-function encodeBase64Url(value) {
-	const bytes = new TextEncoder().encode(value);
-	let result = "";
-	for (let index = 0; index < bytes.length; index += 3) {
-		const a = bytes[index];
-		const b = bytes[index + 1];
-		const c = bytes[index + 2];
-		const triple = a << 16 | (b ?? 0) << 8 | (c ?? 0);
-		result += BASE64URL[triple >> 18 & 63];
-		result += BASE64URL[triple >> 12 & 63];
-		if (b !== void 0) result += BASE64URL[triple >> 6 & 63];
-		if (c !== void 0) result += BASE64URL[triple & 63];
-	}
-	return result;
-}
-/** V2 ids contain only an opaque reference, never the phase payload. */
-function learningWaitQuestionId(waitId) {
-	if (!/^[A-Za-z0-9_-]{1,128}$/.test(waitId)) throw new Error("waitId must be a URL-safe opaque token");
-	return `${WAIT_QUESTION_ID_PREFIX}${waitId}`;
-}
-/** Detail persists one safe current-phase projection for refresh recovery. */
-function encodeLearningWaitDetail(input) {
-	const envelope = {
-		transport: TRANSPORT_PROTOCOL_V2,
-		...input
-	};
-	const activity = parseLearningActivityV2(envelope.activity);
-	if (activity.phase !== envelope.phase || activity.seq !== envelope.seq) throw new Error("wait projection phase/seq mismatch");
-	if (activity.phase === "reveal" && (activity.lessonToken !== envelope.lessonToken || activity.roundToken !== envelope.roundToken)) throw new Error("wait projection token mismatch");
-	if (activity.phase === "question" && activity.lessonToken !== void 0 && activity.lessonToken !== envelope.lessonToken) throw new Error("wait projection token mismatch");
-	return `${WAIT_MARKER_PREFIX}${encodeBase64Url(JSON.stringify({
-		...envelope,
-		activity
-	}))}${MARKER_SUFFIX}\n${activity.fallbackMarkdown}`;
-}
-function opaqueToken(value) {
-	return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
-}
-function boundedTransportIdentity(value) {
-	return typeof value === "string" && value.length >= 1 && value.length <= 512 && value.trim() === value && !/[\u0000-\u001F\u007F]/.test(value);
-}
-function assertCheckpointEnvelopeInput(input) {
-	if (!boundedTransportIdentity(input.sessionId)) throw new Error("sessionId must be a non-empty bounded transport identity");
-	if (!boundedTransportIdentity(input.callId)) throw new Error("callId must be a non-empty bounded transport identity");
-	if (!opaqueToken(input.waitId)) throw new Error("waitId must be a URL-safe opaque token");
-	if (!opaqueToken(input.checkpointId)) throw new Error("checkpointId must be a URL-safe opaque token");
-	parseLearningCheckpointV1(input.checkpoint);
-}
-/** A checkpoint question id contains one opaque lookup token and no teaching payload. */
-function learningCheckpointQuestionId(waitId) {
-	if (!opaqueToken(waitId)) throw new Error("waitId must be a URL-safe opaque token");
-	return `${CHECKPOINT_WAIT_QUESTION_ID_PREFIX}${waitId}`;
-}
-/** Persist one answer-free checkpoint projection so a pending wait survives refresh. */
-function encodeLearningCheckpointDetail(input) {
-	assertCheckpointEnvelopeInput(input);
-	const envelope = {
-		transport: CHECKPOINT_TRANSPORT_PROTOCOL,
-		...input
-	};
-	return `${CHECKPOINT_WAIT_MARKER_PREFIX}${encodeBase64Url(JSON.stringify(envelope))}${MARKER_SUFFIX}\n${input.checkpoint.fallbackMarkdown}`;
-}
-//#endregion
 //#region lib/types/broker.js
 registerInteractiveLearningSessionCompatibility();
 const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
+const DEFAULT_LEARNING_WAIT_TIMEOUT_MS = 3e5;
 var LearningWaitAbort = class extends Error {
 	reason;
 	constructor(reason) {
@@ -198,13 +130,95 @@ function checkpointFallbackSubmission(checkpoint, checkpointId, custom) {
 		checkpoint
 	}));
 }
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
+}
+/**
+* Session events carry turn boundaries separately from `user/message`. Keep
+* evidence tied to a turn that actually contained a direct human message;
+* injected plugin context and assistant/tool messages never qualify.
+*/
+function realUserTurns(session) {
+	const turns = /* @__PURE__ */ new Set();
+	let openTurn;
+	for (const event of session.events) {
+		if (event.type === "turn/start") {
+			const turn = event.data.turn;
+			openTurn = Number.isSafeInteger(turn) && turn >= 0 ? turn : void 0;
+			continue;
+		}
+		if (event.type === "user/message") {
+			if (openTurn !== void 0 && event.data.source.kind === "user") turns.add(openTurn);
+			continue;
+		}
+		if (event.type === "turn/end" && openTurn === event.data.turn) openTurn = void 0;
+	}
+	return turns;
+}
+function assertRealUserTurn(session, turn) {
+	if (!Number.isSafeInteger(turn) || turn < 0) throw new TypeError("learner evidence requires a non-negative observation.turn");
+	if (!realUserTurns(session).has(turn)) throw new TypeError(`observation.turn ${String(turn)} is not a real user turn in this session`);
+	return turn;
+}
+function assertTurnNumber(turn) {
+	if (!Number.isSafeInteger(turn) || turn < 0) throw new TypeError("learning segment anchor requires a non-negative turn");
+	return turn;
+}
+function latestRealUserTurn(session) {
+	const turns = realUserTurns(session);
+	return turns.size === 0 ? void 0 : Math.max(...turns);
+}
+function emptyCheckpointAggregate() {
+	return {
+		usageCount: 0,
+		kindCounts: Object.fromEntries(LEARNING_CHECKPOINT_METRIC_KINDS.map((kind) => [kind, 0])),
+		terminalCounts: Object.fromEntries(LEARNING_CHECKPOINT_METRIC_STATUSES.map((status) => [status, 0])),
+		draftRecovery: {
+			attempts: 0,
+			hits: 0
+		}
+	};
+}
+function cloneCheckpointAggregate(value) {
+	return {
+		usageCount: value.usageCount,
+		kindCounts: { ...value.kindCounts },
+		terminalCounts: { ...value.terminalCounts },
+		draftRecovery: { ...value.draftRecovery }
+	};
+}
+function latestCheckpointAggregate(session) {
+	for (let index = session.events.length - 1; index >= 0; index -= 1) {
+		const event = session.events[index];
+		if (event?.type !== "learning/checkpoint-metrics" || !isRecord(event.data)) continue;
+		const data = event.data;
+		if (data.protocol !== "dsh-learning/checkpoint-metrics@1" || !isRecord(data.aggregate)) continue;
+		const aggregate = data.aggregate;
+		if (typeof aggregate.usageCount !== "number" || !isRecord(aggregate.kindCounts) || !isRecord(aggregate.terminalCounts) || !isRecord(aggregate.draftRecovery)) continue;
+		return {
+			usageCount: aggregate.usageCount,
+			kindCounts: {
+				...emptyCheckpointAggregate().kindCounts,
+				...aggregate.kindCounts
+			},
+			terminalCounts: {
+				...emptyCheckpointAggregate().terminalCounts,
+				...aggregate.terminalCounts
+			},
+			draftRecovery: {
+				attempts: Number(aggregate.draftRecovery.attempts ?? 0),
+				hits: Number(aggregate.draftRecovery.hits ?? 0)
+			}
+		};
+	}
+	return emptyCheckpointAggregate();
+}
 /** Host-side V2 Question/Reveal coordinator; V1 is replay-only. */
 var LearningActivityBroker = class extends Service {
 	static inject = ["userQuestions"];
 	pendingActivities = /* @__PURE__ */ new Map();
-	lessons = /* @__PURE__ */ new Map();
-	receipts = /* @__PURE__ */ new Map();
-	gateCalls = /* @__PURE__ */ new Map();
+	legacyGate;
+	legacyGatePromise;
 	checkpointCalls = /* @__PURE__ */ new Map();
 	checkpointReceipts = /* @__PURE__ */ new Map();
 	pendingCheckpointSessions = /* @__PURE__ */ new Map();
@@ -218,14 +232,12 @@ var LearningActivityBroker = class extends Service {
 		super(ctx, "learningActivities");
 		ctx.effect(() => () => {
 			this.disposed = true;
+			this.legacyGate?.dispose();
 			for (const [controller, state] of this.pendingActivities) {
 				state.reason = "plugin-disposed";
 				controller.abort(new LearningWaitAbort(state.reason));
 			}
 			this.pendingActivities.clear();
-			this.lessons.clear();
-			this.receipts.clear();
-			this.gateCalls.clear();
 			this.checkpointCalls.clear();
 			this.checkpointReceipts.clear();
 			this.pendingCheckpointSessions.clear();
@@ -275,7 +287,7 @@ var LearningActivityBroker = class extends Service {
 	}
 	/** Diagnostics/test seam; no activity payloads or learner answers are exposed. */
 	get pendingCount() {
-		return this.pendingActivities.size;
+		return this.pendingActivities.size + (this.legacyGate?.pendingCount ?? 0);
 	}
 	/** Diagnostics/test seam; state content remains private to its session. */
 	get learnerStateCacheSize() {
@@ -307,12 +319,57 @@ var LearningActivityBroker = class extends Service {
 	learnerStateTranscript(agent, maxTokens = 300) {
 		return renderLearnerStateTranscript(this.learnerState(agent), { maxTokens });
 	}
+	/** Read the answer-free checkpoint aggregate for one session. */
+	checkpointMetrics(agent) {
+		return cloneCheckpointAggregate(latestCheckpointAggregate(agent.session));
+	}
+	/**
+	* Host-side route hook. The caller writes the already-classified active or
+	* closed boundary as a session-local, identity-free anchor, so refresh can
+	* restore the route without relying on a model-written `goal`.
+	*/
+	recordLearningSegmentAnchor(agent, turn, segment = "active") {
+		if (this.disposed) return;
+		const session = agent.session;
+		const resolvedTurn = turn === void 0 ? assertRealUserTurn(session, latestRealUserTurn(session)) : assertTurnNumber(turn);
+		const prior = [...session.events].reverse().find((event) => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE);
+		if (prior?.type === "learning/segment" && prior.data.protocol === "dsh-learning/segment@1" && prior.data.segment === segment && prior.data.turn === resolvedTurn) return;
+		session.append(LEARNING_SEGMENT_SESSION_EVENT_TYPE, {
+			protocol: LEARNING_SEGMENT_EVENT_PROTOCOL,
+			route: "learn",
+			segment,
+			turn: resolvedTurn
+		}, { ignorable: true });
+		const current = this.learnerStates.get(String(session.id));
+		if (current?.session === session) current.eventCount = session.events.length;
+	}
+	/**
+	* Whether the latest host route anchor still denotes an active learning
+	* segment. An anchor survives a refresh, but it is retired once the learner
+	* has moved more than one real user turn past it without another learn
+	* anchor. The one-turn allowance covers the user message currently being
+	* claimed by the loop; injected context never advances this sequence.
+	*/
+	learningSegmentActive(agent) {
+		const state = this.learnerState(agent);
+		if (state.phase === "complete" || state.nextMove === "complete") return false;
+		const anchorEvent = [...agent.session.events].reverse().find((event) => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE);
+		if (anchorEvent === void 0 || !isRecord(anchorEvent.data)) return false;
+		const anchor = anchorEvent.data;
+		if (anchor.protocol !== "dsh-learning/segment@1" || anchor.route !== "learn" || anchor.segment !== "active" || !Number.isSafeInteger(anchor.turn) || anchor.turn < 0) return false;
+		const turns = realUserTurns(agent.session);
+		const anchorTurn = anchor.turn;
+		if (!turns.has(anchorTurn)) return false;
+		return [...turns].filter((turn) => turn > anchorTurn).length <= 1;
+	}
 	/** CAS mutation used exclusively by the internal, immediate state tool.
 	* Exact replays and a small set of additive observations may rebase once;
 	* replacement, correction, and reset operations remain strict CAS writes.
 	*/
 	updateLearnerState(request) {
 		let current = this.learnerState(request.agent);
+		if (request.action === "update" && request.event.type === "learner_evidence_observed") assertRealUserTurn(request.agent.session, request.event.observation.turn);
+		if (request.action === "correct" && request.correction.evidence !== void 0) assertRealUserTurn(request.agent.session, request.observation.turn);
 		if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision < 0) throw new TypeError("expectedRevision must be a non-negative safe integer");
 		if (current.revision !== request.expectedRevision) {
 			if (request.action === "update" && current.appliedEventIds.some((item) => item.id === request.event.observation.id)) {
@@ -380,6 +437,23 @@ var LearningActivityBroker = class extends Service {
 	hasRichClient() {
 		return this.ctx.get("clientModules")?.graph().entries.some((entry) => entry.id === INTERACTIVE_LEARNING_PACKAGE) === true;
 	}
+	/** Load the retired Question/Reveal coordinator only when its API is used. */
+	async getLegacyGate() {
+		if (this.legacyGate !== void 0) return this.legacyGate;
+		if (this.legacyGatePromise !== void 0) return this.legacyGatePromise;
+		this.legacyGatePromise = import("./legacy-gate-DwKDT7Tp.js").then(({ LegacyLearningGate }) => {
+			const gate = new LegacyLearningGate({
+				ctx: this.ctx,
+				defaultTimeoutMs: DEFAULT_LEARNING_WAIT_TIMEOUT_MS,
+				hasRichClient: () => this.hasRichClient(),
+				emit: (event) => this.emit(event)
+			});
+			this.legacyGate = gate;
+			if (this.disposed) gate.dispose();
+			return gate;
+		});
+		return this.legacyGatePromise;
+	}
 	dropLearnerState(session) {
 		const sessionId = String(session.id);
 		if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId);
@@ -412,10 +486,30 @@ var LearningActivityBroker = class extends Service {
 			state
 		});
 	}
+	recordCheckpointMetrics(agent, kind, status, draftRecovered) {
+		if (!LEARNING_CHECKPOINT_METRIC_KINDS.includes(kind) || !LEARNING_CHECKPOINT_METRIC_STATUSES.includes(status)) return;
+		const aggregate = latestCheckpointAggregate(agent.session);
+		aggregate.usageCount += 1;
+		aggregate.kindCounts[kind] += 1;
+		aggregate.terminalCounts[status] += 1;
+		if (draftRecovered !== void 0) {
+			aggregate.draftRecovery.attempts += 1;
+			if (draftRecovered) aggregate.draftRecovery.hits += 1;
+		}
+		agent.session.append(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, {
+			protocol: LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL,
+			aggregate
+		}, { ignorable: true });
+		const current = this.learnerStates.get(String(agent.session.id));
+		if (current?.session === agent.session) current.eventCount = agent.session.events.length;
+	}
 	recordAutomaticEvents(agent, events) {
 		try {
 			let state = this.learnerState(agent);
-			for (const event of events) state = reduceLearnerState(state, event);
+			for (const event of events) {
+				if (event.type === "learner_evidence_observed") assertRealUserTurn(agent.session, event.observation.turn);
+				state = reduceLearnerState(state, event);
+			}
 			if (state !== this.learnerState(agent)) this.appendLearnerState(agent, state, "update");
 		} catch (cause) {
 			this.ctx.logger.warn(`learning state observation was not recorded: ${String(cause)}`);
@@ -477,6 +571,7 @@ var LearningActivityBroker = class extends Service {
 		};
 		const observationId = learnerObservationId("recall", feedback.sessionId, feedback.callId, feedback.cardId, feedback.status);
 		const summary = feedback.status === "revealed" ? `Recall card ${feedback.cardId} answer was revealed; no correctness was established.` : `Recall card ${feedback.cardId} marked ${feedback.status}; self-rating is unverified.`;
+		const turn = latestRealUserTurn(active.session);
 		this.recordAutomaticEvents(active.agent, [{
 			type: "learner_evidence_observed",
 			evidence: {
@@ -489,7 +584,8 @@ var LearningActivityBroker = class extends Service {
 			observation: {
 				id: observationId,
 				source: "learner-action",
-				summary
+				summary,
+				...turn === void 0 ? {} : { turn }
 			}
 		}]);
 		return {
@@ -500,6 +596,7 @@ var LearningActivityBroker = class extends Service {
 	recordCheckpointOutcome(request, result, fence) {
 		const agent = request.agent;
 		if (agent === void 0 || fence === void 0 || this.disposed) return;
+		this.recordCheckpointMetrics(agent, request.checkpoint.kind, result.status, request.draftRecovered);
 		try {
 			if (this.ctx.get("agents")?.get(agent.id) !== agent || agent.session !== fence.session) return;
 			if (this.learnerState(agent).revision !== fence.revision) return;
@@ -528,7 +625,8 @@ var LearningActivityBroker = class extends Service {
 			observation: {
 				id: `${observationBase}:evidence`,
 				source: "learner-action",
-				summary: `The learner submitted the requested ${request.checkpoint.expectedEvidence} response.`
+				summary: `The learner submitted the requested ${request.checkpoint.expectedEvidence} response.`,
+				turn: latestRealUserTurn(agent.session)
 			}
 		});
 		const outcomeReason = result.status === "submitted" ? void 0 : result.reason;
@@ -671,11 +769,15 @@ var LearningActivityBroker = class extends Service {
 				} catch {
 					decoded = void 0;
 				}
-				if (typeof decoded === "object" && decoded !== null && decoded.protocol === "dsh-learning/checkpoint-result@1") result = normalizeCheckpointResult(parseLearningCheckpointResultV1(decoded, {
+				const envelope = isRecord(decoded) ? decoded : void 0;
+				const hasCheckpointEnvelope = envelope !== void 0 && Object.hasOwn(envelope, "checkpointResult");
+				const wrappedResult = hasCheckpointEnvelope && isRecord(envelope?.checkpointResult) ? envelope.checkpointResult : decoded;
+				if (envelope !== void 0 && isRecord(envelope.clientMeta) && typeof envelope.clientMeta.draftRecovered === "boolean") request.draftRecovered = envelope.clientMeta.draftRecovered;
+				if (isRecord(wrappedResult) && wrappedResult.protocol === "dsh-learning/checkpoint-result@1") result = normalizeCheckpointResult(parseLearningCheckpointResultV1(wrappedResult, {
 					checkpointId,
 					checkpoint
 				}));
-				else result = checkpointFallbackSubmission(checkpoint, checkpointId, custom) ?? fallback({
+				else result = (hasCheckpointEnvelope ? void 0 : checkpointFallbackSubmission(checkpoint, checkpointId, custom)) ?? fallback({
 					status: "skipped",
 					reason: "provider-failure"
 				});
@@ -750,297 +852,11 @@ var LearningActivityBroker = class extends Service {
 	}
 	/** V2 live path: one call owns exactly one durable Question or Reveal wait. */
 	async presentGate(request) {
-		const callKey = request.callId === void 0 || request.agent === void 0 ? void 0 : `${String(request.agent.session.id)}:${request.callId}`;
-		const prior = callKey === void 0 ? void 0 : this.gateCalls.get(callKey);
-		if (prior !== void 0) return prior;
-		const pending = this.presentGateOnce(request);
-		if (callKey !== void 0) {
-			this.gateCalls.set(callKey, pending);
-			if (this.gateCalls.size > 1024) {
-				const oldest = this.gateCalls.keys().next().value;
-				if (oldest !== void 0) this.gateCalls.delete(oldest);
-			}
-		}
-		try {
-			return await pending;
-		} catch (cause) {
-			if (callKey !== void 0) this.gateCalls.delete(callKey);
-			throw cause;
-		}
-	}
-	async presentGateOnce(request) {
-		const activity = parseLearningActivityV2(request.activity);
-		const activityId = randomUUID();
-		const waitId = randomUUID();
-		const sessionId = request.agent === void 0 ? "" : String(request.agent.session.id);
-		let lessonToken;
-		let roundToken;
-		let lesson;
-		if (activity.phase === "question") {
-			if (activity.lessonToken === void 0) {
-				if (activity.seq !== 0) throw new LearningProtocolError(["a new lesson must start with activity.seq 0"]);
-				for (const [tokenValue, active] of this.lessons) if (active.sessionId === sessionId) this.lessons.delete(tokenValue);
-				lessonToken = randomUUID();
-				roundToken = randomUUID();
-				if (sessionId !== "") {
-					lesson = {
-						sessionId,
-						lessonToken,
-						roundToken,
-						seq: activity.seq,
-						status: "question-pending"
-					};
-					this.lessons.set(lessonToken, lesson);
-				}
-			} else {
-				lessonToken = activity.lessonToken;
-				lesson = this.lessons.get(lessonToken);
-				if (lesson === void 0) throw new LearningProtocolError(["activity.lessonToken is not active"]);
-				if (lesson.sessionId !== sessionId) throw new LearningProtocolError(["activity.lessonToken belongs to another session"]);
-				if (lesson.status !== "ready-question") throw new LearningProtocolError(["the previous reveal must resolve before the next question"]);
-				if (activity.seq !== lesson.seq + 1) throw new LearningProtocolError(["activity.seq must advance by exactly one"]);
-				roundToken = randomUUID();
-				lesson.seq = activity.seq;
-				lesson.roundToken = roundToken;
-				lesson.status = "question-pending";
-			}
-		} else {
-			lessonToken = activity.lessonToken;
-			roundToken = activity.roundToken;
-			lesson = this.lessons.get(lessonToken);
-			if (lesson === void 0) throw new LearningProtocolError(["activity.lessonToken is not active"]);
-			if (lesson.sessionId !== sessionId) throw new LearningProtocolError(["activity.lessonToken belongs to another session"]);
-			if (lesson.status !== "awaiting-reveal") throw new LearningProtocolError(["reveal is not valid in the current lesson state"]);
-			if (lesson.seq !== activity.seq) throw new LearningProtocolError(["activity.seq does not match the answered question"]);
-			if (lesson.roundToken !== roundToken) throw new LearningProtocolError(["activity.roundToken does not match the answered question"]);
-			lesson.status = "reveal-pending";
-		}
-		const eventBase = {
-			phase: activity.phase,
-			activityId,
-			lessonToken,
-			roundToken,
-			seq: activity.seq,
-			...request.callId === void 0 ? {} : { callId: request.callId }
-		};
-		if (activity.phase === "reveal" || activity.lessonToken !== void 0) this.emit({
-			name: "learning.model.next_step_started",
-			...eventBase
-		});
-		this.emit({
-			name: "learning.call.args_completed",
-			...eventBase
-		});
-		this.emit({
-			name: "learning.protocol.validated",
-			...eventBase
-		});
-		const fallbackV2 = (reason, action = "skip") => activity.phase === "question" ? {
-			protocol: RESPONSE_PROTOCOL_V2,
-			phase: "question",
-			activityId,
-			lessonToken,
-			roundToken,
-			seq: activity.seq,
-			action,
-			receiptId: randomUUID(),
-			interactionState: {
-				reason,
-				fallbackMarkdown: activity.fallbackMarkdown
-			}
-		} : {
-			protocol: RESPONSE_PROTOCOL_V2,
-			phase: "reveal",
-			activityId,
-			lessonToken,
-			roundToken,
-			seq: activity.seq,
-			action,
-			animation: { completed: false },
-			receiptId: randomUUID(),
-			interactionState: {
-				reason,
-				fallbackMarkdown: activity.fallbackMarkdown
-			}
-		};
-		let result;
-		if (!this.hasRichClient()) result = fallbackV2("client-capability-unavailable");
-		else if (request.agent === void 0) result = fallbackV2("agent-context-unavailable");
-		else {
-			const timeoutMs = request.timeoutMs ?? 3e5;
-			if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) result = fallbackV2("client-response-timeout");
-			else try {
-				result = await this.waitForV2({
-					request,
-					activity,
-					activityId,
-					waitId,
-					lessonToken,
-					roundToken,
-					eventBase,
-					timeoutMs
-				});
-			} catch (cause) {
-				this.lessons.delete(lessonToken);
-				throw cause;
-			}
-		}
-		if (lesson !== void 0) {
-			if (result.action === "cancel" || result.action === "skip") this.lessons.delete(lessonToken);
-			else if (activity.phase === "question") lesson.status = "awaiting-reveal";
-			else lesson.status = "ready-question";
-		}
-		this.emit({
-			name: "learning.wait.resolved",
-			...eventBase
-		});
-		return result;
-	}
-	async waitForV2(input) {
-		const { request, activity, activityId, waitId, lessonToken, roundToken, eventBase, timeoutMs } = input;
-		const controller = new AbortController();
-		const state = {};
-		this.pendingActivities.set(controller, state);
-		const abortFromSession = () => {
-			state.reason = "session-aborted";
-			controller.abort(new LearningWaitAbort(state.reason));
-		};
-		if (request.signal?.aborted === true) abortFromSession();
-		else request.signal?.addEventListener("abort", abortFromSession, { once: true });
-		const timer = setTimeout(() => {
-			state.reason = "client-response-timeout";
-			controller.abort(new LearningWaitAbort(state.reason));
-		}, timeoutMs);
-		timer.unref?.();
-		const fallbackV2 = (reason, action = "skip") => activity.phase === "question" ? {
-			protocol: RESPONSE_PROTOCOL_V2,
-			phase: "question",
-			activityId,
-			lessonToken,
-			roundToken,
-			seq: activity.seq,
-			action,
-			receiptId: randomUUID(),
-			interactionState: {
-				reason,
-				fallbackMarkdown: activity.fallbackMarkdown
-			}
-		} : {
-			protocol: RESPONSE_PROTOCOL_V2,
-			phase: "reveal",
-			activityId,
-			lessonToken,
-			roundToken,
-			seq: activity.seq,
-			action,
-			animation: { completed: false },
-			receiptId: randomUUID(),
-			interactionState: {
-				reason,
-				fallbackMarkdown: activity.fallbackMarkdown
-			}
-		};
-		try {
-			const ask = this.ctx.userQuestions.ask({
-				questions: [{
-					id: learningWaitQuestionId(waitId),
-					question: activity.phase === "question" ? activity.prompt : "Review this reveal, then continue.",
-					detail: encodeLearningWaitDetail({
-						waitId,
-						activityId,
-						lessonToken,
-						roundToken,
-						seq: activity.seq,
-						phase: activity.phase,
-						activity,
-						...request.callId === void 0 ? {} : { callId: request.callId }
-					})
-				}],
-				agent: request.agent,
-				signal: controller.signal
-			});
-			this.emit({
-				name: "learning.wait.registered",
-				...eventBase
-			});
-			if (activity.phase === "reveal") this.emit({
-				name: "learning.reveal.received",
-				...eventBase
-			});
-			const aborted = new Promise((_resolve, reject) => {
-				if (controller.signal.aborted) reject(controller.signal.reason);
-				else controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
-			});
-			const custom = (await Promise.race([ask, aborted])).answers[0]?.custom?.trim();
-			let response;
-			if (custom === void 0 || custom === "") response = fallbackV2("user-skipped");
-			else {
-				let decoded;
-				try {
-					decoded = JSON.parse(custom);
-				} catch {
-					decoded = void 0;
-				}
-				if (typeof decoded === "object" && decoded !== null && decoded.protocol === "dsh-learning/response@2") response = parseLearningResponseV2(decoded, {
-					activityId,
-					phase: activity.phase,
-					lessonToken,
-					roundToken,
-					seq: activity.seq
-				});
-				else if (activity.phase === "question") response = {
-					protocol: RESPONSE_PROTOCOL_V2,
-					phase: "question",
-					activityId,
-					lessonToken,
-					roundToken,
-					seq: activity.seq,
-					action: "submit",
-					answer: { text: custom },
-					receiptId: randomUUID(),
-					interactionState: { renderer: "markdown-fallback" }
-				};
-				else response = fallbackV2("rich-client-required");
-			}
-			const prior = this.receipts.get(response.receiptId);
-			if (prior !== void 0) {
-				if (JSON.stringify(prior) !== JSON.stringify(response)) throw new LearningProtocolError(["response.receiptId was reused for different content"]);
-				response = prior;
-			} else {
-				this.receipts.set(response.receiptId, response);
-				if (this.receipts.size > 1024) {
-					const oldest = this.receipts.keys().next().value;
-					if (oldest !== void 0) this.receipts.delete(oldest);
-				}
-			}
-			if (activity.phase === "question" && response.action === "submit") this.emit({
-				name: "learning.answer.accepted",
-				...eventBase
-			});
-			else if (activity.phase === "reveal" && response.action === "continue") this.emit({
-				name: "learning.continue.accepted",
-				...eventBase
-			});
-			return response;
-		} catch (cause) {
-			if (cause instanceof LearningProtocolError) throw cause;
-			if (cause instanceof LearningWaitAbort) return fallbackV2(cause.reason, cause.reason === "client-response-timeout" ? "skip" : "cancel");
-			const code = cause instanceof UserQuestionError ? cause.code : void 0;
-			if (code === "ASK_CANCELLED") return fallbackV2("user-cancelled", "cancel");
-			if (code === "ASK_ABORTED") {
-				const reason = state.reason ?? "session-aborted";
-				return fallbackV2(reason, reason === "client-response-timeout" ? "skip" : "cancel");
-			}
-			if (code === "NO_PROVIDER" || code === "DELEGATED_CALLER" || code === "CALLER_NOT_LIVE") return fallbackV2(code.toLowerCase());
-			throw cause;
-		} finally {
-			clearTimeout(timer);
-			request.signal?.removeEventListener("abort", abortFromSession);
-			this.pendingActivities.delete(controller);
-		}
+		return (await this.getLegacyGate()).present(request);
 	}
 	/** @deprecated V1 is accepted only for static legacy replay/fallback. */
 	async present(request) {
+		const { parseLearningActivity } = await import("./legacy-protocol-HNUHA_ju.js");
 		const activity = parseLearningActivity(request.activity);
 		return fallback(randomUUID(), activity, "legacy-replay-only");
 	}
@@ -1050,4 +866,4 @@ var LearningActivityBroker = class extends Service {
 /** Host entry: one non-model-facing Learning Activity broker service. */
 registerInteractiveLearningSessionCompatibility();
 //#endregion
-export { DEFAULT_TRANSCRIPT_TOKEN_BUDGET, LEARNER_STATE_EVENT_PROTOCOL, LEARNER_STATE_PROTOCOL, LEARNER_STATE_SESSION_EVENT_TYPE, LEARNING_INTENT_POLICY, LEARN_INTENT, LearningActivityBroker, LearningActivityBroker as default, MAX_FAILED_MOVES, classifyLearnIntent, createInitialLearnerState, createLearnerStateSnapshotEvent, foldLearnerStateSession, hydrateLearnerStateSnapshot, isLearnIntent, isLearningBoundary, parseLearnerStateSnapshotEvent, reduceLearnerState, registerInteractiveLearningSessionCompatibility, registerLearningSessionEventType, renderLearnerStateTranscript, resetLearnerState, routeLearningRequest, routeLearningTurn, serializeLearnerStateSnapshot };
+export { DEFAULT_TRANSCRIPT_TOKEN_BUDGET, LEARNER_STATE_EVENT_PROTOCOL, LEARNER_STATE_PROTOCOL, LEARNER_STATE_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRIC_KINDS, LEARNING_CHECKPOINT_METRIC_STATUSES, LEARNING_CHINESE_TEMPLATES, LEARNING_GRADED_POLICY, LEARNING_INTENT_POLICY, LEARNING_SEGMENT_EVENT_PROTOCOL, LEARNING_SEGMENT_SESSION_EVENT_TYPE, LEARNING_TEACHING_POLICY, LEARNING_TEACHING_POLICY_CORE, LEARNING_VISUAL_POLICY, LEARN_INTENT, LEARN_INTENT_MODEL_GUIDANCE, LEARN_INTENT_NATURAL_LANGUAGE_RULES, LEARN_INTENT_RULES, LearningActivityBroker, LearningActivityBroker as default, MAX_FAILED_MOVES, buildLearningTeachingPolicy, classifyLearnIntent, createInitialLearnerState, createLearnerStateSnapshotEvent, foldLearnerStateSession, hydrateLearnerStateSnapshot, isLearnIntent, isLearningBoundary, parseLearnerStateSnapshotEvent, reduceLearnerState, registerInteractiveLearningSessionCompatibility, registerLearningSessionEventType, renderLearnerStateTranscript, resetLearnerState, routeLearningRequest, routeLearningTurn, serializeLearnerStateSnapshot };

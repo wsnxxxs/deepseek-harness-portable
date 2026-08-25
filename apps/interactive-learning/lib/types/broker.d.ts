@@ -1,7 +1,7 @@
 import { Context, Service } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type LearningVisualStatusV4, type LearningRecallFeedbackV1, type LearningCheckpointResultV1, type LearningCheckpointV1, type LearningActivityV2, type LearningActivityV1, type LearningQuestionV2, type LearningRevealV2, type LearningResponseV2, type LearningResponseV1 } from './protocol.ts';
-import { type LearnerState, type LearnerStateCorrection, type LearnerStateEvent, type ObservableLearnerEvent } from './learner-state.ts';
+import { type LearningVisualStatusV4, type LearningRecallFeedbackV1, type LearningCheckpointResultV1, type LearningCheckpointV1, type LearningActivityV2, type LearningActivityV1, type LearningQuestionV2, type LearningRevealV2, type LearningResponseV2, type LearningResponseV1 } from './protocol-current.ts';
+import { type LearnerState, type LearnerStateCorrection, type LearnerStateEvent, type LearningSegmentAnchorEvent, type ObservableLearnerEvent, type LearningCheckpointAggregate } from './learner-state.ts';
 export declare const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
 export declare const DEFAULT_LEARNING_WAIT_TIMEOUT_MS: number;
 export declare const DEFAULT_LEARNING_CHECKPOINT_TIMEOUT_MS: number;
@@ -30,6 +30,8 @@ export interface PresentLearningCheckpointRequest {
     signal?: AbortSignal;
     timeoutMs?: number;
     callId: string;
+    /** Client-side answer-free telemetry: whether a stored draft was restored. */
+    draftRecovered?: boolean;
 }
 export type ObservableLearnerStateUpdate = Exclude<LearnerStateEvent, {
     type: 'state_corrected';
@@ -76,9 +78,8 @@ export interface LearningLifecycleEvent {
 export declare class LearningActivityBroker extends Service {
     static inject: string[];
     private readonly pendingActivities;
-    private readonly lessons;
-    private readonly receipts;
-    private readonly gateCalls;
+    private legacyGate;
+    private legacyGatePromise;
     private readonly checkpointCalls;
     private readonly checkpointReceipts;
     private readonly pendingCheckpointSessions;
@@ -101,6 +102,22 @@ export declare class LearningActivityBroker extends Service {
     learnerState(agent: Agent): LearnerState;
     /** Render only the bounded, model-facing projection of the current state. */
     learnerStateTranscript(agent: Agent, maxTokens?: number): string;
+    /** Read the answer-free checkpoint aggregate for one session. */
+    checkpointMetrics(agent: Agent): LearningCheckpointAggregate;
+    /**
+     * Host-side route hook. The caller writes the already-classified active or
+     * closed boundary as a session-local, identity-free anchor, so refresh can
+     * restore the route without relying on a model-written `goal`.
+     */
+    recordLearningSegmentAnchor(agent: Agent, turn?: number, segment?: LearningSegmentAnchorEvent['segment']): void;
+    /**
+     * Whether the latest host route anchor still denotes an active learning
+     * segment. An anchor survives a refresh, but it is retired once the learner
+     * has moved more than one real user turn past it without another learn
+     * anchor. The one-turn allowance covers the user message currently being
+     * claimed by the loop; injected context never advances this sequence.
+     */
+    learningSegmentActive(agent: Agent): boolean;
     /** CAS mutation used exclusively by the internal, immediate state tool.
      * Exact replays and a small set of additive observations may rebase once;
      * replacement, correction, and reset operations remain strict CAS writes.
@@ -113,9 +130,12 @@ export declare class LearningActivityBroker extends Service {
     private emit;
     /** Whether this Web composition advertises the matching Client bundle. */
     private hasRichClient;
+    /** Load the retired Question/Reveal coordinator only when its API is used. */
+    private getLegacyGate;
     private dropLearnerState;
     private abortPendingCheckpointSession;
     private appendLearnerState;
+    private recordCheckpointMetrics;
     private recordAutomaticEvents;
     /**
      * Record the concrete assistant move without adding another user wait.
@@ -147,8 +167,6 @@ export declare class LearningActivityBroker extends Service {
     }): Promise<LearningResponseV2>;
     /** V2 live path: one call owns exactly one durable Question or Reveal wait. */
     presentGate(request: PresentLearningGateRequest): Promise<LearningResponseV2>;
-    private presentGateOnce;
-    private waitForV2;
     /** @deprecated V1 is accepted only for static legacy replay/fallback. */
     present(request: PresentLearningActivityRequest): Promise<LearningResponseV1>;
 }

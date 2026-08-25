@@ -3,7 +3,7 @@ import type {
   LearningActivityV1,
   LearningJson,
   LearningResponseV1,
-} from '../protocol.ts'
+} from '../protocol-current.ts'
 
 export interface ActivitySubmission {
   answer: LearningJson

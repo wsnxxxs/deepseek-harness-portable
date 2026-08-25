@@ -11,8 +11,26 @@ import { KNOWN_SESSION_EVENT_TYPES } from "@deepseek-ai/dsh-session";
 const LEARNER_STATE_PROTOCOL = "dsh-learning/learner-state@1";
 const LEARNER_STATE_EVENT_PROTOCOL = "dsh-learning/state-event@1";
 const LEARNER_STATE_SESSION_EVENT_TYPE = "learning/state";
+/** Log-only anchor for restoring an active Learning route after refresh. */
+const LEARNING_SEGMENT_EVENT_PROTOCOL = "dsh-learning/segment@1";
+const LEARNING_SEGMENT_SESSION_EVENT_TYPE = "learning/segment";
+/** Answer-free aggregate used to decide whether checkpoint UI should evolve. */
+const LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL = "dsh-learning/checkpoint-metrics@1";
+const LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE = "learning/checkpoint-metrics";
 const MAX_FAILED_MOVES = 6;
 const DEFAULT_TRANSCRIPT_TOKEN_BUDGET = 300;
+const LEARNING_CHECKPOINT_METRIC_KINDS = [
+	"free_text",
+	"single_choice",
+	"numeric",
+	"prediction",
+	"code_slot"
+];
+const LEARNING_CHECKPOINT_METRIC_STATUSES = [
+	"submitted",
+	"skipped",
+	"cancelled"
+];
 const MAX_STORED_TEXT = 240;
 /**
 * Registers the Learning log event with persistence readers.
@@ -22,6 +40,8 @@ const MAX_STORED_TEXT = 240;
 */
 function registerLearningSessionEventType() {
 	KNOWN_SESSION_EVENT_TYPES.add(LEARNER_STATE_SESSION_EVENT_TYPE);
+	KNOWN_SESSION_EVENT_TYPES.add(LEARNING_SEGMENT_SESSION_EVENT_TYPE);
+	KNOWN_SESSION_EVENT_TYPES.add(LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE);
 }
 const REQUEST_KINDS = /* @__PURE__ */ new Set([
 	"concept",
@@ -246,14 +266,19 @@ function normalizeEvidence(input, observation) {
 		"learner-action",
 		"user-correction"
 	].includes(observation.source)) throw new TypeError("Learner evidence must come from a learner action, learner message, or user correction");
+	if (observation.turn === void 0) throw new TypeError("learner_evidence_observed requires observation.turn");
 	const kind = assertEnum(input.kind, EVIDENCE_KINDS, "evidence.kind");
+	const correctness = assertEnum(input.correctness ?? "unknown", EVIDENCE_CORRECTNESS, "evidence.correctness");
+	const justification = input.justification === void 0 ? void 0 : normalizeRequiredText(input.justification, "evidence.justification");
+	if (correctness !== "unknown" && justification === void 0) throw new TypeError("evaluated learner evidence requires evidence.justification");
 	const base = {
 		summary: normalizeRequiredText(input.summary, "evidence.summary"),
 		confidence: assertEnum(input.confidence ?? "medium", EVIDENCE_CONFIDENCE, "evidence.confidence"),
-		correctness: assertEnum(input.correctness ?? "unknown", EVIDENCE_CORRECTNESS, "evidence.correctness"),
+		correctness,
 		independence: assertEnum(input.independence ?? "unknown", EVIDENCE_INDEPENDENCE, "evidence.independence"),
 		source: observation.source,
-		...observation.turn === void 0 ? {} : { turn: observation.turn }
+		turn: observation.turn,
+		...justification === void 0 ? {} : { justification }
 	};
 	if (kind === "transfer") return Object.freeze({
 		...base,
@@ -344,7 +369,7 @@ function isSufficientForSegmentCompletion(evidence) {
 function evidenceMastery(evidence) {
 	const independentlyCorrect = evidence.filter(isIndependentlyCorrectEvidence);
 	if (independentlyCorrect.some((item) => item.kind === "transfer" && item.transferContext === "fresh")) return "transfer";
-	if (independentlyCorrect.length > 0) return "emerging";
+	if (new Set(independentlyCorrect.map((item) => item.turn)).size >= 2) return "emerging";
 	return "unseen";
 }
 function masteryFromEvidence(current, evidence) {
@@ -357,10 +382,31 @@ function evidenceSupportsMastery(evidence, mastery) {
 	if (!isIndependentlyCorrectEvidence(evidence)) return false;
 	return mastery === "transfer" ? evidence.kind === "transfer" && evidence.transferContext === "fresh" : mastery === "emerging";
 }
+function emergingEvidenceTurns(evidence) {
+	return new Set(evidence.filter(isIndependentlyCorrectEvidence).map((item) => item.turn));
+}
 function boundEvidence(evidence, mastery) {
 	const recent = evidence.slice(-8);
-	if (mastery === "unseen" || recent.some((item) => evidenceSupportsMastery(item, mastery))) return freezeEvidence(recent);
+	if (mastery === "unseen") return freezeEvidence(recent);
+	if (mastery === "emerging" && emergingEvidenceTurns(recent).size >= 2) return freezeEvidence(recent);
+	if (mastery === "transfer" && recent.some((item) => evidenceSupportsMastery(item, mastery))) return freezeEvidence(recent);
 	const support = [...evidence].reverse().find((item) => evidenceSupportsMastery(item, mastery));
+	if (mastery === "emerging") {
+		const supports = [];
+		const seenTurns = /* @__PURE__ */ new Set();
+		for (const item of [...evidence].reverse()) {
+			if (!isIndependentlyCorrectEvidence(item) || seenTurns.has(item.turn)) continue;
+			seenTurns.add(item.turn);
+			supports.push(item);
+			if (supports.length >= 2) break;
+		}
+		if (supports.length >= 2) {
+			const supportIds = new Set(supports);
+			const preserved = supports.reverse();
+			const tail = recent.filter((item) => !supportIds.has(item)).slice(-(8 - preserved.length));
+			return freezeEvidence([...preserved, ...tail]);
+		}
+	}
 	if (!support) return freezeEvidence(recent);
 	return freezeEvidence([support, ...recent.slice(-7)]);
 }
@@ -368,7 +414,7 @@ function assertMasteryEvidenceConsistency(state) {
 	if (state.masteryBasis === "user-correction") return;
 	const supported = evidenceMastery(state.evidence);
 	if (state.mastery === "transfer" && supported !== "transfer") throw new TypeError("transfer mastery requires correct, independent learner transfer evidence");
-	if (state.mastery === "emerging" && supported === "unseen") throw new TypeError("emerging mastery requires correct, independent learner evidence");
+	if (state.mastery === "emerging" && supported !== "emerging" && supported !== "transfer") throw new TypeError("emerging mastery requires correct, independent evidence from two user turns");
 }
 function createInitialLearnerState(sessionId) {
 	return freezeState({
@@ -553,10 +599,11 @@ function reduceLearnerState(state, event) {
 			break;
 		case "learner_evidence_observed": {
 			const evidence = normalizeEvidence(event.evidence, observation);
-			const observedMastery = evidenceMastery([evidence]);
-			next.mastery = masteryFromEvidence(state.mastery, [evidence]);
+			const observedEvidence = [...state.evidence, evidence];
+			const observedMastery = evidenceMastery(observedEvidence);
+			next.mastery = masteryFromEvidence(state.mastery, observedEvidence);
 			next.masteryBasis = observedMastery !== "unseen" && observedMastery === next.mastery ? "evidence" : state.masteryBasis;
-			next.evidence = boundEvidence([...state.evidence, evidence], next.mastery);
+			next.evidence = boundEvidence(observedEvidence, next.mastery);
 			next.learnerResponseAssessment = evidence.correctness === "correct" ? "correct" : evidence.correctness === "partial" ? "partial" : evidence.correctness === "incorrect" ? "incorrect" : "no-evidence";
 			if (evidence.correctness === "incorrect") {
 				next.phase = "repair";
@@ -745,20 +792,24 @@ function parseSnapshotEvidence(value) {
 			"independence",
 			"source",
 			...kind === "transfer" ? ["transferContext"] : []
-		], ["turn"], `learner state snapshot evidence[${index}]`);
+		], ["turn", "justification"], `learner state snapshot evidence[${index}]`);
 		const source = assertEnum(strictString(record.source, `learner state snapshot evidence[${index}].source`), /* @__PURE__ */ new Set([
 			"learner-message",
 			"learner-action",
 			"user-correction"
 		]), `learner state snapshot evidence[${index}].source`);
-		const turn = record.turn === void 0 ? void 0 : strictNonNegativeInteger(record.turn, `learner state snapshot evidence[${index}].turn`);
+		const turn = strictNonNegativeInteger(record.turn, `learner state snapshot evidence[${index}].turn`);
+		const correctness = assertEnum(strictString(record.correctness, `learner state snapshot evidence[${index}].correctness`), EVIDENCE_CORRECTNESS, `learner state snapshot evidence[${index}].correctness`);
+		const justification = record.justification === void 0 ? void 0 : strictString(record.justification, `learner state snapshot evidence[${index}].justification`);
+		if (correctness !== "unknown" && justification === void 0) throw new TypeError(`learner state snapshot evidence[${index}] requires justification for evaluated correctness`);
 		const base = {
 			summary: strictString(record.summary, `learner state snapshot evidence[${index}].summary`),
 			confidence: assertEnum(strictString(record.confidence, `learner state snapshot evidence[${index}].confidence`), EVIDENCE_CONFIDENCE, `learner state snapshot evidence[${index}].confidence`),
-			correctness: assertEnum(strictString(record.correctness, `learner state snapshot evidence[${index}].correctness`), EVIDENCE_CORRECTNESS, `learner state snapshot evidence[${index}].correctness`),
+			correctness,
 			independence: assertEnum(strictString(record.independence, `learner state snapshot evidence[${index}].independence`), EVIDENCE_INDEPENDENCE, `learner state snapshot evidence[${index}].independence`),
 			source,
-			...turn === void 0 ? {} : { turn }
+			turn,
+			...justification === void 0 ? {} : { justification }
 		};
 		if (kind === "transfer") return {
 			...base,
@@ -1198,4 +1249,4 @@ function registerInteractiveLearningSessionCompatibility() {
 }
 registerInteractiveLearningSessionCompatibility();
 //#endregion
-export { LEARNER_STATE_SESSION_EVENT_TYPE as a, createLearnerStateSnapshotEvent as c, parseLearnerStateSnapshotEvent as d, reduceLearnerState as f, serializeLearnerStateSnapshot as g, resetLearnerState as h, LEARNER_STATE_PROTOCOL as i, foldLearnerStateSession as l, renderLearnerStateTranscript as m, DEFAULT_TRANSCRIPT_TOKEN_BUDGET as n, MAX_FAILED_MOVES as o, registerLearningSessionEventType as p, LEARNER_STATE_EVENT_PROTOCOL as r, createInitialLearnerState as s, registerInteractiveLearningSessionCompatibility as t, hydrateLearnerStateSnapshot as u };
+export { serializeLearnerStateSnapshot as S, parseLearnerStateSnapshotEvent as _, LEARNER_STATE_SESSION_EVENT_TYPE as a, renderLearnerStateTranscript as b, LEARNING_CHECKPOINT_METRIC_KINDS as c, LEARNING_SEGMENT_SESSION_EVENT_TYPE as d, MAX_FAILED_MOVES as f, hydrateLearnerStateSnapshot as g, foldLearnerStateSession as h, LEARNER_STATE_PROTOCOL as i, LEARNING_CHECKPOINT_METRIC_STATUSES as l, createLearnerStateSnapshotEvent as m, DEFAULT_TRANSCRIPT_TOKEN_BUDGET as n, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL as o, createInitialLearnerState as p, LEARNER_STATE_EVENT_PROTOCOL as r, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE as s, registerInteractiveLearningSessionCompatibility as t, LEARNING_SEGMENT_EVENT_PROTOCOL as u, reduceLearnerState as v, resetLearnerState as x, registerLearningSessionEventType as y };

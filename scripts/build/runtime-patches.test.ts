@@ -8,6 +8,7 @@ import {
   patchAppBootProfileRuntimeFallback,
   patchDirectoryPickerAuto,
   patchDirectoryPickerWorker,
+  patchDshProfileStaleLinkRecovery,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
   patchSessionPortableEventMetadata,
@@ -73,6 +74,18 @@ test('app-boot patch resolves bare packages from profile then installed runtime'
   assert.equal(patchAppBootProfileRuntimeFallback(output), output)
 })
 
+test('dsh profile recovery removes dangling local links before pnpm starts', async () => {
+  const source = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh/lib/bin.js'), 'utf8')
+  const output = patchDshProfileStaleLinkRecovery(source)
+  assert.match(output, /function recoverStaleProfileLinks\(profile\)/)
+  assert.match(output, /readablePackageManifest\(target\)/)
+  assert.match(output, /removed stale local profile link/)
+  assert.match(output, /recoverStaleProfileLinks\(invocation\.profile\)/)
+  assert.match(output, /import \{ homedir \} from "node:os";/)
+  assert.match(output, /import \{ join, resolve \} from "node:path";/)
+  assert.equal(patchDshProfileStaleLinkRecovery(output), output)
+})
+
 test('session patch persists an explicit ignorable marker', () => {
   const source = [
     '\tappend(type, data, ...opts) {',
@@ -120,6 +133,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     'node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js',
     'node_modules/@deepseek-ai/dsh-client-ui-settings-models/lib/client.js',
     'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
+    'node_modules/@deepseek-ai/dsh/lib/bin.js',
     'node_modules/@deepseek-ai/dsh-session/lib/index.js',
     'node_modules/dsh-plugin-marketplace/lib/index.js',
     'node_modules/dsh-plugin-marketplace/lib/client.js',
@@ -144,6 +158,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
       'directory-picker-electron-ipc',
       'directory-picker-wsl-platform',
       'app-boot-profile-runtime-fallback',
+      'dsh-profile-stale-link-recovery',
       'portable-session-event-metadata',
       'marketplace-self-update-fallback',
       'marketplace-install-transparency',

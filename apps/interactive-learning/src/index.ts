@@ -11,8 +11,14 @@ export {
   isLearnIntent,
   isLearningBoundary,
   type LearnIntent,
+  type LearnIntentConfidence,
   type LearnIntentDecision,
+  type LearnIntentRuleId,
+  type LearnIntentRuleKind,
   type LearnTrigger,
+  LEARN_INTENT_NATURAL_LANGUAGE_RULES,
+  LEARN_INTENT_RULES,
+  LEARN_INTENT_MODEL_GUIDANCE,
 } from './learn-intent.ts'
 export {
   LearningActivityBroker,
@@ -34,6 +40,16 @@ export {
   type LearningRouteSession,
   type LearningTurnRouteDecision,
 } from './teaching-route.ts'
+export {
+  LEARNING_TEACHING_POLICY,
+  LEARNING_TEACHING_POLICY_CORE,
+  LEARNING_GRADED_POLICY,
+  LEARNING_VISUAL_POLICY,
+  LEARNING_CHINESE_TEMPLATES,
+  buildLearningTeachingPolicy,
+  type LearningPolicyContext,
+  type LearningPolicyRoute,
+} from './teaching-policy.ts'
 export type {
   LearningActivityV1,
   LearningActivityV2,
@@ -88,6 +104,12 @@ export {
   LEARNER_STATE_EVENT_PROTOCOL,
   LEARNER_STATE_PROTOCOL,
   LEARNER_STATE_SESSION_EVENT_TYPE,
+  LEARNING_SEGMENT_EVENT_PROTOCOL,
+  LEARNING_SEGMENT_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL,
+  LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
+  LEARNING_CHECKPOINT_METRIC_KINDS,
+  LEARNING_CHECKPOINT_METRIC_STATUSES,
   createInitialLearnerState,
   createLearnerStateSnapshotEvent,
   foldLearnerStateSession,
@@ -110,4 +132,9 @@ export {
   type LearnerStateSnapshot,
   type LearnerStateSnapshotEvent,
   type ObservableLearnerEvent,
+  type LearningSegmentAnchorEvent,
+  type LearningCheckpointAggregate,
+  type LearningCheckpointMetricsEvent,
+  type LearningCheckpointMetricKind,
+  type LearningCheckpointMetricStatus,
 } from './learner-state.ts'

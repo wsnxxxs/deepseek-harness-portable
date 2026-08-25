@@ -9,8 +9,11 @@
  * configuration, retry policy, token metering, and telemetry.
  * @module @dsh-portable/vision-bridge/view-image
  */
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, resolve } from 'node:path';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { selectVisionRoute } from "./model-selection.js";
 /** File extensions the attachment store's version-one image path accepts. */
@@ -21,10 +24,105 @@ const SUPPORTED_MEDIA_TYPES = {
     '.webp': 'image/webp',
     '.gif': 'image/gif',
 };
+const PDF_RENDERERS = ['pdftoppm', 'pdftocairo'];
+const PDF_RENDER_DPI = 144;
+const PDF_RENDER_TIMEOUT_MS = 30_000;
+const execFileAsync = promisify(execFile);
 const DEFAULT_SYSTEM_PROMPT = 'You are an expert visual analysis assistant. Carefully inspect the provided image and describe its contents with high accuracy. '
     + 'Extract any visible text, user interface elements, error messages, code blocks, diagrams, chart trends, or technical layouts.';
 const DEFAULT_INSTRUCTION = 'Please analyze and describe the contents of this image in detail.';
 const VISION_TIMEOUT_MS = 60_000;
+class PdfRenderError extends Error {
+    reason;
+    constructor(reason, message, options) {
+        super(message, options);
+        this.reason = reason;
+        this.name = 'PdfRenderError';
+    }
+}
+function isPdfPath(filePath) {
+    return extname(filePath).toLowerCase() === '.pdf';
+}
+function isMissingExecutable(error) {
+    return typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && error.code === 'ENOENT';
+}
+function errorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
+}
+async function pdfPageCount(filePath, signal) {
+    try {
+        const result = await execFileAsync('pdfinfo', [filePath], {
+            windowsHide: true,
+            timeout: PDF_RENDER_TIMEOUT_MS,
+            signal,
+            maxBuffer: 1024 * 1024,
+        });
+        const match = /^\s*Pages:\s*(\d+)\s*$/mu.exec(result.stdout);
+        if (match === null)
+            return undefined;
+        const count = Number(match[1]);
+        return Number.isSafeInteger(count) && count > 0 ? count : undefined;
+    }
+    catch (error) {
+        if (signal?.aborted)
+            throw error;
+        return undefined;
+    }
+}
+/**
+ * Render one PDF page with a system Poppler executable. Keeping this outside
+ * the package avoids pulling a 30-40MB PDF parser/rendering stack into the
+ * desktop runtime; the tool reports a direct install hint when Poppler is not
+ * available on PATH.
+ */
+async function renderPdfPage(filePath, page, signal) {
+    const pageCount = await pdfPageCount(filePath, signal);
+    if (pageCount !== undefined && page > pageCount) {
+        throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF page ${String(page)} is out of range; the document has ${String(pageCount)} page${pageCount === 1 ? '' : 's'}.`);
+    }
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-view-pdf-'));
+    const outputBase = join(directory, 'page');
+    for (const renderer of PDF_RENDERERS) {
+        try {
+            await execFileAsync(renderer, [
+                '-png',
+                '-singlefile',
+                '-f', String(page),
+                '-l', String(page),
+                '-r', String(PDF_RENDER_DPI),
+                filePath,
+                outputBase,
+            ], {
+                windowsHide: true,
+                timeout: PDF_RENDER_TIMEOUT_MS,
+                signal,
+                maxBuffer: 1024 * 1024,
+            });
+        }
+        catch (error) {
+            if (isMissingExecutable(error))
+                continue;
+            await rm(directory, { recursive: true, force: true });
+            throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF page ${String(page)} could not be rendered: ${errorMessage(error)}`, { cause: error });
+        }
+        const imagePath = `${outputBase}.png`;
+        try {
+            const imageStat = await stat(imagePath);
+            if (imageStat.isFile())
+                return { directory, imagePath, pageCount };
+        }
+        catch {
+            // The renderer exited successfully but did not produce the promised file.
+        }
+        await rm(directory, { recursive: true, force: true });
+        throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF renderer ${renderer} completed without producing page ${String(page)}.`);
+    }
+    await rm(directory, { recursive: true, force: true });
+    throw new PdfRenderError('VISION_PDF_RENDERER_UNAVAILABLE', 'PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.');
+}
 /**
  * Detect the attachment media type for a path from its extension.
  * @param filePath - path to the candidate image.
@@ -88,6 +186,8 @@ function failure(input) {
         ...input.ref === undefined ? {} : { width: input.ref.width, height: input.ref.height },
         ...input.source === undefined ? {} : { source: input.source },
         ...input.attachmentId === undefined ? {} : { attachmentId: input.attachmentId },
+        ...input.page === undefined ? {} : { page: input.page },
+        ...input.pageCount === undefined ? {} : { pageCount: input.pageCount },
         reason: input.reason,
         isError: true,
     };
@@ -196,6 +296,108 @@ export async function analyzeAttachment(ref, instruction, cfg, runtime, signal) 
         ? { ok: true, text: analysis.text, route: selection.route }
         : { ok: false, message: analysis.message, reason: analysis.reason, route: selection.route };
 }
+function instructionFor(args) {
+    return args.prompt !== undefined && args.prompt.trim().length > 0
+        ? args.prompt.trim()
+        : DEFAULT_INSTRUCTION;
+}
+/**
+ * Read one raster image from disk, commit it, and send it through the existing
+ * vision route. `resultPath` lets a rendered PDF page keep the source PDF in
+ * the model-facing result while the temporary PNG remains an implementation
+ * detail.
+ */
+async function executeImageFile(targetPath, resultPath, attachmentName, mediaType, args, cfg, runtime, exec, page, pageCount) {
+    let fileStat;
+    try {
+        fileStat = await stat(targetPath);
+    }
+    catch (error) {
+        return failure({
+            message: `Image file not found at "${resultPath}": ${errorMessage(error)}`,
+            reason: 'VISION_IMAGE_UNREADABLE',
+            path: resultPath,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    if (!fileStat.isFile()) {
+        return failure({
+            message: `Specified path is a directory, not a file: "${resultPath}"`,
+            reason: 'VISION_IMAGE_UNREADABLE',
+            path: resultPath,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    // The attachment store owns this deployment's image policy; checking its
+    // bound before reading keeps an oversized file out of memory entirely.
+    const maxBytes = runtime.attachments.imageLimits.maxImageBytes;
+    if (fileStat.size > maxBytes) {
+        return failure({
+            message: `Image file size (${String(fileStat.size)} bytes) exceeds this deployment limit of ${String(maxBytes)} bytes.`,
+            reason: 'VISION_IMAGE_TOO_LARGE',
+            path: resultPath,
+            bytes: fileStat.size,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    const data = await readFile(targetPath);
+    let ref;
+    try {
+        // Admission decodes the raster, so the declared media type, the pixel
+        // bound, and the dimension bound are all verified here rather than
+        // trusted from the file extension.
+        const [saved] = await runtime.attachments.saveImages([{
+                data,
+                mediaType,
+                name: attachmentName,
+            }]);
+        if (saved === undefined)
+            throw new Error('the attachment store committed no reference');
+        ref = saved;
+    }
+    catch (error) {
+        return failure({
+            message: `Image was rejected by the attachment store: ${errorMessage(error)}`,
+            reason: 'VISION_IMAGE_REJECTED',
+            path: resultPath,
+            bytes: data.byteLength,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    const analysis = await analyzeAttachment(ref, instructionFor(args), cfg, runtime, exec.signal);
+    if (!analysis.ok) {
+        return failure({
+            message: analysis.message,
+            reason: analysis.reason,
+            path: resultPath,
+            ref,
+            source: 'local',
+            page,
+            pageCount,
+            ...analysis.route === undefined ? {} : { route: analysis.route },
+        });
+    }
+    return {
+        text: analysis.text,
+        provider: analysis.route.provider,
+        model: analysis.route.model,
+        path: resultPath,
+        bytes: ref.bytes,
+        width: ref.width,
+        height: ref.height,
+        source: 'local',
+        ...page === undefined ? {} : { page },
+        ...pageCount === undefined ? {} : { pageCount },
+    };
+}
 /**
  * Execute the `view_image` tool.
  * @param args - tool invocation arguments.
@@ -216,12 +418,19 @@ export async function executeViewImage(args, exec, getConfig, runtime) {
     if (rawPath.length > 0 && rawAttachmentId.length > 0) {
         throw new Error('path and attachmentId are mutually exclusive');
     }
+    if (input.page !== undefined && (!Number.isSafeInteger(input.page) || input.page < 1)) {
+        throw new Error('page must be a positive integer');
+    }
+    if (rawAttachmentId.length > 0 && input.page !== undefined) {
+        throw new Error('page is only valid when path points to a local PDF');
+    }
     if (!cfg.enabled) {
         return failure({
             message: 'Vision Bridge is disabled. Enable it in Settings then Plugins before using view_image.',
             reason: 'VISION_BRIDGE_DISABLED',
             path: rawAttachmentId.length > 0 ? historyDisplayPath(rawAttachmentId) : providedPath,
             source: rawAttachmentId.length > 0 ? 'history' : 'local',
+            ...rawAttachmentId.length === 0 && input.page !== undefined ? { page: input.page } : {},
             ...rawAttachmentId.length > 0 ? { attachmentId: rawAttachmentId } : {},
         });
     }
@@ -237,10 +446,7 @@ export async function executeViewImage(args, exec, getConfig, runtime) {
                 attachmentId: rawAttachmentId,
             });
         }
-        const instruction = input.prompt !== undefined && input.prompt.trim().length > 0
-            ? input.prompt.trim()
-            : DEFAULT_INSTRUCTION;
-        const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal);
+        const analysis = await analyzeAttachment(ref, instructionFor(input), cfg, runtime, exec.signal);
         if (!analysis.ok) {
             return failure({
                 message: analysis.message,
@@ -268,91 +474,50 @@ export async function executeViewImage(args, exec, getConfig, runtime) {
     // process cwd is the fallback when the session carries none.
     const workspaceRoot = exec.agent?.session.header.cwd ?? process.cwd();
     const targetPath = isAbsolute(rawPath) ? rawPath : resolve(workspaceRoot, rawPath);
+    if (input.page !== undefined && !isPdfPath(targetPath)) {
+        throw new Error('page is only valid when path points to a local PDF');
+    }
+    if (isPdfPath(targetPath)) {
+        const page = input.page ?? 1;
+        let rendered;
+        try {
+            rendered = await renderPdfPage(targetPath, page, exec.signal);
+        }
+        catch (error) {
+            if (error instanceof PdfRenderError) {
+                return failure({
+                    message: `Cannot inspect PDF "${targetPath}": ${error.message}`,
+                    reason: error.reason,
+                    path: targetPath,
+                    source: 'local',
+                    page,
+                });
+            }
+            return failure({
+                message: `Cannot inspect PDF "${targetPath}": ${errorMessage(error)}`,
+                reason: 'VISION_PDF_RENDER_FAILED',
+                path: targetPath,
+                source: 'local',
+                page,
+            });
+        }
+        try {
+            return await executeImageFile(rendered.imagePath, targetPath, `${basename(targetPath)} (page ${String(page)})`, 'image/png', input, cfg, runtime, exec, page, rendered.pageCount);
+        }
+        finally {
+            await rm(rendered.directory, { recursive: true, force: true });
+        }
+    }
     const mediaType = mediaTypeForPath(targetPath);
     if (mediaType === undefined) {
         return failure({
-            message: `Cannot inspect "${rawPath}": view_image supports PNG, JPEG, WebP, and GIF images.`,
+            message: `Cannot inspect "${rawPath}": view_image supports PNG, JPEG, WebP, GIF, and PDF files. For PDF, use the optional 1-based page argument.`,
             reason: 'VISION_UNSUPPORTED_MEDIA_TYPE',
             path: targetPath,
             source: 'local',
         });
     }
-    let fileStat;
-    try {
-        fileStat = await stat(targetPath);
-    }
-    catch (error) {
-        return failure({
-            message: `Image file not found at "${targetPath}": ${error instanceof Error ? error.message : String(error)}`,
-            reason: 'VISION_IMAGE_UNREADABLE',
-            path: targetPath,
-            source: 'local',
-        });
-    }
-    if (!fileStat.isFile()) {
-        return failure({
-            message: `Specified path is a directory, not a file: "${targetPath}"`,
-            reason: 'VISION_IMAGE_UNREADABLE',
-            path: targetPath,
-            source: 'local',
-        });
-    }
-    // The attachment store owns this deployment's image policy; checking its
-    // bound before reading keeps an oversized file out of memory entirely.
-    const maxBytes = runtime.attachments.imageLimits.maxImageBytes;
-    if (fileStat.size > maxBytes) {
-        return failure({
-            message: `Image file size (${String(fileStat.size)} bytes) exceeds this deployment limit of ${String(maxBytes)} bytes.`,
-            reason: 'VISION_IMAGE_TOO_LARGE',
-            path: targetPath,
-            bytes: fileStat.size,
-            source: 'local',
-        });
-    }
-    const data = await readFile(targetPath);
-    let ref;
-    try {
-        // Admission decodes the raster, so the declared media type, the pixel
-        // bound, and the dimension bound are all verified here rather than
-        // trusted from the file extension.
-        const [saved] = await runtime.attachments.saveImages([{ data, mediaType, name: basename(targetPath) }]);
-        if (saved === undefined)
-            throw new Error('the attachment store committed no reference');
-        ref = saved;
-    }
-    catch (error) {
-        return failure({
-            message: `Image was rejected by the attachment store: ${error instanceof Error ? error.message : String(error)}`,
-            reason: 'VISION_IMAGE_REJECTED',
-            path: targetPath,
-            bytes: data.byteLength,
-            source: 'local',
-        });
-    }
-    const instruction = input.prompt !== undefined && input.prompt.trim().length > 0
-        ? input.prompt.trim()
-        : DEFAULT_INSTRUCTION;
-    const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal);
-    if (!analysis.ok) {
-        return failure({
-            message: analysis.message,
-            reason: analysis.reason,
-            path: targetPath,
-            ref,
-            source: 'local',
-            ...analysis.route === undefined ? {} : { route: analysis.route },
-        });
-    }
-    return {
-        text: analysis.text,
-        provider: analysis.route.provider,
-        model: analysis.route.model,
-        path: targetPath,
-        bytes: ref.bytes,
-        width: ref.width,
-        height: ref.height,
-        source: 'local',
-    };
+    return executeImageFile(targetPath, targetPath, basename(targetPath), mediaType, input, cfg, runtime, exec);
 }
 /**
  * Format the tool result for model context.
@@ -364,7 +529,7 @@ export function renderViewImageContent(result) {
     const isHistory = 'source' in result && result.source === 'history';
     const formatted = isHistory && 'attachmentId' in result && typeof result.attachmentId === 'string'
         ? `<image_analysis source="history" attachment_id="${result.attachmentId}" model="${result.model}">\n${result.text}\n</image_analysis>`
-        : `<image_analysis path="${result.path}" model="${result.model}">\n${result.text}\n</image_analysis>`;
+        : `<image_analysis path="${result.path}"${result.page === undefined ? '' : ` page="${String(result.page)}"`}${result.pageCount === undefined ? '' : ` page_count="${String(result.pageCount)}"`} model="${result.model}">\n${result.text}\n</image_analysis>`;
     return [{ type: 'text', text: formatted }];
 }
 //# sourceMappingURL=view-image.js.map

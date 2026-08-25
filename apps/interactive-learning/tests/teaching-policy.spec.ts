@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { LEARNING_TEACHING_POLICY } from '../src/teaching-policy.ts'
+import {
+  LEARNING_TEACHING_POLICY,
+  LEARNING_TEACHING_POLICY_CORE,
+  LEARNING_GRADED_POLICY,
+  LEARNING_VISUAL_POLICY,
+  LEARNING_CHINESE_TEMPLATES,
+  buildLearningTeachingPolicy,
+} from '../src/teaching-policy.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const agentSource = readFileSync(join(root, 'src/agent.ts'), 'utf8')
@@ -16,8 +23,8 @@ function expectPolicyToCover(...phrases: string[]): void {
 
 describe('authoritative compact Learning teaching policy', () => {
   it('is the single standing-prompt source while the Skill remains a reference router', () => {
-    expect(agentSource).toContain("import { LEARNING_TEACHING_POLICY } from './teaching-policy.ts'")
-    expect(agentSource).toContain('text: LEARNING_TEACHING_POLICY')
+    expect(agentSource).toContain("import { buildLearningTeachingPolicy } from './teaching-policy.ts'")
+    expect(agentSource).toContain('buildLearningTeachingPolicy({')
     expect(agentSource).not.toContain('Optimize for durable learner capability')
     expect(agentSource).not.toContain('Never repeat the same hint in new words')
 
@@ -93,5 +100,18 @@ describe('authoritative compact Learning teaching policy', () => {
     expect(LEARNING_TEACHING_POLICY.length).toBeLessThan(5000)
     expect(Math.ceil(LEARNING_TEACHING_POLICY.length / 4)).toBeGreaterThanOrEqual(800)
     expect(Math.ceil(LEARNING_TEACHING_POLICY.length / 4)).toBeLessThan(1250)
+  })
+
+  it('keeps graded and visual guidance out of the core until the route needs it', () => {
+    expect(LEARNING_TEACHING_POLICY_CORE).toBe(LEARNING_TEACHING_POLICY)
+    expect(LEARNING_TEACHING_POLICY_CORE).not.toContain(LEARNING_GRADED_POLICY)
+    expect(LEARNING_TEACHING_POLICY_CORE).not.toContain(LEARNING_VISUAL_POLICY)
+    expect(LEARNING_TEACHING_POLICY_CORE).not.toContain(LEARNING_CHINESE_TEMPLATES)
+    const core = buildLearningTeachingPolicy({ route: 'teach-minimum', language: 'en' })
+    expect(core).toBe(LEARNING_TEACHING_POLICY_CORE)
+    const graded = buildLearningTeachingPolicy({ graded: true, route: 'teach-minimum', visual: true, language: 'zh' })
+    expect(graded).toContain(LEARNING_GRADED_POLICY)
+    expect(graded).toContain(LEARNING_VISUAL_POLICY)
+    expect(graded).toContain(LEARNING_CHINESE_TEMPLATES)
   })
 })

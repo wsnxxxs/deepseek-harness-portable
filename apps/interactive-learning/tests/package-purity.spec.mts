@@ -49,6 +49,13 @@ describe('published package path purity', () => {
     })
   })
 
+  it('does not mistake a JSON-escaped source label for a drive path', async () => {
+    const emittedMap = JSON.stringify({ sourcesContent: ['switch (value) { default:\n  return value }'] })
+    await withFixture(emittedMap, async (lib, root) => {
+      await expect(assertPublishedPathPurity(lib, { checkoutRoot: root })).resolves.toEqual({ filesScanned: 1 })
+    })
+  })
+
   it('rejects Windows build-machine paths', async () => {
     const emittedMap = JSON.stringify({ sources: ['C:\\Users\\builder\\checkout\\View.module.css.mjs'] })
     await withFixture(emittedMap, async (lib, root) => {

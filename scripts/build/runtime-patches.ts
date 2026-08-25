@@ -24,6 +24,9 @@ const {
 const { patchAppBootProfileRuntimeFallback } = require('../../patches/dsh-app-boot-profile-runtime-fallback.js') as {
   patchAppBootProfileRuntimeFallback(source: string): string
 }
+const { patchDshProfileStaleLinkRecovery } = require('../../patches/dsh-profile-stale-link-recovery.js') as {
+  patchDshProfileStaleLinkRecovery(source: string): string
+}
 const { patchSessionPortableEventMetadata } = require('../../patches/dsh-session-portable-event-metadata.js') as {
   patchSessionPortableEventMetadata(source: string): string
 }
@@ -33,6 +36,7 @@ const { patchDirectoryPickerAuto } = require('../../patches/dsh-host-directory-p
 
 export {
   patchAppBootProfileRuntimeFallback,
+  patchDshProfileStaleLinkRecovery,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
   patchDirectoryPickerAuto,
@@ -107,6 +111,7 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
   const directoryPicker = definitionById(definitions, 'directory-picker-electron-ipc')
   const directoryPickerAuto = definitionById(definitions, 'directory-picker-wsl-platform')
   const appBoot = definitionById(definitions, 'app-boot-profile-runtime-fallback')
+  const dshProfileRecovery = definitionById(definitions, 'dsh-profile-stale-link-recovery')
   const portableSession = definitionById(definitions, 'portable-session-event-metadata')
   const marketplace = definitionById(definitions, 'marketplace-self-update-fallback')
   const marketplaceTransparency = definitionById(definitions, 'marketplace-install-transparency')
@@ -121,6 +126,9 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
     }),
     applyDefinition(options, appBoot, {
       'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js': patchAppBootProfileRuntimeFallback,
+    }),
+    applyDefinition(options, dshProfileRecovery, {
+      'node_modules/@deepseek-ai/dsh/lib/bin.js': patchDshProfileStaleLinkRecovery,
     }),
     applyDefinition(options, portableSession, {
       'node_modules/@deepseek-ai/dsh-session/lib/index.js': patchSessionPortableEventMetadata,

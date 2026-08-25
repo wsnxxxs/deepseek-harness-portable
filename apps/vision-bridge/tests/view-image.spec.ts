@@ -141,6 +141,13 @@ describe('view-image', () => {
     expect(probe.saved).toHaveLength(0)
   })
 
+  it('does not silently apply a PDF page argument to a raster image', async () => {
+    const probe = fakeRuntime()
+    await expect(executeViewImage({ path: samplePng, page: 2 }, stubExec, () => baseConfig, probe.runtime))
+      .rejects.toThrow(/only valid when path points to a local PDF/)
+    expect(probe.saved).toHaveLength(0)
+  })
+
   it('resolves a relative path against the session workspace', async () => {
     const probe = fakeRuntime()
     const result = await executeViewImage({ path: 'test.png' }, stubExec, () => baseConfig, probe.runtime)
@@ -347,6 +354,18 @@ describe('model-facing rendering', () => {
       path: '/tmp/a.png',
       bytes: 8,
     })).toEqual([{ type: 'text', text: '<image_analysis path="/tmp/a.png" model="qwen-vl-max">\na chart\n</image_analysis>' }])
+  })
+
+  it('includes the source page when a PDF page was rendered', () => {
+    expect(renderViewImageContent({
+      text: 'a circuit diagram',
+      provider: 'dashscope',
+      model: 'qwen-vl-max',
+      path: '/tmp/lecture.pdf',
+      bytes: 8,
+      page: 3,
+      pageCount: 12,
+    })).toEqual([{ type: 'text', text: '<image_analysis path="/tmp/lecture.pdf" page="3" page_count="12" model="qwen-vl-max">\na circuit diagram\n</image_analysis>' }])
   })
 
   it('labels a history analysis with its stable attachment id', () => {

@@ -4,7 +4,7 @@ import type {
   LearningCheckpointEvidenceKindV1,
   LearningCheckpointResponseV1,
   LearningCheckpointV1,
-} from '../protocol.ts'
+} from '../protocol-current.ts'
 import type { LearningLocaleKey } from './locales.ts'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
@@ -17,6 +17,7 @@ type LearningCheckpointProps = PropsLocale<'interactive-learning'> & {
   onSubmit(response: LearningCheckpointResponseV1): Promise<void>
   onSkip(): Promise<void>
   onCancel(): Promise<void>
+  onDraftRecovery?(draftRecovered: boolean): void
 }
 
 const STORAGE_PREFIX = 'dsh-learning/checkpoint@1:'
@@ -65,6 +66,7 @@ export function LearningCheckpoint({
   onSubmit,
   onSkip,
   onCancel,
+  onDraftRecovery,
   t,
 }: LearningCheckpointProps) {
   const headingId = useId()
@@ -74,8 +76,10 @@ export function LearningCheckpoint({
   const [draft, setDraft] = useState(() => readDraft(storageKey))
 
   useEffect(() => {
-    setDraft(readDraft(storageKey))
-  }, [storageKey])
+    const restored = readDraft(storageKey)
+    setDraft(restored)
+    onDraftRecovery?.(restored !== '')
+  }, [onDraftRecovery, storageKey])
 
   useEffect(() => {
     writeDraft(storageKey, draft)

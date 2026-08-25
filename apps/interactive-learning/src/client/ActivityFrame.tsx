@@ -1,7 +1,7 @@
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { LearningActivityV1 } from '../protocol.ts'
+import type { LearningActivityV1 } from '../protocol-current.ts'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
 
