@@ -208,7 +208,7 @@ The Linux command writes the unpacked runtime to
 is compiled locally with `musl-gcc` and staged into the Linux runtime; a missing
 launcher or unusable Landlock kernel remains fail-closed at runtime.
 
-Packaging fingerprints the source workspace and reuses successful compile, deployed-runtime, patch, and Electron layers when their inputs have not changed. Pass `--no-cache` to a package command when diagnosing a clean build; `--skip-build` remains available when intentionally packaging existing compiled output. Release commands do not accept build flags, run tests, patch files, sign files, or recreate archives: they re-hash and copy only the exact files named by `artifact-verification.json`.
+Packaging fingerprints the source workspace and reuses successful compile, deployed-runtime, patch, Electron, and final platform-container layers when their inputs have not changed. Repeat packaging of the same source and target therefore skips both the long workspace build and the AppImage/deb, ZIP/Setup, or DMG recreation. The Linux release wrapper keeps this cache enabled by default; pass `--no-cache` to a package command when diagnosing a clean build. `--skip-build` remains available when intentionally packaging existing compiled output. Release commands do not accept build flags, run tests, patch files, sign files, or recreate archives: they re-hash and copy only the exact files named by `artifact-verification.json`.
 
 The desktop package keeps three version identities:
 

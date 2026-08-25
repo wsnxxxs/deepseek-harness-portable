@@ -17,6 +17,7 @@ export type PackagingCacheState = {
   build?: CacheLayer
   staging?: CacheLayer
   electron?: CacheLayer
+  containers?: CacheLayer
 }
 
 export type FingerprintOptions = {
@@ -131,13 +132,27 @@ export function cacheLayerMatches(layer: CacheLayer | undefined, key: string, re
 /** Return a cache state with one completed layer and all dependent layers invalidated. */
 export function completeCacheLayer(
   state: PackagingCacheState,
-  layer: 'build' | 'staging' | 'electron',
+  layer: 'build' | 'staging' | 'electron' | 'containers',
   key: string,
 ): PackagingCacheState {
   const completed = { key, completedAt: new Date().toISOString() }
   if (layer === 'build') return { version: PACKAGING_CACHE_VERSION, build: completed }
   if (layer === 'staging') return { version: PACKAGING_CACHE_VERSION, build: state.build, staging: completed }
-  return { ...state, electron: completed }
+  if (layer === 'electron') {
+    return {
+      version: PACKAGING_CACHE_VERSION,
+      build: state.build,
+      staging: state.staging,
+      electron: completed,
+    }
+  }
+  return {
+    version: PACKAGING_CACHE_VERSION,
+    build: state.build,
+    staging: state.staging,
+    electron: state.electron,
+    containers: completed,
+  }
 }
 
 /**

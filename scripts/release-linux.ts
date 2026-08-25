@@ -71,7 +71,9 @@ if (argv.includes('--help')) {
   const suppliedInput = inputFrom(argv)
   if (suppliedInput === undefined) {
     console.log(`release-linux: packaging distribution ${version} on the native Linux host`)
-    await run(pnpmBin(), ['run', 'desktop:package:linux', '--', '--no-cache'])
+    // Packaging layers are content-addressed. Keep them reusable for repeat
+    // releases; pass --no-cache to desktop:package:linux for a clean rebuild.
+    await run(pnpmBin(), ['run', 'desktop:package:linux'])
   }
 
   const input = suppliedInput ?? defaultInput

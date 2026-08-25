@@ -207,6 +207,7 @@ const BUILD_INPUT_PATHS = [
 
 const STAGING_INPUT_PATHS = [
   'LICENSE',
+  'THIRD_PARTY_NOTICES.md',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
@@ -216,6 +217,16 @@ const STAGING_INPUT_PATHS = [
   'apps/desktop/electron-builder.yml',
   'apps/desktop/launcher',
   'patches',
+]
+
+/** Inputs used after the unpacked app exists to create immutable release containers. */
+const CONTAINER_INPUT_PATHS = [
+  'LICENSE',
+  'THIRD_PARTY_NOTICES.md',
+  'scripts/setup.iss',
+  'scripts/setup-runtime-preflight.ps1',
+  'scripts/build/create-windows-zip.ps1',
+  'apps/desktop/electron-builder.yml',
 ]
 
 /** The desktop app owns the shell version embedded in the Electron package. */
@@ -462,6 +473,8 @@ class DesktopExeBuild {
   private cacheState: PackagingCacheState = { version: 1 }
   private buildKey = ''
   private stagingKey = ''
+  private artifactKey = ''
+  private containerKey = ''
   private patchAttestations: readonly PatchAttestation[] = []
 
   constructor(private readonly cli: BuildCli) {
@@ -1180,6 +1193,7 @@ class DesktopExeBuild {
           : `${PKG_SPEC}-${DEFAULT_NODE_RANGE}-win-x64`,
       ],
     })
+    this.artifactKey = artifactKey
     const required = this.cli.electron
       ? [
           product,
@@ -1218,6 +1232,57 @@ class DesktopExeBuild {
       await writePackagingCache(this.cachePath, this.cacheState)
     }
     return product
+  }
+
+  /** Return the immutable container paths for the selected Electron target. */
+  platformContainerPaths(): readonly string[] {
+    if (!this.cli.electron) return []
+    const artifactDir = resolve(this.electronOutDir, this.cli.platform === 'win32'
+      ? 'windows-artifacts'
+      : this.cli.platform === 'linux'
+        ? 'linux-artifacts'
+        : '')
+    const version = distributionVersion()
+    if (this.cli.platform === 'win32') {
+      return [
+        join(artifactDir, `DeepSeek-Harness-${version}-win32-x64.zip`),
+        join(artifactDir, `DeepSeek-Harness-Setup-${version}-win32-x64.exe`),
+      ]
+    }
+    if (this.cli.platform === 'linux') {
+      return [
+        join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.AppImage`),
+        join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.deb`),
+      ]
+    }
+    return [join(this.electronOutDir, `DeepSeek-Harness-${version}-darwin-${this.cli.arch}.dmg`)]
+  }
+
+  /** Fingerprint the final manifest and container tooling without re-hashing the whole app tree. */
+  async fingerprintPlatformContainers(product: string): Promise<string> {
+    if (!this.cli.electron) return ''
+    this.containerKey = await fingerprintPaths({
+      baseDir: root,
+      paths: [
+        ...CONTAINER_INPUT_PATHS,
+        join(this.appResourcesDir(product), 'release-manifest.json'),
+      ],
+      excludedDirectoryNames: FINGERPRINT_EXCLUDED_DIRECTORIES,
+      salt: ['containers-v1', this.artifactKey, this.cli.target.id, process.version],
+    })
+    return this.containerKey
+  }
+
+  /** Check whether immutable platform containers can be reused as-is. */
+  platformContainersCacheMatches(key: string, paths: readonly string[]): boolean {
+    return cacheLayerMatches(this.cacheState.containers, key, [...paths])
+  }
+
+  /** Persist a verified container layer unless the caller explicitly bypassed caching. */
+  async cachePlatformContainers(key: string): Promise<void> {
+    if (this.cli.noCache || this.cli.dryRun || key.length === 0) return
+    this.cacheState = completeCacheLayer(this.cacheState, 'containers', key)
+    await writePackagingCache(this.cachePath, this.cacheState)
   }
 
   private appResourcesDir(product: string): string {
@@ -1820,11 +1885,10 @@ class DesktopExeBuild {
   async createWindowsPackages(product: string): Promise<string[] | undefined> {
     if (!this.cli.electron || this.cli.platform !== 'win32') return undefined
     const portableRoot = this.artifactRoot(product)
-    const artifactDir = resolve(this.electronOutDir, 'windows-artifacts')
+    const [zip, setup] = this.platformContainerPaths()
+    const artifactDir = dirname(zip)
     const version = distributionVersion()
     const zipName = `DeepSeek-Harness-${version}-win32-x64.zip`
-    const zip = join(artifactDir, zipName)
-    const setup = join(artifactDir, `DeepSeek-Harness-Setup-${version}-win32-x64.exe`)
     if (this.cli.dryRun) {
       console.log(`build-desktop-web-exe: [dry-run] create Windows ZIP and Inno Setup from ${portableRoot}`)
       return [zip, setup]
@@ -1913,11 +1977,10 @@ class DesktopExeBuild {
   /** Build Linux AppImage and deb artifacts from the already-packaged app. */
   async createLinuxPackages(product: string): Promise<string[] | undefined> {
     if (!this.cli.electron || this.cli.platform !== 'linux') return undefined
-    const artifactDir = resolve(this.electronOutDir, 'linux-artifacts')
+    const [appImage, deb] = this.platformContainerPaths()
+    const artifactDir = dirname(appImage)
     const appRoot = dirname(product)
     const version = distributionVersion()
-    const appImage = join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.AppImage`)
-    const deb = join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.deb`)
     if (this.cli.dryRun) {
       console.log(`build-desktop-web-exe: [dry-run] create Linux AppImage/deb from ${appRoot}`)
       return [appImage, deb]
@@ -2302,6 +2365,14 @@ async function main(): Promise<void> {
       }
     } },
     { id: 'create-platform-containers', run: async current => {
+      const expected = pipeline.platformContainerPaths()
+      const containerKey = await pipeline.fingerprintPlatformContainers(product())
+      if (!cli.noCache && !cli.dryRun && expected.length > 0 && pipeline.platformContainersCacheMatches(containerKey, expected)) {
+        current.finalPackages = [...expected]
+        console.log(`build-desktop-web-exe: container cache hit (${containerKey.slice(0, 12)})`)
+        return
+      }
+      console.log(`build-desktop-web-exe: container cache ${cli.noCache ? 'bypassed' : 'miss'}${containerKey.length === 0 ? '' : ` (${containerKey.slice(0, 12)})`}`)
       const windows = await pipeline.createWindowsPackages(product())
       const linux = await pipeline.createLinuxPackages(product())
       const dmg = await pipeline.createDmg(product())
@@ -2309,6 +2380,7 @@ async function main(): Promise<void> {
     } },
     { id: 'verify-platform-containers', run: async current => {
       await pipeline.verifyPlatformContainers(current.finalPackages, current.verified)
+      await pipeline.cachePlatformContainers(await pipeline.fingerprintPlatformContainers(product()))
     } },
     { id: 'attest-immutable-artifacts', run: async current => {
       if (current.verified === undefined || cli.dryRun) return

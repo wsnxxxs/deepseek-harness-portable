@@ -205,7 +205,7 @@ Windows 已验证 bundle 位于 `dist-desktop/verified/win32-x64/`。发布是�
 会使用 `musl-gcc` 本地编译并暂存进 Linux runtime；launcher 缺失或 Landlock
 内核不可用时，运行时仍保持失败关闭。
 
-打包流程会为源码 workspace 生成指纹，并在输入未变化时复用已成功的编译、运行时部署、补丁和 Electron 产物层。排查干净构建时，可向 package 命令传入 `--no-cache`；需要有意打包现有编译产物时，仍可使用 `--skip-build`。release 命令不接受构建参数、不运行测试、不打补丁、不签名、也不重建压缩包；它只会重新校验 `artifact-verification.json` 指定的精确字节并复制它们。
+打包流程会为源码 workspace 生成指纹，并在输入未变化时复用已成功的编译、运行时部署、补丁、Electron 目录和最终平台容器层。相同源码和目标重复打包时，会跳过耗时较长的 workspace 编译，以及 AppImage/deb、ZIP/Setup 或 DMG 的重新生成。Linux release 包装脚本默认也会保留缓存；排查干净构建时，可向 package 命令传入 `--no-cache`。需要有意打包现有编译产物时，仍可使用 `--skip-build`。release 命令不接受构建参数、不运行测试、不打补丁、不签名、也不重建压缩包；它只会重新校验 `artifact-verification.json` 指定的精确字节并复制它们。
 
 桌面包保留三层独立版本：
 
