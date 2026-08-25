@@ -58,6 +58,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 - Minimal mode uses WSL Bash on Windows and the native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandbox-capable modes use bwrap or fail-closed Landlock according to the upstream policy.
 - Preinstalled, removable plugin marketplace with paginated GitHub search, one-click installation, update management, and agent-facing market tools.
 - Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, and GIF files through the kernel attachment and model services. It can automatically select a configured image-capable model—including the official `deepseek-v4-flash-vision-exp` catalog entry—or pin one in plugin settings, with no separate endpoint or API key.
+- The conversation input accepts pasted, dropped, or selected images, PDF, DOCX, XLSX, PPTX, text, data, and common source-code files. Documents are extracted locally, retained with the session, and exposed to the model through a bounded preview plus `read_attachment` continuation reads; OCR and legacy Office formats are not included.
 - Learning mode provides non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Teaching state advances from learner evidence and survives refresh, resume, and message compaction.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
@@ -65,8 +66,8 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 | Item | Version |
 | --- | --- |
-| Release | DeepSeek Harness Desktop **v1.5.4** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.4)) |
-| Distribution | 1.5.4 |
+| Release | DeepSeek Harness Desktop **v1.5.5** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.5)) |
+| Distribution | 1.5.5 |
 | Desktop shell | 0.1.0-shell.2 |
 | Kernel | 0.1.1-rc.2 |
 

@@ -16,6 +16,8 @@ Use this reference when the next move needs an explicit pedagogical shape. The m
 
 Legacy aliases such as `example` and `question` may appear in session history, but new state observations should prefer the explicit names above. A resource request is not a reason to force a question first. A visual or reflective pause is optional and must have ordinary-text fallback; skip, cancel, failure, or unavailable rendering must not block the lesson.
 
+Use at most one rich move in a user turn: either a visual scaffold or a checkpoint wait. Do not stack both around the same explanation, and do not add a checkpoint after directly fulfilling a requested overview or study resource.
+
 ## One step and a stopping rule
 
 Pair at most one focused question with a small scaffold. Do not hide an answer in the hint, and do not ask “what do you think?” without something concrete to inspect. Preserve the correct part of a partial response, name the missing piece, and choose a different representation after a failed explanation or hint. Record the failed move's representation and reason, not only its fingerprint, so the next move can genuinely differ.

@@ -10,13 +10,13 @@ Use for a quantitative relationship on axes: functions, measurements, distributi
 
 ### `node_link`
 
-Use when the question is “what connects to what?”: neural layers, trees, dependencies, causes, state transitions, processes, and concept topology. Use `layered` groups for neural networks and declare every actual edge. A 3→4→2 fully connected network has 12 + 8 = 20 edges.
+Use when the question is “what connects to what?”: neural layers, trees, dependencies, generic processes, and concept topology. Use `layered` groups for neural networks and declare every actual edge. A 3→4→2 fully connected network has 12 + 8 = 20 edges. Prefer `state_transition` when events move a current state, and `causal_loop` when signed feedback and delays are the lesson.
 
 Pick the layout from the shape of the relation: `layered` for a left-to-right pipeline or a decision tree read as a flow (it requires declared groups, and every node must name one), `hierarchy` for a top-down tree with no natural grouping, `radial` for one hub with peers around it. Give groups real names — “根节点 / 内部节点 / 叶节点”, “输入层 / 隐藏层 / 输出层” — because they are drawn as the diagram's headings. Label the edges that represent a choice or a condition; a branch whose meaning lives only in its colour cannot be read. Keep that label to a few words — “取概率最高的词”, not “把新序列再喂回去猜下一个词” — because it is drawn on a chip in the gap between two columns; the sentence that explains the step belongs in the edge's `detail` or in the prose. Declare the edge that closes a loop like any other edge: an edge that runs back to an earlier group is drawn as a return arc around the diagram, so a generation loop or a state machine reads as a cycle instead of a line.
 
 ### `scene_2d`
 
-Use for spatial construction: geometry, vectors, forces, rays, fields, coordinate proofs, and annotated scientific schematics. Use explicit points, segments, arrows, circles, rectangles, polygons, and labels. Prefer a `plot` when the axes and sampled values are the main meaning.
+Use for spatial construction: geometry, individual vectors, forces, rays, coordinate proofs, and annotated scientific schematics. Use explicit points, segments, arrows, circles, rectangles, polygons, and labels. Prefer a `plot` when the axes and sampled values are the main meaning, and `field_2d` for a sampled scalar or vector field.
 
 ### `relation`
 
@@ -37,6 +37,34 @@ Use for a supplied multi-section document, chapter, slide deck, or collection. P
 ### `recall_deck`
 
 Use when the learner explicitly asks for flashcards/active recall or agrees to a review phase after the material is known. Prompts should require retrieval, answers should be concise, and hints should cue without revealing. Mix conceptual contrasts and applications rather than copying headings into cards.
+
+### `data_table`
+
+Use for real records whose rows must be inspected, sorted, filtered, compared, or connected to a small declared chart. Keep a stable row id and typed columns. Mark missing values and declared outliers explicitly. Do not use it for a two-item feature comparison; that remains `relation.comparison`.
+
+### `state_transition`
+
+Use when the learner must follow a current state through events: software lifecycle, order or approval status, material phase, disease stage, or another finite-state process. Declare initial/final states and put trigger, guard, and action on transitions instead of compressing them into an unlabeled arrow.
+
+### `sequence_buffer`
+
+Use for indexed discrete slots with pointers or ranges: arrays, two-pointer algorithms, sliding windows, token spans, ring buffers, or TCP windows. Declare the slots once and use steps for value, pointer, or range changes. It is not a generic chronology.
+
+### `sequence_diagram`
+
+Use when the central question is “who sends what to whom, and in what order?” Declare participants and ordered messages, distinguishing calls, asynchronous messages, and returns. Prefer `node_link` when only stable topology matters and `timeline` when there are no interacting participants.
+
+### `code_trace`
+
+Use to replay code execution through source lines, variable changes, call-stack frames, loop iterations, and output. The trace is declarative evidence supplied to the renderer; it never executes model-authored code. Keep each step focused on the change the learner should notice.
+
+### `field_2d`
+
+Use for a scalar or vector quantity over two coordinates: heatmaps, contour levels, gradients, probability surfaces, and vector fields. Prefer `scene_2d` for a handful of hand-placed arrows or shapes and `plot` for a one-dimensional relation.
+
+### `causal_loop`
+
+Use for signed feedback systems where reinforcing or balancing loops and meaningful delays explain behaviour. Declare positive/negative influence, delays, and the links belonging to each loop. Prefer `node_link` for ordinary causal chains without feedback-loop semantics.
 
 ## Sequence frames
 

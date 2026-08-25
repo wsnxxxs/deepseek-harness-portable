@@ -18,8 +18,8 @@
 /* A soft band behind a declared group, so the columns read as layers without
    needing a heavy border. */
 .layerBand rect {
-  fill: color-mix(in srgb, var(--lx-label-primary) 3%, transparent);
-  stroke: var(--lx-border-subtle);
+  fill: color-mix(in srgb, var(--lx-label-primary) 6%, var(--lx-surface-base));
+  stroke: color-mix(in srgb, var(--lx-border-default) 82%, transparent);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
@@ -55,10 +55,17 @@
 
 .edgeGroup:hover .edgeVisible,
 .edgeGroup:focus-visible .edgeVisible,
-.edgeGroup[data-selected] .edgeVisible {
+.edgeGroup[data-selected] .edgeVisible,
+.edgeGroup[data-connected] .edgeVisible {
   stroke-opacity: 1;
   stroke-width: 3px;
+  filter: drop-shadow(0 0 3px var(--visual-tone));
 }
+
+.edgeGroup[data-dimmed] .edgeVisible { stroke: color-mix(in srgb, var(--lx-border-strong) 72%, var(--lx-surface-base)); stroke-width: 1.2px; }
+.edgeGroup[data-dimmed] .edgeLabel { visibility: hidden; }
+.edgeGroup[data-connected] .edgeLabel,
+.edgeGroup[data-selected] .edgeLabel { opacity: 1; }
 
 .arrowMarker path {
   fill: var(--visual-tone);

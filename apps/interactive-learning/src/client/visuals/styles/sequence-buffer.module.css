@@ -1,0 +1,133 @@
+/** `sequence_buffer`: slots, pointer tracks and inclusive ranges. */
+
+.viewport {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  padding: var(--lx-space-md);
+  background: var(--lx-surface-sunken);
+}
+
+.buffer {
+  min-width: max-content;
+  display: grid;
+  grid-template-columns: repeat(var(--buffer-columns), minmax(64px, 1fr));
+  gap: var(--lx-space-xs);
+  align-items: end;
+}
+
+.range {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lx-space-sm);
+  border: 1.5px solid color-mix(in srgb, var(--visual-tone) 58%, var(--lx-border-default));
+  border-radius: var(--lx-radius-pill);
+  padding: var(--lx-space-3xs) var(--lx-space-sm);
+  background: color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  color: var(--lx-label-primary);
+  font: inherit;
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-medium);
+  overflow-wrap: anywhere;
+  opacity: var(--lx-vs-alpha);
+  cursor: pointer;
+  transition: transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);
+}
+
+.range span { min-width: 0; overflow-wrap: anywhere; }
+.range small { flex: none; color: var(--lx-label-tertiary); font-variant-numeric: tabular-nums; }
+.range[data-visual-state="current"], .range[data-visual-state="selected"] {
+  border-width: 2px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent);
+}
+
+.slotGrid,
+.pointerGrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(var(--buffer-columns), minmax(64px, 1fr));
+  gap: var(--lx-space-xs);
+}
+
+.slot {
+  min-width: 64px;
+  min-height: 80px;
+  display: grid;
+  grid-template-rows: minmax(var(--lx-leading-micro), auto) 1fr var(--lx-leading-micro);
+  gap: var(--lx-space-3xs);
+  align-items: center;
+  border: 1.2px solid color-mix(in srgb, var(--visual-tone) 38%, var(--lx-border-subtle));
+  border-radius: var(--lx-radius-md);
+  padding: var(--lx-space-xs);
+  background: color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  color: var(--lx-label-primary);
+  font: inherit;
+  text-align: center;
+  opacity: var(--lx-vs-alpha);
+  cursor: pointer;
+  transition: border-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);
+}
+
+.slot:hover, .pointer:hover, .range:hover {
+  border-color: var(--visual-tone);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent);
+}
+
+.slot[data-visual-state="current"], .slot[data-visual-state="selected"] {
+  border-width: 2px;
+  border-color: var(--visual-tone);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);
+}
+
+.slot small { min-height: var(--lx-leading-micro); color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); line-height: var(--lx-leading-micro); font-weight: var(--lx-weight-medium); }
+.slot strong { overflow-wrap: anywhere; color: var(--visual-tone); font-size: var(--lx-text-base); font-weight: var(--lx-weight-strong); line-height: var(--lx-leading-sm); }
+.slot > span {
+  display: inline-block;
+  border-radius: var(--lx-radius-xs);
+  padding: 1px 4px;
+  background: var(--lx-surface-sunken);
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.slot[data-missing] strong { color: var(--lx-label-tertiary); font-weight: var(--lx-weight-regular); }
+
+.pointerGrid { align-items: start; grid-auto-rows: minmax(34px, auto); row-gap: var(--lx-space-xs); }
+
+.pointer {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--lx-radius-sm);
+  padding: 2px var(--lx-space-3xs) var(--lx-space-3xs);
+  background: transparent;
+  color: var(--visual-tone);
+  font: inherit;
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-strong);
+  opacity: var(--lx-vs-alpha);
+  cursor: pointer;
+  transition: transform var(--lx-motion-fast) var(--lx-easing);
+}
+
+.pointer i {
+  font-size: var(--lx-text-base);
+  font-style: normal;
+  line-height: 1;
+  filter: drop-shadow(0 0 2px var(--visual-tone));
+}
+
+.pointer span { max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+.pointer small { color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); font-variant-numeric: tabular-nums; }
+.pointer[data-visual-state="current"], .pointer[data-visual-state="selected"] {
+  background: color-mix(in srgb, var(--visual-tone) 12%, var(--lx-surface-base));
+  border-color: color-mix(in srgb, var(--visual-tone) 40%, transparent);
+}

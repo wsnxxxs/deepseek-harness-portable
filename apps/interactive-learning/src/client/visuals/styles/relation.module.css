@@ -43,7 +43,12 @@
 }
 
 .relationTable td { color: var(--lx-label-secondary); }
-.relationTable td[data-tone] { color: var(--visual-tone); font-weight: var(--lx-weight-medium); }
+.relationTable td[data-tone] {
+  color: var(--visual-tone);
+  font-weight: var(--lx-weight-medium);
+  background: color-mix(in srgb, var(--visual-tone) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--visual-tone) 10%, transparent);
+}
 
 .relationTable th[data-visual-state],
 .relationTable tr[data-visual-state] > * { opacity: var(--lx-vs-alpha); }
@@ -178,6 +183,58 @@
 
 .intersectionItem strong { color: var(--lx-label-primary); font-size: var(--lx-text-2xs); line-height: var(--lx-leading-2xs); }
 .intersectionItem span { color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); line-height: var(--lx-leading-micro); }
+
+/* Venn Diagram Component */
+.vennContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--lx-space-sm);
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-surface-sunken);
+}
+
+.vennSvg {
+  max-width: 480px;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.vennCircle {
+  fill: color-mix(in srgb, var(--visual-tone) 14%, transparent);
+  stroke: var(--visual-tone);
+  stroke-width: 2;
+  mix-blend-mode: multiply;
+  transition: fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
+}
+
+:global([data-theme="dark"]) .vennCircle {
+  mix-blend-mode: screen;
+  fill: color-mix(in srgb, var(--visual-tone) 20%, transparent);
+}
+
+.vennLabel {
+  fill: var(--visual-tone);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: 0.02em;
+}
+
+.vennIntersectionLabel {
+  fill: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-medium);
+}
+
+.vennItems { pointer-events: none; }
+.vennItem {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-medium);
+}
+.vennOverflow { fill: var(--lx-label-tertiary); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }
 
 @container learning-visual-v4 (max-width: 560px) {
   .relationTable { min-width: 420px; }

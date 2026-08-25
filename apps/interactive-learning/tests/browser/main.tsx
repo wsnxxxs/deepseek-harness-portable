@@ -347,6 +347,13 @@ function visualDeclaredIds(visual: LearningVisualV4): string[] {
     case 'formula_steps': return content.steps.map(item => item.id)
     case 'study_map': return [...content.sections, ...content.concepts].map(item => item.id)
     case 'recall_deck': return content.cards.map(item => item.id)
+    case 'data_table': return [...content.columns, ...content.rows].map(item => item.id)
+    case 'state_transition': return [...content.states, ...content.transitions, ...(content.steps ?? [])].map(item => item.id)
+    case 'sequence_buffer': return [...content.slots, ...(content.pointers ?? []), ...(content.ranges ?? []), ...(content.steps ?? [])].map(item => item.id)
+    case 'sequence_diagram': return [...content.participants, ...content.messages].map(item => item.id)
+    case 'code_trace': return content.steps.map(item => item.id)
+    case 'field_2d': return []
+    case 'causal_loop': return [...content.variables, ...content.links, ...(content.loops ?? [])].map(item => item.id)
     case 'relation':
       switch (content.variant) {
         case 'comparison': return [...content.subjects, ...content.rows].map(item => item.id)

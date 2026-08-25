@@ -8,7 +8,7 @@
  */
 export declare const LEARN_INTENT: "learn";
 export type LearnIntent = typeof LEARN_INTENT | 'not-learn';
-export type LearnTrigger = 'explicit-learning' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'conceptual-question' | 'explicit-overview' | 'current-topic' | 'resource-creation' | 'coding-task' | 'translation-task' | 'news-request' | 'resource-recommendation' | 'opinion-judgment' | 'unknown';
+export type LearnTrigger = 'explicit-learning' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'conceptual-question' | 'explicit-overview' | 'current-topic' | 'resource-creation' | 'coding-task' | 'calculation-task' | 'factual-lookup' | 'troubleshooting-task' | 'translation-task' | 'news-request' | 'current-fact-lookup' | 'resource-recommendation' | 'opinion-judgment' | 'unknown';
 export interface LearnIntentDecision {
     intent: LearnIntent;
     trigger: LearnTrigger;

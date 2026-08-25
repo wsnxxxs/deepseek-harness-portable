@@ -51,3 +51,17 @@ Use explicit, stable axis ranges. Use dashed or dotted strokes as well as labels
   Reveal and mastered/review clicks are persisted locally and may be mirrored to
   Host as low-confidence, unverified session observations; never treat a
   self-rating as correctness or transfer evidence.
+- `data_table`: every cell references a declared column; chart, sort, and filter
+  columns resolve inside the same table; outliers reference declared rows.
+- `state_transition`: transitions reference declared states; steps reference a
+  current state and, when present, the transition that produced it.
+- `sequence_buffer`: slot ids and indices are unique; pointers, ranges, and step
+  snapshots remain inside the declared slot interval.
+- `sequence_diagram`: every message endpoint references a declared participant;
+  message array order is the interaction order.
+- `code_trace`: current lines and stack line references resolve to declared source
+  lines. The payload is replayed as data and is never executed.
+- `field_2d`: sampled grid dimensions match their value arrays; expression fields
+  use only the declared `x` and `y` coordinates.
+- `causal_loop`: signed links reference declared variables and every loop references
+  declared links.

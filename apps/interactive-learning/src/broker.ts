@@ -110,7 +110,7 @@ export interface PresentLearningCheckpointRequest {
 
 export type ObservableLearnerStateUpdate = Exclude<
   LearnerStateEvent,
-  { type: 'assistant_move_observed' | 'state_corrected' }
+  { type: 'state_corrected' }
 >
 
 export type LearningStateUpdateRequest =
@@ -443,6 +443,11 @@ export class LearningActivityBroker extends Service {
       + this.checkpointReceipts.size
       + this.pendingCheckpointSessions.size
       + this.pendingCheckpointWaits.size
+  }
+
+  /** Whether this composition can render Learning visuals and checkpoints. */
+  get richClientAvailable(): boolean {
+    return this.hasRichClient()
   }
 
   /** Fold the latest durable full snapshot for this exact live session. */

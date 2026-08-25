@@ -42,6 +42,7 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
   const routes = useMemo(() => edgeRoutes(content, layout), [content, layout])
   const emphasis = useMemo(() => graphEmphasis(content, focus), [content, focus])
   const [selected, setSelected] = useState<SelectedItem | undefined>()
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>()
   const nodeById = useMemo(() => new Map(content.nodes.map(node => [node.id, node])), [content.nodes])
 
   const selectNode = (node: NodeLinkContent['nodes'][number], tone: string): void => setSelected({
@@ -120,11 +121,8 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                 from: nodeById.get(edge.from)?.label ?? edge.from,
                 to: nodeById.get(edge.to)?.label ?? edge.to,
               })
-              // Dense graphs keep their resting frame quiet, but every edge
-              // still needs to explain itself without requiring a click. The
-              // tooltip uses the routed chip position when one exists and a
-              // stable midpoint for unlabeled edges. The existing click path
-              // remains responsible for the full detail panel.
+              const isConnected = hoveredNodeId !== undefined && (edge.from === hoveredNodeId || edge.to === hoveredNodeId)
+              const isDimmed = hoveredNodeId !== undefined && !isConnected
               const tooltipText = `${edge.label ?? connection}${edge.detail === undefined ? '' : ` · ${edge.detail}`}`
               const tooltipBox = edgeLabelBox(tooltipText)
               const tooltipAnchor = label === undefined
@@ -141,6 +139,8 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                   data-stroke={edge.stroke ?? 'solid'}
                   data-visual-state={selected?.id === edge.id ? 'selected' : state}
                   data-selected={selected?.id === edge.id || undefined}
+                  data-connected={isConnected || undefined}
+                  data-dimmed={isDimmed || undefined}
                   data-visual-id={edge.id}
                   data-crowded={label?.crowded === true || undefined}
                   role="button"
@@ -221,9 +221,11 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                   transform={`translate(${box.x} ${box.y})`}
                   onClick={() => selectNode(node, tone)}
                   {...roving.itemProps(node.id, () => selectNode(node, tone))}
+                  onPointerEnter={() => setHoveredNodeId(node.id)}
+                  onPointerLeave={() => setHoveredNodeId(undefined)}
+                  onFocus={() => setHoveredNodeId(node.id)}
+                  onBlur={() => setHoveredNodeId(undefined)}
                 >
-                  {/* The ring is what raises the current node, so the rest of the
-                      graph never has to be faded away to make it stand out. */}
                   <rect
                     className={css.nodeRing}
                     x={-box.width / 2 - 5}

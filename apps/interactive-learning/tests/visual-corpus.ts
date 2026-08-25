@@ -8,6 +8,7 @@
  * renderer that silently degrades one of them is caught rather than shipped.
  */
 import { VISUAL_PROTOCOL_V4 } from '../src/protocol.ts'
+import { visualV4Catalog } from './fixtures.ts'
 
 type Content = Record<string, unknown>
 
@@ -462,6 +463,16 @@ const sequenced = {
   }),
 }
 
+const expandedKinds = {
+  dataTable: visualV4Catalog.datasetTable,
+  stateTransition: visualV4Catalog.orderStateTransition,
+  sequenceBuffer: visualV4Catalog.slidingWindowBuffer,
+  sequenceDiagram: visualV4Catalog.apiSequenceDiagram,
+  codeTrace: visualV4Catalog.loopCodeTrace,
+  field2d: visualV4Catalog.gradientField,
+  causalLoop: visualV4Catalog.adoptionCausalLoop,
+}
+
 export const VISUAL_VARIANT_CORPUS: Readonly<Record<string, Record<string, unknown>>> = {
   ...plots,
   ...graphs,
@@ -472,4 +483,5 @@ export const VISUAL_VARIANT_CORPUS: Readonly<Record<string, Record<string, unkno
   ...studyMaps,
   ...recallDecks,
   ...sequenced,
+  ...expandedKinds,
 }

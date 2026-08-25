@@ -20,9 +20,16 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
-- id: tool-ask-user
-  name: '@deepseek-ai/dsh-tool-ask-user'
+# Current and contested learning topics need source-grounded answers, while the
+# preset remains non-coding and does not mount shell or mutation tools.
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000
 
+# Calibration questions stay in ordinary conversation. The Learning Agent's
+# answer-free checkpoint is the preset's only deliberate user wait.
 - id: compaction
   name: cordis:group
   group: true

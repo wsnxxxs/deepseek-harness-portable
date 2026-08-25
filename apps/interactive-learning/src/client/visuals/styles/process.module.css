@@ -1,0 +1,400 @@
+/* Shared marks for the state, message and causal-process renderers. */
+
+.processViewport {
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-lg);
+  background: var(--lx-surface-sunken);
+  scrollbar-width: thin;
+}
+
+.processSvg {
+  display: block;
+  max-width: none;
+  min-width: 100%;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+.processSvg text {
+  font-family: inherit;
+}
+
+.processArrow path,
+.diagramArrow path,
+.causalArrow path {
+  fill: var(--visual-tone);
+  fill-opacity: var(--lx-vs-alpha);
+}
+
+/* --------------------------------------------------------- state transition */
+
+.transitionGroup,
+.stateGroup,
+.messageGroup,
+.participantGroup,
+.causalLink,
+.causalVariable,
+.causalLoop {
+  --visual-tone: var(--lx-accent);
+  cursor: pointer;
+  outline: none;
+}
+
+.transitionLine {
+  fill: none;
+  stroke: var(--visual-tone);
+  stroke-width: calc(1.7px + var(--lx-vs-ring) * 0.8px);
+  stroke-opacity: var(--lx-vs-alpha);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
+}
+
+.transitionHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.transitionLabel rect {
+  fill: var(--lx-surface-base);
+  stroke: color-mix(in srgb, var(--visual-tone) 34%, var(--lx-border-subtle));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.transitionLabel text {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-medium);
+  pointer-events: none;
+}
+
+.stateRing {
+  fill: none;
+  stroke: var(--visual-tone);
+  stroke-width: 2;
+  stroke-opacity: calc(var(--lx-vs-ring) * 0.4);
+  vector-effect: non-scaling-stroke;
+  transition: stroke-opacity var(--lx-motion-fast) var(--lx-easing);
+}
+
+.stateShape {
+  fill: color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));
+  fill-opacity: var(--lx-vs-alpha);
+  stroke: var(--visual-tone);
+  stroke-opacity: var(--lx-vs-alpha);
+  stroke-width: calc(1.6px + var(--lx-vs-ring) * 1.2px);
+  vector-effect: non-scaling-stroke;
+  transition: fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
+}
+
+.stateLabel {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-strong);
+  opacity: var(--lx-vs-alpha);
+  pointer-events: none;
+}
+
+.stateMarker {
+  fill: var(--visual-tone);
+  font-size: 9px;
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.currentStateMarker { fill: var(--visual-tone); stroke: var(--lx-surface-base); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
+.transitionGroup:hover .transitionLine,
+.transitionGroup:focus-visible .transitionLine,
+.transitionGroup[data-visual-state="selected"] .transitionLine {
+  stroke-opacity: 1;
+  stroke-width: 3px;
+}
+
+.stateGroup:hover .stateShape,
+.stateGroup:focus-visible .stateShape,
+.stateGroup[data-visual-state="selected"] .stateShape,
+.stateGroup[data-visual-state="current"] .stateShape {
+  fill: color-mix(in srgb, var(--visual-tone) 20%, var(--lx-surface-base));
+  fill-opacity: 1;
+  stroke-opacity: 1;
+  stroke-width: 2.8px;
+}
+
+.stateGroup[data-visual-state="current"] .stateRing,
+.stateGroup[data-visual-state="selected"] .stateRing { stroke-opacity: 0.58; }
+
+/* ----------------------------------------------------------- sequence diagram */
+
+.participantCard {
+  fill: color-mix(in srgb, var(--visual-tone) 11%, var(--lx-surface-base));
+  stroke: var(--visual-tone);
+  stroke-opacity: var(--lx-vs-alpha);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.participantLabel {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-strong);
+  pointer-events: none;
+}
+
+.lifeline {
+  fill: none;
+  stroke: var(--visual-tone);
+  stroke-dasharray: 4 5;
+  stroke-opacity: 0.58;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.activation {
+  fill: color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));
+  stroke: var(--visual-tone);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.messageLine {
+  fill: none;
+  stroke: var(--visual-tone);
+  stroke-width: 1.8;
+  stroke-opacity: var(--lx-vs-alpha);
+  vector-effect: non-scaling-stroke;
+}
+
+.messageGroup[data-message-type="return"] .messageLine { stroke-dasharray: 7 5; stroke-opacity: 0.78; }
+.messageGroup[data-message-type="async"] .messageLine { stroke-dasharray: 2 5; }
+.messageGroup[data-stroke="dashed"] .messageLine { stroke-dasharray: 7 5; }
+
+.messageHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.messageLabel rect {
+  fill: var(--lx-surface-base);
+  stroke: color-mix(in srgb, var(--visual-tone) 30%, var(--lx-border-subtle));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.messageLabel text {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-medium);
+  pointer-events: none;
+}
+
+.messageGroup[data-message-type="return"] .messageLabel rect { stroke-dasharray: 4 3; }
+.messageGroup[data-message-type="async"] .messageLabel rect { stroke-dasharray: 1 3; }
+
+.messageGroup:hover .messageLine,
+.messageGroup:focus-visible .messageLine,
+.messageGroup[data-visual-state="selected"] .messageLine { stroke-width: 3px; stroke-opacity: 1; }
+
+.participantGroup:hover .participantCard,
+.participantGroup:focus-visible .participantCard,
+.participantGroup[data-visual-state="selected"] .participantCard,
+.participantGroup[data-visual-state="current"] .participantCard {
+  fill: color-mix(in srgb, var(--visual-tone) 22%, var(--lx-surface-base));
+  stroke-width: 2.6px;
+  stroke-opacity: 1;
+}
+
+.participantGroup[data-visual-state="current"] .participantCard { filter: drop-shadow(0 0 0.2rem color-mix(in srgb, var(--visual-tone) 28%, transparent)); }
+
+/* -------------------------------------------------------------- causal loop */
+
+.causalLinkPath {
+  fill: none;
+  stroke: var(--visual-tone);
+  stroke-opacity: var(--lx-vs-alpha);
+  stroke-width: calc(1.8px + var(--lx-vs-ring) * 0.7px);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-width var(--lx-motion-fast) var(--lx-easing), stroke-opacity var(--lx-motion-fast) var(--lx-easing);
+}
+
+.causalLinkHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+.causalSign rect,
+.causalDelay rect {
+  fill: var(--lx-surface-base);
+  stroke: color-mix(in srgb, var(--visual-tone) 44%, var(--lx-border-subtle));
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.causalSign text,
+.causalDelay text,
+.causalLinkLabel {
+  fill: var(--visual-tone);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-strong);
+}
+
+.causalLabelGroup {
+  pointer-events: none;
+}
+
+.causalLabelBg {
+  fill: var(--lx-surface-base);
+  fill-opacity: 0.94;
+  stroke: color-mix(in srgb, var(--visual-tone) 24%, var(--lx-border-subtle));
+  stroke-width: 1;
+}
+
+.causalLinkLabel {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-medium);
+}
+
+.causalVariableShape {
+  fill: color-mix(in srgb, var(--visual-tone) 10%, var(--lx-surface-base));
+  fill-opacity: var(--lx-vs-alpha);
+  stroke: var(--visual-tone);
+  stroke-opacity: var(--lx-vs-alpha);
+  stroke-width: calc(1.6px + var(--lx-vs-ring) * 1.2px);
+  vector-effect: non-scaling-stroke;
+  transition: fill-opacity var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
+}
+
+.causalVariableLabel {
+  fill: var(--lx-label-primary);
+  font-size: var(--lx-text-xs);
+  font-weight: var(--lx-weight-strong);
+  pointer-events: none;
+}
+
+.causalLoopBadge rect {
+  fill: color-mix(in srgb, var(--visual-tone) 14%, var(--lx-surface-base));
+  stroke: var(--visual-tone);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--visual-tone) 16%, transparent));
+  transition: fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
+}
+
+.causalLoopBadge text {
+  fill: var(--visual-tone);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.causalLink:hover .causalLinkPath,
+.causalLink:focus-visible .causalLinkPath,
+.causalLink[data-visual-state="selected"] .causalLinkPath {
+  stroke-width: 3px;
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 4px var(--visual-tone));
+}
+
+.causalVariable:hover .causalVariableShape,
+.causalVariable:focus-visible .causalVariableShape,
+.causalVariable[data-visual-state="selected"] .causalVariableShape,
+.causalVariable[data-visual-state="current"] .causalVariableShape {
+  fill: color-mix(in srgb, var(--visual-tone) 24%, var(--lx-surface-base));
+  fill-opacity: 1;
+  stroke-width: 2.8px;
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--visual-tone) 30%, transparent));
+}
+
+.causalLoop:hover .causalLoopBadge rect,
+.causalLoop:focus-visible .causalLoopBadge rect,
+.causalLoop[data-visual-state="selected"] .causalLoopBadge rect {
+  fill: color-mix(in srgb, var(--visual-tone) 26%, var(--lx-surface-base));
+  stroke-width: 2.2px;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--visual-tone) 36%, transparent));
+}
+
+.causalLoopBadge[data-loop-kind="balancing"] rect { stroke-dasharray: 5 3; }
+
+.processSteps {
+  display: grid;
+  gap: var(--lx-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.processSteps li {
+  display: grid;
+  gap: var(--lx-space-3xs);
+  border-left: 3px solid var(--lx-border-default);
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+}
+
+.processSteps li[data-active] {
+  border-left-color: var(--lx-accent);
+  background: color-mix(in srgb, var(--lx-accent) 7%, transparent);
+}
+
+.processSteps strong { color: var(--lx-label-primary); font-weight: var(--lx-weight-strong); }
+
+.stepButton {
+  display: grid;
+  justify-items: start;
+  gap: var(--lx-space-3xs);
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.stepButton span {
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+  line-height: var(--lx-leading-2xs);
+}
+
+@media (max-width: 560px) {
+  .processSvg { min-width: 520px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transitionLine,
+  .stateShape,
+  .stateRing,
+  .messageLine,
+  .causalLinkPath { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .stateShape,
+  .participantCard,
+  .causalVariableShape { fill: Canvas; stroke: CanvasText; }
+  .transitionLine,
+  .messageLine,
+  .causalLinkPath { stroke: CanvasText; }
+  .stateGroup[data-visual-state="current"] .stateShape,
+  .participantGroup[data-visual-state="current"] .participantCard,
+  .causalVariable[data-visual-state="current"] .causalVariableShape { fill: Highlight; }
+}

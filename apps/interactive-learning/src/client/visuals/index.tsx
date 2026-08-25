@@ -1,6 +1,6 @@
 /**
  * The visual@4 shell: one card, one heading, one optional sequence controller,
- * one error boundary, and whichever of the eight renderers the payload names.
+ * one error boundary, and whichever native renderer the payload names.
  *
  * The shell owns everything that is not renderer-specific, including the
  * emphasis a sequence frame produces. Frames earlier than the current one
@@ -26,6 +26,13 @@ import { TimelineRenderer } from './renderers/TimelineRenderer.tsx'
 import { FormulaStepsRenderer } from './renderers/FormulaStepsRenderer.tsx'
 import { StudyMapRenderer } from './renderers/StudyMapRenderer.tsx'
 import { RecallDeckRenderer } from './renderers/RecallDeckRenderer.tsx'
+import { DataTableRenderer } from './renderers/DataTableRenderer.tsx'
+import { StateTransitionRenderer } from './renderers/StateTransitionRenderer.tsx'
+import { SequenceBufferRenderer } from './renderers/SequenceBufferRenderer.tsx'
+import { SequenceDiagramRenderer } from './renderers/SequenceDiagramRenderer.tsx'
+import { CodeTraceRenderer } from './renderers/CodeTraceRenderer.tsx'
+import { Field2DRenderer } from './renderers/Field2DRenderer.tsx'
+import { CausalLoopRenderer } from './renderers/CausalLoopRenderer.tsx'
 import css from './styles/shell.module.css'
 
 type RendererRegistry = {
@@ -41,6 +48,13 @@ const VISUAL_RENDERER_REGISTRY: RendererRegistry = {
   formula_steps: FormulaStepsRenderer,
   study_map: StudyMapRenderer,
   recall_deck: RecallDeckRenderer,
+  data_table: DataTableRenderer,
+  state_transition: StateTransitionRenderer,
+  sequence_buffer: SequenceBufferRenderer,
+  sequence_diagram: SequenceDiagramRenderer,
+  code_trace: CodeTraceRenderer,
+  field_2d: Field2DRenderer,
+  causal_loop: CausalLoopRenderer,
 }
 
 function RegisteredVisual({ content, focus, storageKey, onRecallStatusChange }: RendererProps) {

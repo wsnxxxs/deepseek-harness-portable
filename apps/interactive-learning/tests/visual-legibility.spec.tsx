@@ -48,6 +48,11 @@ const VISUAL_STYLESHEETS = [
   'visuals/styles/formula.module.css',
   'visuals/styles/study.module.css',
   'visuals/styles/recall.module.css',
+  'visuals/styles/data-table.module.css',
+  'visuals/styles/process.module.css',
+  'visuals/styles/sequence-buffer.module.css',
+  'visuals/styles/code-trace.module.css',
+  'visuals/styles/field-2d.module.css',
 ] as const
 
 const DECISION_TREE = DECISION_TREE_VISUAL as unknown as VisualDefinition

@@ -17,6 +17,9 @@ schemas and prompts.
   A selector exposes only the chosen visual/checkpoint payload schema for the
   next model step. Its standing policy comes from one canonical TypeScript
   source rather than being duplicated in the Skill.
+- The preset also keeps attachment continuation, Skill loading, and
+  `web_search`. Web search grounds current or contested-topic explanations in
+  sources without adding shell, editing, or automation tools to the preset.
 - `./client` renders visuals and optional checkpoints inline. State updates have
   an explicitly empty tool view. V1/V2 activity calls and V3 visuals retain
   read-only replay support.
@@ -33,19 +36,23 @@ terminates after one result.
 ## Learn intent and first-turn route
 
 The Learning preset classifies the request before choosing a teaching route.
-Definitions, bare concept names, persistent confusion or memory failure,
-prerequisites and learning paths, conceptual why/how questions, and requested
-flashcards or study guides are learn intent. Coding or debugging, translation,
-news updates, resource recommendations, and opinion requests stay on their
+Definitions, bare concept names, ELI5/beginner requests, persistent confusion or
+rustiness, prerequisites and learning paths, conceptual why/how questions, and
+requested quizzes, flashcards, or study guides are learn intent. Coding or
+debugging, direct calculation, personal troubleshooting, translation, news or
+fact lookups, resource recommendations, and opinion requests stay on their
 ordinary task route. Current or contested topics remain learn intent when the
-   user asks for structured understanding. Bare concepts get one route-changing
-   calibration question; definitions, clear confusions, and clear goals start the
-   minimum useful explanation.
+user asks for structured understanding and use Web search before substantive
+source-backed explanation. Bare concepts get one route-changing calibration
+question; definitions, clear confusions, and clear goals start the minimum
+useful explanation. Requested study resources are created directly.
 
 Once that learning segment is active, short answers, confusion, pressure, and
 follow-up questions inherit it instead of being reclassified as new requests.
 An explicit task/topic switch, reset, completion, or closing acknowledgement ends
-the segment and restores ordinary routing.
+the segment and restores ordinary routing. After refresh or process resume, an
+unfinished persisted learner goal restores this inheritance even though the
+process-local route cache is empty.
 
 ## Non-blocking learning flow
 
@@ -184,12 +191,22 @@ and must never become a per-turn Continue ceremony.
   actions keep local replay state and, when the Host bridge is available, are
   recorded as unverified session-scoped learner observations.
   Resetting the deck clears only the local badges; it does not erase Host
-  observations.
+  observations;
+- `data_table` for typed records with sorting, filtering, selection, outlier marks, and a linked chart;
+- `state_transition` for event-driven state changes with guards and actions;
+- `sequence_buffer` for discrete slots, pointers, ranges, and step snapshots;
+- `sequence_diagram` for ordered sync, async, and return messages between participants;
+- `code_trace` for declarative replay of code lines, variables, call stacks, loops, and output;
+- `field_2d` for scalar heatmaps, contours, and vector fields;
+- `causal_loop` for signed, delayed reinforcing and balancing feedback loops.
 
 Any kind can add local sequence frames that progressively focus declared ids.
 The controls remain exploratory and never replace the ordinary conversation
 composer. Renderers provide a visible title, keyboard-accessible inspection,
 responsive layouts, structured text alternatives, and a local error boundary.
+`state_transition`, `sequence_buffer`, and `code_trace` can also carry compact
+kind-specific snapshots so states, pointers, variables, and stack frames really
+change from one step to the next.
 
 Plot content supports optional bounded sliders, static points, polylines, bars,
 computed curves, stable axes, and parameter-derived metrics. A slider is omitted

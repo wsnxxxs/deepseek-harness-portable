@@ -264,8 +264,11 @@ if (!isSplashDocument) {
 
   function renderTimeline(releases) {
     if (!Array.isArray(releases) || releases.length === 0) return '<div class="dsh-empty-copy">' + escapeHtml(desktopText('release.noHistory')) + '</div>'
-    ensureExpandedVersions(releases)
-    return '<div class="dsh-timeline" aria-label="' + escapeHtml(desktopText('release.timelineAria')) + '">' + releases.map((release, index) => {
+    // Keep the full history available to update detection and caching, but only
+    // show the newest release in the release notes UI.
+    const latestRelease = releases[0]
+    ensureExpandedVersions([latestRelease])
+    return '<div class="dsh-timeline" aria-label="' + escapeHtml(desktopText('release.timelineAria')) + '">' + [latestRelease].map((release, index) => {
       const version = String(release.version || '')
       const current = version === state.data?.currentVersion
       const expanded = state.expandedVersions.has(version)

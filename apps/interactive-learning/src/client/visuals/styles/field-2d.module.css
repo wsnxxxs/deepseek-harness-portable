@@ -1,0 +1,53 @@
+/** `field_2d`: heat, contour, vector and probe layers. */
+
+.field {
+  display: block;
+  max-width: none;
+  touch-action: pan-y;
+  outline: none;
+}
+
+.field:focus-visible { outline: 2px solid var(--lx-accent); outline-offset: -2px; }
+.frame { fill: var(--lx-surface-sunken); stroke: var(--lx-border-subtle); vector-effect: non-scaling-stroke; }
+.heatCell { shape-rendering: geometricPrecision; }
+.contour { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: 0.88; filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); vector-effect: non-scaling-stroke; }
+.vector { stroke: var(--lx-label-primary); stroke-width: 1.5; stroke-linecap: round; stroke-opacity: 0.76; filter: drop-shadow(0 0 1px rgba(0,0,0,0.3)); vector-effect: non-scaling-stroke; }
+.arrowHead path { fill: var(--lx-label-primary); }
+.zeroVector { fill: var(--lx-label-primary); fill-opacity: 0.7; }
+.tick { fill: var(--lx-label-secondary); font-size: var(--lx-text-micro); font-variant-numeric: tabular-nums; }
+.axisLabel { fill: var(--lx-label-secondary); font-size: var(--lx-text-2xs); font-weight: var(--lx-weight-medium); }
+.probe line { stroke: var(--lx-accent); stroke-width: 1.2; stroke-dasharray: 4 3; stroke-opacity: 0.9; filter: drop-shadow(0 0 2px var(--lx-accent)); vector-effect: non-scaling-stroke; }
+
+.readout {
+  min-height: 36px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lx-space-sm) var(--lx-space-lg);
+  padding: var(--lx-space-xs) var(--lx-space-sm);
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-surface-base);
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-xs);
+}
+
+.readout output { flex: 1 1 240px; color: var(--lx-label-primary); font-weight: var(--lx-weight-medium); }
+
+.legend {
+  display: grid;
+  grid-template-columns: auto 120px auto;
+  align-items: center;
+  gap: var(--lx-space-xs);
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend i {
+  height: 10px;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-pill);
+  background: linear-gradient(90deg, hsl(235 72% 56%), hsl(160 72% 50%), hsl(70 80% 50%), hsl(15 85% 56%));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}

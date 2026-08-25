@@ -45,6 +45,13 @@ const REQUIRED_MARKUP: Readonly<Record<string, string>> = {
   formula_steps: '[class*=formulaStepCard]',
   study_map: '[role="tab"]',
   recall_deck: 'article',
+  data_table: 'table',
+  state_transition: '[data-visual-id]',
+  sequence_buffer: '[data-visual-id]',
+  sequence_diagram: '[data-visual-id]',
+  code_trace: 'pre, code',
+  field_2d: 'svg, canvas',
+  causal_loop: '[data-visual-id]',
 }
 
 afterEach(cleanup)
@@ -57,10 +64,12 @@ afterEach(cleanup)
 describe('every accepted visual variant renders instead of degrading', () => {
   const entries = Object.entries(VISUAL_VARIANT_CORPUS)
 
-  it('covers all eight content kinds', () => {
+  it('covers all fifteen content kinds', () => {
     const kinds = new Set(entries.map(([, visual]) => (visual.content as { kind: string }).kind))
     expect([...kinds].sort()).toEqual([
-      'formula_steps', 'node_link', 'plot', 'recall_deck', 'relation', 'scene_2d', 'study_map', 'timeline',
+      'causal_loop', 'code_trace', 'data_table', 'field_2d', 'formula_steps', 'node_link', 'plot',
+      'recall_deck', 'relation', 'scene_2d', 'sequence_buffer', 'sequence_diagram', 'state_transition',
+      'study_map', 'timeline',
     ])
     expect(entries.length).toBeGreaterThanOrEqual(28)
   })

@@ -27,12 +27,13 @@
   min-height: 200px;
   gap: var(--lx-space-lg);
   align-content: start;
-  border: 1px solid var(--lx-border-default);
+  border: 1px solid var(--lx-border-subtle);
   border-radius: var(--lx-radius-lg);
-  padding: clamp(14px, 3cqi, 22px);
+  padding: clamp(16px, 3.2cqi, 24px);
   background: var(--lx-surface-base);
-  box-shadow: var(--lx-shadow-sm);
+  box-shadow: var(--lx-shadow-md);
   opacity: var(--lx-vs-alpha);
+  transition: box-shadow var(--lx-motion-base) var(--lx-easing);
 }
 
 .recallCardHeader {
@@ -42,10 +43,35 @@
   gap: var(--lx-space-lg);
 }
 
-.recallCardHeader > span { color: var(--lx-accent); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); letter-spacing: var(--lx-tracking-eyebrow); text-transform: uppercase; }
-.recallCardHeader > small { border-radius: var(--lx-radius-pill); padding: var(--lx-space-3xs) var(--lx-space-sm); background: var(--lx-border-subtle); color: var(--lx-label-secondary); font-size: var(--lx-text-micro); }
-.recallCardHeader > small[data-status="mastered"] { background: color-mix(in srgb, var(--lx-success) 14%, transparent); color: var(--lx-success); }
-.recallCardHeader > small[data-status="review"] { background: color-mix(in srgb, var(--lx-warn) 14%, transparent); color: var(--lx-warn); }
+.recallCardHeader > span {
+  color: var(--lx-accent);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: var(--lx-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.recallCardHeader > small {
+  border-radius: var(--lx-radius-pill);
+  padding: var(--lx-space-3xs) var(--lx-space-sm);
+  background: var(--lx-surface-sunken);
+  border: 1px solid var(--lx-border-subtle);
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-medium);
+}
+
+.recallCardHeader > small[data-status="mastered"] {
+  border-color: color-mix(in srgb, var(--lx-success) 30%, transparent);
+  background: color-mix(in srgb, var(--lx-success) 12%, transparent);
+  color: var(--lx-success);
+}
+
+.recallCardHeader > small[data-status="review"] {
+  border-color: color-mix(in srgb, var(--lx-warn) 30%, transparent);
+  background: color-mix(in srgb, var(--lx-warn) 12%, transparent);
+  color: var(--lx-warn);
+}
 
 .recallCard > h4 {
   margin: 0;
@@ -68,27 +94,36 @@
   border: 1px solid var(--lx-border-subtle);
   border-radius: var(--lx-radius-pill);
   padding: var(--lx-space-3xs) var(--lx-space-sm);
+  background: var(--lx-surface-sunken);
   color: var(--lx-label-secondary);
   font-size: var(--lx-text-micro);
   line-height: var(--lx-leading-micro);
 }
 
+.recallRevealSlot { display: grid; min-height: 56px; align-content: start; }
+.recallRevealPlaceholder { display: block; min-height: 56px; }
+
 .recallReveal {
   display: grid;
   gap: var(--lx-space-2xs);
-  border-left: 3px solid var(--lx-warn);
+  border-left: 3.5px solid var(--lx-warn);
   border-radius: 0 var(--lx-radius-sm) var(--lx-radius-sm) 0;
   padding: var(--lx-space-sm) var(--lx-space-md);
-  background: color-mix(in srgb, var(--lx-warn) 8%, transparent);
+  background: color-mix(in srgb, var(--lx-warn) 8%, var(--lx-surface-base));
 }
 
-.recallReveal[data-kind="answer"] { border-left-color: var(--lx-success); background: color-mix(in srgb, var(--lx-success) 8%, transparent); }
+.recallReveal[data-kind="answer"] {
+  border-left-color: var(--lx-success);
+  background: color-mix(in srgb, var(--lx-success) 8%, var(--lx-surface-base));
+}
+
 .recallReveal > span { color: var(--lx-warn); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }
 .recallReveal[data-kind="answer"] > span { color: var(--lx-success); }
 .recallReveal > p { margin: 0; color: var(--lx-label-primary); font-size: var(--lx-text-sm); line-height: var(--lx-leading-sm); }
 
 .recallRevealButton { width: max-content; min-width: 128px; justify-self: start; }
 .recallRating { align-self: end; }
+
 .ratingButton[aria-pressed="true"] {
   border-color: var(--lx-accent);
   background: color-mix(in srgb, var(--lx-accent-soft) 50%, transparent);

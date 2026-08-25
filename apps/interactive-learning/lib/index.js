@@ -1,6 +1,6 @@
 import { a as LEARNER_STATE_SESSION_EVENT_TYPE, c as createLearnerStateSnapshotEvent, d as parseLearnerStateSnapshotEvent, f as reduceLearnerState, g as serializeLearnerStateSnapshot, h as resetLearnerState, i as LEARNER_STATE_PROTOCOL, l as foldLearnerStateSession, m as renderLearnerStateTranscript, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as MAX_FAILED_MOVES, p as registerLearningSessionEventType, r as LEARNER_STATE_EVENT_PROTOCOL, s as createInitialLearnerState, t as registerInteractiveLearningSessionCompatibility, u as hydrateLearnerStateSnapshot } from "./bootstrap-BE-8d8_G.js";
-import { a as classifyLearnIntent, i as LEARN_INTENT, n as routeLearningTurn, o as isLearnIntent, r as LEARNING_INTENT_POLICY, s as isLearningBoundary, t as routeLearningRequest } from "./teaching-route-BeSRfzkX.js";
-import { A as parseLearningActivity, I as parseLearningResponseV2, M as parseLearningCheckpointResultV1, N as parseLearningCheckpointV1, P as parseLearningRecallFeedbackV1, S as RESPONSE_PROTOCOL_V2, a as CHECKPOINT_TRANSPORT_PROTOCOL, f as LearningProtocolError, h as MAX_ACTIVITY_BYTES, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningActivityV2, w as TRANSPORT_PROTOCOL_V2, x as RESPONSE_PROTOCOL } from "./protocol-vCKjmTCQ.js";
+import { a as classifyLearnIntent, i as LEARN_INTENT, n as routeLearningTurn, o as isLearnIntent, r as LEARNING_INTENT_POLICY, s as isLearningBoundary, t as routeLearningRequest } from "./teaching-route-BI25RyQs.js";
+import { A as parseLearningActivity, I as parseLearningResponseV2, M as parseLearningCheckpointResultV1, N as parseLearningCheckpointV1, P as parseLearningRecallFeedbackV1, S as RESPONSE_PROTOCOL_V2, a as CHECKPOINT_TRANSPORT_PROTOCOL, f as LearningProtocolError, h as MAX_ACTIVITY_BYTES, i as CHECKPOINT_RESULT_PROTOCOL, j as parseLearningActivityV2, w as TRANSPORT_PROTOCOL_V2, x as RESPONSE_PROTOCOL } from "./protocol-CvIeIaVp.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
@@ -284,6 +284,10 @@ var LearningActivityBroker = class extends Service {
 	/** Diagnostics/test seam; counts only, never checkpoint or learner content. */
 	get checkpointCacheSize() {
 		return this.checkpointCalls.size + this.checkpointReceipts.size + this.pendingCheckpointSessions.size + this.pendingCheckpointWaits.size;
+	}
+	/** Whether this composition can render Learning visuals and checkpoints. */
+	get richClientAvailable() {
+		return this.hasRichClient();
 	}
 	/** Fold the latest durable full snapshot for this exact live session. */
 	learnerState(agent) {

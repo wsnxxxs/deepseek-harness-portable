@@ -43,15 +43,17 @@
   grid-template-columns: 30px minmax(0, 1fr);
   gap: var(--lx-space-md);
   align-items: start;
-  border: 1px solid color-mix(in srgb, var(--visual-tone) 30%, var(--lx-border-subtle));
+  border: 1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));
   border-radius: var(--lx-radius-md);
   padding: var(--lx-space-md);
-  background: color-mix(in srgb, var(--visual-tone) 6%, transparent);
+  background: color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .formulaSteps > li[data-visual-state="current"] .formulaStepCard {
   border-width: 2px;
   border-color: var(--visual-tone);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--visual-tone) 30%, transparent);
 }
 
 .formulaStepCard > span {
@@ -60,7 +62,7 @@
   height: 28px;
   place-items: center;
   border-radius: var(--lx-radius-circle);
-  background: color-mix(in srgb, var(--visual-tone) 16%, transparent);
+  background: color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));
   color: var(--visual-tone);
   font-size: var(--lx-text-2xs);
   font-weight: var(--lx-weight-strong);
@@ -95,6 +97,8 @@
   grid-template-columns: 30px auto minmax(0, 1fr);
   gap: var(--lx-space-xs) var(--lx-space-md);
   align-items: center;
+  margin-left: 14px;
+  border-left: 2px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));
   padding: var(--lx-space-3xs) var(--lx-space-md);
   color: var(--lx-label-secondary);
   font-size: var(--lx-text-2xs);
@@ -113,19 +117,21 @@
   color: var(--lx-label-tertiary);
 }
 
-.formulaUnknown > span { text-align: center; }
-.formulaUnknown code { display: grid; min-height: 38px; place-items: center; border: 1px dashed var(--lx-border-default); border-radius: var(--lx-radius-md); font-size: var(--lx-text-lg); }
+.formulaUnknown > span:first-child { color: var(--visual-tone); font-size: var(--lx-text-lg); text-align: center; }
+.formulaUnknown > span:last-child { display: flex; min-height: 38px; align-items: center; border: 1px dashed var(--lx-border-default); border-radius: var(--lx-radius-md); padding: var(--lx-space-xs) var(--lx-space-md); color: var(--lx-label-tertiary); font-size: var(--lx-text-2xs); }
 
 .formulaConclusion {
   display: grid;
   gap: var(--lx-space-3xs);
-  border-left: 3px solid var(--lx-success);
-  border-radius: 0 var(--lx-radius-sm) var(--lx-radius-sm) 0;
+  border: 1px solid var(--lx-border-subtle);
+  border-left: 3.5px solid var(--lx-success);
+  border-radius: var(--lx-radius-md);
   padding: var(--lx-space-sm) var(--lx-space-md);
-  background: color-mix(in srgb, var(--lx-success) 8%, transparent);
+  background: color-mix(in srgb, var(--lx-success) 10%, var(--lx-surface-base));
+  box-shadow: var(--lx-shadow-sm);
 }
 
-.formulaConclusion span { color: var(--lx-success); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }
+.formulaConclusion span { color: var(--lx-success); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); letter-spacing: var(--lx-tracking-eyebrow); text-transform: uppercase; }
 .formulaConclusion strong { color: var(--lx-label-primary); font-size: var(--lx-text-sm); line-height: var(--lx-leading-sm); }
 
 @container learning-visual-v4 (max-width: 360px) {

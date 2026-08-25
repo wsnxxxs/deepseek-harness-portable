@@ -5,16 +5,35 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--lx-space-3xs) var(--lx-space-md);
   align-items: baseline;
-  border-left: 3px solid var(--lx-accent);
-  border-radius: 0 var(--lx-radius-sm) var(--lx-radius-sm) 0;
+  border: 1px solid var(--lx-border-subtle);
+  border-left: 3.5px solid var(--lx-accent);
+  border-radius: var(--lx-radius-md);
   padding: var(--lx-space-sm) var(--lx-space-md);
-  background: color-mix(in srgb, var(--lx-accent-soft) 28%, transparent);
+  background: color-mix(in srgb, var(--lx-accent-soft) 22%, var(--lx-surface-base));
 }
 
-.studySource > span { color: var(--lx-accent); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }
+.studySource > span { color: var(--lx-accent); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); letter-spacing: var(--lx-tracking-eyebrow); text-transform: uppercase; }
 .studySource > strong { color: var(--lx-label-primary); font-size: var(--lx-text-sm); line-height: var(--lx-leading-sm); }
 .studySource > p { grid-column: 1 / -1; margin: var(--lx-space-3xs) 0 0; color: var(--lx-label-secondary); font-size: var(--lx-text-xs); line-height: var(--lx-leading-xs); }
 .studySource > p b { margin-right: var(--lx-space-xs); color: var(--lx-label-primary); font-weight: var(--lx-weight-medium); }
+
+.studyDependencyMap {
+  display: grid;
+  gap: var(--lx-space-xs);
+  min-width: 0;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  background: var(--lx-surface-sunken);
+}
+
+.studyDependencyHeader { display: flex; justify-content: space-between; gap: var(--lx-space-md); color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); letter-spacing: var(--lx-tracking-eyebrow); text-transform: uppercase; }
+.studyDependencyTrack { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; gap: var(--lx-space-sm); min-width: 0; }
+.studyDependencyLevel { position: relative; display: grid; gap: var(--lx-space-xs); align-content: start; min-width: 0; }
+.studyDependencyLevel:not(:last-child)::after { position: absolute; top: 50%; right: calc(var(--lx-space-sm) * -1); color: var(--lx-accent); content: "→"; font-size: var(--lx-text-md); font-weight: var(--lx-weight-strong); }
+.studyDependencyNode { min-width: 0; border: 1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle)); border-radius: var(--lx-radius-sm); padding: var(--lx-space-2xs) var(--lx-space-xs); background: color-mix(in srgb, var(--lx-accent-soft) 18%, var(--lx-surface-base)); color: var(--lx-label-primary); font-size: var(--lx-text-micro); line-height: var(--lx-leading-micro); overflow-wrap: anywhere; }
+.studyDependencyNode[data-role="foundation"] { border-color: color-mix(in srgb, var(--lx-success) 36%, var(--lx-border-subtle)); }
+.studyDependencyNode[data-role="practice"] { border-style: dashed; }
 
 .studyLayout {
   display: grid;
@@ -39,6 +58,7 @@
   padding: var(--lx-space-sm);
   text-align: left;
   opacity: var(--lx-vs-alpha);
+  transition: background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);
 }
 
 .sectionTab > span {
@@ -51,6 +71,7 @@
   background: var(--lx-border-subtle);
   color: var(--lx-label-secondary);
   font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-strong);
 }
 
 .sectionTab > strong { overflow: hidden; color: var(--lx-label-primary); font-size: var(--lx-text-2xs); text-overflow: ellipsis; white-space: nowrap; }
@@ -58,7 +79,8 @@
 
 .sectionTab[aria-selected="true"] {
   border-color: var(--lx-accent);
-  background: color-mix(in srgb, var(--lx-accent-soft) 42%, transparent);
+  background: color-mix(in srgb, var(--lx-accent-soft) 42%, var(--lx-surface-base));
+  box-shadow: var(--lx-shadow-sm);
 }
 
 .sectionTab[aria-selected="true"] > span { background: var(--lx-accent); color: var(--lx-label-on-accent); }
@@ -90,18 +112,30 @@
   min-width: 0;
   gap: var(--lx-space-3xs);
   justify-items: start;
-  border-color: color-mix(in srgb, var(--visual-tone) 26%, var(--lx-border-subtle));
+  border-color: color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));
+  border-radius: var(--lx-radius-md);
   padding: var(--lx-space-sm) var(--lx-space-md);
-  background: color-mix(in srgb, var(--visual-tone) 6%, var(--lx-surface-base));
+  background: color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   opacity: var(--lx-vs-alpha);
   text-align: left;
+  transition: border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);
+}
+
+.conceptCard:hover {
+  border-color: var(--visual-tone);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent);
 }
 
 .conceptCard > span { color: var(--visual-tone); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }
 .conceptCard > strong { color: var(--lx-label-primary); font-size: var(--lx-text-xs); line-height: var(--lx-leading-xs); }
 .conceptCard > small { display: grid; gap: var(--lx-space-3xs); color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); line-height: var(--lx-leading-micro); }
 .conceptCard > small b { color: var(--lx-label-secondary); font-weight: var(--lx-weight-medium); }
-.conceptCard[data-selected] { border-color: var(--visual-tone); border-width: 2px; }
+.conceptCard[data-selected] {
+  border-color: var(--visual-tone);
+  border-width: 2px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);
+}
 
 .studyDetail {
   position: relative;
@@ -109,10 +143,11 @@
   grid-template-columns: minmax(0, 1fr) 28px;
   gap: var(--lx-space-xs) var(--lx-space-md);
   border: 1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));
-  border-left: 3px solid var(--lx-accent);
-  border-radius: var(--lx-radius-sm);
+  border-left: 3.5px solid var(--lx-accent);
+  border-radius: var(--lx-radius-md);
   padding: var(--lx-space-md);
-  background: color-mix(in srgb, var(--lx-accent-soft) 26%, transparent);
+  background: color-mix(in srgb, var(--lx-accent-soft) 24%, var(--lx-surface-base));
+  box-shadow: var(--lx-shadow-sm);
 }
 
 .studyDetail > div { display: flex; min-width: 0; gap: var(--lx-space-sm); align-items: baseline; }

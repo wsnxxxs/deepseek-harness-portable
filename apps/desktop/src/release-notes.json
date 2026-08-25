@@ -1,21 +1,21 @@
 {
-  "version": "1.5.4",
-  "name": "DeepSeek Harness Desktop v1.5.4",
-  "publishedAt": "2026-08-24",
+  "version": "1.5.5",
+  "name": "DeepSeek Harness Desktop v1.5.5",
+  "publishedAt": "2026-08-25",
   "sections": [
     {
       "key": "features",
       "titleEn": "Major Features",
       "titleZh": "重大功能",
       "itemsEn": [
-        "Learning Mode visual system: improved formula, graph, plot, timeline, scene, and recall visuals with clearer labels, less crowding, and feedback-aware layouts.",
-        "Usage settings: added durable token summaries, per-model breakdowns, activity history, and session timing in Settings.",
-        "Session compatibility: added safe handling for optional legacy events and hydration for usage projections on cold sessions."
+        "Local file attachments: paste, drop, or select images, PDF, DOCX, XLSX, PPTX, text, data, and common source-code files for local extraction and model-assisted reading.",
+        "Learning Mode visual system: added richer semantic renderers with clearer labels, less crowding, and feedback-aware layouts.",
+        "Attachment continuation: retained file handles expose bounded previews, read_attachment continuation reads, raw downloads, and ZIP export."
       ],
       "itemsZh": [
-        "Learning 视觉系统升级：改进公式、图表、曲线、时间线、场景和回忆卡片的视觉呈现，减少拥挤并提供更清晰的标签和反馈布局。",
-        "使用量设置页：新增持久化 token 汇总、按模型明细、活跃度历史和会话耗时统计。",
-        "会话兼容性增强：安全处理旧版可选事件，并在冷会话中补齐使用量投影。"
+        "本地文件附件：支持粘贴、拖入或选择图片、PDF、DOCX、XLSX、PPTX、文本、数据和常见源码文件，并在本机提取后交给模型阅读。",
+        "Learning 视觉系统升级：新增更丰富的语义渲染器，提供更清晰的标签、更少的拥挤和基于反馈的布局。",
+        "附件续读：保留文件 handle，提供有界预览、`read_attachment` 续读、原文件下载和 ZIP 导出。"
       ]
     },
     {
@@ -23,12 +23,12 @@
       "titleEn": "Runtime and Compatibility",
       "titleZh": "运行时与兼容性",
       "itemsEn": [
-        "Native directory picking and indexing now cover Windows and WSL-compatible environments.",
-        "Optional legacy events and runtime metadata remain compatible across resume, compaction, and packaged upgrades."
+        "Local extraction uses bounded worker capacity and rejects unsupported scanned, encrypted, damaged, legacy Office, archive, and arbitrary binary inputs.",
+        "Non-image attachment previews use the same provider-neutral projection for DeepSeek and pi-ai requests."
       ],
       "itemsZh": [
-        "原生目录选择和索引现在覆盖 Windows 与 WSL 兼容环境。",
-        "旧版可选事件和运行时元数据在恢复、压缩及打包升级过程中保持兼容。"
+        "本地提取使用有界 worker 容量，并拒绝不支持的扫描、加密、损坏、旧版 Office、压缩包和任意二进制输入。",
+        "非图片附件预览在 DeepSeek 与 pi-ai 请求中使用一致的提供方无关投影。"
       ]
     },
     {
@@ -36,17 +36,17 @@
       "titleEn": "Fixes",
       "titleZh": "问题修复",
       "itemsEn": [
-        "Refresh generated Learning client bundles and add regression coverage for visual layout and recall feedback.",
-        "Keep durable usage projections available when listing sessions created before the usage projection was introduced."
+        "Refresh generated Learning client bundles and add regression coverage for the new visual and attachment paths.",
+        "Keep image-only command behavior unchanged while rejecting unsupported non-image files before submission."
       ],
       "itemsZh": [
-        "刷新 Learning 客户端构建产物，并补充视觉布局和回忆反馈回归覆盖。",
-        "列出使用量投影加入前创建的会话时，也能继续提供持久化的使用量数据。"
+        "刷新 Learning 客户端构建产物，并补充新的视觉与附件路径回归覆盖。",
+        "保持仅图片命令行为不变，并在提交前拒绝不支持的非图片文件。"
       ]
     }
   ],
-  "bodyZh": "## 重大功能\n\n- **Learning 视觉系统升级**：改进公式、图表、曲线、时间线、场景和回忆卡片的视觉呈现，减少拥挤并提供更清晰的标签和反馈布局。\n- **使用量设置页**：新增持久化 token 汇总、按模型明细、活跃度历史和会话耗时统计。\n- **会话兼容性增强**：安全处理旧版可选事件，并在冷会话中补齐使用量投影。\n\n## 运行时与兼容性\n\n- **原生目录选择和索引**现在覆盖 Windows 与 WSL 兼容环境。\n- **运行时元数据兼容**：恢复、压缩及打包升级过程中继续保留旧版可选事件的安全处理。\n\n## 问题修复\n\n- **刷新 Learning 客户端构建产物，并补充视觉布局和回忆反馈回归覆盖。**\n- **列出使用量投影加入前创建的会话时，也能继续提供持久化的使用量数据。**",
-  "bodyEn": "## Major Features\n\n- **Learning Mode visual system**: improved formula, graph, plot, timeline, scene, and recall visuals with clearer labels, less crowding, and feedback-aware layouts.\n- **Usage settings**: added durable token summaries, per-model breakdowns, activity history, and session timing in Settings.\n- **Session compatibility**: added safe handling for optional legacy events and hydration for usage projections on cold sessions.\n\n## Runtime and Compatibility\n\n- **Native directory picking and indexing** now cover Windows and WSL-compatible environments.\n- **Runtime metadata compatibility** keeps optional legacy events safe across resume, compaction, and packaged upgrades.\n\n## Fixes\n\n- **Refresh generated Learning client bundles and add regression coverage for visual layout and recall feedback.**\n- **Keep durable usage projections available when listing sessions created before the usage projection was introduced.**",
+  "bodyZh": "## 重大功能\n\n- **本地文件附件**：支持粘贴、拖入或选择图片、PDF、DOCX、XLSX、PPTX、文本、数据和常见源码文件，并在本机提取后交给模型阅读。\n- **Learning 视觉系统升级**：新增更丰富的语义渲染器，提供更清晰的标签、更少的拥挤和基于反馈的布局。\n- **附件续读**：保留文件 handle，提供有界预览、`read_attachment` 续读、原文件下载和 ZIP 导出。\n\n## 运行时与兼容性\n\n- **本地提取**使用有界 worker 容量，并拒绝不支持的扫描、加密、损坏、旧版 Office、压缩包和任意二进制输入。\n- **非图片附件预览**在 DeepSeek 与 pi-ai 请求中使用一致的提供方无关投影。\n\n## 问题修复\n\n- **刷新 Learning 客户端构建产物，并补充新的视觉与附件路径回归覆盖。**\n- **保持仅图片命令行为不变，并在提交前拒绝不支持的非图片文件。**",
+  "bodyEn": "## Major Features\n\n- **Local file attachments**: paste, drop, or select images, PDF, DOCX, XLSX, PPTX, text, data, and common source-code files for local extraction and model-assisted reading.\n- **Learning Mode visual system**: added richer semantic renderers with clearer labels, less crowding, and feedback-aware layouts.\n- **Attachment continuation**: retained file handles expose bounded previews, `read_attachment` continuation reads, raw downloads, and ZIP export.\n\n## Runtime and Compatibility\n\n- **Local extraction** uses bounded worker capacity and rejects unsupported scanned, encrypted, damaged, legacy Office, archive, and arbitrary binary inputs.\n- **Non-image attachment previews** use the same provider-neutral projection for DeepSeek and pi-ai requests.\n\n## Fixes\n\n- **Refresh generated Learning client bundles and add regression coverage for the new visual and attachment paths.**\n- **Keep image-only command behavior unchanged while rejecting unsupported non-image files before submission.**",
   "history": [
     {
       "version": "1.3.3",

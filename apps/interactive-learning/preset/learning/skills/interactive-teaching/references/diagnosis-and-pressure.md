@@ -14,6 +14,8 @@ Identify the smallest useful distinction:
 
 If the learner already shows work, names the confusion, or asks a sharp expert question, use that evidence and teach at the matching level. Do not infer mastery from fluent terminology. For an underspecified bare concept or “teach me X”, ask one route-changing calibration question and give a small foothold in the same turn. For “what is X”, a definition, or a stated confusion, begin the minimum lesson instead of running an interview.
 
+Fluent terminology by itself sets the level of the conversation, not whether the learner wants intuition, derivation, a worked example, or a mechanism-first explanation. When that response shape remains open, calibrate it briefly while still giving a useful foothold.
+
 For a broad, current, or contested topic, distinguish “help me understand the structure or mechanisms” from “give me the latest facts” or “what is your verdict”. The first can use structured exposition; the latter belongs to the ordinary information or opinion route.
 
 ## Pressure is time-sensitive

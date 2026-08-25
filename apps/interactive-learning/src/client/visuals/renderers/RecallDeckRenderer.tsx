@@ -97,8 +97,11 @@ export function RecallDeckRenderer({ content, focus, storageKey, onRecallStatusC
         </div>
         <h4>{current.prompt}</h4>
         {current.tags === undefined || current.tags.length === 0 ? null : <ul className={css.recallTags}>{current.tags.map(tag => <li key={tag}>{tag}</li>)}</ul>}
-        {stage === 'prompt' || current.hint === undefined ? null : <section className={css.recallReveal} data-kind="hint" aria-live="polite"><span>{labels.recallHint}</span><p>{current.hint}</p></section>}
-        {stage !== 'answer' ? null : <section className={css.recallReveal} data-kind="answer" aria-live="polite"><span>{labels.recallAnswer}</span><p>{current.answer}</p></section>}
+        <div className={css.recallRevealSlot}>
+          {stage === 'prompt' ? <span className={css.recallRevealPlaceholder} aria-hidden="true" /> : null}
+          {stage !== 'prompt' && current.hint !== undefined ? <section className={css.recallReveal} data-kind="hint" aria-live="polite"><span>{labels.recallHint}</span><p>{current.hint}</p></section> : null}
+          {stage !== 'answer' ? null : <section className={css.recallReveal} data-kind="answer" aria-live="polite"><span>{labels.recallAnswer}</span><p>{current.answer}</p></section>}
+        </div>
         {stage === 'answer' ? (
           <div className={`${shell.controlRow} ${css.recallRating}`}>
             <button type="button" className={`${shell.control} ${css.ratingButton}`} aria-pressed={status === 'review'} onClick={() => mark('review')}>{labels.reviewAgain}</button>

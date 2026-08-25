@@ -81,8 +81,13 @@ async function selectVisual(ctx: Context, kind: string, agent?: Agent, callId = 
   expect(result.isError, JSON.stringify(result)).toBe(false)
 }
 
-async function selectCheckpoint(ctx: Context, agent: Agent, callId = 'select-checkpoint'): Promise<void> {
-  const selected = checkpoint()
+async function selectCheckpoint(
+  ctx: Context,
+  agent: Agent,
+  callId = 'select-checkpoint',
+  overrides: Partial<LearningCheckpointV1> = {},
+): Promise<void> {
+  const selected = checkpoint(overrides)
   const result = await ctx.tools.execute({
     signal: testToolSignal,
     callId: CallId(callId),
@@ -161,7 +166,7 @@ describe('LearningActivityBroker compatibility boundary', () => {
 
 describe('non-blocking Learning Agent v4.1', () => {
   it('applies the deterministic route to the production prompt surface', async () => {
-    const ctx = await setupBroker(false)
+    const ctx = await setupBroker(true)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(learningAgent)
@@ -209,9 +214,13 @@ describe('non-blocking Learning Agent v4.1', () => {
     } as never)
     const learning = await ctx.systemPrompt.assemble({ scope: agent, agent })
     expect(learning.sections.some(section => section.name === 'learning:policy')).toBe(true)
-    expect(learning.tools.some(tool => tool.name === 'learning_visual_select')).toBe(true)
+    expect(learning.tools.some(tool => tool.name === 'learning_visual_select')).toBe(false)
+    expect(learning.tools.some(tool => tool.name === 'learning_checkpoint_select')).toBe(false)
+    expect(learning.tools.some(tool => tool.name === 'learning_state_update')).toBe(true)
     expect(learning.contexts.find(context => context.name === 'learning:turn-route')?.text)
       .toContain('route=calibrate')
+    expect(learning.contexts.find(context => context.name === 'learning:turn-route')?.text)
+      .toContain('Give one tiny useful foothold')
 
     ctx.emit('agent/inbox/claimed', {
       agent,
@@ -227,6 +236,8 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(inherited.sections.some(section => section.name === 'learning:policy')).toBe(true)
     expect(inherited.contexts.find(context => context.name === 'learning:turn-route')?.text)
       .toMatch(/route=continue; reason=active-segment/)
+    expect(inherited.tools.some(tool => tool.name === 'learning_visual_select')).toBe(true)
+    expect(inherited.tools.some(tool => tool.name === 'learning_checkpoint_select')).toBe(true)
 
     ctx.emit('agent/inbox/claimed', {
       agent,
@@ -244,6 +255,166 @@ describe('non-blocking Learning Agent v4.1', () => {
       .toContain('intent=not-learn; route=direct')
 
     disposeAgent()
+  })
+
+  it('restores an active learning route from durable learner state', async () => {
+    const ctx = await setupBroker(true)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(learningAgent)
+    const agent = stubAgent('restored-turn-route')
+    const disposeAgent = ctx.agents.register(agent)
+
+    ctx.learningActivities.updateLearnerState({
+      action: 'update',
+      agent,
+      expectedRevision: 0,
+      event: {
+        type: 'goal_observed',
+        goal: 'Understand FIFO queues',
+        observation: {
+          id: 'restored-route-goal',
+          source: 'learner-message',
+          summary: 'The learner asked to understand FIFO queues before the session resumed.',
+        },
+      },
+    })
+
+    ctx.emit('agent/inbox/claimed', {
+      agent,
+      message: {
+        id: 'restored-route-answer',
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'A.' }],
+      },
+      turn: 2,
+    } as never)
+    const resumed = await ctx.systemPrompt.assemble({ scope: agent, agent })
+    expect(resumed.sections.some(section => section.name === 'learning:policy')).toBe(true)
+    expect(resumed.contexts.find(context => context.name === 'learning:turn-route')?.text)
+      .toMatch(/route=continue; reason=active-segment/)
+
+    ctx.emit('agent/inbox/claimed', {
+      agent,
+      message: {
+        id: 'restored-route-task-switch',
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'Calculate 2+2.' }],
+      },
+      turn: 3,
+    } as never)
+    const switched = await ctx.systemPrompt.assemble({ scope: agent, agent })
+    expect(switched.sections.some(section => section.name === 'learning:policy')).toBe(false)
+    expect(switched.contexts.find(context => context.name === 'learning:turn-route')?.text)
+      .toContain('intent=not-learn; route=direct')
+
+    disposeAgent()
+  })
+
+  it('allows only one rich teaching move per user turn and resets the choice on the next learner message', async () => {
+    const ctx = await setupBroker(true)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(learningAgent)
+    const agent = stubAgent('rich-move-budget')
+    const disposeAgent = ctx.agents.register(agent)
+
+    ctx.emit('agent/inbox/claimed', {
+      agent,
+      message: {
+        id: 'rich-move-learning-message',
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'Help me understand why gradient descent works.' }],
+      },
+      turn: 1,
+    } as never)
+    await selectVisual(ctx, 'plot', agent)
+
+    const selected = checkpoint()
+    const denied = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('checkpoint-after-visual'),
+      name: 'learning_checkpoint_select',
+      arguments: {
+        kind: selected.kind,
+        expectedEvidence: selected.expectedEvidence,
+        prompt: selected.prompt,
+        purpose: 'This must wait for the next learner turn.',
+      },
+      agent,
+    })
+    expect(denied.isError).toBe(true)
+    expect(JSON.stringify(denied.content)).toContain('not both')
+
+    ctx.emit('agent/inbox/claimed', {
+      agent,
+      message: {
+        id: 'rich-move-next-message',
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'Now test my prediction.' }],
+      },
+      turn: 2,
+    } as never)
+    await selectCheckpoint(ctx, agent, 'checkpoint-on-next-turn')
+
+    disposeAgent()
+  })
+
+  it('exposes rich tools only when the route and client can use them', async () => {
+    const rich = await setupBroker(true)
+    await rich.plugin(ToolRuntime)
+    await rich.plugin(SystemPrompt)
+    await rich.plugin(learningAgent)
+
+    const toolNamesFor = async (id: string, text: string): Promise<string[]> => {
+      const agent = stubAgent(id)
+      const disposeAgent = rich.agents.register(agent)
+      rich.emit('agent/inbox/claimed', {
+        agent,
+        message: { id: `${id}-message`, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] },
+        turn: 1,
+      } as never)
+      const names = (await rich.systemPrompt.assemble({ scope: agent, agent })).tools.map(tool => tool.name)
+      disposeAgent()
+      return names
+    }
+
+    await expect(toolNamesFor('route-teach', 'What is a queue?')).resolves.toEqual(expect.arrayContaining([
+      'learning_visual_select', 'learning_checkpoint_select', 'learning_state_update',
+    ]))
+    const overview = await toolNamesFor('route-overview', 'Give me a complete overview of the French Revolution.')
+    expect(overview).toContain('learning_visual_select')
+    expect(overview).not.toContain('learning_checkpoint_select')
+    const resource = await toolNamesFor('route-resource', 'Make me active-recall flashcards for queues.')
+    expect(resource).toContain('learning_visual_select')
+    expect(resource).not.toContain('learning_checkpoint_select')
+    const urgent = await toolNamesFor('route-urgent', 'I have 15 minutes. Explain rollback and give me a checklist.')
+    expect(urgent).not.toContain('learning_visual_select')
+    expect(urgent).not.toContain('learning_checkpoint_select')
+
+    const plain = await setupBroker(false)
+    await plain.plugin(ToolRuntime)
+    await plain.plugin(SystemPrompt)
+    await plain.plugin(learningAgent)
+    const plainAgent = stubAgent('plain-client-route')
+    const disposePlain = plain.agents.register(plainAgent)
+    plain.emit('agent/inbox/claimed', {
+      agent: plainAgent,
+      message: {
+        id: 'plain-client-message', role: 'user', source: { kind: 'user' },
+        content: [{ type: 'text', text: 'What is a queue?' }],
+      },
+      turn: 1,
+    } as never)
+    const plainTools = (await plain.systemPrompt.assemble({ scope: plainAgent, agent: plainAgent })).tools.map(tool => tool.name)
+    expect(plainTools).toContain('learning_state_update')
+    expect(plainTools).not.toContain('learning_visual_select')
+    expect(plainTools).not.toContain('learning_checkpoint_select')
+    disposePlain()
   })
 
   it('exposes one visual and one optional answer-free checkpoint through closed model schemas', async () => {
@@ -271,6 +442,8 @@ describe('non-blocking Learning Agent v4.1', () => {
     ])
     expect(schemas.find(tool => tool.name === 'learning_visual_select')?.description)
       .toContain('only output of the selector step')
+    expect(JSON.stringify(parameters.properties?.kind)).toContain('plot=quantitative axes')
+    expect(JSON.stringify(parameters.properties?.kind)).toContain('causal_loop=signed feedback')
     expect(JSON.stringify(parameters)).not.toContain('2 to 48 nodes')
 
     const missingSemanticConstraint = await ctx.tools.execute({
@@ -281,6 +454,18 @@ describe('non-blocking Learning Agent v4.1', () => {
     })
     expect(missingSemanticConstraint.isError).toBe(true)
     expect(JSON.stringify(missingSemanticConstraint.content)).toContain('learnerAction or pairedQuestion')
+
+    const competingSemanticConstraints = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('select-visual-competing-constraints'),
+      name: 'learning_visual_select',
+      arguments: {
+        kind: 'plot', purpose: 'Show one relationship.',
+        learnerAction: 'Move the slider.', pairedQuestion: 'What changes?',
+      },
+    })
+    expect(competingSemanticConstraints.isError).toBe(true)
+    expect(JSON.stringify(competingSemanticConstraints.content)).toContain('exactly one')
 
     await selectVisual(ctx, 'node_link')
     const selectedSchemas = ctx.tools.schemas()
@@ -305,6 +490,15 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(fullCheckpointSchema).toContain('The prediction determines whether to explain FIFO or move to transfer.')
     expect(fullCheckpointSchema).toContain(`"const":"${checkpoint().prompt}"`)
     expect(fullCheckpointSchema).toContain('"expectedEvidence":{"type":"string","const":"prediction"')
+    expect(fullCheckpointSchema).not.toContain('"options"')
+
+    await selectCheckpoint(ctx, checkpointAgent, 'select-choice-schema', { kind: 'single_choice' })
+    const choiceCheckpoint = ctx.tools.schemas({ scope: checkpointAgent })
+      .find(tool => tool.name === 'learning_checkpoint') as {
+        parameters?: { properties?: Record<string, unknown>; required?: string[] }
+      } | undefined
+    expect(choiceCheckpoint?.parameters?.properties).toHaveProperty('options')
+    expect(choiceCheckpoint?.parameters?.required).toContain('options')
 
     const checkpointSchema = schemas.find(tool => tool.name === 'learning_checkpoint_select')
     const checkpointParameters = checkpointSchema?.parameters as {
@@ -315,6 +509,9 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(Object.keys(checkpointParameters.properties ?? {}).sort()).toEqual(['expectedEvidence', 'kind', 'prompt', 'purpose'])
     expect(JSON.stringify(checkpointParameters)).not.toContain('fallbackMarkdown')
     expect(checkpointSchema?.description).toContain('not a per-turn ceremony')
+    expect(checkpointSchema?.description).toContain('only output of the selector step')
+    expect(JSON.stringify(checkpointParameters.properties?.kind)).toContain('single_choice=one label')
+    expect(JSON.stringify(checkpointParameters.properties?.expectedEvidence)).toContain('fresh transfer')
     expect(checkpointSchema?.output).toBeUndefined()
 
     const stateSchema = schemas.find(tool => tool.name === 'learning_state_update')
@@ -328,6 +525,8 @@ describe('non-blocking Learning Agent v4.1', () => {
     ])
     expect(stateParameters.properties).not.toHaveProperty('expectedRevision')
     expect(stateSchema?.description).toContain('never call mechanically every turn')
+    expect(stateSchema?.description).toContain('assistant_move_observed')
+    expect(JSON.stringify(stateParameters)).toContain('assistant_move→move')
     expect(ctx.tools.get('learning_state_update')?.presentCall).toBeUndefined()
   })
 
@@ -407,6 +606,25 @@ describe('non-blocking Learning Agent v4.1', () => {
     })
     expect(rejected.isError).toBe(true)
     expect(JSON.stringify(rejected.content)).toContain('at most one learning_checkpoint call')
+
+    const mixedAgent = stubAgent('mixed-step', [
+      checkpointCall('checkpoint-mixed'),
+      {
+        type: 'tool/call', seq: 2, time: 2,
+        data: { turn: 1, step: 1, callId: 'state-same-step', name: 'learning_state_update', arguments: '{}' },
+      },
+    ])
+    registerRoot(ctx, mixedAgent)
+    await selectCheckpoint(ctx, mixedAgent, 'select-mixed-checkpoint')
+    const mixed = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('checkpoint-mixed'),
+      name: 'learning_checkpoint',
+      arguments: checkpoint(),
+      agent: mixedAgent,
+    })
+    expect(mixed.isError).toBe(true)
+    expect(JSON.stringify(mixed.content)).toContain('only tool call')
 
     const replayAgent = stubAgent('replay-step', [checkpointCall('checkpoint-replay')])
     registerRoot(ctx, replayAgent)

@@ -487,6 +487,47 @@ describe('semantic LearningVisual v4 completed ToolView gallery', () => {
       return
     }
 
+    if (visual.content.kind === 'data_table') {
+      expect(root?.querySelector('table')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="record_d"]')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'state_transition') {
+      expect(root?.querySelector('[data-visual-id="draft"]')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="submit"]')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'sequence_buffer') {
+      expect(root?.querySelector('[data-visual-id="slot_0"]')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="window"]')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'sequence_diagram') {
+      expect(root?.querySelector('[data-visual-id="client"]')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="request"]')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'code_trace') {
+      expect(root?.querySelector('pre, code')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="trace_init"]')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'field_2d') {
+      expect(root?.querySelector('svg, canvas')).toBeTruthy()
+      return
+    }
+
+    if (visual.content.kind === 'causal_loop') {
+      expect(root?.querySelector('[data-visual-id="users"]')).toBeTruthy()
+      expect(root?.querySelector('[data-visual-id="growth_loop"]')).toBeTruthy()
+      return
+    }
+
     expect(visual.content.kind).toBe('relation')
     if (visual.content.kind !== 'relation') throw new Error('fixture mismatch')
     if (visual.content.variant === 'comparison') {

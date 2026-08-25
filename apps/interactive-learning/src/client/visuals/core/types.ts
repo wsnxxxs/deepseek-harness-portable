@@ -16,6 +16,13 @@ export type TimelineContent = Extract<VisualContent, { kind: 'timeline' }>
 export type FormulaStepsContent = Extract<VisualContent, { kind: 'formula_steps' }>
 export type StudyMapContent = Extract<VisualContent, { kind: 'study_map' }>
 export type RecallDeckContent = Extract<VisualContent, { kind: 'recall_deck' }>
+export type DataTableContent = Extract<VisualContent, { kind: 'data_table' }>
+export type StateTransitionContent = Extract<VisualContent, { kind: 'state_transition' }>
+export type SequenceBufferContent = Extract<VisualContent, { kind: 'sequence_buffer' }>
+export type SequenceDiagramContent = Extract<VisualContent, { kind: 'sequence_diagram' }>
+export type CodeTraceContent = Extract<VisualContent, { kind: 'code_trace' }>
+export type Field2DContent = Extract<VisualContent, { kind: 'field_2d' }>
+export type CausalLoopContent = Extract<VisualContent, { kind: 'causal_loop' }>
 
 export type VisualTone = 'blue' | 'green' | 'red' | 'orange' | 'purple' | 'gray'
 

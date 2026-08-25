@@ -1,0 +1,150 @@
+/** `data_table`: typed records, controls and linked chart. */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lx-space-sm);
+}
+
+.search { flex: 1 1 220px; }
+
+.search input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-sm);
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  background: var(--lx-surface-base);
+  color: var(--lx-label-primary);
+  font: inherit;
+  font-size: var(--lx-text-xs);
+  transition: border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);
+}
+
+.search input:focus {
+  outline: none;
+  border-color: var(--lx-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lx-accent) 15%, transparent);
+}
+
+.toolbar output {
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--lx-weight-medium);
+}
+
+.tableViewport {
+  padding: var(--lx-space-2xs);
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-sm);
+}
+
+.table {
+  width: 100%;
+  min-width: 520px;
+  border-spacing: 0;
+  border-collapse: separate;
+  color: var(--lx-label-primary);
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
+}
+
+.table th,
+.table td {
+  border-right: 1px solid var(--lx-border-subtle);
+  border-bottom: 1px solid var(--lx-border-subtle);
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tr > :last-child { border-right: 0; }
+.table tbody tr:last-child > * { border-bottom: 0; }
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0;
+  background: var(--lx-surface-sunken);
+  opacity: var(--lx-vs-alpha);
+  border-bottom: 1.5px solid var(--lx-border-subtle);
+}
+
+.table thead button {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: var(--lx-space-xs);
+  border: 0;
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--lx-weight-strong);
+  cursor: pointer;
+  transition: background-color var(--lx-motion-fast) var(--lx-easing);
+}
+
+.table thead button:hover { background: color-mix(in srgb, var(--lx-accent) 9%, transparent); }
+.table thead small { color: var(--lx-label-tertiary); font-weight: var(--lx-weight-regular); }
+.table thead i { margin-left: auto; color: var(--lx-label-tertiary); font-style: normal; }
+
+.table tbody tr { opacity: var(--lx-vs-alpha); cursor: pointer; transition: background-color var(--lx-motion-fast) var(--lx-easing); }
+.table tbody tr:nth-child(even) > * { background: color-mix(in srgb, var(--lx-surface-sunken) 50%, var(--lx-surface-base)); }
+.table tbody tr:hover > * { background: color-mix(in srgb, var(--lx-accent) 9%, transparent) !important; }
+.table tbody tr[data-selected] > * { background: color-mix(in srgb, var(--lx-accent) 15%, transparent) !important; }
+.table tbody tr[data-outlier] > :first-child { box-shadow: inset 3.5px 0 0 var(--lx-danger, #d94b4b); }
+.table tbody th { font-weight: var(--lx-weight-medium); }
+.table td { color: var(--lx-label-secondary); }
+.table [data-missing] { color: var(--lx-label-tertiary); font-style: italic; }
+
+.outlierMark {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  margin-right: var(--lx-space-xs);
+  place-items: center;
+  border-radius: var(--lx-radius-circle);
+  background: color-mix(in srgb, var(--lx-danger, #d94b4b) 14%, transparent);
+  color: var(--lx-danger, #d94b4b);
+  font-size: var(--lx-text-micro);
+  font-weight: var(--lx-weight-strong);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--lx-space-xl);
+  color: var(--lx-label-tertiary);
+  text-align: center;
+}
+
+.chartViewport {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-surface-base);
+  box-shadow: var(--lx-shadow-sm);
+}
+
+.chart { display: block; width: 100%; min-width: 360px; }
+.chartFrame { fill: var(--lx-surface-base); stroke: var(--lx-border-subtle); }
+.chartGrid { stroke: color-mix(in srgb, var(--lx-border-subtle) 72%, transparent); stroke-width: 1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+.xLabel, .yLabel { fill: var(--lx-label-secondary); font-size: var(--lx-text-2xs); font-weight: var(--lx-weight-medium); text-anchor: middle; }
+.tick { fill: var(--lx-label-tertiary); font-size: var(--lx-text-micro); font-variant-numeric: tabular-nums; }
+.chartLine { fill: none; stroke: var(--visual-tone); stroke-width: 2.25; stroke-linejoin: round; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--visual-tone) 40%, transparent)); vector-effect: non-scaling-stroke; }
+.chartPoint { fill: var(--visual-tone); stroke: var(--lx-surface-base); stroke-width: 1.5; cursor: pointer; filter: drop-shadow(0 0 2px var(--visual-tone)); vector-effect: non-scaling-stroke; }
+.chartBar { fill: color-mix(in srgb, var(--visual-tone) 72%, transparent); stroke: var(--visual-tone); cursor: pointer; vector-effect: non-scaling-stroke; }
+.chartPoint[data-outlier], .chartBar[data-outlier] { stroke: var(--lx-danger, #d94b4b); stroke-width: 2.5; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lx-danger, #d94b4b) 60%, transparent)); }
+.chartPoint[data-selected], .chartBar[data-selected] { stroke: var(--lx-label-primary); stroke-width: 3; }
+.chartTooltip { pointer-events: none; }
+.chartTooltip rect { fill: var(--lx-surface-base); stroke: var(--lx-border-strong); stroke-width: 1; filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--lx-label-primary) 16%, transparent)); }
+.chartTooltip text { fill: var(--lx-label-primary); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-medium); }
+
+@container learning-visual-v4 (max-width: 560px) {
+  .table { min-width: 460px; }
+}

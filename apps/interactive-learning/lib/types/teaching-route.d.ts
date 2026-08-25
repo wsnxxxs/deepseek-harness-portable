@@ -9,7 +9,7 @@ import { type LearnIntentDecision } from './learn-intent.ts';
 export type LearningRoute = 'calibrate' | 'teach-minimum' | 'overview' | 'direct' | 'continue';
 export interface LearningRouteDecision {
     route: LearningRoute;
-    reason: 'short-learning-request' | 'explicit-learning' | 'explicit-beginner' | 'explicit-overview' | 'current-or-contested' | 'specific-goal' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'resource-creation' | 'active-segment' | 'direct';
+    reason: 'short-learning-request' | 'explicit-learning' | 'explicit-beginner' | 'initial-urgent-blocker' | 'explicit-overview' | 'current-or-contested' | 'specific-goal' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'resource-creation' | 'active-segment' | 'direct';
     intent: LearnIntentDecision;
 }
 /** Session-local route memory. This is not learner state and is never a profile. */

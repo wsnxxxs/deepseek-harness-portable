@@ -292,6 +292,13 @@ describe('semantic Learning Visual Protocol v4', () => {
       'formula_steps',
       'study_map',
       'recall_deck',
+      'data_table',
+      'state_transition',
+      'sequence_buffer',
+      'sequence_diagram',
+      'code_trace',
+      'field_2d',
+      'causal_loop',
     ])
     expect([...new Set(parsed.map(visual => visual.content.kind))]).toEqual(LEARNING_VISUAL_KINDS_V4)
     expect(parsed.flatMap(visual => visual.content.kind === 'relation'

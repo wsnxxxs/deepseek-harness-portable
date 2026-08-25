@@ -26,6 +26,8 @@ describe('non-blocking teaching behavior evaluation', () => {
     ])
     expect(LEARNING_CANARY_MATRIX.every(scenario => scenario.expectedIntent === 'learn')).toBe(true)
     expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'bare-concept')?.expectedRoute).toBe('calibrate')
+    expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'expert-terminology')?.expectedRoute).toBe('calibrate')
+    expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'initial-deadline')?.expectedRoute).toBe('direct')
     expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'current-contested-topic')?.expectedTrigger).toBe('current-topic')
     expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'current-contested-topic')?.expectedRoute).toBe('overview')
     expect(LEARNING_CANARY_MATRIX.find(scenario => scenario.id === 'graded-work')?.responseShape).toBe('graded-boundary')

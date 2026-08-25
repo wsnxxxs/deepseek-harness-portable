@@ -12,9 +12,9 @@ import css from '../styles/timeline.module.css'
 type Selection = { label: string; detail?: string; kind: string }
 
 /** Vertical distance from the axis to the top of an upper-row event card. */
-const CARD_OFFSET = 72
-/** Card width (128px) plus a small breathing room between neighbouring cards. */
-const MIN_EVENT_GAP = 140
+const CARD_OFFSET = 86
+/** Card width (156px) plus a small breathing room between neighbouring cards. */
+const MIN_EVENT_GAP = 172
 const AXIS_INSET = 66
 
 /** One non-overlapping horizontal lane per era (the protocol caps eras at 8). */
@@ -109,7 +109,7 @@ export function TimelineRenderer({ content, focus }: RendererProps<TimelineConte
         <ol className={css.timelineVertical}>
           {content.events.map((event, index) => (
             <li key={event.id} data-tone={toneAt(event.tone, index)} data-visual-state={elementState(event.id, focus)} data-visual-id={event.id}>
-              <button type="button" className={`${shell.control} ${css.verticalEvent}`} onClick={() => selectEvent(event)}>
+              <button type="button" className={`${shell.control} ${css.verticalEvent}`} title={event.label} onClick={() => selectEvent(event)}>
                 <span>{event.time}</span><strong>{event.label}</strong>
                 {event.detail === undefined ? null : <small>{event.detail}</small>}
               </button>
@@ -165,6 +165,7 @@ export function TimelineRenderer({ content, focus }: RendererProps<TimelineConte
               data-side={index % 2 === 0 ? 'top' : 'bottom'}
               data-visual-state={elementState(event.id, focus)}
               data-visual-id={event.id}
+              title={event.label}
               style={{ left: eventX(event, index), top: index % 2 === 0 ? axisY - CARD_OFFSET : axisY + 24 } as CSSProperties}
               onClick={() => selectEvent(event)}
             >

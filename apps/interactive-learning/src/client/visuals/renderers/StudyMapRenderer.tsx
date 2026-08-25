@@ -19,6 +19,27 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
   const labels = useVisualLabels()
   const id = useId()
   const conceptById = useMemo(() => new Map(content.concepts.map(concept => [concept.id, concept])), [content.concepts])
+  const dependencyLevels = useMemo(() => {
+    const levelCache = new Map<string, number>()
+    const levelFor = (conceptId: string, trail: ReadonlySet<string> = new Set()): number => {
+      const cached = levelCache.get(conceptId)
+      if (cached !== undefined) return cached
+      const concept = conceptById.get(conceptId)
+      if (concept === undefined || trail.has(conceptId)) return 0
+      const nextTrail = new Set(trail)
+      nextTrail.add(conceptId)
+      const level = Math.max(0, ...(concept.prerequisiteIds ?? []).map(prerequisiteId => levelFor(prerequisiteId, nextTrail) + 1))
+      levelCache.set(conceptId, level)
+      return level
+    }
+    const levels: Array<StudyMapContent['concepts']> = []
+    for (const concept of content.concepts) {
+      const level = levelFor(concept.id)
+      levels[level] ??= []
+      levels[level]!.push(concept)
+    }
+    return levels.filter((level): level is StudyMapContent['concepts'] => level !== undefined)
+  }, [conceptById, content.concepts])
   const focusedConcept = content.concepts.find(concept => focus.currentIds.has(concept.id))
   const focusedSection = content.sections.find(section => focus.currentIds.has(section.id))
   const [sectionId, setSectionId] = useState(focusedConcept?.sectionId ?? focusedSection?.id ?? content.sections[0]?.id ?? '')
@@ -50,6 +71,16 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
       <div className={css.studySource}>
         <span>{labels.studySource}</span><strong>{content.sourceLabel}</strong>
         {content.goal === undefined ? null : <p><b>{labels.studyGoal}</b>{content.goal}</p>}
+      </div>
+      <div className={css.studyDependencyMap} role="img" aria-label={`${labels.prerequisite} ${labels.studyConcepts}`} aria-hidden="true" style={{ gridTemplateColumns: `repeat(${Math.max(1, dependencyLevels.length)}, minmax(0, 1fr))` }}>
+        <div className={css.studyDependencyHeader}><span>{labels.prerequisite}</span><span>{labels.studyConcepts}</span></div>
+        <div className={css.studyDependencyTrack}>
+          {dependencyLevels.map((level, levelIndex) => (
+            <div className={css.studyDependencyLevel} key={`level-${String(levelIndex)}`}>
+              {level.map(concept => <span key={concept.id} className={css.studyDependencyNode} data-role={concept.role}>{concept.label}</span>)}
+            </div>
+          ))}
+        </div>
       </div>
       <div className={css.studyLayout}>
         <nav className={css.studySections} role="tablist" aria-label={labels.studySections}>

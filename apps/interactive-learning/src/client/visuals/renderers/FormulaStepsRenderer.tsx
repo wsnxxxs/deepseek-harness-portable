@@ -73,7 +73,7 @@ export function FormulaStepsRenderer({ content, focus, storageKey }: RendererPro
         <div className={css.formulaConclusion} aria-live="polite">
           <span>{labels.formulaConclusion}</span><strong>{content.conclusion ?? labels.formulaComplete}</strong>
         </div>
-      ) : <div className={css.formulaUnknown} aria-hidden="true"><span>↓</span><code>?</code></div>}
+      ) : <div className={css.formulaUnknown} aria-hidden="true"><span>↓</span><span>{labels.revealNextFormulaStep}</span></div>}
       <div className={shell.controlRow}>
         <button type="button" className={shell.control} onClick={() => move(-1)} disabled={revealedIndex === 0}>{labels.previousStep}</button>
         <button type="button" className={`${shell.control} ${shell.controlPrimary}`} onClick={() => move(1)} disabled={revealedIndex >= lastIndex}>{labels.revealNextFormulaStep}</button>

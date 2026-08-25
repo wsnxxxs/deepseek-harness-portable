@@ -32,7 +32,7 @@ export interface PresentLearningCheckpointRequest {
     callId: string;
 }
 export type ObservableLearnerStateUpdate = Exclude<LearnerStateEvent, {
-    type: 'assistant_move_observed' | 'state_corrected';
+    type: 'state_corrected';
 }>;
 export type LearningStateUpdateRequest = {
     action: 'update';
@@ -95,6 +95,8 @@ export declare class LearningActivityBroker extends Service {
     get learnerStateCacheSize(): number;
     /** Diagnostics/test seam; counts only, never checkpoint or learner content. */
     get checkpointCacheSize(): number;
+    /** Whether this composition can render Learning visuals and checkpoints. */
+    get richClientAvailable(): boolean;
     /** Fold the latest durable full snapshot for this exact live session. */
     learnerState(agent: Agent): LearnerState;
     /** Render only the bounded, model-facing projection of the current state. */

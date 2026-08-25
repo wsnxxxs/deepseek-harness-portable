@@ -10,6 +10,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { LearningActivityBroker } from '../src/broker.ts'
+import { interactiveLearningPresetRoot } from '../src/preset.ts'
 
 const repositoryRoot = resolve(import.meta.dirname, '../../..')
 const pinnedRoot = join(repositoryRoot, 'vendor/deepseek-harness')
@@ -47,7 +48,10 @@ async function bootCatalogHost(): Promise<Context> {
       id: 'agent-presets',
       config: {
         default: 'standard',
-        roots: [{ path: join(configRoot, 'agent-presets'), trust: 'system' }],
+        roots: [
+          { path: join(configRoot, 'agent-presets'), trust: 'system' },
+          { path: interactiveLearningPresetRoot, trust: 'system' },
+        ],
         includeUserRoot: false,
       },
     },
@@ -104,7 +108,7 @@ describe('exact non-Learning catalog isolation', () => {
     const handles = await Promise.all(['standard', 'code', 'minimal', 'cordis'].map(createAgent))
     try {
       const before = await Promise.all(handles.map(handle => catalog(handle.agent)))
-      expect(ctx.tools.schemas().map(tool => tool.name)).toEqual([])
+      const globalToolsBefore = ctx.tools.schemas().map(tool => tool.name)
 
       await ctx.plugin(LearningActivityBroker)
 
@@ -112,7 +116,25 @@ describe('exact non-Learning catalog isolation', () => {
       expect(after).toEqual(before)
       expect(JSON.stringify(after)).not.toContain('learning_activity')
       expect(JSON.stringify(after)).not.toContain('learning:policy')
-      expect(ctx.tools.schemas().map(tool => tool.name)).toEqual([])
+      expect(ctx.tools.schemas().map(tool => tool.name)).toEqual(globalToolsBefore)
+
+      const learning = await createAgent('learning')
+      try {
+        const toolNames = ctx.tools.schemas(learning.agent).map(tool => tool.name)
+        expect(toolNames).toEqual(expect.arrayContaining([
+          'learning_visual_select',
+          'learning_state_update',
+          'learning_checkpoint_select',
+          'read_attachment',
+          'web_search',
+          'skill',
+        ]))
+        expect(toolNames).not.toEqual(expect.arrayContaining([
+          'pwsh', 'bash', 'write', 'edit', 'subagent', 'workflow',
+        ]))
+      } finally {
+        await learning.dispose()
+      }
     } finally {
       await Promise.all(handles.map(handle => handle.dispose()))
     }

@@ -33,9 +33,15 @@ describe('authoritative compact Learning teaching policy', () => {
     expectPolicyToCover(
       'short “learn X”, “teach me X”, or “understand X” request with unknown level and goal as calibration',
       'ask one question whose answer changes the teaching route',
-      'from zero”, “beginner”, or “concept intro”, teach one minimum concept immediately',
+      'give one tiny foothold',
+      'Fluent terminology sets the teaching level, not the response shape',
+      'from zero”, “beginner”, “ELI5”, or “concept intro”, teach one minimum concept immediately',
       'complete/full overview',
       'current or contested-topic survey',
+      'create requested study resources directly',
+      'concrete blocker with opening time pressure gets direct help first',
+      'narrow the move for impatience',
+      'give a concrete first step and change representation',
       'do not open with a questionnaire',
     )
   })
@@ -70,6 +76,7 @@ describe('authoritative compact Learning teaching policy', () => {
       'Ordinary conversation is the default',
       'Use a visual only when one relationship is materially clearer',
       'use a checkpoint only when the learner\'s response will change the next move',
+      'visual or checkpoint, never both',
       'Both are optional and non-blocking',
       'Load the interactive-teaching Skill when detailed diagnosis, pressure, integrity, visual, or supplied-source guidance is needed',
       'Never invent facts, citations, source anchors, learner evidence, or confidence',

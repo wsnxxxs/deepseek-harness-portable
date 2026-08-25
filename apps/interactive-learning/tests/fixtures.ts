@@ -305,6 +305,180 @@ export const visualV4Catalog = {
     },
     fallbackMarkdown: '幂函数、乘积、链式与常数求导规则回忆清单。',
   },
+  datasetTable: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '学习时长与测验成绩',
+    description: '筛选或排序记录，选择一行后在散点图中定位同一名学习者。',
+    content: {
+      kind: 'data_table',
+      columns: [
+        { id: 'learner', label: '学习者', type: 'string' },
+        { id: 'hours', label: '学习时长', type: 'number', unit: 'h' },
+        { id: 'score', label: '测验成绩', type: 'number', unit: '分' },
+        { id: 'cohort', label: '小组', type: 'string' },
+      ],
+      rows: [
+        { id: 'record_a', cells: [{ columnId: 'learner', value: 'A' }, { columnId: 'hours', value: 1 }, { columnId: 'score', value: 52 }, { columnId: 'cohort', value: '基础班' }] },
+        { id: 'record_b', cells: [{ columnId: 'learner', value: 'B' }, { columnId: 'hours', value: 2 }, { columnId: 'score', value: 61 }, { columnId: 'cohort', value: '基础班' }] },
+        { id: 'record_c', cells: [{ columnId: 'learner', value: 'C' }, { columnId: 'hours', value: 4 }, { columnId: 'score', value: 78 }, { columnId: 'cohort', value: '进阶班' }] },
+        { id: 'record_d', detail: '成绩明显低于相近学习时长的其他记录。', cells: [{ columnId: 'learner', value: 'D' }, { columnId: 'hours', value: 5 }, { columnId: 'score', value: 48 }, { columnId: 'cohort', value: '进阶班' }] },
+        { id: 'record_e', cells: [{ columnId: 'learner', value: 'E' }, { columnId: 'hours', value: 6 }, { columnId: 'score', value: 91 }, { columnId: 'cohort', value: '进阶班' }] },
+      ],
+      outlierIds: ['record_d'],
+      initialSort: { columnId: 'hours', direction: 'asc' },
+      chart: { type: 'scatter', xColumnId: 'hours', yColumnId: 'score', seriesColumnId: 'cohort' },
+    },
+    fallbackMarkdown: '总体上学习时长越长成绩越高，但记录 D 是需要检查的异常值。',
+  },
+  orderStateTransition: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '订单审批状态转换',
+    description: '逐步执行事件，观察当前状态以及触发条件和动作。',
+    content: {
+      kind: 'state_transition',
+      states: [
+        { id: 'draft', label: '草稿', detail: '订单尚可编辑。', initial: true, tone: 'gray' },
+        { id: 'reviewing', label: '审核中', detail: '等待审批人处理。', tone: 'blue' },
+        { id: 'approved', label: '已批准', detail: '允许进入履约。', final: true, tone: 'green' },
+        { id: 'rejected', label: '已拒绝', detail: '退回申请人修改。', final: true, tone: 'red' },
+      ],
+      transitions: [
+        { id: 'submit', from: 'draft', to: 'reviewing', trigger: '提交', guard: '字段完整', action: '锁定价格', tone: 'blue' },
+        { id: 'approve', from: 'reviewing', to: 'approved', trigger: '批准', action: '创建履约任务', tone: 'green' },
+        { id: 'reject', from: 'reviewing', to: 'rejected', trigger: '拒绝', action: '通知申请人', tone: 'red' },
+      ],
+      steps: [
+        { id: 'state_draft', label: '1. 创建订单', currentStateId: 'draft' },
+        { id: 'state_review', label: '2. 提交审核', currentStateId: 'reviewing', transitionId: 'submit', description: '字段完整时才能提交。' },
+        { id: 'state_approved', label: '3. 审批通过', currentStateId: 'approved', transitionId: 'approve' },
+      ],
+    },
+    fallbackMarkdown: '草稿 --提交[字段完整]/锁定价格→ 审核中 --批准/创建履约任务→ 已批准。',
+  },
+  slidingWindowBuffer: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '滑动窗口寻找最大和',
+    description: '切换步骤，观察左右指针、窗口区间和槽位值。',
+    content: {
+      kind: 'sequence_buffer',
+      slots: [3, -1, 4, 2, 5, -2].map((value, index) => ({ id: `slot_${String(index)}`, index, value })),
+      pointers: [
+        { id: 'left_pointer', label: 'L', index: 0, tone: 'blue' },
+        { id: 'right_pointer', label: 'R', index: 2, tone: 'orange' },
+      ],
+      ranges: [{ id: 'window', label: '当前窗口', start: 0, end: 2, tone: 'purple' }],
+      steps: [
+        { id: 'window_first', label: '1. 窗口 [0,2]', description: '和为 6。' },
+        { id: 'window_second', label: '2. 右移一格', description: '减去 3，加上 2，和为 5。', pointers: [{ pointerId: 'left_pointer', index: 1 }, { pointerId: 'right_pointer', index: 3 }], ranges: [{ rangeId: 'window', start: 1, end: 3 }] },
+        { id: 'window_third', label: '3. 再右移一格', description: '窗口 [2,4] 的和为 11，是当前最大值。', pointers: [{ pointerId: 'left_pointer', index: 2 }, { pointerId: 'right_pointer', index: 4 }], ranges: [{ rangeId: 'window', start: 2, end: 4 }] },
+      ],
+    },
+    fallbackMarkdown: '`[3,-1,4] → [-1,4,2] → [4,2,5]`，最大窗口和为 11。',
+  },
+  apiSequenceDiagram: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '客户端读取订单的消息序列',
+    description: '从上到下阅读每条消息，区分同步调用、返回与异步通知。',
+    content: {
+      kind: 'sequence_diagram',
+      participants: [
+        { id: 'client', label: '客户端', tone: 'blue' },
+        { id: 'api', label: '订单 API', tone: 'purple' },
+        { id: 'database', label: '数据库', tone: 'green' },
+        { id: 'queue', label: '消息队列', tone: 'orange' },
+      ],
+      messages: [
+        { id: 'request', from: 'client', to: 'api', label: 'GET /orders/42', type: 'sync' },
+        { id: 'query', from: 'api', to: 'database', label: '查询订单 42', type: 'sync' },
+        { id: 'row', from: 'database', to: 'api', label: '订单记录', type: 'return' },
+        { id: 'response', from: 'api', to: 'client', label: '200 + JSON', type: 'return' },
+        { id: 'audit', from: 'api', to: 'queue', label: '发布读取审计事件', type: 'async', detail: '响应不等待消费者处理。' },
+      ],
+    },
+    fallbackMarkdown: '客户端 → API → 数据库 → API → 客户端；API 随后异步发布审计事件。',
+  },
+  loopCodeTrace: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '循环累加执行轨迹',
+    description: '逐步查看当前代码行、变量变化、调用栈和最终输出。',
+    content: {
+      kind: 'code_trace',
+      language: 'typescript',
+      code: 'function sum(values: number[]) {\n  let total = 0\n  for (const value of values) {\n    total += value\n  }\n  return total\n}\nconsole.log(sum([2, 4, 1]))',
+      lines: [
+        { number: 1, text: 'function sum(values: number[]) {' },
+        { number: 2, text: '  let total = 0' },
+        { number: 3, text: '  for (const value of values) {' },
+        { number: 4, text: '    total += value' },
+        { number: 5, text: '  }' },
+        { number: 6, text: '  return total' },
+        { number: 7, text: '}' },
+        { number: 8, text: 'console.log(sum([2, 4, 1]))' },
+      ],
+      steps: [
+        { id: 'trace_init', label: '1. 初始化', currentLine: 2, variables: [{ name: 'total', value: 0 }], stack: [{ id: 'frame_sum', function: 'sum', line: 2 }] },
+        { id: 'trace_first', label: '2. 第一次迭代', currentLine: 4, variables: [{ name: 'value', value: 2 }, { name: 'total', value: 2 }], stack: [{ id: 'frame_sum', function: 'sum', line: 4 }] },
+        { id: 'trace_second', label: '3. 第二次迭代', currentLine: 4, variables: [{ name: 'value', value: 4 }, { name: 'total', value: 6 }], stack: [{ id: 'frame_sum', function: 'sum', line: 4 }] },
+        { id: 'trace_third', label: '4. 第三次迭代', currentLine: 4, variables: [{ name: 'value', value: 1 }, { name: 'total', value: 7 }], stack: [{ id: 'frame_sum', function: 'sum', line: 4 }] },
+        { id: 'trace_output', label: '5. 输出', currentLine: 8, variables: [{ name: 'total', value: 7 }], stack: [], output: '7' },
+      ],
+    },
+    fallbackMarkdown: '`total` 依次为 0、2、6、7，最终输出 7。',
+  },
+  gradientField: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '碗形损失面的梯度场',
+    description: '颜色表示损失大小，箭头表示梯度方向。',
+    content: {
+      kind: 'field_2d',
+      xAxis: { label: '参数 x', min: -2, max: 2, samples: 5 },
+      yAxis: { label: '参数 y', min: -2, max: 2, samples: 5 },
+      scalar: {
+        samples: {
+          columns: 5,
+          rows: 5,
+          values: [8, 5, 4, 5, 8, 5, 2, 1, 2, 5, 4, 1, 0, 1, 4, 5, 2, 1, 2, 5, 8, 5, 4, 5, 8],
+        },
+        min: 0,
+        max: 8,
+      },
+      vector: {
+        samples: {
+          columns: 5,
+          rows: 5,
+          u: [-4, -2, 0, 2, 4, -4, -2, 0, 2, 4, -4, -2, 0, 2, 4, -4, -2, 0, 2, 4, -4, -2, 0, 2, 4],
+          v: [-4, -4, -4, -4, -4, -2, -2, -2, -2, -2, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4],
+        },
+      },
+    },
+    fallbackMarkdown: '损失 `x²+y²` 在原点最小，梯度从原点向外增大。',
+  },
+  adoptionCausalLoop: {
+    protocol: VISUAL_PROTOCOL_V4,
+    title: '产品采用与服务容量反馈环',
+    description: '比较增强增长环与容量约束形成的调节环。',
+    content: {
+      kind: 'causal_loop',
+      variables: [
+        { id: 'users', label: '活跃用户', tone: 'blue' },
+        { id: 'value', label: '网络价值', tone: 'green' },
+        { id: 'load', label: '服务负载', tone: 'orange' },
+        { id: 'quality', label: '服务质量', tone: 'purple' },
+      ],
+      links: [
+        { id: 'users_value', from: 'users', to: 'value', polarity: 'positive', label: '更多参与者' },
+        { id: 'value_users', from: 'value', to: 'users', polarity: 'positive', label: '吸引采用', delay: 1 },
+        { id: 'users_load', from: 'users', to: 'load', polarity: 'positive' },
+        { id: 'load_quality', from: 'load', to: 'quality', polarity: 'negative', label: '拥塞降低质量' },
+        { id: 'quality_users', from: 'quality', to: 'users', polarity: 'positive', label: '质量影响留存' },
+      ],
+      loops: [
+        { id: 'growth_loop', label: '采用增长', type: 'reinforcing', linkIds: ['users_value', 'value_users'], tone: 'green' },
+        { id: 'capacity_loop', label: '容量约束', type: 'balancing', linkIds: ['users_load', 'load_quality', 'quality_users'], tone: 'orange' },
+      ],
+    },
+    fallbackMarkdown: '用户与网络价值形成增强环；用户增加也提高负载、降低质量，从而形成调节环。',
+  },
 } satisfies Record<string, LearningVisualV4>
 
 export function logisticVisual(): LearningVisualV3 {

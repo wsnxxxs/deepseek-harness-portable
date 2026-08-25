@@ -1,17 +1,20 @@
 /** `relation`: comparison tables, pairwise matrices and set membership. */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useVisualLabels } from '../core/labels.ts'
 import { SelectionSurface } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import type { RelationContent, RendererProps } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
+import { wrapLabel } from '../layout/text-metrics.ts'
 import shell from '../styles/shell.module.css'
 import css from '../styles/relation.module.css'
 
 type Selection = { label: string; detail?: string; kind: string }
+type SetRelationItem = Extract<RelationContent, { variant: 'sets' }>['items'][number]
 
 export function RelationRenderer({ content, focus }: RendererProps<RelationContent>) {
   const labels = useVisualLabels()
+  const diagramId = useId()
   const [selected, setSelected] = useState<Selection | undefined>()
   const close = (): void => setSelected(undefined)
 
@@ -77,9 +80,61 @@ export function RelationRenderer({ content, focus }: RendererProps<RelationConte
   const setById = new Map(content.sets.map(set => [set.id, set]))
   const exclusiveItems = (setId: string) => content.items.filter(item => item.setIds.length === 1 && item.setIds[0] === setId)
   const sharedItems = content.items.filter(item => item.setIds.length !== 1)
+  const isTwoSets = content.sets.length === 2
+  const setA = content.sets[0]
+  const setB = content.sets[1]
+  const vennItems = (items: readonly SetRelationItem[], x: number, keyPrefix: string) => {
+    const visible = items.slice(0, 4)
+    const lines = visible.flatMap(item => wrapLabel(item.label, { fontSize: 10, maxWidth: 82, maxLines: 2 }).lines.map((line, lineIndex) => ({ item, line, lineIndex })))
+    const overflow = items.length - visible.length
+    return [
+      ...lines.map(({ item, line, lineIndex }, index) => <text key={`${keyPrefix}-${item.id}-${String(lineIndex)}`} className={css.vennItem} x={x} y={68 + index * 17} textAnchor="middle">{line}</text>),
+      overflow > 0 ? <text key={`${keyPrefix}-overflow`} className={css.vennOverflow} x={x} y={68 + lines.length * 17} textAnchor="middle">+{overflow}</text> : null,
+    ]
+  }
+
   return (
     <div className={shell.rendererStack}>
       <div className={css.setMap} role="group" aria-label={labels.setsLabel}>
+        {!isTwoSets || !setA || !setB ? null : (
+          <div className={css.vennContainer}>
+            <svg className={css.vennSvg} viewBox="0 0 520 180" role="img" aria-label={labels.setsLabel}>
+              <defs>
+                <filter id={`${diagramId}-venn-glow`} x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.12" />
+                </filter>
+              </defs>
+              {/* Set A Circle */}
+              <circle
+                className={css.vennCircle}
+                data-tone={toneAt(setA.tone, 0)}
+                cx="195"
+                cy="90"
+                r="78"
+                filter={`url(#${diagramId}-venn-glow)`}
+              />
+              {/* Set B Circle */}
+              <circle
+                className={css.vennCircle}
+                data-tone={toneAt(setB.tone, 1)}
+                cx="325"
+                cy="90"
+                r="78"
+                filter={`url(#${diagramId}-venn-glow)`}
+              />
+              {/* Set Labels */}
+              <text className={css.vennLabel} data-tone={toneAt(setA.tone, 0)} x="195" y="25" textAnchor="middle">{setA.label}</text>
+              <text className={css.vennLabel} data-tone={toneAt(setB.tone, 1)} x="325" y="25" textAnchor="middle">{setB.label}</text>
+              <text className={css.vennIntersectionLabel} x="260" y="25" textAnchor="middle">∩</text>
+              <g className={css.vennItems} aria-hidden="true">
+                {vennItems(exclusiveItems(setA.id), 157, 'a')}
+                {vennItems(exclusiveItems(setB.id), 363, 'b')}
+                {vennItems(sharedItems, 260, 'shared')}
+              </g>
+            </svg>
+          </div>
+        )}
+
         <div className={css.setZones}>
           {content.sets.map((set, setIndex) => (
             <section key={set.id} className={css.setZone} data-tone={toneAt(set.tone, setIndex)} data-visual-state={elementState(set.id, focus)} data-visual-id={set.id}>

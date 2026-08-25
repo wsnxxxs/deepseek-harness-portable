@@ -303,7 +303,7 @@ async function runVisualScenario(): Promise<{
       'I am a complete beginner and want the minimum concept first.',
       'Explain why logistic regression uses a sigmoid instead of a straight line.',
       'Use exactly one plot visual to show observed 0/1 points beside the sigmoid curve, with adjustable intercept and slope and a -intercept/slope decision-boundary metric.',
-      'Bind the selector to the learner action of comparing one observed point with the curve and to one paired question. After the visual result, explain it in concise ordinary text and ask at most one focused question. Do not call learning_state_update in this canary.',
+      'Bind the selector to exactly one paired question about comparing an observed point with the curve. After the visual result, explain it in concise ordinary text and ask only that focused question. Do not call learning_state_update in this canary.',
     ].join(' '),
   })
 
@@ -322,7 +322,8 @@ async function runVisualScenario(): Promise<{
       selector = call
       const selection = parseToolArguments(call)
       if (selection.kind !== 'plot') throw new Error(`canary model selected ${String(selection.kind)}; expected plot`)
-      if (typeof selection.learnerAction !== 'string' && typeof selection.pairedQuestion !== 'string') throw new Error('visual selector did not include learnerAction or pairedQuestion')
+      const focusCount = Number(typeof selection.learnerAction === 'string') + Number(typeof selection.pairedQuestion === 'string')
+      if (focusCount !== 1) throw new Error('visual selector must include exactly one learnerAction or pairedQuestion')
       const selected = await ctx.tools.execute({
         signal: new AbortController().signal,
         callId: CallId(call.id),

@@ -79,8 +79,8 @@
   /* Surfaces and lines. */
   --lx-surface-base: var(--lx-host-bg);
   --lx-surface-card: color-mix(in srgb, var(--lx-host-bg) 96%, transparent);
-  --lx-surface-raised: color-mix(in srgb, var(--lx-host-bg) 84%, transparent);
-  --lx-surface-sunken: color-mix(in srgb, var(--lx-host-label) 3%, var(--lx-host-bg));
+  --lx-surface-raised: color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);
+  --lx-surface-sunken: color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));
   --lx-surface-accent: color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);
   --lx-border-subtle: var(--dsw-alias-border-l1, color-mix(in srgb, var(--lx-host-label) 12%, transparent));
   --lx-border-default: var(--dsw-alias-border-l2, color-mix(in srgb, var(--lx-host-label) 18%, transparent));
@@ -104,14 +104,13 @@
      they cannot drift into different borders, radii, padding or elevation. */
   --lx-card-border: 1px solid var(--lx-border-default);
   --lx-card-radius: var(--lx-radius-xl);
-  --lx-card-padding: clamp(14px, 2.6cqi, 20px);
+  --lx-card-padding: clamp(16px, 2.8cqi, 22px);
   --lx-card-background: var(--lx-surface-card);
 
-  /* Elevation. Restrained: a learning surface sits in a conversation, not on a
-     marketing page. */
-  --lx-shadow-sm: 0 1px 2px color-mix(in srgb, var(--lx-host-label) 7%, transparent);
-  --lx-shadow-md: 0 2px 8px color-mix(in srgb, var(--lx-host-label) 7%, transparent);
-  --lx-shadow-lg: 0 4px 16px color-mix(in srgb, var(--lx-host-label) 6%, transparent);
+  /* Elevation. Refined multi-tier ambient diffusion shadows with subtle tone lift. */
+  --lx-shadow-sm: 0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);
+  --lx-shadow-md: 0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);
+  --lx-shadow-lg: 0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);
 
   /* One focus treatment for every focusable element in the plugin. */
   --lx-focus-color: var(--lx-accent);
@@ -127,10 +126,11 @@
 
   /* Motion. */
   --lx-motion-fast: 140ms;
-  --lx-motion-base: 180ms;
-  --lx-easing: ease;
+  --lx-motion-base: 200ms;
+  --lx-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --lx-spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Semantic tones. Declared once so the eight renderers, the legacy replay
+  /* Semantic tones. Declared once so the renderers, the legacy replay
      surfaces and the checkpoint all resolve `--visual-tone` identically. */
   --lx-tone-blue: var(--lx-accent);
   --lx-tone-green: var(--lx-success);
@@ -139,6 +139,7 @@
   --lx-tone-purple: color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger));
   --lx-tone-gray: var(--dsw-alias-label-tertiary, color-mix(in srgb, var(--lx-host-label) 58%, transparent));
   --visual-tone: var(--lx-tone-blue);
+  --visual-tone-glow: color-mix(in srgb, var(--visual-tone) 24%, transparent);
 
   /* The emphasis model. One ranked set of roles for every renderer, so a
      sequence frame raises what it is about instead of erasing everything else.

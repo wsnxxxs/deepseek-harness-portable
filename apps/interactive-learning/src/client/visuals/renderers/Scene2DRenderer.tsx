@@ -7,7 +7,7 @@ import { DEFAULT_TONES, type RendererProps, type Scene2DContent, type SelectedIt
 import { elementState } from '../state/visual-state.ts'
 import { useContainerWidth, useRovingFocus } from '../state/hooks.ts'
 import { chartGeometry, scaleX, scaleY } from '../layout/chart-geometry.ts'
-import { measureText } from '../layout/text-metrics.ts'
+import { measureText, wrapLabel } from '../layout/text-metrics.ts'
 import { polygonLabelAnchor, type LabelRect } from '../layout/scene-labels.ts'
 import shell from '../styles/shell.module.css'
 import css from '../styles/plot.module.css'
@@ -30,6 +30,17 @@ function segmentLabelAnchor(x1: number, y1: number, x2: number, y2: number): { x
     x: (x1 + x2) / 2 + normalX * 13 * direction,
     y: (y1 + y2) / 2 + normalY * 13 * direction,
   }
+}
+
+function midpointTicks(majorTicks: readonly number[], minimum: number, maximum: number): number[] {
+  return majorTicks.slice(1).map((value, index) => {
+    const previous = majorTicks[index] ?? value
+    return (previous + value) / 2
+  }).filter(value => value > minimum && value < maximum)
+}
+
+function sceneLabelLines(text: string | undefined): string[] {
+  return text === undefined ? [] : wrapLabel(text, { fontSize: 12, maxWidth: 136, maxLines: 2 }).lines
 }
 
 function sceneElementBounds(
@@ -90,6 +101,8 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
   const [selected, setSelected] = useState<SelectedItem | undefined>()
   const xTicks = useMemo(() => ticks(content.xAxis.min, content.xAxis.max), [content.xAxis.max, content.xAxis.min])
   const yTicks = useMemo(() => ticks(content.yAxis.min, content.yAxis.max), [content.yAxis.max, content.yAxis.min])
+  const xMinorTicks = useMemo(() => midpointTicks(xTicks, content.xAxis.min, content.xAxis.max), [content.xAxis.max, content.xAxis.min, xTicks])
+  const yMinorTicks = useMemo(() => midpointTicks(yTicks, content.yAxis.min, content.yAxis.max), [content.yAxis.max, content.yAxis.min, yTicks])
   const elementBounds = useMemo(
     () => new Map(content.elements.map(element => [element.id, sceneElementBounds(element, content, geometry)])),
     [content, geometry],
@@ -134,10 +147,13 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
             ))}
           </defs>
           <rect className={css.plotFrame} x={geometry.left} y={geometry.top} width={geometry.plotWidth} height={geometry.plotHeight} />
+          {content.grid !== true ? null : yMinorTicks.map(value => <line key={`my-${String(value)}`} className={css.minorGridLine} x1={geometry.left} x2={geometry.left + geometry.plotWidth} y1={scaleY(value, content.yAxis, geometry)} y2={scaleY(value, content.yAxis, geometry)} />)}
+          {content.grid !== true ? null : xMinorTicks.map(value => <line key={`mx-${String(value)}`} className={css.minorGridLine} x1={scaleX(value, content.xAxis, geometry)} x2={scaleX(value, content.xAxis, geometry)} y1={geometry.top} y2={geometry.top + geometry.plotHeight} />)}
           {content.grid !== true ? null : yTicks.map(value => <line key={`gy-${String(value)}`} className={css.gridLine} x1={geometry.left} x2={geometry.left + geometry.plotWidth} y1={scaleY(value, content.yAxis, geometry)} y2={scaleY(value, content.yAxis, geometry)} />)}
           {content.grid !== true ? null : xTicks.map(value => <line key={`gx-${String(value)}`} className={css.gridLine} x1={scaleX(value, content.xAxis, geometry)} x2={scaleX(value, content.xAxis, geometry)} y1={geometry.top} y2={geometry.top + geometry.plotHeight} />)}
           {zeroX === undefined ? null : <line className={css.zeroAxis} x1={zeroX} x2={zeroX} y1={geometry.top} y2={geometry.top + geometry.plotHeight} />}
           {zeroY === undefined ? null : <line className={css.zeroAxis} x1={geometry.left} x2={geometry.left + geometry.plotWidth} y1={zeroY} y2={zeroY} />}
+          {zeroX === undefined || zeroY === undefined ? null : <g className={css.originMarker} aria-hidden="true"><circle cx={zeroX} cy={zeroY} r="3.5" /><text x={zeroX + 7} y={zeroY - 7}>O</text></g>}
           {yTicks.map(value => <text key={`yt-${String(value)}`} className={css.tickLabel} x={geometry.left - 9} y={scaleY(value, content.yAxis, geometry)} textAnchor="end" dominantBaseline="middle">{formatNumber(value)}</text>)}
           {xTicks.map(value => <text key={`xt-${String(value)}`} className={css.tickLabel} x={scaleX(value, content.xAxis, geometry)} y={geometry.top + geometry.plotHeight + 19} textAnchor="middle">{formatNumber(value)}</text>)}
           <g clipPath={`url(#${id}-scene-clip)`}>
@@ -149,6 +165,7 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
                 'data-visual-state': selected?.id === element.id ? 'selected' : elementState(element.id, focus),
                 'data-selected': selected?.id === element.id || undefined,
                 'data-visual-id': element.id,
+                'data-element-type': element.type,
                 role: 'button',
                 'aria-label': `${element.type === 'label' ? element.text : element.label ?? element.type}${element.detail === undefined ? '' : `。${element.detail}`}`,
                 onClick: () => selectElement(element, tone),
@@ -157,7 +174,7 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
               if (element.type === 'point') {
                 const x = scaleX(element.x, content.xAxis, geometry)
                 const y = scaleY(element.y, content.yAxis, geometry)
-                return <g key={element.id} {...common}><circle className={css.scenePoint} cx={x} cy={y} r={element.size ?? 6} />{element.label === undefined ? null : <text className={css.shapeLabel} x={x + 10} y={y - 10}>{element.label}</text>}</g>
+                return <g key={element.id} {...common}><circle className={css.scenePoint} cx={x} cy={y} r={element.size ?? 6} />{element.label === undefined ? null : <text className={css.shapeLabel} x={x + 10} y={y - 10}>{sceneLabelLines(element.label).map((line, lineIndex) => <tspan key={lineIndex} x={x + 10} dy={lineIndex === 0 ? '0' : '1.1em'}>{line}</tspan>)}</text>}</g>
               }
               if (element.type === 'segment' || element.type === 'arrow') {
                 const x1 = scaleX(element.x1, content.xAxis, geometry)
@@ -166,7 +183,7 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
                 const y2 = scaleY(element.y2, content.yAxis, geometry)
                 return <g key={element.id} {...common} data-stroke={element.stroke ?? 'solid'}><line className={css.sceneLine} x1={x1} y1={y1} x2={x2} y2={y2} markerEnd={element.type === 'arrow' ? `url(#${id}-scene-arrow-${tone})` : undefined} /><line className={css.sceneHit} x1={x1} y1={y1} x2={x2} y2={y2} />{element.label === undefined ? null : (() => {
                   const anchor = segmentLabelAnchor(x1, y1, x2, y2)
-                  return <text className={css.shapeLabel} x={anchor.x} y={anchor.y} textAnchor="middle" dominantBaseline="middle">{element.label}</text>
+                  return <text className={css.shapeLabel} x={anchor.x} y={anchor.y} textAnchor="middle" dominantBaseline="middle">{sceneLabelLines(element.label).map((line, lineIndex) => <tspan key={lineIndex} x={anchor.x} dy={lineIndex === 0 ? (sceneLabelLines(element.label).length > 1 ? '-0.55em' : '0.34em') : '1.1em'}>{line}</tspan>)}</text>
                 })()}</g>
               }
               if (element.type === 'circle') {
@@ -174,14 +191,14 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
                 const cy = scaleY(element.cy, content.yAxis, geometry)
                 const rx = Math.abs(scaleX(element.cx + element.r, content.xAxis, geometry) - cx)
                 const ry = Math.abs(scaleY(element.cy + element.r, content.yAxis, geometry) - cy)
-                return <g key={element.id} {...common}><ellipse className={css.sceneShape} cx={cx} cy={cy} rx={rx} ry={ry} />{element.label === undefined ? null : <text className={css.shapeLabel} x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
+                return <g key={element.id} {...common}><ellipse className={css.sceneShape} cx={cx} cy={cy} rx={rx} ry={ry} />{element.label === undefined ? null : <text className={css.shapeLabel} x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">{sceneLabelLines(element.label).map((line, lineIndex) => <tspan key={lineIndex} x={cx} dy={lineIndex === 0 ? (sceneLabelLines(element.label).length > 1 ? '-0.55em' : '0.34em') : '1.1em'}>{line}</tspan>)}</text>}</g>
               }
               if (element.type === 'rect') {
                 const x = scaleX(element.x, content.xAxis, geometry)
                 const y = scaleY(element.y + element.height, content.yAxis, geometry)
                 const width = Math.abs(scaleX(element.x + element.width, content.xAxis, geometry) - x)
                 const height = Math.abs(scaleY(element.y, content.yAxis, geometry) - y)
-                return <g key={element.id} {...common}><rect className={css.sceneShape} x={x} y={y} width={width} height={height} rx="3" />{element.label === undefined ? null : <text className={css.shapeLabel} x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
+                return <g key={element.id} {...common}><rect className={css.sceneShape} x={x} y={y} width={width} height={height} rx="3" />{element.label === undefined ? null : <text className={css.shapeLabel} x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="middle">{sceneLabelLines(element.label).map((line, lineIndex) => <tspan key={lineIndex} x={x + width / 2} dy={lineIndex === 0 ? (sceneLabelLines(element.label).length > 1 ? '-0.55em' : '0.34em') : '1.1em'}>{line}</tspan>)}</text>}</g>
               }
               if (element.type === 'polygon') {
                 const pixelPoints = element.points.map(point => ({ x: scaleX(point.x, content.xAxis, geometry), y: scaleY(point.y, content.yAxis, geometry) }))
@@ -195,7 +212,7 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
                     .filter((bounds): bounds is LabelRect => bounds !== undefined),
                   { left: geometry.left, right: geometry.left + geometry.plotWidth, top: geometry.top, bottom: geometry.top + geometry.plotHeight },
                 )
-                return <g key={element.id} {...common}><polygon className={css.sceneShape} points={points} />{anchor === undefined ? null : <text className={css.shapeLabel} x={anchor.x} y={anchor.y} textAnchor="middle" dominantBaseline="middle">{element.label}</text>}</g>
+                return <g key={element.id} {...common}><polygon className={css.sceneShape} points={points} />{anchor === undefined ? null : <text className={css.shapeLabel} x={anchor.x} y={anchor.y} textAnchor="middle" dominantBaseline="middle">{sceneLabelLines(element.label).map((line, lineIndex) => <tspan key={lineIndex} x={anchor.x} dy={lineIndex === 0 ? (sceneLabelLines(element.label).length > 1 ? '-0.55em' : '0.34em') : '1.1em'}>{line}</tspan>)}</text>}</g>
               }
               if (element.type === 'label') return <g key={element.id} {...common}><text className={css.sceneText} x={scaleX(element.x, content.xAxis, geometry)} y={scaleY(element.y, content.yAxis, geometry)} textAnchor="middle" dominantBaseline="middle">{element.text}</text></g>
               return null

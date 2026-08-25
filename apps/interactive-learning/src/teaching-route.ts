@@ -25,6 +25,7 @@ export interface LearningRouteDecision {
     | 'short-learning-request'
     | 'explicit-learning'
     | 'explicit-beginner'
+    | 'initial-urgent-blocker'
     | 'explicit-overview'
     | 'current-or-contested'
     | 'specific-goal'
@@ -52,9 +53,11 @@ export interface LearningTurnRouteDecision extends LearningRouteDecision {
 }
 
 const SHORT_LEARNING_REQUEST = /^(?:please\s+)?(?:teach\s+me|help\s+me\s+learn|learn|understand|get\s+to\s+know|walk\s+me\s+through|take\s+me\s+through)\b|^(?:学习|教我|了解|想学)\s*/i
-const EXPLICIT_BEGINNER = /(?:\b(?:from\s+scratch|from\s+zero|beginner|beginners|intro(?:duction)?|concept(?:ual)?\s+intro)\b|零基础|从零|入门|概念入门)/i
+const EXPLICIT_BEGINNER = /(?:\b(?:from\s+scratch|from\s+zero|beginner|beginners|intro(?:duction)?|concept(?:ual)?\s+intro|eli5)\b|explain(?:\s+it|\s+this)?\s+like\s+(?:i(?:'| a)?m|to\s+a)\s+(?:five|5)(?:[- ]year[- ]old)?|零基础|从零|入门|概念入门|像给五岁孩子讲|用小白能懂的方式)/i
 const EXPLICIT_OVERVIEW = /\b(?:complete|full|comprehensive|structured|direct)\s+(?:overview|survey|summary)|\b(?:overview|survey)\b.*\b(?:directly|without\s+(?:asking|questions)|don['’]?t\s+(?:ask|quiz)|no\s+questions)|(?:完整|全面|结构化).*(?:概览|综述)|(?:直接讲|不要提问|别提问|不要先问)/i
-const SPECIFIC_LEARNING_GOAL = /(?:\b(?:why|how|difference|distinguish|compare|debug|apply|predict|explain|derive|implement)\b|练习|区别|为什么|如何|怎么|对比|调试|应用|预测|推导|实现|了解)/i
+const INITIAL_TIME_PRESSURE = /(?:\b(?:in|within|have)\s+\d+\s*(?:minutes?|mins?|hours?)\b|\b\d+\s*(?:minutes?|mins?|hours?)\s+(?:left|remaining)\b|\b(?:urgent|immediately|right\s+now)\b|(?:还有|只剩|再过)\s*\d+\s*(?:分钟|小时)|\d+\s*(?:分钟|小时)\s*(?:后|内)|马上(?:要|就要)?(?:开会|考试|面试|汇报))/i
+const CONCRETE_HELP_SHAPE = /(?:\b(?:how\s+do\s+i|what\s+(?:do|should)\s+i\s+do|give\s+me|tell\s+me|show\s+me|explain|fix|solve|checklist|steps?)\b|如何|怎么|给我|告诉我|解释|修复|解决|步骤|清单)/i
+const SPECIFIC_LEARNING_GOAL = /(?:\b(?:why|how|difference|distinguish|compare|debug|apply|predict|derive|implement|mechanism)\b|练习|区别|为什么|如何|怎么|对比|调试|应用|预测|推导|实现|机制)/i
 const FOLLOW_UP_CUE = /^(?:what\s+if|suppose|if)\b|\b(?:again|that|this|it|same|still|more|further)\b|(?:再说一次|刚才|上面|这个|那个|继续|接着|还是不懂|还是不明白)/i
 const EXPLICIT_NEW_TOPIC = /^(?:please\s+)?(?:teach\s+me|learn|understand|explain|walk\s+me\s+through|get\s+to\s+know|take\s+me\s+through)\b|^(?:我想(?:要)?(?:学习|了解|理解)|学习|教我|了解|理解|讲解|解释)/i
 
@@ -80,6 +83,9 @@ export function routeLearningRequest(text: string): LearningRouteDecision {
   }
   if (intent.trigger === 'current-topic') {
     return { route: 'overview', reason: 'current-or-contested', intent }
+  }
+  if (INITIAL_TIME_PRESSURE.test(normalized) && CONCRETE_HELP_SHAPE.test(normalized)) {
+    return { route: 'direct', reason: 'initial-urgent-blocker', intent }
   }
   if (SHORT_LEARNING_REQUEST.test(normalized)) {
     if (EXPLICIT_BEGINNER.test(normalized)) {
@@ -127,10 +133,15 @@ export function routeLearningTurn(
   session: LearningRouteSession = { active: false },
 ): LearningTurnRouteDecision {
   const fresh = routeLearningRequest(text)
-  if (session.active && session.decision !== undefined && !isLearningBoundary(text)
-    && !mayStartNewTopic(text, fresh.intent)) {
+  if (session.active && !isLearningBoundary(text) && !mayStartNewTopic(text, fresh.intent)) {
+    const activeIntent: LearnIntentDecision = session.decision?.intent ?? {
+      intent: 'learn',
+      trigger: 'explicit-learning',
+      reason: 'durable learner state indicates an active learning segment',
+    }
     return {
-      ...session.decision,
+      ...(session.decision ?? fresh),
+      intent: activeIntent,
       route: 'continue',
       reason: 'active-segment',
       inherited: true,

@@ -50,10 +50,10 @@ export const LEARNING_CANARY_MATRIX: readonly LearningCanaryScenario[] = [
   {
     id: 'expert-terminology',
     kind: 'first-turn',
-    prompt: 'Explain heteroskedastic ordered probit; I know the words but want the mechanism and the right level of detail.',
+    prompt: 'Explain heteroskedastic ordered probit.',
     expectedIntent: 'learn',
     expectedTrigger: 'explicit-learning',
-    expectedRoute: 'teach-minimum',
+    expectedRoute: 'calibrate',
     responseShape: 'expert-calibration',
   },
   {
@@ -71,7 +71,7 @@ export const LEARNING_CANARY_MATRIX: readonly LearningCanaryScenario[] = [
     prompt: 'I have 15 minutes before a meeting. Explain what a database migration rollback does and give me the shortest safe checklist.',
     expectedIntent: 'learn',
     expectedTrigger: 'explicit-learning',
-    expectedRoute: 'teach-minimum',
+    expectedRoute: 'direct',
     responseShape: 'urgent-direct',
   },
   {
