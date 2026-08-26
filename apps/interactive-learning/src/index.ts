@@ -179,6 +179,7 @@ export {
   routeLearningTurn,
   type LearningRoute,
   type LearningRouteDecision,
+  type LearningRouteOverride,
   type LearningRouteSession,
   type LearningTurnRouteDecision,
 } from './teaching-route.ts'

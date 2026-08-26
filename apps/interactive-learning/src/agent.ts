@@ -40,6 +40,7 @@ import type {
   ObservableLearnerEvent,
 } from './learner-state.ts'
 import { LEARN_INTENT_MODEL_GUIDANCE } from './learn-intent.ts'
+import { classifyLearningIntentSemantically } from './intent-router.ts'
 import { MATERIAL_TOOL_NAMES, registerMaterialTools } from './material-tools.ts'
 import { CONCEPT_TOOL_NAMES, registerConceptTools } from './concept-tools.ts'
 import {
@@ -358,6 +359,13 @@ const learnerStateUpdateOutput = { type: 'object', additionalProperties: false, 
 const LEARNING_TOOL_PREFIX = 'learning_'
 const GENERIC_USER_WAIT_TOOL = 'ask_user_question'
 const learningRoutes = new WeakMap<object, LearningTurnRouteDecision>()
+interface PendingSemanticRoute {
+  text: string
+  turn: number
+  session: LearningRouteSession
+  base: LearningTurnRouteDecision
+}
+const pendingSemanticRoutes = new WeakMap<Agent, PendingSemanticRoute>()
 interface LearningTurnPromptState {
   graded: boolean
   language: 'en' | 'zh' | 'mixed'
@@ -605,6 +613,41 @@ function durableLearningSegmentActive(services: LearningAgentContext, agent: Age
   return services.learningActivities.learningSegmentActive(agent)
 }
 
+function recordLearningRouteAnchor(
+  services: LearningAgentContext,
+  agent: Agent,
+  turn: number,
+  session: LearningRouteSession,
+  decision: LearningTurnRouteDecision,
+): void {
+  if (decision.intent.intent === 'learn' && decision.segment === 'active') {
+    services.learningActivities.recordLearningSegmentAnchor(agent, turn)
+  } else if (session.active) {
+    services.learningActivities.recordLearningSegmentAnchor(agent, turn, 'closed')
+  }
+}
+
+async function resolvePendingSemanticRoute(
+  services: LearningAgentContext,
+  agent: Agent,
+  signal?: AbortSignal,
+): Promise<void> {
+  const pending = pendingSemanticRoutes.get(agent)
+  if (pending === undefined || pending.base !== learningRoutes.get(agent)) return
+  pendingSemanticRoutes.delete(agent)
+
+  const override = await classifyLearningIntentSemantically(services, agent, pending.text, signal)
+  // The agent is serial at this boundary, but keep a late result from
+  // replacing a newer claimed message if another host invokes assembly while
+  // this request is resolving.
+  if (learningRoutes.get(agent) !== pending.base) return
+  const resolved = override === undefined
+    ? pending.base
+    : routeLearningTurn(pending.text, pending.session, override)
+  learningRoutes.set(agent, resolved)
+  recordLearningRouteAnchor(services, agent, pending.turn, pending.session, resolved)
+}
+
 const visualSelectorOutput = { type: 'object', additionalProperties: false, properties: {
   status: { type: 'string', const: 'selected', required: true },
   kind: { type: 'string', enum: LEARNING_VISUAL_KINDS_V4, required: true },
@@ -819,10 +862,11 @@ export function apply(ctx: Context): void {
         : { active: true, decision: previous }
     const decision = routeLearningTurn(text, session)
     learningRoutes.set(agent, decision)
-    if (decision.intent.intent === 'learn' && decision.segment === 'active') {
-      services.learningActivities.recordLearningSegmentAnchor(agent, turn)
-    } else if (session.active) {
-      services.learningActivities.recordLearningSegmentAnchor(agent, turn, 'closed')
+    if (decision.confidence === 'low' && !decision.inherited) {
+      pendingSemanticRoutes.set(agent, { text, turn, session, base: decision })
+    } else {
+      pendingSemanticRoutes.delete(agent)
+      recordLearningRouteAnchor(services, agent, turn, session, decision)
     }
   })
 
@@ -863,10 +907,13 @@ export function apply(ctx: Context): void {
   // schemas. The registrations remain mounted for a later learning turn.
   ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
     const agent = context.agent
-    const decision = agent === undefined ? undefined : learningRoutes.get(agent)
     // The one awaited seam before the prompt sections are evaluated, so vault
     // memory is warm by the time `learning:learner-state` renders.
-    if (agent !== undefined) await refreshLearnerMemory(services, agent)
+    if (agent !== undefined) {
+      await resolvePendingSemanticRoute(services, agent, context.signal)
+      await refreshLearnerMemory(services, agent)
+    }
+    const decision = agent === undefined ? undefined : learningRoutes.get(agent)
     const assembly = await next()
     if (!isConfidentNotLearn(decision)) {
       return {

@@ -14,7 +14,7 @@ export type LearnIntent = typeof LEARN_INTENT | 'not-learn';
  * reclassify it from the user's actual words.
  */
 export type LearnIntentConfidence = 'high' | 'medium' | 'low';
-export type LearnTrigger = 'explicit-learning' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'conceptual-question' | 'explicit-overview' | 'current-topic' | 'resource-creation' | 'coding-task' | 'calculation-task' | 'factual-lookup' | 'troubleshooting-task' | 'translation-task' | 'news-request' | 'current-fact-lookup' | 'resource-recommendation' | 'opinion-judgment' | 'unknown';
+export type LearnTrigger = 'explicit-learning' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'conceptual-question' | 'explicit-overview' | 'current-topic' | 'resource-creation' | 'coding-task' | 'calculation-task' | 'factual-lookup' | 'troubleshooting-task' | 'translation-task' | 'news-request' | 'current-fact-lookup' | 'resource-recommendation' | 'opinion-judgment' | 'model-classification' | 'unknown';
 export interface LearnIntentDecision {
     intent: LearnIntent;
     trigger: LearnTrigger;

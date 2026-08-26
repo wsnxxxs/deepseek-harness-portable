@@ -4461,9 +4461,10 @@ function mayStartNewTopic(text, intent) {
 * Classify only the first-turn shape. It deliberately does not infer a
 * learner level from jargon or topic name.
 */
-function routeLearningRequest(text) {
+function routeLearningRequest(text, override) {
 	const normalized = text.replace(/\s+/g, " ").trim();
-	const intent = classifyLearnIntent(normalized);
+	const observed = classifyLearnIntent(normalized);
+	const intent = observed.confidence === "low" && override !== void 0 ? override.intent : observed;
 	if (intent.intent !== "learn") return routeDecision("direct", "direct", intent);
 	if (EXPLICIT_OVERVIEW.test(normalized)) return routeDecision("overview", "explicit-overview", intent);
 	if (intent.trigger === "current-topic") return routeDecision("overview", "current-or-contested", intent);
@@ -4474,6 +4475,7 @@ function routeLearningRequest(text) {
 		return routeDecision("calibrate", "short-learning-request", intent);
 	}
 	if (EXPLICIT_BEGINNER.test(normalized)) return routeDecision("teach-minimum", "explicit-beginner", intent);
+	if (override?.route !== void 0 && observed.confidence === "low") return routeDecision(override.route, "model-classification", intent);
 	switch (intent.trigger) {
 		case "definition": return routeDecision("teach-minimum", "definition", intent);
 		case "bare-concept": return routeDecision("calibrate", "bare-concept", intent);
@@ -4491,9 +4493,11 @@ function routeLearningRequest(text) {
 * learning segment is active, ordinary learner responses inherit its route.
 * Only an explicit non-learning task, reset, or topic switch closes it.
 */
-function routeLearningTurn(text, session = { active: false }) {
-	const fresh = routeLearningRequest(text);
-	if (session.active && !isLearningBoundary(text) && !mayStartNewTopic(text, fresh.intent)) {
+function routeLearningTurn(text, session = { active: false }, override) {
+	const fresh = routeLearningRequest(text, override);
+	const observedFresh = override === void 0 ? fresh : routeLearningRequest(text);
+	const semanticTaskSwitch = override?.intent.intent === "not-learn";
+	if (session.active && !semanticTaskSwitch && !isLearningBoundary(text) && !mayStartNewTopic(text, fresh.intent) && !mayStartNewTopic(text, observedFresh.intent)) {
 		const activeIntent = session.decision?.intent ?? {
 			intent: "learn",
 			trigger: "explicit-learning",

@@ -43,6 +43,7 @@ export type LearnTrigger =
   | 'current-fact-lookup'
   | 'resource-recommendation'
   | 'opinion-judgment'
+  | 'model-classification'
   | 'unknown'
 
 export interface LearnIntentDecision {

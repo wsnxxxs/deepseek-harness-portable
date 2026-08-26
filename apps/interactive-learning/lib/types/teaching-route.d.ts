@@ -9,10 +9,16 @@ import { type LearnIntentConfidence, type LearnIntentDecision } from './learn-in
 export type LearningRoute = 'calibrate' | 'teach-minimum' | 'overview' | 'direct' | 'continue';
 export interface LearningRouteDecision {
     route: LearningRoute;
-    reason: 'short-learning-request' | 'explicit-learning' | 'explicit-beginner' | 'initial-urgent-blocker' | 'explicit-overview' | 'current-or-contested' | 'specific-goal' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'resource-creation' | 'active-segment' | 'direct';
+    reason: 'short-learning-request' | 'explicit-learning' | 'explicit-beginner' | 'initial-urgent-blocker' | 'explicit-overview' | 'current-or-contested' | 'specific-goal' | 'definition' | 'bare-concept' | 'confusion-repair' | 'learning-path' | 'resource-creation' | 'model-classification' | 'active-segment' | 'direct';
     intent: LearnIntentDecision;
     /** Mirrors intent confidence for route-context consumers. */
     confidence: LearnIntentConfidence;
+}
+/** A semantic result that may refine a low-confidence first-turn decision. */
+export interface LearningRouteOverride {
+    intent: LearnIntentDecision;
+    /** The first-turn response shape suggested by the semantic classifier. */
+    route?: Exclude<LearningRoute, 'continue'>;
 }
 /** Session-local route memory. This is not learner state and is never a profile. */
 export interface LearningRouteSession {
@@ -29,12 +35,12 @@ export interface LearningTurnRouteDecision extends LearningRouteDecision {
  * Classify only the first-turn shape. It deliberately does not infer a
  * learner level from jargon or topic name.
  */
-export declare function routeLearningRequest(text: string): LearningRouteDecision;
+export declare function routeLearningRequest(text: string, override?: LearningRouteOverride): LearningRouteDecision;
 /**
  * Resolve one claimed user message with the session's current segment in
  * mind. The first-turn classifier remains intentionally narrow; once a
  * learning segment is active, ordinary learner responses inherit its route.
  * Only an explicit non-learning task, reset, or topic switch closes it.
  */
-export declare function routeLearningTurn(text: string, session?: LearningRouteSession): LearningTurnRouteDecision;
+export declare function routeLearningTurn(text: string, session?: LearningRouteSession, override?: LearningRouteOverride): LearningTurnRouteDecision;
 //# sourceMappingURL=teaching-route.d.ts.map

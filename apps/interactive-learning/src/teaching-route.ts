@@ -35,11 +35,19 @@ export interface LearningRouteDecision {
     | 'confusion-repair'
     | 'learning-path'
     | 'resource-creation'
+    | 'model-classification'
     | 'active-segment'
     | 'direct'
   intent: LearnIntentDecision
   /** Mirrors intent confidence for route-context consumers. */
   confidence: LearnIntentConfidence
+}
+
+/** A semantic result that may refine a low-confidence first-turn decision. */
+export interface LearningRouteOverride {
+  intent: LearnIntentDecision
+  /** The first-turn response shape suggested by the semantic classifier. */
+  route?: Exclude<LearningRoute, 'continue'>
 }
 
 /** Session-local route memory. This is not learner state and is never a profile. */
@@ -83,9 +91,17 @@ function mayStartNewTopic(text: string, intent: LearnIntentDecision): boolean {
  * Classify only the first-turn shape. It deliberately does not infer a
  * learner level from jargon or topic name.
  */
-export function routeLearningRequest(text: string): LearningRouteDecision {
+export function routeLearningRequest(
+  text: string,
+  override?: LearningRouteOverride,
+): LearningRouteDecision {
   const normalized = text.replace(/\s+/g, ' ').trim()
-  const intent = classifyLearnIntent(normalized)
+  const observed = classifyLearnIntent(normalized)
+  // Deterministic high-confidence boundaries remain authoritative. The
+  // semantic pass is only allowed to refine the low-confidence tail.
+  const intent = observed.confidence === 'low' && override !== undefined
+    ? override.intent
+    : observed
   if (intent.intent !== 'learn') {
     return routeDecision('direct', 'direct', intent)
   }
@@ -109,6 +125,9 @@ export function routeLearningRequest(text: string): LearningRouteDecision {
   }
   if (EXPLICIT_BEGINNER.test(normalized)) {
     return routeDecision('teach-minimum', 'explicit-beginner', intent)
+  }
+  if (override?.route !== undefined && observed.confidence === 'low') {
+    return routeDecision(override.route, 'model-classification', intent)
   }
   switch (intent.trigger) {
     case 'definition':
@@ -142,9 +161,16 @@ export function routeLearningRequest(text: string): LearningRouteDecision {
 export function routeLearningTurn(
   text: string,
   session: LearningRouteSession = { active: false },
+  override?: LearningRouteOverride,
 ): LearningTurnRouteDecision {
-  const fresh = routeLearningRequest(text)
-  if (session.active && !isLearningBoundary(text) && !mayStartNewTopic(text, fresh.intent)) {
+  const fresh = routeLearningRequest(text, override)
+  const observedFresh = override === undefined ? fresh : routeLearningRequest(text)
+  const semanticTaskSwitch = override?.intent.intent === 'not-learn'
+  if (session.active
+    && !semanticTaskSwitch
+    && !isLearningBoundary(text)
+    && !mayStartNewTopic(text, fresh.intent)
+    && !mayStartNewTopic(text, observedFresh.intent)) {
     const activeIntent: LearnIntentDecision = session.decision?.intent ?? {
       intent: 'learn',
       trigger: 'explicit-learning',
