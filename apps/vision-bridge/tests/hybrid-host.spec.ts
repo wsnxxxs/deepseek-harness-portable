@@ -37,7 +37,10 @@ describe('hybrid host installer', () => {
       resolveModelInfo: async () => textModel,
     }
     const installation = installHybridVisionRouting(ctx, () => ({ enabled: true, model: 'vision' }), runtime)
-    const agent = { options: { provider: 'p', model: 'chat' }, session: { append } }
+    const agent = {
+      options: { provider: 'p', model: 'chat' },
+      session: { append, requestHeader: () => ({ config: { provider: 'p', model: 'vision' } }) },
+    }
     const assembled = listeners.get('system-prompt/assemble')!
     await assembled(
       { variables: {} },
@@ -61,6 +64,7 @@ describe('hybrid host installer', () => {
       sourceEventSeqs: [0],
     })
     expect(stream).toHaveBeenCalledWith(expect.objectContaining({ provider: 'p', model: 'vision' }))
+    expect(installation.currentRoute(agent)).toEqual({ provider: 'p', model: 'vision' })
     await expect(installation.resolveModelInfo('p', 'chat')).resolves.toMatchObject({
       inputModalities: ['text', 'image'],
     })

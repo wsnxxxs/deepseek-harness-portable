@@ -46,6 +46,11 @@ export function apply(ctx, config = {}) {
     // Services are read per call rather than captured: a provider reconfigured
     // mid-session must be visible to the next invocation.
     const llm = ctx.get('llm') ?? ctx.llm;
+    // Image admission happens before an Agent can rewrite its model surface.
+    // Advertise the configured fallback at that boundary, then let pre-step
+    // preserve the original image event and replace only the model-facing copy
+    // with structured visual evidence.
+    const hybrid = installHybridVisionRouting(ctx, currentConfig, llm);
     const runtime = {
         get attachments() {
             return ctx.attachments;
@@ -53,12 +58,8 @@ export function apply(ctx, config = {}) {
         get llm() {
             return llm;
         },
+        currentRoute: agent => agent === undefined ? undefined : hybrid.currentRoute(agent),
     };
-    // Image admission happens before an Agent can rewrite its model surface.
-    // Advertise the configured fallback at that boundary, then let pre-step
-    // preserve the original image event and replace only the model-facing copy
-    // with structured visual evidence.
-    const hybrid = installHybridVisionRouting(ctx, currentConfig, llm);
     const originalResolveModelInfo = llm.resolveModelInfo;
     ctx.effect(() => {
         llm.resolveModelInfo = hybrid.resolveModelInfo;
@@ -71,9 +72,10 @@ export function apply(ctx, config = {}) {
     }, 'vision-bridge: hybrid routing');
     ctx.tools.register(defineTool({
         name: 'view_image',
-        description: 'Inspect and describe a local PNG, JPEG, WebP, GIF, or one page of a PDF using a configured image-capable model. '
+        description: 'Inspect and describe a local PNG, JPEG, WebP, GIF, or one page of a PDF. '
             + 'Provide path for a local file; for PDF, page is 1-based and defaults to 1. The tool renders the requested PDF '
-            + 'page locally before analysis; for a multi-page PDF, use the returned pageCount and call the tool again for other pages '
+            + 'page locally before inspection; when the current conversation model accepts images, it receives the rendered page natively. '
+            + 'Otherwise, the configured Vision Bridge model analyzes it. For a multi-page PDF, use the returned pageCount and call the tool again for other pages '
             + 'instead of asking the user to convert screenshots. To re-analyze an image already present in this session history, provide attachmentId. '
             + 'Use this tool whenever you need to view screenshots, UI layouts, diagrams, charts, PDF pages, or images.',
         parameters: {
@@ -87,7 +89,7 @@ export function apply(ctx, config = {}) {
             },
             prompt: {
                 type: 'string',
-                description: 'Specific question or instruction for the vision model (e.g. "Extract the error code from this dialog").',
+                description: 'Specific question or instruction for visual inspection (e.g. "Extract the error code from this dialog").',
             },
             page: {
                 type: 'number',
@@ -108,6 +110,26 @@ export function apply(ctx, config = {}) {
                     bytes: { type: 'number' },
                     width: { type: 'number' },
                     height: { type: 'number' },
+                    image: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                            attachmentId: { type: 'string', required: true },
+                            mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+                            bytes: { type: 'number', required: true },
+                            width: { type: 'number', required: true },
+                            height: { type: 'number', required: true },
+                            name: { type: 'string' },
+                            originalDimensions: {
+                                type: 'object',
+                                additionalProperties: false,
+                                properties: {
+                                    width: { type: 'number', required: true },
+                                    height: { type: 'number', required: true },
+                                },
+                            },
+                        },
+                    },
                     page: { type: 'number' },
                     pageCount: { type: 'number' },
                     reason: { type: 'string' },

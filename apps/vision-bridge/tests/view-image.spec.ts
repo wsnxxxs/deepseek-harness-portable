@@ -12,6 +12,7 @@ import {
   visionModelCatalog,
   type VisionRuntime,
 } from '../src/view-image.ts'
+import type { TextRoute } from '../src/model-selection.ts'
 import type { VisionConfig } from '../src/types.ts'
 
 const LIMITS: ImageAttachmentLimits = {
@@ -49,6 +50,7 @@ interface RuntimeOptions {
   stream?: (options: GenerateOptions) => AsyncIterable<StreamChunk>
   models?: LlmModelInfo[]
   limits?: ImageAttachmentLimits
+  currentRoute?: TextRoute
 }
 
 /** Record of what the fake runtime was asked to do. */
@@ -82,6 +84,7 @@ function fakeRuntime(options: RuntimeOptions = {}): RuntimeProbe {
           : options.stream(generate)
       },
     },
+    ...options.currentRoute === undefined ? {} : { currentRoute: () => options.currentRoute },
   } as VisionRuntime
   return { runtime, calls, saved }
 }
@@ -199,6 +202,57 @@ describe('view-image', () => {
       { type: 'text', text: 'Read the error code' },
       { type: 'image', attachment: ref(8) },
     ])
+  })
+
+  it('uses the current multimodal conversation model natively without calling the fallback', async () => {
+    const nativeRoute: TextRoute = { provider: 'deepseek-official', model: 'deepseek-v4-flash-vision-exp' }
+    const nativeModel: LlmModelInfo = {
+      provider: nativeRoute.provider,
+      id: nativeRoute.model,
+      name: 'DeepSeek Vision',
+      inputModalities: ['text', 'image'],
+    }
+    const probe = fakeRuntime({
+      models: [VISION_MODEL, nativeModel],
+      currentRoute: nativeRoute,
+    })
+    const result = await executeViewImage(
+      { path: samplePng, prompt: 'Read the error code' },
+      stubExec,
+      () => ({ ...baseConfig, model: 'qwen-vl-max' }),
+      probe.runtime,
+    )
+
+    expect(result).toMatchObject({
+      provider: nativeRoute.provider,
+      model: nativeRoute.model,
+      image: { attachmentId: 'att-1', mediaType: 'image/png', bytes: 8, width: 64, height: 48 },
+    })
+    expect(result.text).toBe('Read the error code')
+    expect(probe.calls).toHaveLength(0)
+    expect(renderViewImageContent(result)).toEqual([
+      { type: 'text', text: '<image_input path="' + samplePng + '" model="deepseek-v4-flash-vision-exp">\nRead the error code\n</image_input>' },
+      { type: 'image', attachment: ref(8) },
+    ])
+  })
+
+  it('uses the configured vision route when the current conversation model is text-only', async () => {
+    const textRoute: TextRoute = { provider: 'deepseek', model: 'deepseek-chat' }
+    const probe = fakeRuntime({
+      models: [VISION_MODEL, { provider: textRoute.provider, id: textRoute.model, name: 'Chat', inputModalities: ['text'] }],
+      currentRoute: textRoute,
+    })
+    const result = await executeViewImage(
+      { path: samplePng, prompt: 'Read the error code' },
+      stubExec,
+      () => ({ ...baseConfig, model: 'qwen-vl-max' }),
+      probe.runtime,
+    )
+
+    expect(result).toMatchObject({ provider: 'dashscope', model: 'qwen-vl-max', text: 'a red dialog' })
+    expect(result.image).toBeUndefined()
+    expect(probe.calls).toHaveLength(1)
+    expect(probe.calls[0]).toMatchObject({ provider: 'dashscope', model: 'qwen-vl-max' })
   })
 
   it('re-analyzes a session-history attachment by id without saving it again', async () => {

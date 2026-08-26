@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { selectVisionRoute } from "./model-selection.js";
+import { selectHybridRoute } from "./hybrid-routing.js";
 /** File extensions the attachment store's version-one image path accepts. */
 const SUPPORTED_MEDIA_TYPES = {
     '.png': 'image/png',
@@ -150,6 +151,33 @@ export async function visionModelCatalog(llm) {
     return catalog;
 }
 /**
+ * Prefer the current conversation model when its catalog entry accepts images.
+ * The configured Vision Bridge route is only a fallback for text-only or
+ * otherwise unresolved conversation routes.
+ */
+async function selectViewImageRoute(cfg, runtime, agent) {
+    const catalog = await visionModelCatalog(runtime.llm);
+    const current = runtime.currentRoute?.(agent);
+    if (current !== undefined) {
+        const hybrid = selectHybridRoute({
+            current,
+            catalog,
+            vision: { enabled: cfg.enabled, model: cfg.model },
+            hasImage: true,
+        });
+        if (!hybrid.ok)
+            return hybrid;
+        if (hybrid.kind === 'native-image')
+            return { ok: true, kind: 'native', route: hybrid.route };
+        if (hybrid.kind === 'vision-fallback')
+            return { ok: true, kind: 'fallback', route: hybrid.visionRoute };
+    }
+    const fallback = selectVisionRoute({ enabled: cfg.enabled, model: cfg.model }, catalog);
+    return fallback.ok
+        ? { ok: true, kind: 'fallback', route: fallback.route }
+        : fallback;
+}
+/**
  * Drain a model stream into the assembled analysis text.
  * @param chunks - the raw chunk stream from `llm.stream`.
  * @returns the assembled text, or the terminal failure the stream reported.
@@ -271,8 +299,10 @@ function historyDisplayPath(attachmentId) {
  * @param signal - cancellation from the tool execution.
  * @returns the assembled analysis, or the route/stream failure.
  */
-export async function analyzeAttachment(ref, instruction, cfg, runtime, signal) {
-    const selection = selectVisionRoute({ enabled: cfg.enabled, model: cfg.model }, await visionModelCatalog(runtime.llm));
+export async function analyzeAttachment(ref, instruction, cfg, runtime, signal, routeOverride) {
+    const selection = routeOverride === undefined
+        ? selectVisionRoute({ enabled: cfg.enabled, model: cfg.model }, await visionModelCatalog(runtime.llm))
+        : { ok: true, route: routeOverride };
     if (!selection.ok)
         return { ok: false, message: selection.message, reason: selection.reason };
     const timeout = AbortSignal.timeout(VISION_TIMEOUT_MS);
@@ -301,9 +331,27 @@ function instructionFor(args) {
         ? args.prompt.trim()
         : DEFAULT_INSTRUCTION;
 }
+/** Build the native-image result used when the conversation model can inspect the attachment itself. */
+function nativeImageResult(ref, instruction, resultPath, route, source, page, pageCount, attachmentId) {
+    return {
+        text: instruction,
+        provider: route.provider,
+        model: route.model,
+        path: resultPath,
+        bytes: ref.bytes,
+        width: ref.width,
+        height: ref.height,
+        source,
+        image: ref,
+        ...page === undefined ? {} : { page },
+        ...pageCount === undefined ? {} : { pageCount },
+        ...attachmentId === undefined ? {} : { attachmentId },
+    };
+}
 /**
- * Read one raster image from disk, commit it, and send it through the existing
- * vision route. `resultPath` lets a rendered PDF page keep the source PDF in
+ * Read one raster image from disk, commit it, and either expose it to the
+ * current image-capable conversation model or send it through the configured
+ * fallback route. `resultPath` lets a rendered PDF page keep the source PDF in
  * the model-facing result while the temporary PNG remains an implementation
  * detail.
  */
@@ -372,7 +420,23 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
             pageCount,
         });
     }
-    const analysis = await analyzeAttachment(ref, instructionFor(args), cfg, runtime, exec.signal);
+    const instruction = instructionFor(args);
+    const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+    if (!selected.ok) {
+        return failure({
+            message: selected.message,
+            reason: selected.reason,
+            path: resultPath,
+            ref,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    if (selected.kind === 'native') {
+        return nativeImageResult(ref, instruction, resultPath, selected.route, 'local', page, pageCount);
+    }
+    const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal, selected.route);
     if (!analysis.ok) {
         return failure({
             message: analysis.message,
@@ -446,7 +510,22 @@ export async function executeViewImage(args, exec, getConfig, runtime) {
                 attachmentId: rawAttachmentId,
             });
         }
-        const analysis = await analyzeAttachment(ref, instructionFor(input), cfg, runtime, exec.signal);
+        const instruction = instructionFor(input);
+        const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+        if (!selected.ok) {
+            return failure({
+                message: selected.message,
+                reason: selected.reason,
+                path,
+                ref,
+                source: 'history',
+                attachmentId: rawAttachmentId,
+            });
+        }
+        if (selected.kind === 'native') {
+            return nativeImageResult(ref, instruction, path, selected.route, 'history', undefined, undefined, rawAttachmentId);
+        }
+        const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal, selected.route);
         if (!analysis.ok) {
             return failure({
                 message: analysis.message,
@@ -526,6 +605,13 @@ export async function executeViewImage(args, exec, getConfig, runtime) {
 export function renderViewImageContent(result) {
     if (result.isError === true)
         return [{ type: 'text', text: result.text }];
+    if (result.image !== undefined) {
+        const formatted = `<image_input path="${result.path}"${result.page === undefined ? '' : ` page="${String(result.page)}"`}${result.pageCount === undefined ? '' : ` page_count="${String(result.pageCount)}"`} model="${result.model}">\n${result.text}\n</image_input>`;
+        return [
+            { type: 'text', text: formatted },
+            { type: 'image', attachment: result.image },
+        ];
+    }
     const isHistory = 'source' in result && result.source === 'history';
     const formatted = isHistory && 'attachmentId' in result && typeof result.attachmentId === 'string'
         ? `<image_analysis source="history" attachment_id="${result.attachmentId}" model="${result.model}">\n${result.text}\n</image_analysis>`

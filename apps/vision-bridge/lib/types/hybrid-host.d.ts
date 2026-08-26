@@ -32,7 +32,7 @@ export interface HybridHostInstallation {
     dispose(): void;
     /** Resolver to use only at image admission boundaries in api-proxy. */
     resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;
-    /** The route captured after the model-selection assembly waterfall. */
+    /** Resolve the effective route for a later tool call. */
     currentRoute(agent: object): TextRoute | undefined;
 }
 /**

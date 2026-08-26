@@ -3,6 +3,8 @@
  * @module @dsh-portable/vision-bridge/types
  */
 
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+
 /**
  * Host-side configuration schema definition.
  *
@@ -32,11 +34,11 @@ export interface ViewImageArgs {
 
 /** Structured output returned by the view_image tool. */
 export interface ViewImageResult {
-  /** Textual description or analysis of the image, or the failure explanation. */
+  /** Textual description, native inspection instruction, or failure explanation. */
   text: string
-  /** Provider route that produced the description. */
+  /** Provider route used for native inspection or fallback analysis. */
   provider: string
-  /** Model identifier that produced the description. */
+  /** Model identifier used for native inspection or fallback analysis. */
   model: string
   /** Normalized local path, or a stable history display key. */
   path: string
@@ -54,6 +56,8 @@ export interface ViewImageResult {
   width?: number
   /** Intrinsic image height in pixels, once the attachment store has decoded it. */
   height?: number
+  /** Durable image reference emitted when the current conversation model can inspect images natively. */
+  image?: ImageAttachmentRef
   /** Stable machine-routing code for a failure; absent on success. */
   reason?: string
   /** Whether this result reports a failure. */

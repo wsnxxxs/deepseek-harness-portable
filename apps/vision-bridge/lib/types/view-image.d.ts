@@ -12,7 +12,7 @@
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment';
 import type { LlmModelInfo, LlmRuntime, StreamChunk } from '@deepseek-ai/dsh-llm';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
-import { type VisionRoute } from './model-selection.ts';
+import { type VisionRoute, type TextRoute } from './model-selection.ts';
 import type { ViewImageArgs, ViewImageResult, VisionConfig } from './types.ts';
 /**
  * The exact kernel services this tool consumes.
@@ -23,6 +23,8 @@ import type { ViewImageArgs, ViewImageResult, VisionConfig } from './types.ts';
 export interface VisionRuntime {
     readonly attachments: Pick<AttachmentStore, 'imageLimits' | 'saveImages'>;
     readonly llm: Pick<LlmRuntime, 'listProviders' | 'listModels' | 'stream'>;
+    /** Resolve the exact model route currently serving this Agent's conversation. */
+    readonly currentRoute?: (agent: object | undefined) => TextRoute | undefined;
 }
 /**
  * Detect the attachment media type for a path from its extension.
@@ -73,7 +75,7 @@ export type AttachmentAnalysis = {
  * @param signal - cancellation from the tool execution.
  * @returns the assembled analysis, or the route/stream failure.
  */
-export declare function analyzeAttachment(ref: ImageAttachmentRef, instruction: string, cfg: Required<VisionConfig>, runtime: VisionRuntime, signal?: AbortSignal): Promise<AttachmentAnalysis>;
+export declare function analyzeAttachment(ref: ImageAttachmentRef, instruction: string, cfg: Required<VisionConfig>, runtime: VisionRuntime, signal?: AbortSignal, routeOverride?: VisionRoute): Promise<AttachmentAnalysis>;
 /**
  * Execute the `view_image` tool.
  * @param args - tool invocation arguments.
@@ -87,9 +89,14 @@ export declare function executeViewImage(args: ViewImageArgs, exec: ToolExecutio
  * Format the tool result for model context.
  * @param result - the structured tool output.
  */
-export declare function renderViewImageContent(result: ViewImageResult): {
+export declare function renderViewImageContent(result: ViewImageResult): ({
     type: "text";
     text: string;
-}[];
+    attachment?: undefined;
+} | {
+    type: "image";
+    attachment: ImageAttachmentRef;
+    text?: undefined;
+})[];
 export {};
 //# sourceMappingURL=view-image.d.ts.map

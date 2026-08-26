@@ -634,8 +634,9 @@ function routeFromAssembly(assembly) {
 	};
 }
 function routeFromAgent(agent) {
-	const provider = agent.options?.provider;
-	const model = agent.options?.model;
+	const routed = agent.session.requestHeader?.()?.config;
+	const provider = routed?.provider ?? agent.options?.provider;
+	const model = routed?.model ?? agent.options?.model;
 	return provider === void 0 || model === void 0 || provider === "" || model === "" ? void 0 : {
 		provider,
 		model
@@ -772,7 +773,7 @@ function installHybridVisionRouting(ctx, getConfig, runtime, options = {}) {
 			preStepDispose();
 		},
 		resolveModelInfo,
-		currentRoute: (agent) => assembledRoutes.get(agent)
+		currentRoute: (agent) => routeFromAgent(agent) ?? assembledRoutes.get(agent)
 	};
 }
 //#endregion
@@ -918,6 +919,46 @@ async function visionModelCatalog(llm) {
 	return catalog;
 }
 /**
+* Prefer the current conversation model when its catalog entry accepts images.
+* The configured Vision Bridge route is only a fallback for text-only or
+* otherwise unresolved conversation routes.
+*/
+async function selectViewImageRoute(cfg, runtime, agent) {
+	const catalog = await visionModelCatalog(runtime.llm);
+	const current = runtime.currentRoute?.(agent);
+	if (current !== void 0) {
+		const hybrid = selectHybridRoute({
+			current,
+			catalog,
+			vision: {
+				enabled: cfg.enabled,
+				model: cfg.model
+			},
+			hasImage: true
+		});
+		if (!hybrid.ok) return hybrid;
+		if (hybrid.kind === "native-image") return {
+			ok: true,
+			kind: "native",
+			route: hybrid.route
+		};
+		if (hybrid.kind === "vision-fallback") return {
+			ok: true,
+			kind: "fallback",
+			route: hybrid.visionRoute
+		};
+	}
+	const fallback = selectVisionRoute({
+		enabled: cfg.enabled,
+		model: cfg.model
+	}, catalog);
+	return fallback.ok ? {
+		ok: true,
+		kind: "fallback",
+		route: fallback.route
+	} : fallback;
+}
+/**
 * Drain a model stream into the assembled analysis text.
 * @param chunks - the raw chunk stream from `llm.stream`.
 * @returns the assembled text, or the terminal failure the stream reported.
@@ -1021,11 +1062,14 @@ function historyDisplayPath(attachmentId) {
 * @param signal - cancellation from the tool execution.
 * @returns the assembled analysis, or the route/stream failure.
 */
-async function analyzeAttachment(ref, instruction, cfg, runtime, signal) {
-	const selection = selectVisionRoute({
+async function analyzeAttachment(ref, instruction, cfg, runtime, signal, routeOverride) {
+	const selection = routeOverride === void 0 ? selectVisionRoute({
 		enabled: cfg.enabled,
 		model: cfg.model
-	}, await visionModelCatalog(runtime.llm));
+	}, await visionModelCatalog(runtime.llm)) : {
+		ok: true,
+		route: routeOverride
+	};
 	if (!selection.ok) return {
 		ok: false,
 		message: selection.message,
@@ -1068,9 +1112,27 @@ async function analyzeAttachment(ref, instruction, cfg, runtime, signal) {
 function instructionFor(args) {
 	return args.prompt !== void 0 && args.prompt.trim().length > 0 ? args.prompt.trim() : DEFAULT_INSTRUCTION;
 }
+/** Build the native-image result used when the conversation model can inspect the attachment itself. */
+function nativeImageResult(ref, instruction, resultPath, route, source, page, pageCount, attachmentId) {
+	return {
+		text: instruction,
+		provider: route.provider,
+		model: route.model,
+		path: resultPath,
+		bytes: ref.bytes,
+		width: ref.width,
+		height: ref.height,
+		source,
+		image: ref,
+		...page === void 0 ? {} : { page },
+		...pageCount === void 0 ? {} : { pageCount },
+		...attachmentId === void 0 ? {} : { attachmentId }
+	};
+}
 /**
-* Read one raster image from disk, commit it, and send it through the existing
-* vision route. `resultPath` lets a rendered PDF page keep the source PDF in
+* Read one raster image from disk, commit it, and either expose it to the
+* current image-capable conversation model or send it through the configured
+* fallback route. `resultPath` lets a rendered PDF page keep the source PDF in
 * the model-facing result while the temporary PNG remains an implementation
 * detail.
 */
@@ -1127,7 +1189,19 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
 			pageCount
 		});
 	}
-	const analysis = await analyzeAttachment(ref, instructionFor(args), cfg, runtime, exec.signal);
+	const instruction = instructionFor(args);
+	const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+	if (!selected.ok) return failure({
+		message: selected.message,
+		reason: selected.reason,
+		path: resultPath,
+		ref,
+		source: "local",
+		page,
+		pageCount
+	});
+	if (selected.kind === "native") return nativeImageResult(ref, instruction, resultPath, selected.route, "local", page, pageCount);
+	const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal, selected.route);
 	if (!analysis.ok) return failure({
 		message: analysis.message,
 		reason: analysis.reason,
@@ -1187,7 +1261,18 @@ async function executeViewImage(args, exec, getConfig, runtime) {
 			source: "history",
 			attachmentId: rawAttachmentId
 		});
-		const analysis = await analyzeAttachment(ref, instructionFor(input), cfg, runtime, exec.signal);
+		const instruction = instructionFor(input);
+		const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+		if (!selected.ok) return failure({
+			message: selected.message,
+			reason: selected.reason,
+			path,
+			ref,
+			source: "history",
+			attachmentId: rawAttachmentId
+		});
+		if (selected.kind === "native") return nativeImageResult(ref, instruction, path, selected.route, "history", void 0, void 0, rawAttachmentId);
+		const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal, selected.route);
 		if (!analysis.ok) return failure({
 			message: analysis.message,
 			reason: analysis.reason,
@@ -1260,6 +1345,13 @@ function renderViewImageContent(result) {
 		type: "text",
 		text: result.text
 	}];
+	if (result.image !== void 0) return [{
+		type: "text",
+		text: `<image_input path="${result.path}"${result.page === void 0 ? "" : ` page="${String(result.page)}"`}${result.pageCount === void 0 ? "" : ` page_count="${String(result.pageCount)}"`} model="${result.model}">\n${result.text}\n</image_input>`
+	}, {
+		type: "image",
+		attachment: result.image
+	}];
 	return [{
 		type: "text",
 		text: "source" in result && result.source === "history" && "attachmentId" in result && typeof result.attachmentId === "string" ? `<image_analysis source="history" attachment_id="${result.attachmentId}" model="${result.model}">\n${result.text}\n</image_analysis>` : `<image_analysis path="${result.path}"${result.page === void 0 ? "" : ` page="${String(result.page)}"`}${result.pageCount === void 0 ? "" : ` page_count="${String(result.pageCount)}"`} model="${result.model}">\n${result.text}\n</image_analysis>`
@@ -1305,15 +1397,16 @@ function apply(ctx, config = {}) {
 		onChange: () => {}
 	});
 	const llm = ctx.get("llm") ?? ctx.llm;
+	const hybrid = installHybridVisionRouting(ctx, currentConfig, llm);
 	const runtime = {
 		get attachments() {
 			return ctx.attachments;
 		},
 		get llm() {
 			return llm;
-		}
+		},
+		currentRoute: (agent) => agent === void 0 ? void 0 : hybrid.currentRoute(agent)
 	};
-	const hybrid = installHybridVisionRouting(ctx, currentConfig, llm);
 	const originalResolveModelInfo = llm.resolveModelInfo;
 	ctx.effect(() => {
 		llm.resolveModelInfo = hybrid.resolveModelInfo;
@@ -1324,7 +1417,7 @@ function apply(ctx, config = {}) {
 	}, "vision-bridge: hybrid routing");
 	ctx.tools.register(defineTool({
 		name: "view_image",
-		description: "Inspect and describe a local PNG, JPEG, WebP, GIF, or one page of a PDF using a configured image-capable model. Provide path for a local file; for PDF, page is 1-based and defaults to 1. The tool renders the requested PDF page locally before analysis; for a multi-page PDF, use the returned pageCount and call the tool again for other pages instead of asking the user to convert screenshots. To re-analyze an image already present in this session history, provide attachmentId. Use this tool whenever you need to view screenshots, UI layouts, diagrams, charts, PDF pages, or images.",
+		description: "Inspect and describe a local PNG, JPEG, WebP, GIF, or one page of a PDF. Provide path for a local file; for PDF, page is 1-based and defaults to 1. The tool renders the requested PDF page locally before inspection; when the current conversation model accepts images, it receives the rendered page natively. Otherwise, the configured Vision Bridge model analyzes it. For a multi-page PDF, use the returned pageCount and call the tool again for other pages instead of asking the user to convert screenshots. To re-analyze an image already present in this session history, provide attachmentId. Use this tool whenever you need to view screenshots, UI layouts, diagrams, charts, PDF pages, or images.",
 		parameters: {
 			path: {
 				type: "string",
@@ -1336,7 +1429,7 @@ function apply(ctx, config = {}) {
 			},
 			prompt: {
 				type: "string",
-				description: "Specific question or instruction for the vision model (e.g. \"Extract the error code from this dialog\")."
+				description: "Specific question or instruction for visual inspection (e.g. \"Extract the error code from this dialog\")."
 			},
 			page: {
 				type: "number",
@@ -1372,6 +1465,53 @@ function apply(ctx, config = {}) {
 					bytes: { type: "number" },
 					width: { type: "number" },
 					height: { type: "number" },
+					image: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							attachmentId: {
+								type: "string",
+								required: true
+							},
+							mediaType: {
+								type: "string",
+								enum: [
+									"image/png",
+									"image/jpeg",
+									"image/webp",
+									"image/gif"
+								],
+								required: true
+							},
+							bytes: {
+								type: "number",
+								required: true
+							},
+							width: {
+								type: "number",
+								required: true
+							},
+							height: {
+								type: "number",
+								required: true
+							},
+							name: { type: "string" },
+							originalDimensions: {
+								type: "object",
+								additionalProperties: false,
+								properties: {
+									width: {
+										type: "number",
+										required: true
+									},
+									height: {
+										type: "number",
+										required: true
+									}
+								}
+							}
+						}
+					},
 					page: { type: "number" },
 					pageCount: { type: "number" },
 					reason: { type: "string" },

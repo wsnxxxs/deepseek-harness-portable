@@ -59,7 +59,7 @@ export interface HybridHostInstallation {
     model: string,
     signal?: AbortSignal,
   ): Promise<LlmResolvedModelInfo>
-  /** The route captured after the model-selection assembly waterfall. */
+  /** Resolve the effective route for a later tool call. */
   currentRoute(agent: object): TextRoute | undefined
 }
 
@@ -74,6 +74,7 @@ interface PromptAssemblyLike {
 interface PreStepAgentLike {
   options?: { provider?: string; model?: string }
   session: {
+    requestHeader?: () => { config?: { provider?: string; model?: string } } | undefined
     append(
       type: 'user/message',
       message: Message,
@@ -129,8 +130,9 @@ function routeFromAssembly(assembly: PromptAssemblyLike): TextRoute | undefined 
 }
 
 function routeFromAgent(agent: PreStepAgentLike): TextRoute | undefined {
-  const provider = agent.options?.provider
-  const model = agent.options?.model
+  const routed = agent.session.requestHeader?.()?.config
+  const provider = routed?.provider ?? agent.options?.provider
+  const model = routed?.model ?? agent.options?.model
   return provider === undefined || model === undefined || provider === '' || model === ''
     ? undefined
     : { provider, model }
@@ -305,6 +307,8 @@ export function installHybridVisionRouting(
       preStepDispose()
     },
     resolveModelInfo,
-    currentRoute: agent => assembledRoutes.get(agent),
+    // Tool calls happen after request/header has been committed, so prefer
+    // that exact route and retain assembly as the pre-request fallback.
+    currentRoute: agent => routeFromAgent(agent as PreStepAgentLike) ?? assembledRoutes.get(agent),
   }
 }

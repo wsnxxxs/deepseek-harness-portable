@@ -31,8 +31,9 @@ function routeFromAssembly(assembly) {
         : { provider, model };
 }
 function routeFromAgent(agent) {
-    const provider = agent.options?.provider;
-    const model = agent.options?.model;
+    const routed = agent.session.requestHeader?.()?.config;
+    const provider = routed?.provider ?? agent.options?.provider;
+    const model = routed?.model ?? agent.options?.model;
     return provider === undefined || model === undefined || provider === '' || model === ''
         ? undefined
         : { provider, model };
@@ -178,7 +179,9 @@ export function installHybridVisionRouting(ctx, getConfig, runtime, options = {}
             preStepDispose();
         },
         resolveModelInfo,
-        currentRoute: agent => assembledRoutes.get(agent),
+        // Tool calls happen after request/header has been committed, so prefer
+        // that exact route and retain assembly as the pre-request fallback.
+        currentRoute: agent => routeFromAgent(agent) ?? assembledRoutes.get(agent),
     };
 }
 //# sourceMappingURL=hybrid-host.js.map
