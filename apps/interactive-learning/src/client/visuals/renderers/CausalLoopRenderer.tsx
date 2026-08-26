@@ -1,6 +1,7 @@
 /** `causal_loop`: signed, delayed links and named reinforcing/balancing loops. */
 import { useId, useMemo, useState } from 'react'
-import { SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport, SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type CausalLoopContent, type RendererProps } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
@@ -24,6 +25,9 @@ interface Selected {
 }
 
 interface Position { x: number; y: number }
+
+/** Height of the loop badge chip, shared by its placement search and its rect. */
+const LOOP_BADGE_HEIGHT = 32
 
 interface VariableBox {
   width: number
@@ -70,6 +74,7 @@ function linkDetail(link: CausalLink, variables: ReadonlyMap<string, CausalVaria
 }
 
 export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<CausalLoopContent>) {
+  const labels = useVisualLabels()
   const diagramId = useId()
   const [viewportRef, containerWidth] = useContainerWidth()
   const [selected, setSelected] = useState<Selected | undefined>()
@@ -85,29 +90,139 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
   const rovingIds = useMemo(() => [...loops.map(loop => loop.id), ...variables.map(variable => variable.id), ...links.map(link => link.id)], [links, loops, variables])
   const roving = useRovingFocus(rovingIds)
 
-  const loopBoxes = useMemo(() => new Map(loops.map((loop, loopIndex) => {
-    const loopVars = loop.linkIds.flatMap(linkId => {
-      const link = linkById.get(linkId)
-      return link ? [link.from, link.to] : []
-    })
-    const uniqueVars = [...new Set(loopVars)]
-    const pts = uniqueVars.map(id => positions.get(id)).filter(Boolean) as Position[]
-    const cx = pts.length > 0 ? pts.reduce((sum, p) => sum + p.x, 0) / pts.length : width / 2 + (loopIndex - (loops.length - 1) / 2) * 140
-    const cy = pts.length > 0 ? pts.reduce((sum, p) => sum + p.y, 0) / pts.length : height / 2 + 10
-    const kind = loopKind(loop.type)
-    const labelText = `${kind === 'reinforcing' ? '↻ R' : '↺ B'} · ${loop.label}`
-    const labelWidth = Math.max(114, measureText(labelText, 12) + 26)
-    return [loop.id, { cx, cy, labelText, labelWidth }] as const
-  })), [height, linkById, loops, positions, width])
+  /**
+   * A loop badge starts at the centroid of the variables it runs through, and
+   * is then pushed off whatever it landed on.
+   *
+   * The centroid alone is where the badge wants to be and rarely where it can
+   * be: a four-variable ring puts its centre exactly on the node in the middle
+   * of the figure, and two loops sharing most of their variables put both
+   * badges in the same place. Both cases covered a node label with a chip.
+   *
+   * The search is the one the link labels already use — try the wanted spot,
+   * then rings of increasing radius, and take the first that clears the node
+   * boxes and the badges already placed.
+   */
+  /**
+   * Where each link runs, and where its signed marker sits.
+   *
+   * This used to be computed inline while rendering, which meant the loop
+   * badge placement below could not see it: badges were positioned without
+   * knowing where the polarity glyphs would land, and a glyph would come to
+   * rest on top of a badge's text. None of it depends on selection or focus,
+   * so it belongs in a memo both passes can read.
+   */
+  const linkGeometry = useMemo(() => new Map(links.flatMap((link, index) => {
+    const from = positions.get(link.from)
+    const to = positions.get(link.to)
+    const fromBox = boxByVarId.get(link.from) ?? { width: 120, height: 42, lines: [] }
+    const toBox = boxByVarId.get(link.to) ?? { width: 120, height: 42, lines: [] }
+    if (from === undefined || to === undefined) return []
+    const start = boxBoundary(from, to, fromBox)
+    const end = boxBoundary(to, from, toBox)
+    const midX = (start.x + end.x) / 2
+    const midY = (start.y + end.y) / 2
+    const hasReverse = links.some(other => other.id !== link.id && other.from === link.to && other.to === link.from)
+    const curve = hasReverse ? 38 : ((index % 3) - 1) * 16
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const length = Math.max(1, Math.hypot(dx, dy))
+    const normalX = -dy / length
+    const normalY = dx / length
+    const controlX = midX + normalX * curve
+    const controlY = midY + normalY * curve
+    const midCurveX = 0.25 * start.x + 0.5 * controlX + 0.25 * end.x
+    const midCurveY = 0.25 * start.y + 0.5 * controlY + 0.25 * end.y
+    const annotationLane = (index % 5) - 2
+    const signX = midCurveX + normalX * 12
+    const signY = midCurveY + normalY * 12
+    return [[link.id, {
+      path: `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`,
+      normalX,
+      normalY,
+      annotationLane,
+      signX,
+      signY,
+      /** Where the glyph is actually drawn, once its lane offset is applied. */
+      markX: signX + normalX * annotationLane * 14,
+      markY: signY + normalY * annotationLane * 14,
+      /** And where the delay chip goes, for links that declare one. */
+      delay: link.delay === undefined ? undefined : {
+        x: signX + 34 + normalX * annotationLane * 10,
+        y: signY - 25 + normalY * annotationLane * 10,
+      },
+    }] as const]
+  })), [boxByVarId, links, positions])
 
-  const selectVariable = (variable: CausalVariable): void => setSelected({ id: variable.id, label: variable.label, detail: variable.detail, kind: 'Variable', tone: toneAt(variable.tone) })
-  const selectLink = (link: CausalLink): void => setSelected({ id: link.id, label: link.label ?? `${polaritySymbol(link.polarity)} ${variableById.get(link.to)?.label ?? link.to}`, detail: linkDetail(link, variableById), kind: 'Causal link', tone: toneAt(link.tone) })
+  const loopBoxes = useMemo(() => {
+    const nodeObstacles = [
+      ...variables.flatMap(variable => {
+        const position = positions.get(variable.id)
+        const box = boxByVarId.get(variable.id)
+        return position === undefined || box === undefined
+          ? []
+          : [{ x: position.x, y: position.y, width: box.width + 12, height: box.height + 12 }]
+      }),
+      // The signed markers and delay chips are small but they sit exactly where
+      // a badge wants to be, and either one over a loop name costs more than
+      // moving the badge.
+      ...[...linkGeometry.values()].map(geometry => ({
+        x: geometry.markX, y: geometry.markY, width: 26, height: 26,
+      })),
+      ...[...linkGeometry.values()].flatMap(geometry => (
+        geometry.delay === undefined ? [] : [{ x: geometry.delay.x, y: geometry.delay.y, width: 46, height: 24 }]
+      )),
+    ]
+    const placed: Array<{ x: number; y: number; width: number; height: number }> = []
+    const clears = (x: number, y: number, w: number, h: number): boolean =>
+      [...nodeObstacles, ...placed].every(other => (
+        Math.abs(other.x - x) > (other.width + w) / 2 || Math.abs(other.y - y) > (other.height + h) / 2
+      ))
+
+    return new Map(loops.map((loop, loopIndex) => {
+      const loopVars = loop.linkIds.flatMap(linkId => {
+        const link = linkById.get(linkId)
+        return link ? [link.from, link.to] : []
+      })
+      const uniqueVars = [...new Set(loopVars)]
+      const pts = uniqueVars.map(id => positions.get(id)).filter(Boolean) as Position[]
+      const wantedX = pts.length > 0 ? pts.reduce((sum, p) => sum + p.x, 0) / pts.length : width / 2 + (loopIndex - (loops.length - 1) / 2) * 140
+      const wantedY = pts.length > 0 ? pts.reduce((sum, p) => sum + p.y, 0) / pts.length : height / 2 + 10
+      const kind = loopKind(loop.type)
+      const labelText = `${kind === 'reinforcing' ? '↻ R' : '↺ B'} · ${loop.label}`
+      const labelWidth = Math.max(114, measureText(labelText, 12) + 26)
+
+      let cx = wantedX
+      let cy = wantedY
+      if (!clears(cx, cy, labelWidth, LOOP_BADGE_HEIGHT)) {
+        search: for (const radius of [34, 52, 70, 92, 116]) {
+          for (const angle of [90, 270, 45, 135, 225, 315, 0, 180]) {
+            const radians = (angle * Math.PI) / 180
+            const candidateX = wantedX + Math.cos(radians) * radius
+            const candidateY = wantedY + Math.sin(radians) * radius
+            // Never push a badge outside the frame to escape a node.
+            if (candidateX - labelWidth / 2 < 8 || candidateX + labelWidth / 2 > width - 8) continue
+            if (candidateY - LOOP_BADGE_HEIGHT / 2 < 8 || candidateY + LOOP_BADGE_HEIGHT / 2 > height - 8) continue
+            if (!clears(candidateX, candidateY, labelWidth, LOOP_BADGE_HEIGHT)) continue
+            cx = candidateX
+            cy = candidateY
+            break search
+          }
+        }
+      }
+      placed.push({ x: cx, y: cy, width: labelWidth, height: LOOP_BADGE_HEIGHT })
+      return [loop.id, { cx, cy, labelText, labelWidth }] as const
+    }))
+  }, [boxByVarId, height, linkById, linkGeometry, loops, positions, variables, width])
+
+  const selectVariable = (variable: CausalVariable): void => setSelected({ id: variable.id, label: variable.label, detail: variable.detail, kind: labels.causalVariableKind, tone: toneAt(variable.tone) })
+  const selectLink = (link: CausalLink): void => setSelected({ id: link.id, label: link.label ?? `${polaritySymbol(link.polarity)} ${variableById.get(link.to)?.label ?? link.to}`, detail: linkDetail(link, variableById), kind: labels.causalLinkKind, tone: toneAt(link.tone) })
   const selectLoop = (loop: CausalLoop): void => {
     const kind = loopKind(loop.type)
     const linksInLoop = loop.linkIds.map(id => linkById.get(id)?.label ?? id).join(' → ')
-    setSelected({ id: loop.id, label: `${kind === 'reinforcing' ? 'R' : 'B'} · ${loop.label}`, detail: loop.detail ?? linksInLoop, kind: kind === 'reinforcing' ? 'Reinforcing loop' : 'Balancing loop', tone: toneAt(loop.tone) })
+    setSelected({ id: loop.id, label: `${kind === 'reinforcing' ? 'R' : 'B'} · ${loop.label}`, detail: loop.detail ?? linksInLoop, kind: kind === 'reinforcing' ? labels.causalReinforcingKind : labels.causalBalancingKind, tone: toneAt(loop.tone) })
   }
-  const summary = `Causal loop diagram with ${variables.length} variables, ${links.length} signed links and ${loops.length} named loops.`
+  const summary = labelTemplate(labels.causalLoopSummary, { variables: variables.length, links: links.length, loops: loops.length })
   const legendStates = useMemo(
     () => focus.active ? [...variables, ...links, ...loops].map(item => elementState(item.id, focus)) : [],
     [focus, links, loops, variables],
@@ -121,9 +236,13 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
     }),
   ]
 
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (variables.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack}>
-      <div className={css.processViewport} ref={viewportRef}>
+      <FigureViewport viewportRef={viewportRef}>
         <svg
           ref={roving.containerRef}
           className={css.processSvg}
@@ -157,13 +276,13 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
                   data-visual-id={loop.id}
                   data-visual-state={state}
                   role="button"
-                  aria-label={`${kind === 'reinforcing' ? 'Reinforcing' : 'Balancing'} loop: ${loop.label}`}
+                  aria-label={`${kind === 'reinforcing' ? labels.causalReinforcingKind : labels.causalBalancingKind}: ${loop.label}`}
                   onClick={() => selectLoop(loop)}
                   {...roving.itemProps(loop.id, () => selectLoop(loop))}
                   transform={`translate(${box.cx} ${box.cy})`}
                 >
                   <g className={css.causalLoopBadge} data-loop-kind={kind}>
-                    <rect x={-box.labelWidth / 2} y="-16" width={box.labelWidth} height="32" rx="16" />
+                    <rect x={-box.labelWidth / 2} y={-LOOP_BADGE_HEIGHT / 2} width={box.labelWidth} height={LOOP_BADGE_HEIGHT} rx={LOOP_BADGE_HEIGHT / 2} />
                     <text x="0" y="1" textAnchor="middle" dominantBaseline="middle">{box.labelText}</text>
                   </g>
                 </g>
@@ -174,57 +293,38 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
           {/* Links */}
           <g>
             {links.map((link, index) => {
-              const from = positions.get(link.from)
-              const to = positions.get(link.to)
-              const fromBox = boxByVarId.get(link.from) ?? { width: 120, height: 42, lines: [] }
-              const toBox = boxByVarId.get(link.to) ?? { width: 120, height: 42, lines: [] }
-              if (from === undefined || to === undefined) return null
-              const start = boxBoundary(from, to, fromBox)
-              const end = boxBoundary(to, from, toBox)
-              const midX = (start.x + end.x) / 2
-              const midY = (start.y + end.y) / 2
-              const hasReverse = links.some(other => other.id !== link.id && other.from === link.to && other.to === link.from)
-              const curve = hasReverse ? 38 : ((index % 3) - 1) * 16
-              const dx = end.x - start.x
-              const dy = end.y - start.y
-              const length = Math.max(1, Math.hypot(dx, dy))
-              const normalX = -dy / length
-              const normalY = dx / length
-              const controlX = midX + normalX * curve
-              const controlY = midY + normalY * curve
-              const path = `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`
+              const geometry = linkGeometry.get(link.id)
+              if (geometry === undefined) return null
+              // Keep the three annotation types in separate lanes. The signed
+              // marker stays close to the link while delay and a long label get
+              // deterministic breathing room in dense feedback diagrams.
+              const { path, normalX, normalY, annotationLane, signX, signY } = geometry
               const tone = toneAt(link.tone, index)
               const isLinkInSelectedLoop = selected?.id !== undefined && loops.some(l => l.id === selected.id && l.linkIds.includes(link.id))
               const state = focus.active ? elementState(link.id, focus, [link.from, link.to]) : (selected?.id === link.id || isLinkInSelectedLoop ? 'selected' : 'overview')
               const delay = link.delay === undefined ? undefined : link.delay > 0 ? `+${link.delay}` : 'delay'
-
-              // Curve parametric evaluation
-              const tMid = 0.5
-              const midCurveX = (1 - tMid) * (1 - tMid) * start.x + 2 * (1 - tMid) * tMid * controlX + tMid * tMid * end.x
-              const midCurveY = (1 - tMid) * (1 - tMid) * start.y + 2 * (1 - tMid) * tMid * controlY + tMid * tMid * end.y
-              const signX = midCurveX + normalX * 12
-              const signY = midCurveY + normalY * 12
-              // Keep the three annotation types in separate lanes. The
-              // signed marker stays close to the link while delay and a long
-              // label get deterministic breathing room in dense feedback
-              // diagrams.
-              const annotationLane = (index % 5) - 2
-              const labelLines = link.label === undefined ? [] : wrapLabel(link.label, { fontSize: 11, maxWidth: 150, maxLines: 2 }).lines
-              const labelWidth = labelLines.length === 0 ? 0 : Math.max(...labelLines.map(line => measureText(line, 11))) + 12
-              const labelHeight = labelLines.length > 1 ? 30 : 18
+              const labelLines = link.label === undefined ? [] : wrapLabel(link.label, { fontSize: 13, maxWidth: 150, maxLines: 2 }).lines
+              const labelWidth = labelLines.length === 0 ? 0 : Math.max(...labelLines.map(line => measureText(line, 13))) + 14
+              const labelHeight = labelLines.length > 1 ? 36 : 22
               const baseLabelX = signX + normalX * 28
               const baseLabelY = signY + normalY * 28 + annotationLane * 24
               let labelX = baseLabelX
               let labelY = baseLabelY
               if (link.label !== undefined) {
-                for (let attempt = 0; attempt < 8; attempt += 1) {
-                  const offset = attempt === 0 ? 0 : Math.ceil(attempt / 2) * 30 * (attempt % 2 === 1 ? 1 : -1)
-                  const candidateY = baseLabelY + offset
-                  const collision = placedCausalLabels.some(previous => Math.abs(previous.x - baseLabelX) < (previous.width + labelWidth) / 2 + 8 && Math.abs(previous.y - candidateY) < (previous.height + labelHeight) / 2 + 6)
-                  if (!collision) {
-                    labelX = baseLabelX
-                    labelY = candidateY
-                    break
+                // The search used to move the chip vertically only, so a label
+                // boxed in above and below settled on top of whatever was
+                // already there — most visibly a loop badge. Sliding sideways
+                // as well gives it somewhere to go before it gives up.
+                const clear = (x: number, y: number): boolean => !placedCausalLabels.some(previous => (
+                  Math.abs(previous.x - x) < (previous.width + labelWidth) / 2 + 8
+                  && Math.abs(previous.y - y) < (previous.height + labelHeight) / 2 + 6
+                ))
+                search: for (const dy of [0, 30, -30, 60, -60, 90, -90]) {
+                  for (const dx of [0, 34, -34, 68, -68]) {
+                    if (!clear(baseLabelX + dx, baseLabelY + dy)) continue
+                    labelX = baseLabelX + dx
+                    labelY = baseLabelY + dy
+                    break search
                   }
                 }
                 placedCausalLabels.push({ x: labelX, y: labelY, width: labelWidth, height: labelHeight })
@@ -238,7 +338,7 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
                   data-visual-id={link.id}
                   data-visual-state={state}
                   role="button"
-                  aria-label={`${polaritySymbol(link.polarity)} link: ${linkDetail(link, variableById)}`}
+                  aria-label={`${polaritySymbol(link.polarity)} ${labels.causalLinkKind}: ${linkDetail(link, variableById)}`}
                   onClick={() => selectLink(link)}
                   {...roving.itemProps(link.id, () => selectLink(link))}
                 >
@@ -289,7 +389,7 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
                   data-visual-id={variable.id}
                   data-visual-state={state}
                   role="button"
-                  aria-label={`Variable: ${variable.label}`}
+                  aria-label={`${labels.causalVariableKind}: ${variable.label}`}
                   onClick={() => selectVariable(variable)}
                   {...roving.itemProps(variable.id, () => selectVariable(variable))}
                 >
@@ -305,7 +405,7 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
             })}
           </g>
         </svg>
-      </div>
+      </FigureViewport>
       <StateLegend states={legendStates} />
       <div className={shell.srOnly}>
         <p>{summary}</p>
@@ -315,7 +415,7 @@ export function CausalLoopRenderer({ content, focus }: ProcessRendererProps<Caus
           {loops.map(loop => <li key={loop.id}>{loopKind(loop.type) === 'reinforcing' ? 'R' : 'B'} · {loop.label}</li>)}
         </ul>
       </div>
-      <SelectionSurface hint="Select a variable, signed link or loop to inspect the feedback relationship." selected={selected} onClose={() => setSelected(undefined)} />
+      <SelectionSurface hint={labels.causalLoopInteractionHint} selected={selected} onClose={() => setSelected(undefined)} />
     </div>
   )
 }

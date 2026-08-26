@@ -1,16 +1,5 @@
 /* Shared marks for the state, message and causal-process renderers. */
 
-.processViewport {
-  position: relative;
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  border: 1px solid var(--lx-border-subtle);
-  border-radius: var(--lx-radius-lg);
-  background: var(--lx-surface-sunken);
-  scrollbar-width: thin;
-}
-
 .processSvg {
   display: block;
   max-width: none;
@@ -40,6 +29,8 @@
 .causalVariable,
 .causalLoop {
   --visual-tone: var(--lx-accent);
+  --visual-tone-text: color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));
+  --visual-tone-dash: var(--lx-tone-dash-blue);
   cursor: pointer;
   outline: none;
 }
@@ -71,7 +62,7 @@
 
 .transitionLabel text {
   fill: var(--lx-label-primary);
-  font-size: var(--lx-text-micro);
+  font-size: var(--lx-text-xs);
   font-weight: var(--lx-weight-medium);
   pointer-events: none;
 }
@@ -105,7 +96,7 @@
 
 .stateMarker {
   fill: var(--visual-tone);
-  font-size: 9px;
+  font-size: var(--lx-glyph-xs);
   font-weight: var(--lx-weight-strong);
   letter-spacing: 0.05em;
   pointer-events: none;
@@ -244,13 +235,13 @@
   stroke: color-mix(in srgb, var(--visual-tone) 44%, var(--lx-border-subtle));
   stroke-width: 1.2;
   vector-effect: non-scaling-stroke;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  filter: drop-shadow(0 1px 1.5px color-mix(in srgb, var(--lx-host-label) 12%, transparent));
 }
 
 .causalSign text,
 .causalDelay text,
 .causalLinkLabel {
-  fill: var(--visual-tone);
+  fill: var(--visual-tone-text);
   font-size: var(--lx-text-xs);
   font-weight: var(--lx-weight-strong);
 }
@@ -299,7 +290,7 @@
 }
 
 .causalLoopBadge text {
-  fill: var(--visual-tone);
+  fill: var(--visual-tone-text);
   font-size: var(--lx-text-micro);
   font-weight: var(--lx-weight-strong);
   letter-spacing: 0.02em;
@@ -375,7 +366,7 @@
   line-height: var(--lx-leading-2xs);
 }
 
-@media (max-width: 560px) {
+@container learning-visual-v4 (max-width: 560px) {
   .processSvg { min-width: 520px; }
 }
 

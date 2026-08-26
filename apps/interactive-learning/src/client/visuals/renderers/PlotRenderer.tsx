@@ -1,7 +1,7 @@
 /** `plot`: quantitative relationships on axes, with optional live parameters. */
 import { useEffect, useId, useMemo, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { compileMathExpression, evaluateMathExpression, type CompiledMathExpression } from '../../../math-expression.ts'
-import { useVisualLabels } from '../core/labels.ts'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
 import { FigureViewport } from '../core/shell-parts.tsx'
 import { formatNumber, interpolate, normalizedPosition, ticks, toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type ChartGeometry, type PlotContent, type Point, type RendererProps } from '../core/types.ts'
@@ -216,7 +216,7 @@ export function PlotRenderer({ content, focus, storageKey }: RendererProps<PlotC
   })
   const chartDescription = `${content.xAxis.label ?? 'x'} ${formatNumber(content.xAxis.min)}–${formatNumber(content.xAxis.max)}; ${viewYAxis.label ?? 'y'} ${formatNumber(viewYAxis.min)}–${formatNumber(viewYAxis.max)}; ${content.series.map(series => series.label).join(', ')}${nothingToSee ? `. ${labels.noValuesInRange}` : ''}`
   const probeDescription = probeX === undefined ? `${labels.chartProbeHint}. ${chartDescription}`
-    : `x ${formatNumber(probeX)}。${probeValues.map(item => `${item.label}${item.discrete ? `（最近点 x ${formatNumber(item.x)}）` : ''} ${formatNumber(item.y)}`).join('，')}`
+    : `x ${formatNumber(probeX)}${labels.sentenceSeparator}${probeValues.map(item => `${item.label}${item.discrete ? ` (${labelTemplate(labels.plotProbeNearest, { x: formatNumber(item.x) })})` : ''} ${formatNumber(item.y)}`).join(labels.listSeparator)}`
 
   const updateProbeFromPointer = (event: PointerEvent<SVGSVGElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -354,10 +354,10 @@ export function PlotRenderer({ content, focus, storageKey }: RendererProps<PlotC
               const tone = toneAt(series.tone, seriesIndex)
               const state = elementState(series.id, focus)
               if (series.type === 'curve') return (
-                <path key={series.id} className={css.seriesLine} data-tone={tone} data-visual-state={state} data-visual-id={series.id} data-stroke={series.stroke ?? 'solid'} d={renders.get(series.id)?.path} />
+                <path key={series.id} className={css.seriesLine} data-tone={tone} data-visual-state={state} data-visual-id={series.id} data-stroke={series.stroke} d={renders.get(series.id)?.path} />
               )
               if (series.type === 'line') return (
-                <path key={series.id} className={css.seriesLine} data-tone={tone} data-visual-state={state} data-visual-id={series.id} data-stroke={series.stroke ?? 'solid'} d={pointsPath(series.points, content, geometry, viewYAxis)} />
+                <path key={series.id} className={css.seriesLine} data-tone={tone} data-visual-state={state} data-visual-id={series.id} data-stroke={series.stroke} d={pointsPath(series.points, content, geometry, viewYAxis)} />
               )
               if (series.type === 'bars') {
                 const sortedXs = series.points.map(point => scaleX(point.x, content.xAxis, geometry)).sort((a, b) => a - b)
@@ -384,7 +384,7 @@ export function PlotRenderer({ content, focus, storageKey }: RendererProps<PlotC
           <p className={css.emptyPlotNotice} role="note">{labels.noValuesInRange}</p>
         )}
         {probeX === undefined ? null : (
-          <div className={css.probeCard} aria-hidden="true">
+          <div className={css.probeCard} data-side={normalizedPosition(probeX, content.xAxis.min, content.xAxis.max) > 0.55 ? 'left' : undefined} aria-hidden="true">
             <strong>x = {formatNumber(probeX)}</strong>
             {probeValues.map((item, index) => <span key={item.id} data-tone={toneAt(item.tone, index)}>{item.label}{item.discrete ? ` · x=${formatNumber(item.x)}` : ''}: {formatNumber(item.y)}</span>)}
           </div>
@@ -402,12 +402,18 @@ export function PlotRenderer({ content, focus, storageKey }: RendererProps<PlotC
             aria-pressed={!hiddenSeries.has(series.id)}
             data-tone={toneAt(series.tone, index)}
             data-series-type={series.type}
-            data-stroke={'stroke' in series ? series.stroke ?? 'solid' : undefined}
+            data-stroke={'stroke' in series ? series.stroke : undefined}
             data-empty={emptySeriesIds.has(series.id) || undefined}
             title={emptySeriesIds.has(series.id) ? labels.seriesOutOfRange : undefined}
             onClick={() => toggleSeries(series.id)}
           >
-            <span aria-hidden="true" />{series.label}
+            <svg className={css.seriesSwatch} viewBox="0 0 18 10" width="18" height="10" aria-hidden="true">
+              {series.type === 'points'
+                ? <circle cx="9" cy="5" r="4" />
+                : series.type === 'bars'
+                  ? <rect x="4.5" y="0.5" width="9" height="9" rx="1" />
+                  : <line x1="0" y1="5" x2="18" y2="5" />}
+            </svg>{series.label}
             {!emptySeriesIds.has(series.id) ? null : <small>{labels.seriesOutOfRange}</small>}
           </button>
         ))}

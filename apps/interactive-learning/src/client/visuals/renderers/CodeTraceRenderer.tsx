@@ -1,7 +1,8 @@
 /** `code_trace`: source lines, current execution point, variables, stack and output. */
 import { useMemo, useState } from 'react'
 import { formatNumber } from '../core/format.ts'
-import { SequenceController } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, SequenceController } from '../core/shell-parts.tsx'
 import type { CodeTraceContent, RendererProps } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
 import shell from '../styles/shell.module.css'
@@ -97,6 +98,7 @@ function traceValue(value: CodeTraceContent['steps'][number]['variables'][number
 
 export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceContent>) {
   const [stepIndex, setStepIndex] = useState(0)
+  const labels = useVisualLabels()
   const step = content.steps[stepIndex] ?? content.steps[0]
   const lines = useMemo(() => [...content.lines].sort((left, right) => left.number - right.number), [content.lines])
   const tokenizedLines = useMemo(() => new Map(lines.map(line => [line.number, tokenizeLine(line.text, content.language)])), [content.language, lines])
@@ -105,7 +107,8 @@ export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceCon
     frames: content.steps.map(item => ({ id: item.id, label: item.label, description: item.description, focusIds: [] })),
   }), [content.steps])
 
-  if (step === undefined) return null
+  // Bailing out to `null` left a blank card; the shared empty state explains it.
+  if (step === undefined || lines.length === 0) return <EmptyFigure />
 
   return (
     <div className={shell.rendererStack}>
@@ -113,7 +116,7 @@ export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceCon
         <SequenceController sequence={sequence} frameIndex={stepIndex} onFrameChange={setStepIndex} />
       )}
       <div className={css.workspace}>
-        <section className={css.source} aria-label={`${content.language} 代码`}>
+        <section className={css.source} aria-label={labelTemplate(labels.codeTraceSource, { language: content.language })}>
           <header><span>{content.language}</span><strong>{step.label}</strong></header>
           <ol>
             {lines.map(line => {
@@ -145,9 +148,9 @@ export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceCon
           </ol>
         </section>
         <div className={css.inspector}>
-          <section className={css.panel} aria-label="变量">
-            <h4>变量</h4>
-            {step.variables.length === 0 ? <p className={css.empty}>暂无局部变量</p> : (
+          <section className={css.panel} aria-label={labels.codeTraceVariables}>
+            <h4>{labels.codeTraceVariables}</h4>
+            {step.variables.length === 0 ? <p className={css.empty}>{labels.codeTraceNoVariables}</p> : (
               <dl className={css.variables}>
                 {step.variables.map(variable => (
                   <div key={variable.name}>
@@ -158,9 +161,9 @@ export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceCon
               </dl>
             )}
           </section>
-          <section className={css.panel} aria-label="调用栈">
-            <h4>调用栈</h4>
-            {step.stack.length === 0 ? <p className={css.empty}>调用栈为空</p> : (
+          <section className={css.panel} aria-label={labels.codeTraceStack}>
+            <h4>{labels.codeTraceStack}</h4>
+            {step.stack.length === 0 ? <p className={css.empty}>{labels.codeTraceEmptyStack}</p> : (
               <ol className={css.stack}>
                 {step.stack.map((frame, index) => (
                   <li key={frame.id} data-visual-id={frame.id} data-visual-state={elementState(frame.id, focus)}>
@@ -172,8 +175,8 @@ export function CodeTraceRenderer({ content, focus }: RendererProps<CodeTraceCon
               </ol>
             )}
           </section>
-          <section className={css.panel} aria-label="输出">
-            <h4>输出</h4>
+          <section className={css.panel} aria-label={labels.codeTraceOutput}>
+            <h4>{labels.codeTraceOutput}</h4>
             <pre className={css.output}>{step.output ?? '—'}</pre>
           </section>
         </div>

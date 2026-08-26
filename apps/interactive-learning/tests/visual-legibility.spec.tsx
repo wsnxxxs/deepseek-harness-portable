@@ -25,6 +25,7 @@ import {
   type VisualState,
 } from '../src/client/visuals/state/visual-state.ts'
 import { graphEmphasis } from '../src/client/visuals/state/graph-state.ts'
+import { colormapAt } from '../src/client/visuals/core/colormap.ts'
 import { graphLayout, nodeBox } from '../src/client/visuals/layout/graph-layout.ts'
 import { measureText, wrapLabel } from '../src/client/visuals/layout/text-metrics.ts'
 import { parseLearningVisualV4, type LearningVisualV4 as VisualDefinition } from '../src/protocol.ts'
@@ -292,5 +293,189 @@ describe('the stylesheets cannot reintroduce the failure modes', () => {
         expect(value, `${path} declares ${declaration}`).toBeGreaterThanOrEqual(0.5)
       }
     }
+  })
+})
+
+/**
+ * The guards below cover the defects the design review found. Each one is
+ * cheap, and each one exists because the property it asserts was already
+ * violated somewhere in the plugin — the type floor was declared but only
+ * checked against the token file, the shadow recipe existed but seven
+ * stylesheets wrote their own, the label system existed but seven renderers
+ * bypassed it.
+ */
+
+const readSource = (path: string): string => (
+  readFileSync(join(clientRoot, path), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+)
+
+const RENDERER_SOURCES = [
+  'CausalLoop', 'CodeTrace', 'DataTable', 'Field2D', 'FormulaSteps',
+  'NodeLink', 'Plot', 'RecallDeck', 'Relation', 'Scene2D',
+  'SequenceBuffer', 'SequenceDiagram', 'StateTransition', 'StudyMap', 'Timeline',
+].map(name => `visuals/renderers/${name}Renderer.tsx`)
+
+const LEARNING_STYLESHEETS = [...VISUAL_STYLESHEETS, 'LearningActivity.module.css'] as const
+
+/** sRGB relative luminance, then CIE L*, for the tone ladder assertions. */
+function lightness(hex: string): number {
+  const channels = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16) / 255)
+  const [red, green, blue] = channels.map(c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  const luminance = 0.2126 * (red ?? 0) + 0.7152 * (green ?? 0) + 0.0722 * (blue ?? 0)
+  return luminance <= 216 / 24389 ? (luminance * 24389) / 27 : Math.cbrt(luminance) * 116 - 16
+}
+
+function mixToward(hex: string, target: string, keep: number): string {
+  const from = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
+  const to = [1, 3, 5].map(at => parseInt(target.slice(at, at + 2), 16))
+  return `#${from.map((value, index) => Math
+    .round(value * keep + (to[index] ?? 0) * (1 - keep))
+    .toString(16)
+    .padStart(2, '0')).join('')}`
+}
+
+describe('the type floor is enforced where sizes are actually written', () => {
+  // The floor was declared in the token comment and asserted only against the
+  // token declarations, so two stylesheets carried a literal 9px and a
+  // renderer wrapped Venn labels at 10px without ever failing a test.
+  it('never writes a literal font size into a learning stylesheet', () => {
+    for (const path of LEARNING_STYLESHEETS) {
+      const literals = [...readCss(path).matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)]
+      expect(literals.map(match => match[0]), `${path} sizes type outside the ramp`).toEqual([])
+    }
+  })
+
+  it('never measures a figure label below the CJK floor', () => {
+    for (const path of [...RENDERER_SOURCES, 'visuals/layout/venn-layout.ts']) {
+      for (const [declaration, size] of [...readSource(path).matchAll(/fontSize[:=]\s*\{?\s*(\d+)/g)]
+        .map(match => [match[0], Number(match[1])] as const)) {
+        expect(size, `${path} declares ${declaration} below the 13px figure floor`).toBeGreaterThanOrEqual(13)
+      }
+    }
+  })
+})
+
+describe('the shared recipes are the only recipes', () => {
+  it('takes every elevation from the shadow tokens', () => {
+    // A literal black shadow is invisible on a dark ground; the tokens mix the
+    // label colour instead, so they lift in both themes.
+    for (const path of LEARNING_STYLESHEETS) {
+      expect(readCss(path), `${path} writes its own shadow colour`).not.toMatch(/rgba\(\s*0\s*,\s*0\s*,\s*0/)
+    }
+  })
+
+  it('responds to the container it is given, never to the viewport', () => {
+    // A learning panel in a narrow side rail of a wide window would otherwise
+    // keep its wide layout while the figures beside it collapsed correctly.
+    for (const path of LEARNING_STYLESHEETS) {
+      expect(readCss(path), `${path} reads the viewport`).not.toMatch(/@media\s*\(\s*(?:max|min)-width/)
+    }
+  })
+
+  it('pairs every tone assignment with its text and stroke variants', () => {
+    // `--visual-tone-text` is inherited, so a rule that re-points `--visual-tone`
+    // without re-pointing it too silently keeps an ancestor's colour.
+    for (const path of [...LEARNING_STYLESHEETS, 'tokens.module.css']) {
+      const source = readCss(path)
+      const tone = source.match(/--visual-tone:/g)?.length ?? 0
+      const text = source.match(/--visual-tone-text:/g)?.length ?? 0
+      const dash = source.match(/--visual-tone-dash:/g)?.length ?? 0
+      expect(text, `${path} re-points --visual-tone without --visual-tone-text`).toBe(tone)
+      expect(dash, `${path} re-points --visual-tone without --visual-tone-dash`).toBe(tone)
+    }
+  })
+
+  it('gives every renderer that can draw nothing a shared empty state', () => {
+    for (const path of RENDERER_SOURCES) {
+      // `plot` is the one exception: an empty plot still has axes worth
+      // showing, so it explains itself inside the frame instead.
+      if (path.includes('PlotRenderer')) continue
+      expect(readSource(path), `${path} can render a blank frame`).toMatch(/EmptyFigure/)
+    }
+  })
+})
+
+describe('every user-facing string comes from the label system', () => {
+  it('never hardcodes a translatable string in a renderer', () => {
+    // Seven renderers had bypassed the label table, four of them in Chinese and
+    // three in English, so one lesson could show both at once.
+    for (const path of RENDERER_SOURCES) {
+      const cjk = readSource(path).match(/[一-鿿぀-ヿ]/g)
+      expect(cjk, `${path} hardcodes a translatable string`).toBeNull()
+    }
+  })
+
+  it('resolves every label key through the locale dictionaries', () => {
+    const labels = readSource('visuals/core/labels.ts')
+    const declared = [...labels.matchAll(/^\s{2}([a-zA-Z]+): string$/gm)].map(match => match[1])
+    const mapped = readSource('LearningToolView.tsx')
+    expect(declared.length).toBeGreaterThan(80)
+    for (const key of declared) {
+      expect(mapped, `${String(key)} is not mapped to a locale key`).toMatch(new RegExp(`\\b${String(key)}:\\s*'visual`))
+    }
+  })
+})
+
+describe('colour carries a category without being the only thing that does', () => {
+  it('separates the six tones by weight, not only by hue', () => {
+    // Measured before the ladder: the six sat inside 11 points of L* with
+    // gray, green and orange 0.7 apart — one flat mass in greyscale.
+    const tokens = readCss('tokens.module.css')
+    const keep = Object.fromEntries([...tokens.matchAll(/--lx-tone-keep-([a-z]+):\s*(\d+)%/g)]
+      .map(match => [match[1], Number(match[2]) / 100]))
+    const raw: Record<string, string> = {
+      blue: '#2f73ea', red: '#df4f4f', orange: '#d1741f',
+      green: '#2f9e5f', purple: '#7964a9', gray: '#8a8a8a',
+    }
+    expect(Object.keys(keep).sort()).toEqual(Object.keys(raw).sort())
+    for (const [label, ground] of [['light', '#000000'], ['dark', '#ffffff']] as const) {
+      const ladder = Object.entries(raw)
+        .map(([name, hex]) => lightness(mixToward(hex, ground, keep[name] ?? 1)))
+        .sort((left, right) => left - right)
+      const gaps = ladder.slice(1).map((value, index) => value - (ladder[index] ?? 0))
+      expect(Math.min(...gaps), `tones collapse together in the ${label} theme`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('gives every tone a stroke pattern the legend can read back', () => {
+    const tokens = readCss('tokens.module.css')
+    const dashes = [...tokens.matchAll(/--lx-tone-dash-([a-z]+):\s*([^;]+);/g)].map(match => match[2]?.trim())
+    expect(dashes).toHaveLength(6)
+    expect(new Set(dashes).size, 'two tones share a stroke pattern').toBe(6)
+  })
+
+  it('reads a scalar field through a scale whose lightness only increases', () => {
+    // The previous scale swept hue and held lightness flat, so its maximum and
+    // a low value came out the same weight.
+    const samples = Array.from({ length: 24 }, (_, index) => colormapAt(index / 23))
+    const levels = samples.map(colour => {
+      const [red, green, blue] = colour.match(/\d+/g)?.map(Number) ?? [0, 0, 0]
+      return lightness(`#${[red, green, blue].map(v => (v ?? 0).toString(16).padStart(2, '0')).join('')}`)
+    })
+    for (let index = 1; index < levels.length; index += 1) {
+      expect(levels[index], `the scale reverses at ${String(index)}`).toBeGreaterThan(levels[index - 1] ?? 0)
+    }
+    expect((levels.at(-1) ?? 0) - (levels[0] ?? 0), 'the scale has too little range to read').toBeGreaterThan(60)
+  })
+})
+
+describe('a target that looks operable is big enough to operate', () => {
+  it('carries the step rail out to a usable hit area', () => {
+    const shell = readCss('visuals/styles/shell.module.css')
+    const rail = shell.match(/\.sequenceRail button \{[^}]*\}/)?.[0] ?? ''
+    // 6px of paint, 24px of target: the padding supplies the difference.
+    expect(rail).toMatch(/padding:\s*9px 0/)
+    expect(rail).toMatch(/background-clip:\s*content-box/)
+  })
+
+  it('draws the same slider thumb in both engines', () => {
+    const plot = readCss('visuals/styles/plot.module.css')
+    const webkit = plot.match(/::-webkit-slider-thumb \{[^}]*\}/)?.[0] ?? ''
+    const moz = plot.match(/::-moz-range-thumb \{[^}]*\}/)?.[0] ?? ''
+    const size = (rule: string): string | undefined => /width:\s*(\d+)px/.exec(rule)?.[1]
+    expect(size(webkit)).toBeDefined()
+    expect(size(moz), 'Firefox draws a different thumb').toBe(size(webkit))
   })
 })

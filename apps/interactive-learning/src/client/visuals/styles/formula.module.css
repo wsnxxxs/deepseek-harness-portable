@@ -47,7 +47,7 @@
   border-radius: var(--lx-radius-md);
   padding: var(--lx-space-md);
   background: color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--lx-shadow-sm);
 }
 
 .formulaSteps > li[data-visual-state="current"] .formulaStepCard {
@@ -63,7 +63,7 @@
   place-items: center;
   border-radius: var(--lx-radius-circle);
   background: color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));
-  color: var(--visual-tone);
+  color: var(--visual-tone-text);
   font-size: var(--lx-text-2xs);
   font-weight: var(--lx-weight-strong);
 }
@@ -88,7 +88,7 @@
 .formulaExpression > div { min-width: max-content; }
 .formulaExpression :global(.katex-display) { margin: 2px 0; text-align: left; }
 
-.formulaStepCard strong { color: var(--visual-tone); font-size: var(--lx-text-2xs); line-height: var(--lx-leading-2xs); }
+.formulaStepCard strong { color: var(--visual-tone-text); font-size: var(--lx-text-2xs); line-height: var(--lx-leading-2xs); }
 .formulaStepCard p { margin: 0; color: var(--lx-label-secondary); font-size: var(--lx-text-xs); line-height: var(--lx-leading-xs); }
 
 .formulaRule {
@@ -105,8 +105,8 @@
   line-height: var(--lx-leading-2xs);
 }
 
-.formulaRule > span:first-child { color: var(--visual-tone); font-size: var(--lx-text-lg); text-align: center; }
-.formulaRule strong { color: var(--visual-tone); font-size: var(--lx-text-micro); letter-spacing: 0.04em; text-transform: uppercase; }
+.formulaRule > span:first-child { color: var(--visual-tone-text); font-size: var(--lx-text-lg); text-align: center; }
+.formulaRule strong { color: var(--visual-tone-text); font-size: var(--lx-text-micro); letter-spacing: 0.04em; text-transform: uppercase; }
 
 .formulaUnknown {
   display: grid;
@@ -117,7 +117,7 @@
   color: var(--lx-label-tertiary);
 }
 
-.formulaUnknown > span:first-child { color: var(--visual-tone); font-size: var(--lx-text-lg); text-align: center; }
+.formulaUnknown > span:first-child { color: var(--visual-tone-text); font-size: var(--lx-text-lg); text-align: center; }
 .formulaUnknown > span:last-child { display: flex; min-height: 38px; align-items: center; border: 1px dashed var(--lx-border-default); border-radius: var(--lx-radius-md); padding: var(--lx-space-xs) var(--lx-space-md); color: var(--lx-label-tertiary); font-size: var(--lx-text-2xs); }
 
 .formulaConclusion {

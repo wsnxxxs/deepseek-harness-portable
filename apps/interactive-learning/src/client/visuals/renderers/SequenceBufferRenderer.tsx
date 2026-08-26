@@ -1,7 +1,8 @@
 /** `sequence_buffer`: discrete slots, pointers and ranges with local step playback. */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { formatNumber, toneAt } from '../core/format.ts'
-import { SelectionSurface, SequenceController } from '../core/shell-parts.tsx'
+import { useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport, SelectionSurface, SequenceController } from '../core/shell-parts.tsx'
 import type { RendererProps, SequenceBufferContent } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
 import shell from '../styles/shell.module.css'
@@ -31,6 +32,7 @@ function steppedContent(content: SequenceBufferContent, stepIndex: number) {
 }
 
 export function SequenceBufferRenderer({ content, focus }: RendererProps<SequenceBufferContent>) {
+  const labels = useVisualLabels()
   const [stepIndex, setStepIndex] = useState(0)
   const [selected, setSelected] = useState<Selection>()
   const slots = useMemo(() => [...content.slots].sort((left, right) => left.index - right.index), [content.slots])
@@ -45,12 +47,16 @@ export function SequenceBufferRenderer({ content, focus }: RendererProps<Sequenc
 
   const columnAt = (index: number): number => slotOrder.get(index) ?? Math.max(1, Math.min(slots.length, index + 1))
 
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (slots.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack}>
       {steps.length < 2 ? null : (
         <SequenceController sequence={sequence} frameIndex={stepIndex} onFrameChange={setStepIndex} />
       )}
-      <div className={css.viewport} role="group" aria-label="序列缓冲区">
+      <FigureViewport className={css.bufferViewport} role="group" aria-label={labels.sequenceBufferLabel}>
         <div className={css.buffer} style={gridStyle}>
           {(content.ranges ?? []).map((range, rangeIndex) => {
             const bounds = current.rangeBounds.get(range.id) ?? range
@@ -65,7 +71,7 @@ export function SequenceBufferRenderer({ content, focus }: RendererProps<Sequenc
                 data-tone={toneAt(range.tone, rangeIndex)}
                 data-visual-id={range.id}
                 data-visual-state={selected?.id === range.id ? 'selected' : elementState(range.id, focus)}
-                onClick={() => setSelected({ id: range.id, label: range.label, detail: `${String(bounds.start)} … ${String(bounds.end)}`, kind: '区间' })}
+                onClick={() => setSelected({ id: range.id, label: range.label, detail: `${String(bounds.start)} … ${String(bounds.end)}`, kind: labels.sequenceBufferRangeKind })}
               >
                 <span>{range.label}</span><small>{bounds.start}…{bounds.end}</small>
               </button>
@@ -85,7 +91,7 @@ export function SequenceBufferRenderer({ content, focus }: RendererProps<Sequenc
                   data-visual-id={slot.id}
                   data-visual-state={selected?.id === slot.id ? 'selected' : elementState(slot.id, focus)}
                   data-missing={value === null || undefined}
-                  onClick={() => setSelected({ id: slot.id, label: slot.label ?? `[${String(slot.index)}]`, detail: displayValue(value), kind: '槽位' })}
+                  onClick={() => setSelected({ id: slot.id, label: slot.label ?? `[${String(slot.index)}]`, detail: displayValue(value), kind: labels.sequenceBufferSlotKind })}
                 >
                   <small>{slot.label}</small>
                   <strong>{displayValue(value)}</strong>
@@ -106,7 +112,7 @@ export function SequenceBufferRenderer({ content, focus }: RendererProps<Sequenc
                   data-tone={toneAt(pointer.tone, pointerIndex)}
                   data-visual-id={pointer.id}
                   data-visual-state={selected?.id === pointer.id ? 'selected' : elementState(pointer.id, focus)}
-                  onClick={() => setSelected({ id: pointer.id, label: pointer.label, detail: `index ${String(index)}`, kind: '指针' })}
+                  onClick={() => setSelected({ id: pointer.id, label: pointer.label, detail: `index ${String(index)}`, kind: labels.sequenceBufferPointerKind })}
                 >
                   <i aria-hidden="true">↑</i><span>{pointer.label}</span><small>{index}</small>
                 </button>
@@ -114,8 +120,8 @@ export function SequenceBufferRenderer({ content, focus }: RendererProps<Sequenc
             })}
           </div>
         </div>
-      </div>
-      <SelectionSurface hint="选择槽位、指针或区间查看当前步骤中的值。" selected={selected} onClose={() => setSelected(undefined)} />
+      </FigureViewport>
+      <SelectionSurface hint={labels.sequenceBufferInteractionHint} selected={selected} onClose={() => setSelected(undefined)} />
     </div>
   )
 }

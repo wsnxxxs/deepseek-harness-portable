@@ -45,6 +45,13 @@
 }
 
 .activityContent {
+  /* The activity surfaces adapt to the column they are given, not to the
+     window. A learning panel docked in a narrow side rail of a wide window was
+     reading the viewport, so the figures beside it collapsed correctly while
+     the step rail here kept its wide layout and overflowed. The visual shell
+     and the checkpoint already declared a container; this is the third. */
+  container-name: learning-activity;
+  container-type: inline-size;
   gap: var(--lx-space-xl);
 }
 
@@ -889,7 +896,7 @@
 
 /* Mirrors the visual surface's narrow treatment: below this width the three
    actions stop wrapping into a ragged block and share the row evenly. */
-@container learning-checkpoint (max-width: 340px) {
+@container learning-checkpoint (max-width: 360px) {
   .checkpointActions > button { flex: 1 1 auto; }
   .checkpointActions > .textButton { flex-basis: 100%; }
 }
@@ -1044,6 +1051,8 @@
 
 .visualLegend li {
   --visual-tone: var(--lx-accent);
+  --visual-tone-text: color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));
+  --visual-tone-dash: var(--lx-tone-dash-blue);
   display: inline-flex;
   align-items: center;
   gap: var(--lx-space-xs);
@@ -1100,6 +1109,8 @@
 
 .visualCurve {
   --visual-tone: var(--lx-accent);
+  --visual-tone-text: color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));
+  --visual-tone-dash: var(--lx-tone-dash-blue);
   fill: none;
   stroke: var(--visual-tone);
   stroke-width: 2.5;
@@ -1113,6 +1124,8 @@
 
 .visualPoint {
   --visual-tone: var(--lx-accent);
+  --visual-tone-text: color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));
+  --visual-tone-dash: var(--lx-tone-dash-blue);
   fill: var(--visual-tone);
   stroke: var(--lx-surface-base);
   stroke-width: 1.5;
@@ -1158,7 +1171,7 @@
   50% { opacity: 0.75; }
 }
 
-@media (max-width: 560px) {
+@container learning-activity (max-width: 560px) {
   .processMap {
     grid-template-columns: 1fr;
   }
@@ -1199,7 +1212,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@container learning-activity (max-width: 360px) {
   .legend { margin-left: 56px; }
   .visualLegend { margin-left: 54px; }
 

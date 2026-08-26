@@ -1,6 +1,7 @@
 /** `sequence_diagram`: participants, lifelines and ordered messages. */
 import { useId, useMemo, useState } from 'react'
-import { SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport, SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type RendererProps, type SequenceDiagramContent } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
@@ -41,6 +42,7 @@ function messageDetail(message: SequenceMessage, participants: ReadonlyMap<strin
 }
 
 export function SequenceDiagramRenderer({ content, focus }: ProcessRendererProps<SequenceDiagramContent>) {
+  const labels = useVisualLabels()
   const diagramId = useId()
   const [viewportRef, containerWidth] = useContainerWidth()
   const [selected, setSelected] = useState<Selected | undefined>()
@@ -57,24 +59,28 @@ export function SequenceDiagramRenderer({ content, focus }: ProcessRendererProps
   const selectParticipant = (participant: SequenceParticipant): void => setSelected({
     label: participant.label,
     detail: participant.detail,
-    kind: 'Participant',
+    kind: labels.participantKind,
     tone: toneAt(participant.tone),
   })
   const selectMessage = (message: SequenceMessage): void => setSelected({
     label: message.label,
     detail: messageDetail(message, participantById),
-    kind: 'Message',
+    kind: labels.messageKind,
     tone: toneAt(message.tone),
   })
-  const summary = `Sequence diagram with ${participants.length} participants and ${messages.length} messages.`
+  const summary = labelTemplate(labels.sequenceDiagramSummary, { participants: participants.length, messages: messages.length })
   const legendStates = useMemo(
     () => focus.active ? [...participants, ...messages].map(item => elementState(item.id, focus)) : [],
     [focus, messages, participants],
   )
 
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (participants.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack}>
-      <div className={css.processViewport} ref={viewportRef}>
+      <FigureViewport viewportRef={viewportRef}>
         <svg
           ref={roving.containerRef}
           className={css.processSvg}
@@ -194,7 +200,7 @@ export function SequenceDiagramRenderer({ content, focus }: ProcessRendererProps
             })}
           </g>
         </svg>
-      </div>
+      </FigureViewport>
       <StateLegend states={legendStates} />
       <div className={shell.srOnly}>
         <p>{summary}</p>
@@ -202,7 +208,7 @@ export function SequenceDiagramRenderer({ content, focus }: ProcessRendererProps
           {messages.map(message => <li key={message.id}>{messageDetail(message, participantById)}: {message.label}</li>)}
         </ol>
       </div>
-      <SelectionSurface hint="Select a participant or message to inspect the interaction." selected={selected} onClose={() => setSelected(undefined)} />
+      <SelectionSurface hint={labels.sequenceDiagramInteractionHint} selected={selected} onClose={() => setSelected(undefined)} />
     </div>
   )
 }

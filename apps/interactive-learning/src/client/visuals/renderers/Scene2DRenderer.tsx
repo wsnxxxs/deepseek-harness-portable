@@ -1,7 +1,7 @@
 /** `scene_2d`: geometry, vectors, fields and annotated schematics on axes. */
 import { useId, useMemo, useState } from 'react'
 import { labelTemplate, useVisualLabels } from '../core/labels.ts'
-import { FigureViewport, SelectionSurface } from '../core/shell-parts.tsx'
+import { EmptyFigure, FigureViewport, SelectionSurface } from '../core/shell-parts.tsx'
 import { formatNumber, ticks, toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type RendererProps, type Scene2DContent, type SelectedItem } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
@@ -40,7 +40,7 @@ function midpointTicks(majorTicks: readonly number[], minimum: number, maximum: 
 }
 
 function sceneLabelLines(text: string | undefined): string[] {
-  return text === undefined ? [] : wrapLabel(text, { fontSize: 12, maxWidth: 136, maxLines: 2 }).lines
+  return text === undefined ? [] : wrapLabel(text, { fontSize: 13, maxWidth: 136, maxLines: 2 }).lines
 }
 
 function sceneElementBounds(
@@ -120,6 +120,10 @@ export function Scene2DRenderer({ content, focus }: RendererProps<Scene2DContent
     kind: 'element',
     tone: toneAt(tone),
   })
+
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.elements.length === 0) return <EmptyFigure />
 
   return (
     <div className={shell.rendererStack}>

@@ -76,7 +76,7 @@
 
 .stepArrow {
   color: var(--lx-accent);
-  font-size: 9px;
+  font-size: var(--lx-glyph-xs);
   font-style: normal;
   line-height: 1;
   filter: drop-shadow(0 0 3px var(--lx-accent));

@@ -9,6 +9,8 @@
 
 .visualShell {
   --visual-tone: var(--lx-accent);
+  --visual-tone-text: color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));
+  --visual-tone-dash: var(--lx-tone-dash-blue);
   container-name: learning-visual-v4;
   container-type: inline-size;
   display: flex;
@@ -273,31 +275,37 @@
   display: flex;
   grid-column: 1 / -1;
   flex-wrap: wrap;
-  gap: var(--lx-space-2xs);
-  margin: 0;
+  gap: 0 var(--lx-space-2xs);
+  margin: calc(var(--lx-space-2xs) - 9px) 0;
   padding: 0;
   list-style: none;
 }
 
+/* The rail reads as a 6px bar but is hit as a 24px one. The visible height is
+   the padding box; `background-clip: content-box` keeps the paint inside the
+   6px content box while the padding carries the target out to the minimum
+   size a pointer can reasonably be expected to land on. */
 .sequenceRail button {
   display: block;
+  box-sizing: content-box;
   width: 100%;
-  min-width: 18px;
+  min-width: 24px;
   height: 6px;
   appearance: none;
   border: 0;
   border-radius: var(--lx-radius-pill);
-  padding: 0;
+  padding: 9px 0;
   background: color-mix(in srgb, var(--lx-accent) 20%, var(--lx-border-default));
+  background-clip: content-box;
   cursor: pointer;
   transition: background-color var(--lx-motion-fast) var(--lx-easing), transform var(--lx-motion-fast) var(--lx-easing);
 }
 
-.sequenceRail li { flex: 1 1 0; min-width: 18px; }
-.sequenceRail button:hover { background: color-mix(in srgb, var(--lx-accent) 50%, transparent); transform: scaleY(1.2); }
-.sequenceRail button[data-visual-state="visited"] { background: color-mix(in srgb, var(--lx-accent) 64%, transparent); }
+.sequenceRail li { flex: 1 1 0; min-width: 24px; }
+.sequenceRail button:hover { background-color: color-mix(in srgb, var(--lx-accent) 50%, transparent); transform: scaleY(1.2); }
+.sequenceRail button[data-visual-state="visited"] { background-color: color-mix(in srgb, var(--lx-accent) 64%, transparent); }
 .sequenceRail button[data-visual-state="current"] {
-  background: var(--lx-accent);
+  background-color: var(--lx-accent);
   box-shadow: 0 0 8px var(--lx-accent);
 }
 
@@ -333,7 +341,7 @@
 }
 
 .detailPanel > span {
-  color: var(--visual-tone);
+  color: var(--visual-tone-text);
   font-size: var(--lx-text-micro);
   font-weight: var(--lx-weight-strong);
   line-height: var(--lx-leading-xs);

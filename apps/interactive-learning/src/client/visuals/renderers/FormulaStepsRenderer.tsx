@@ -3,6 +3,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { labelTemplate, useVisualLabels } from '../core/labels.ts'
 import { displayMath, toneAt } from '../core/format.ts'
+import { EmptyFigure } from '../core/shell-parts.tsx'
 import type { FormulaStepsContent, RendererProps } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
 import shell from '../styles/shell.module.css'
@@ -46,6 +47,10 @@ export function FormulaStepsRenderer({ content, focus, storageKey }: RendererPro
     else if (event.key === 'Home') { event.preventDefault(); setRevealedIndex(0) }
     else if (event.key === 'End') { event.preventDefault(); setRevealedIndex(lastIndex) }
   }
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.steps.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack} role="group" tabIndex={0} onKeyDown={onKeyDown} aria-label={labels.formulaLabel}>
       <div className={css.formulaMeta}>

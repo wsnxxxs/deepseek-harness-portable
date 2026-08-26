@@ -1,7 +1,7 @@
 /** `timeline`: chronologies, phases and eras, horizontal or vertical. */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useVisualLabels } from '../core/labels.ts'
-import { SelectionSurface } from '../core/shell-parts.tsx'
+import { EmptyFigure, FigureViewport, SelectionSurface } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import type { RendererProps, TimelineContent } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
@@ -133,9 +133,13 @@ export function TimelineRenderer({ content, focus }: RendererProps<TimelineConte
   const axisY = Math.max(90, eraLaneBottom + 8 + CARD_OFFSET)
   const height = axisY + 130
   const eventX = (_event: TimelineContent['events'][number], index: number): number => eventLayout.positions[index] ?? AXIS_INSET
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.events.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack} role="group" aria-label={labels.timelineLabel}>
-      <div className={shell.viewport} ref={viewportRef}>
+      <FigureViewport viewportRef={viewportRef}>
         <div className={css.timelineCanvas} style={{ width, height }}>
           {eras.map((era, index) => {
             const startIndex = eventIndex.get(era.startEventId) ?? 0
@@ -173,7 +177,7 @@ export function TimelineRenderer({ content, focus }: RendererProps<TimelineConte
             </button>
           ))}
         </div>
-      </div>
+      </FigureViewport>
       <SelectionSurface hint={labels.timelineInteractionHint} selected={selected} onClose={() => setSelected(undefined)} />
     </div>
   )

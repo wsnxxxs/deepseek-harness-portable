@@ -44,7 +44,7 @@
 
 .relationTable td { color: var(--lx-label-secondary); }
 .relationTable td[data-tone] {
-  color: var(--visual-tone);
+  color: var(--visual-tone-text);
   font-weight: var(--lx-weight-medium);
   background: color-mix(in srgb, var(--visual-tone) 7%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--visual-tone) 10%, transparent);
@@ -83,7 +83,7 @@
   border-radius: var(--lx-radius-sm);
   padding: var(--lx-space-2xs) var(--lx-space-xs);
   background: color-mix(in srgb, var(--visual-tone) 10%, transparent);
-  color: var(--visual-tone);
+  color: var(--visual-tone-text);
   font: inherit;
   font-size: var(--lx-text-2xs);
   opacity: var(--lx-vs-alpha);
@@ -195,9 +195,10 @@
   background: var(--lx-surface-sunken);
 }
 
+/* The SVG is drawn at the size the layout computed. It may shrink to fit a
+   narrow column, but it is never stretched past what the labels needed. */
 .vennSvg {
-  max-width: 480px;
-  width: 100%;
+  max-width: 100%;
   height: auto;
   overflow: visible;
 }
@@ -210,13 +211,18 @@
   transition: fill var(--lx-motion-fast) var(--lx-easing), stroke-width var(--lx-motion-fast) var(--lx-easing);
 }
 
-:global([data-theme="dark"]) .vennCircle {
+/* The Host marks a dark palette with `data-ds-dark-theme` on <body> (see
+   ui-layout's theme presenter); this rule used to test for `data-theme="dark"`,
+   which the Host never sets, so it never applied. The circles kept `multiply`
+   on a dark ground, where two overlapping fills darken towards black and the
+   intersection — the one thing the diagram exists to show — disappeared. */
+:global([data-ds-dark-theme]) .vennCircle {
   mix-blend-mode: screen;
   fill: color-mix(in srgb, var(--visual-tone) 20%, transparent);
 }
 
 .vennLabel {
-  fill: var(--visual-tone);
+  fill: var(--visual-tone-text);
   font-size: var(--lx-text-xs);
   font-weight: var(--lx-weight-strong);
   letter-spacing: 0.02em;
@@ -229,9 +235,12 @@
 }
 
 .vennItems { pointer-events: none; }
+/* 13px, and it has to stay 13px: `venn-layout.ts` measures the labels at
+   VENN_FONT_SIZE to size the circles, so a different size here would place text
+   the geometry was not built for. */
 .vennItem {
   fill: var(--lx-label-primary);
-  font-size: var(--lx-text-micro);
+  font-size: var(--lx-text-xs);
   font-weight: var(--lx-weight-medium);
 }
 .vennOverflow { fill: var(--lx-label-tertiary); font-size: var(--lx-text-micro); font-weight: var(--lx-weight-strong); }

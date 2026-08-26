@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react'
 import type { LearningTableValueV4 } from '../../../protocol-current.ts'
 import { formatNumber, ticks, toneAt } from '../core/format.ts'
-import { SelectionSurface } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport, SelectionSurface } from '../core/shell-parts.tsx'
 import type { DataTableContent, RendererProps } from '../core/types.ts'
 import { useContainerWidth } from '../state/hooks.ts'
 import { elementState } from '../state/visual-state.ts'
@@ -85,6 +86,7 @@ function LinkedChart({
   outlierIds: ReadonlySet<string>
   onSelect: (row: TableRow) => void
 }) {
+  const labels = useVisualLabels()
   const chart = content.chart
   const [hoveredRowId, setHoveredRowId] = useState<string>()
   const [viewportRef, measuredWidth] = useContainerWidth()
@@ -195,7 +197,7 @@ function LinkedChart({
             <rect x={-tooltipWidth / 2} y={-tooltipHeight} width={tooltipWidth} height={tooltipHeight} rx="6" />
             <text x={-tooltipWidth / 2 + 10} y={-tooltipHeight + 15}>
               <tspan x={-tooltipWidth / 2 + 10}>{xColumn.label}: {formatValue(valueOf(activePoint.row, xColumn.id), xColumn)}</tspan>
-              <tspan x={-tooltipWidth / 2 + 10} dy="15">{yColumn.label}: {formatValue(valueOf(activePoint.row, yColumn.id), yColumn)}{outlierIds.has(activePoint.row.id) ? ' · 异常值' : ''}</tspan>
+              <tspan x={-tooltipWidth / 2 + 10} dy="15">{yColumn.label}: {formatValue(valueOf(activePoint.row, yColumn.id), yColumn)}{outlierIds.has(activePoint.row.id) ? ` · ${labels.dataTableOutlier}` : ''}</tspan>
             </text>
           </g>
         )}
@@ -205,6 +207,7 @@ function LinkedChart({
 }
 
 export function DataTableRenderer({ content, focus }: RendererProps<DataTableContent>) {
+  const labels = useVisualLabels()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<TableSort | undefined>(content.initialSort)
   const [filter, setFilter] = useState<TableFilter | undefined>(content.initialFilter)
@@ -233,25 +236,29 @@ export function DataTableRenderer({ content, focus }: RendererProps<DataTableCon
     ? { columnId, direction: current.direction === 'asc' ? 'desc' : 'asc' }
     : { columnId, direction: 'asc' })
 
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.rows.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack}>
       <div className={css.toolbar}>
         <label className={css.search}>
-          <span className={shell.srOnly}>筛选数据</span>
-          <input type="search" value={query} placeholder="筛选数据…" onChange={event => setQuery(event.currentTarget.value)} />
+          <span className={shell.srOnly}>{labels.dataTableFilterLabel}</span>
+          <input type="search" value={query} placeholder={labels.dataTableFilterPlaceholder} onChange={event => setQuery(event.currentTarget.value)} />
         </label>
         <output aria-live="polite">{visibleRows.length} / {content.rows.length}</output>
-        {filter === undefined ? null : <button type="button" className={shell.control} onClick={() => setFilter(undefined)}>清除预设筛选</button>}
+        {filter === undefined ? null : <button type="button" className={shell.control} onClick={() => setFilter(undefined)}>{labels.dataTableClearFilter}</button>}
       </div>
       <LinkedChart content={content} rows={visibleRows} selectedRowId={selectedRowId} outlierIds={outlierIds} onSelect={selectRow} />
-      <div className={`${shell.viewport} ${css.tableViewport}`}>
+      <FigureViewport className={css.tableViewport}>
         <table className={css.table}>
-          <caption className={shell.srOnly}>数据表</caption>
+          <caption className={shell.srOnly}>{labels.dataTableCaption}</caption>
           <thead><tr>{content.columns.map(column => {
             const active = sort?.columnId === column.id
             return (
               <th key={column.id} scope="col" data-visual-id={column.id} data-visual-state={elementState(column.id, focus)}>
-                <button type="button" onClick={() => changeSort(column.id)} aria-label={`${column.label}，排序`}>
+                <button type="button" onClick={() => changeSort(column.id)} aria-label={labelTemplate(labels.dataTableSort, { column: column.label })}>
                   <span>{column.label}</span>{column.unit === undefined ? null : <small>{column.unit}</small>}
                   <i aria-hidden="true">{active ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</i>
                 </button>
@@ -275,7 +282,7 @@ export function DataTableRenderer({ content, focus }: RendererProps<DataTableCon
                   const Cell = index === 0 ? 'th' : 'td'
                   return (
                     <Cell key={column.id} {...(index === 0 ? { scope: 'row' as const } : {})} data-missing={value === null || undefined}>
-                      {index === 0 && outlier ? <span className={css.outlierMark} title="异常值" aria-label="异常值">!</span> : null}
+                      {index === 0 && outlier ? <span className={css.outlierMark} title={labels.dataTableOutlier} aria-label={labels.dataTableOutlier}>!</span> : null}
                       <span>{formatValue(value, column)}</span>
                     </Cell>
                   )
@@ -284,14 +291,14 @@ export function DataTableRenderer({ content, focus }: RendererProps<DataTableCon
             )
           })}</tbody>
         </table>
-        {visibleRows.length === 0 ? <p className={css.empty}>没有匹配的记录。</p> : null}
-      </div>
+        {visibleRows.length === 0 ? <p className={css.empty}>{labels.dataTableNoMatches}</p> : null}
+      </FigureViewport>
       <SelectionSurface
-        hint="选择一行可在表格与图表中联动查看。"
+        hint={labels.dataTableInteractionHint}
         selected={selectedRow === undefined ? undefined : {
           label: content.columns.slice(0, 2).map(column => formatValue(valueOf(selectedRow, column.id), column)).join(' · '),
-          detail: selectedRow.detail ?? (outlierIds.has(selectedRow.id) ? '该记录被标记为异常值。' : undefined),
-          kind: outlierIds.has(selectedRow.id) ? '异常记录' : '记录',
+          detail: selectedRow.detail ?? (outlierIds.has(selectedRow.id) ? labels.dataTableOutlierDetail : undefined),
+          kind: outlierIds.has(selectedRow.id) ? labels.dataTableOutlierKind : labels.dataTableRowKind,
         }}
         onClose={() => setSelectedRowId(undefined)}
       />

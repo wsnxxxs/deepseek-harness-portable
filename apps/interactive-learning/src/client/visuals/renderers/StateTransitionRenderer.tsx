@@ -8,7 +8,8 @@
  * that makes hand-written examples easy to migrate from a node-link payload.
  */
 import { useId, useMemo, useState } from 'react'
-import { SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport, SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type RendererProps, type StateTransitionContent } from '../core/types.ts'
 import { elementState, type VisualFocus } from '../state/visual-state.ts'
@@ -42,12 +43,22 @@ const STATE_HEIGHT = 60
 const STATE_GAP = 112
 const SIDE_PADDING = 28
 const ROW_HEIGHT = 122
+/**
+ * Headroom above the first row for the labels that sit there.
+ *
+ * A same-row pair with a return edge puts its caption at `startY - 36`, and a
+ * two-line caption is 40 tall, so on the first row the chip reached about 16px
+ * above the canvas and was cut off by the frame — taking the transition's
+ * trigger condition with it, which is the part of a state diagram a learner
+ * most needs to read.
+ */
+const TOP_LABEL_BAND = 40
 
 function transitionLabelLayout(label: string): { width: number; height: number; lines: string[] } {
-  const lines = wrapLabel(label, { fontSize: 11, maxWidth: 220, maxLines: 2 }).lines
+  const lines = wrapLabel(label, { fontSize: 13, maxWidth: 220, maxLines: 2 }).lines
   return {
-    width: Math.min(244, Math.max(92, Math.max(...lines.map(line => measureText(line, 11)), 0) + 20)),
-    height: lines.length > 1 ? 34 : 26,
+    width: Math.min(244, Math.max(92, Math.max(...lines.map(line => measureText(line, 13)), 0) + 22)),
+    height: lines.length > 1 ? 40 : 30,
     lines,
   }
 }
@@ -94,7 +105,7 @@ function layoutStates(states: readonly StateTransitionState[], width: number): {
   const perRow = Math.max(1, Math.floor((Math.max(width, 360) - SIDE_PADDING * 2 + STATE_GAP) / (STATE_WIDTH + STATE_GAP)))
   const rows = Math.max(1, Math.ceil(states.length / perRow))
   const canvasWidth = Math.max(Math.max(width, 360), SIDE_PADDING * 2 + perRow * STATE_WIDTH + (perRow - 1) * STATE_GAP)
-  const canvasHeight = SIDE_PADDING * 2 + rows * STATE_HEIGHT + (rows - 1) * (ROW_HEIGHT - STATE_HEIGHT)
+  const canvasHeight = SIDE_PADDING * 2 + TOP_LABEL_BAND + rows * STATE_HEIGHT + (rows - 1) * (ROW_HEIGHT - STATE_HEIGHT)
   const boxes = new Map<string, StateBox>()
   states.forEach((state, index) => {
     const row = Math.floor(index / perRow)
@@ -104,7 +115,7 @@ function layoutStates(states: readonly StateTransitionState[], width: number): {
     const start = (canvasWidth - rowWidth) / 2
     boxes.set(state.id, {
       x: start + column * (STATE_WIDTH + STATE_GAP) + STATE_WIDTH / 2,
-      y: SIDE_PADDING + row * ROW_HEIGHT + STATE_HEIGHT / 2,
+      y: SIDE_PADDING + TOP_LABEL_BAND + row * ROW_HEIGHT + STATE_HEIGHT / 2,
       width: STATE_WIDTH,
       height: STATE_HEIGHT,
     })
@@ -118,6 +129,7 @@ function stateVisualState(id: string, focus: VisualFocus, currentStateId: string
 }
 
 export function StateTransitionRenderer({ content, focus }: ProcessRendererProps<StateTransitionContent>) {
+  const labels = useVisualLabels()
   const diagramId = useId()
   const [viewportRef, containerWidth] = useContainerWidth()
   const [selected, setSelected] = useState<Selected | undefined>()
@@ -138,28 +150,32 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
   const selectState = (state: StateTransitionState): void => setSelected({
     label: state.label,
     detail: stateDetail(state),
-    kind: state.id === initialStateId || state.initial === true ? 'Initial state' : terminalIds.has(state.id) ? 'Terminal state' : 'State',
+    kind: state.id === initialStateId || state.initial === true ? labels.stateInitialKind : terminalIds.has(state.id) ? labels.stateTerminalKind : labels.stateKind,
     tone: toneAt(state.tone),
   })
   const selectTransition = (edge: StateTransitionEdge): void => {
-    const from = stateById.get(edgeFrom(edge) ?? '')?.label ?? edgeFrom(edge) ?? 'State'
-    const to = stateById.get(edgeTo(edge) ?? '')?.label ?? edgeTo(edge) ?? 'State'
+    const from = stateById.get(edgeFrom(edge) ?? '')?.label ?? edgeFrom(edge) ?? labels.stateKind
+    const to = stateById.get(edgeTo(edge) ?? '')?.label ?? edgeTo(edge) ?? labels.stateKind
     setSelected({
       label: edgeCaption(edge) || `${from} → ${to}`,
       detail: edgeDetail(edge) ?? `${from} → ${to}`,
-      kind: 'Transition',
+      kind: labels.transitionKind,
       tone: toneAt(edge.tone),
     })
   }
-  const summary = `State transition diagram with ${states.length} states and ${transitions.length} transitions.`
+  const summary = labelTemplate(labels.stateTransitionSummary, { states: states.length, transitions: transitions.length })
   const legendStates = useMemo(
     () => focus.active ? states.map(state => stateVisualState(state.id, focus, currentStateId)) : [],
     [currentStateId, focus, states],
   )
 
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (states.length === 0) return <EmptyFigure />
+
   return (
     <div className={shell.rendererStack}>
-      <div className={css.processViewport} ref={viewportRef}>
+      <FigureViewport viewportRef={viewportRef}>
         <svg
           ref={roving.containerRef}
           className={css.processSvg}
@@ -186,6 +202,8 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
               const hasReverse = transitions.some(other => other.id !== edge.id && edgeFrom(other) === edgeTo(edge) && edgeTo(other) === edgeFrom(edge))
               const isForward = to.x >= from.x
 
+              const caption = edgeCaption(edge)
+              const labelLayout = transitionLabelLayout(caption)
               let path = ''
               let labelX = (from.x + to.x) / 2
               let labelY = (from.y + to.y) / 2
@@ -200,11 +218,11 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
                     const curveY = startY - 26
                     path = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${curveY} ${endX} ${endY}`
                     labelX = (startX + endX) / 2
-                    labelY = curveY - 10
+                    labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6
                   } else {
                     path = `M ${startX} ${startY} L ${endX} ${endY}`
                     labelX = (startX + endX) / 2
-                    labelY = startY - 14
+                    labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6
                   }
                 } else {
                   // Backward return on same row
@@ -215,7 +233,7 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
                   const curveY = startY + 36
                   path = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${curveY} ${endX} ${endY}`
                   labelX = (startX + endX) / 2
-                  labelY = curveY + 14
+                  labelY = from.y + from.height / 2 + labelLayout.height / 2 + 6
                 }
               } else {
                 // Cross row
@@ -233,10 +251,11 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
                 ? elementState(edge.id, focus, [edgeFrom(edge), edgeTo(edge)])
                 : edge.id === currentTransitionId ? 'current' : 'overview'
               const tone = toneAt(edge.tone, index)
-              const caption = edgeCaption(edge)
-              const diagramCaption = caption
-              const labelLayout = transitionLabelLayout(diagramCaption)
-              labelY += ((index % 3) - 1) * 14
+              // Lanes only shift a cross-row caption; a same-row one is already
+              // parked outside the boxes and must not be nudged back into them.
+              if (!sameRow) labelY += ((index % 3) - 1) * 14
+              // Whatever the lane offsets add up to, the chip stays inside the frame.
+              labelY = Math.max(labelLayout.height / 2 + 4, Math.min(layout.height - labelLayout.height / 2 - 4, labelY))
               return (
                 <g
                   key={edge.id}
@@ -245,13 +264,13 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
                   data-visual-id={edge.id}
                   data-visual-state={state}
                   role="button"
-                  aria-label={`Transition ${caption || `${edgeFrom(edge)} to ${edgeTo(edge)}`}`}
+                  aria-label={`${labels.transitionKind} ${caption || `${edgeFrom(edge)} → ${edgeTo(edge)}`}`}
                   onClick={() => selectTransition(edge)}
                   {...roving.itemProps(edge.id, () => selectTransition(edge))}
                 >
                   <path className={css.transitionLine} d={path} markerEnd={`url(#${diagramId}-${tone})`} />
                   <path className={css.transitionHit} d={path} />
-                  {diagramCaption === '' ? null : (
+                  {caption === '' ? null : (
                     <g className={css.transitionLabel} transform={`translate(${labelX} ${labelY})`}>
                       <rect x={-labelLayout.width / 2} y={-labelLayout.height / 2} width={labelLayout.width} height={labelLayout.height} rx="9" />
                       <text textAnchor="middle" dominantBaseline="middle">
@@ -286,7 +305,7 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
                   data-terminal={isTerminal || undefined}
                   aria-current={isCurrent ? 'step' : undefined}
                   role="button"
-                  aria-label={`${state.label}${state.detail === undefined ? '' : `。${state.detail}`}`}
+                  aria-label={`${state.label}${state.detail === undefined ? '' : `${labels.sentenceSeparator}${state.detail}`}`}
                   onClick={() => selectState(state)}
                   {...roving.itemProps(state.id, () => selectState(state))}
                 >
@@ -309,7 +328,7 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
             })}
           </g>
         </svg>
-      </div>
+      </FigureViewport>
       <StateLegend states={legendStates} />
       <div className={shell.srOnly}>
         <p>{summary}</p>
@@ -318,9 +337,9 @@ export function StateTransitionRenderer({ content, focus }: ProcessRendererProps
           {transitions.map(edge => <li key={edge.id}>{edgeCaption(edge) || edge.id}{edgeDetail(edge) === undefined ? '' : `: ${edgeDetail(edge)}`}</li>)}
         </ul>
       </div>
-      <SelectionSurface hint="Select a state or transition to inspect its rule." selected={selected} onClose={() => setSelected(undefined)} />
+      <SelectionSurface hint={labels.stateTransitionInteractionHint} selected={selected} onClose={() => setSelected(undefined)} />
       {content.steps === undefined || content.steps.length === 0 ? null : (
-        <ol className={css.processSteps} aria-label="State transition steps">
+        <ol className={css.processSteps} aria-label={labels.stateTransitionStepsLabel}>
           {content.steps.map(step => {
             const active = focus.active ? focus.currentIds.has(step.currentStateId) : step.id === activeStepId
             return <li key={step.id} data-active={active || undefined}><button type="button" className={`${shell.control} ${css.stepButton}`} onClick={() => setActiveStepId(step.id)}><strong>{step.label}</strong>{step.description === undefined ? null : <span>{step.description}</span>}</button></li>

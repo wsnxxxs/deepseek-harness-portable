@@ -8,6 +8,7 @@
  */
 import {
   Component,
+  type ComponentPropsWithoutRef,
   type ErrorInfo,
   type KeyboardEvent,
   type ReactNode,
@@ -141,15 +142,34 @@ export function SelectionSurface({
   )
 }
 
-/** The scrollable frame a measured SVG figure is drawn into. */
+/**
+ * The scrollable frame a measured figure is drawn into.
+ *
+ * Every renderer that frames something goes through this, including the ones
+ * that only need a modifier on top: the plugin had grown three near-identical
+ * viewport recipes (`shell.viewport`, `process.processViewport`, a third in
+ * `sequence-buffer`) that differed only in which of the border, radius, inset
+ * shadow and padding each had remembered. `className` composes a modifier onto
+ * the shared recipe instead of restating it, and the remaining props pass
+ * through so a viewport that is also a labelled group does not need a fourth.
+ */
 export function FigureViewport({
   viewportRef,
+  className,
   children,
+  ...rest
 }: {
-  viewportRef: Ref<HTMLDivElement>
+  viewportRef?: Ref<HTMLDivElement>
+  className?: string
   children: ReactNode
-}) {
-  return <div className={css.viewport} ref={viewportRef}>{children}</div>
+} & Omit<ComponentPropsWithoutRef<'div'>, 'className' | 'children' | 'ref'>) {
+  return (
+    <div
+      className={className === undefined ? css.viewport : `${css.viewport} ${className}`}
+      ref={viewportRef}
+      {...rest}
+    >{children}</div>
+  )
 }
 
 /** Names the emphasis states a figure is currently using, in words. */

@@ -19,7 +19,7 @@
  */
 import { useId, useMemo, useState } from 'react'
 import { labelTemplate, useVisualLabels } from '../core/labels.ts'
-import { FigureViewport, SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
+import { EmptyFigure, FigureViewport, SelectionSurface, StateLegend } from '../core/shell-parts.tsx'
 import { toneAt } from '../core/format.ts'
 import { DEFAULT_TONES, type NodeLinkContent, type RendererProps, type SelectedItem } from '../core/types.ts'
 import { graphEmphasis } from '../state/graph-state.ts'
@@ -75,6 +75,10 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
       : [],
     [content.edges, content.nodes, emphasis],
   )
+
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.nodes.length === 0) return <EmptyFigure />
 
   return (
     <div className={shell.rendererStack}>
@@ -217,7 +221,7 @@ export function NodeLinkRenderer({ content, focus }: RendererProps<NodeLinkConte
                   data-selected={selected?.id === node.id || undefined}
                   data-visual-id={node.id}
                   role="button"
-                  aria-label={`${node.label}${node.detail === undefined ? '' : `。${node.detail}`}`}
+                  aria-label={`${node.label}${node.detail === undefined ? '' : `${labels.sentenceSeparator}${node.detail}`}`}
                   transform={`translate(${box.x} ${box.y})`}
                   onClick={() => selectNode(node, tone)}
                   {...roving.itemProps(node.id, () => selectNode(node, tone))}

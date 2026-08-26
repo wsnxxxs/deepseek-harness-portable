@@ -2,6 +2,7 @@
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { useVisualLabels, type LearningVisualV4Labels } from '../core/labels.ts'
 import { toneAt } from '../core/format.ts'
+import { EmptyFigure } from '../core/shell-parts.tsx'
 import type { RendererProps, StudyMapContent } from '../core/types.ts'
 import { elementState } from '../state/visual-state.ts'
 import shell from '../styles/shell.module.css'
@@ -122,7 +123,11 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
             {concepts.map((concept, index) => {
               const role = studyRoleLabel(concept.role, labels)
               const prerequisites = (concept.prerequisiteIds ?? []).map(prerequisiteId => conceptById.get(prerequisiteId)?.label ?? prerequisiteId)
-              return (
+              // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.concepts.length === 0 && content.sections.length === 0) return <EmptyFigure />
+
+  return (
                 <button
                   key={concept.id}
                   type="button"

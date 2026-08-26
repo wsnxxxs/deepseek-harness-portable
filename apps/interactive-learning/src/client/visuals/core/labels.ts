@@ -93,6 +93,53 @@ export interface LearningVisualV4Labels {
   stateRelated: string
   stateContext: string
   stateVisited: string
+  sentenceSeparator: string
+  listSeparator: string
+  plotProbeNearest: string
+  codeTraceSource: string
+  codeTraceVariables: string
+  codeTraceNoVariables: string
+  codeTraceStack: string
+  codeTraceEmptyStack: string
+  codeTraceOutput: string
+  dataTableCaption: string
+  dataTableFilterLabel: string
+  dataTableFilterPlaceholder: string
+  dataTableClearFilter: string
+  dataTableSort: string
+  dataTableOutlier: string
+  dataTableOutlierDetail: string
+  dataTableOutlierKind: string
+  dataTableRowKind: string
+  dataTableNoMatches: string
+  dataTableInteractionHint: string
+  fieldLabel: string
+  fieldProbeHint: string
+  fieldValue: string
+  fieldVector: string
+  fieldMaxMagnitude: string
+  sequenceBufferLabel: string
+  sequenceBufferRangeKind: string
+  sequenceBufferSlotKind: string
+  sequenceBufferPointerKind: string
+  sequenceBufferInteractionHint: string
+  sequenceDiagramSummary: string
+  participantKind: string
+  messageKind: string
+  sequenceDiagramInteractionHint: string
+  stateTransitionSummary: string
+  stateKind: string
+  stateInitialKind: string
+  stateTerminalKind: string
+  transitionKind: string
+  stateTransitionStepsLabel: string
+  stateTransitionInteractionHint: string
+  causalLoopSummary: string
+  causalVariableKind: string
+  causalLinkKind: string
+  causalReinforcingKind: string
+  causalBalancingKind: string
+  causalLoopInteractionHint: string
 }
 
 export const DEFAULT_LABELS: LearningVisualV4Labels = {
@@ -181,6 +228,53 @@ export const DEFAULT_LABELS: LearningVisualV4Labels = {
   stateRelated: '相关路径',
   stateContext: '其余结构',
   stateVisited: '已讲过',
+  sentenceSeparator: '。',
+  listSeparator: '，',
+  plotProbeNearest: '最近点 x {x}',
+  codeTraceSource: '{language} 代码',
+  codeTraceVariables: '变量',
+  codeTraceNoVariables: '暂无局部变量',
+  codeTraceStack: '调用栈',
+  codeTraceEmptyStack: '调用栈为空',
+  codeTraceOutput: '输出',
+  dataTableCaption: '数据表',
+  dataTableFilterLabel: '筛选数据',
+  dataTableFilterPlaceholder: '筛选数据…',
+  dataTableClearFilter: '清除预设筛选',
+  dataTableSort: '{column}，排序',
+  dataTableOutlier: '异常值',
+  dataTableOutlierDetail: '该记录被标记为异常值。',
+  dataTableOutlierKind: '异常记录',
+  dataTableRowKind: '记录',
+  dataTableNoMatches: '没有匹配的记录。',
+  dataTableInteractionHint: '选择一行可在表格与图表中联动查看。',
+  fieldLabel: '二维场',
+  fieldProbeHint: '在场中移动指针或使用方向键读取坐标。',
+  fieldValue: '值 {value}',
+  fieldVector: '向量 ({u}, {v})',
+  fieldMaxMagnitude: '最大向量模：{value}',
+  sequenceBufferLabel: '序列缓冲区',
+  sequenceBufferRangeKind: '区间',
+  sequenceBufferSlotKind: '槽位',
+  sequenceBufferPointerKind: '指针',
+  sequenceBufferInteractionHint: '选择槽位、指针或区间查看当前步骤中的值。',
+  sequenceDiagramSummary: '时序图，{participants} 个参与者，{messages} 条消息。',
+  participantKind: '参与者',
+  messageKind: '消息',
+  sequenceDiagramInteractionHint: '选择参与者或消息查看这次交互。',
+  stateTransitionSummary: '状态转移图，{states} 个状态，{transitions} 条转移。',
+  stateKind: '状态',
+  stateInitialKind: '初始状态',
+  stateTerminalKind: '终止状态',
+  transitionKind: '转移',
+  stateTransitionStepsLabel: '状态转移步骤',
+  stateTransitionInteractionHint: '选择状态或转移查看它的触发规则。',
+  causalLoopSummary: '因果回路图，{variables} 个变量，{links} 条带符号链接，{loops} 个命名回路。',
+  causalVariableKind: '变量',
+  causalLinkKind: '因果链接',
+  causalReinforcingKind: '增强回路',
+  causalBalancingKind: '平衡回路',
+  causalLoopInteractionHint: '选择变量、带符号链接或回路查看这段反馈关系。',
 }
 
 const VisualLabelsContext = createContext<LearningVisualV4Labels>(DEFAULT_LABELS)

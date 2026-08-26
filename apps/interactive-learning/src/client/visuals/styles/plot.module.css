@@ -17,7 +17,7 @@
 .parameter {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto 20px var(--lx-leading-micro);
+  grid-template-rows: auto 24px var(--lx-leading-micro);
   gap: var(--lx-space-3xs);
   cursor: pointer;
   opacity: var(--lx-vs-alpha);
@@ -43,22 +43,29 @@
 
 .parameter input {
   width: 100%;
-  height: 4px;
+  /* 24px tall so it can be grabbed, with the 4px rail painted as a centred
+     background strip. The row used to be 20px around a 4px track, which left a
+     drag target thinner than the thumb drawn on top of it. */
+  height: 24px;
   align-self: center;
   appearance: none;
   border-radius: var(--lx-radius-pill);
-  background: linear-gradient(to right, var(--lx-accent) 0 var(--range-progress), var(--lx-border-default) var(--range-progress) 100%);
+  background: linear-gradient(to right, var(--lx-accent) 0 var(--range-progress), var(--lx-border-default) var(--range-progress) 100%) no-repeat center / 100% 4px;
   cursor: pointer;
 }
 
-.parameter input::-webkit-slider-runnable-track { height: 4px; background: transparent; }
-.parameter input::-moz-range-track { height: 4px; background: transparent; }
+/* The tracks span the full grab height and stay transparent: the 4px rail is
+   the input's own centred background, so the thumb has one box to centre in
+   and the two engines agree on where that is. */
+.parameter input::-webkit-slider-runnable-track { height: 24px; background: transparent; }
+.parameter input::-moz-range-track { height: 24px; background: transparent; }
 
 .parameter input::-webkit-slider-thumb {
   width: 17px;
   height: 17px;
+  box-sizing: border-box;
   appearance: none;
-  margin-top: -6.5px;
+  margin-top: 3.5px;
   border: 3px solid var(--lx-surface-base);
   border-radius: var(--lx-radius-circle);
   background: var(--lx-accent);
@@ -66,8 +73,9 @@
 }
 
 .parameter input::-moz-range-thumb {
-  width: 11px;
-  height: 11px;
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
   border: 3px solid var(--lx-surface-base);
   border-radius: var(--lx-radius-circle);
   background: var(--lx-accent);
@@ -173,6 +181,10 @@
   stroke-width: calc(2.5px + var(--lx-vs-ring) * 0.9px);
   stroke-linecap: round;
   stroke-linejoin: round;
+  /* The tone's own pattern, so two series stay apart in greyscale and for a
+     learner who cannot separate their hues. An author who named a stroke
+     overrides it below. */
+  stroke-dasharray: var(--visual-tone-dash);
   vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--visual-tone) 25%, transparent));
   transition: stroke-opacity var(--lx-motion-base) var(--lx-easing), stroke-width var(--lx-motion-base) var(--lx-easing);
@@ -210,6 +222,8 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* The card sits opposite the probe. Pinned to the top right it covered exactly
+   the part of a rising curve a learner was reading when the probe got there. */
 .probeCard {
   position: absolute;
   top: var(--lx-space-sm);
@@ -222,14 +236,18 @@
   border: 1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-strong));
   border-radius: var(--lx-radius-sm);
   padding: var(--lx-space-xs) var(--lx-space-sm);
-  background: var(--lx-surface-base);
+  background: color-mix(in srgb, var(--lx-surface-base) 84%, transparent);
   box-shadow: var(--lx-shadow-md), 0 0 10px color-mix(in srgb, var(--lx-accent) 12%, transparent);
   color: var(--lx-label-secondary);
   font-size: var(--lx-text-micro);
   line-height: var(--lx-leading-micro);
   pointer-events: none;
+  /* Semi-transparent so the blur has something to do: over an opaque
+     background `backdrop-filter` renders nothing and only costs a layer. */
   backdrop-filter: blur(8px);
 }
+
+.probeCard[data-side="left"] { right: auto; left: var(--lx-space-sm); }
 
 .probeCard strong { color: var(--lx-label-primary); font-size: var(--lx-text-2xs); }
 .probeCard span::before { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: var(--lx-radius-circle); background: var(--visual-tone); box-shadow: 0 0 4px var(--visual-tone); content: ""; }
@@ -264,21 +282,32 @@
   padding: var(--lx-space-2xs) var(--lx-space-md);
 }
 
-.seriesToggle > span {
-  display: inline-block;
-  width: 18px;
-  height: 0;
-  border-top: 2.5px solid var(--visual-tone);
-}
+/* An author-named stroke wins over the tone's pattern, on the curve and on the
+   swatch alike — a legend that disagrees with the figure is worse than no
+   legend. */
+.seriesLine[data-stroke="solid"],
+.seriesToggle[data-stroke="solid"] .seriesSwatch line { stroke-dasharray: none; }
+.seriesLine[data-stroke="dashed"],
+.seriesToggle[data-stroke="dashed"] .seriesSwatch line { stroke-dasharray: 9 6; }
+.seriesLine[data-stroke="dotted"],
+.seriesToggle[data-stroke="dotted"] .seriesSwatch line { stroke-dasharray: 2 6; }
 
-.seriesToggle[data-series-type="points"] > span { width: 8px; height: 8px; border: 0; border-radius: var(--lx-radius-circle); background: var(--visual-tone); }
-.seriesToggle[data-series-type="bars"] > span { width: 9px; height: 10px; border: 0; border-radius: 1px; background: color-mix(in srgb, var(--visual-tone) 72%, transparent); }
-.seriesToggle[data-stroke="dashed"] > span { border-top-style: dashed; }
-.seriesToggle[data-stroke="dotted"] > span { border-top-style: dotted; }
+/* The swatch is drawn, not bordered: CSS offers three border styles and the
+   tone ladder has six patterns, so the legend reads the same dasharray token
+   the curve does instead of approximating it. */
+.seriesSwatch { flex: none; overflow: visible; }
+.seriesSwatch line {
+  stroke: var(--visual-tone);
+  stroke-width: 2.5;
+  stroke-dasharray: var(--visual-tone-dash);
+  stroke-linecap: round;
+}
+.seriesSwatch circle { fill: var(--visual-tone); }
+.seriesSwatch rect { fill: color-mix(in srgb, var(--visual-tone) 72%, transparent); stroke: var(--visual-tone); stroke-width: 1; }
 
 /* A hidden series stays legible: struck through and quieter, never erased. */
 .seriesToggle[aria-pressed="false"] { color: var(--lx-label-tertiary); text-decoration: line-through; }
-.seriesToggle[aria-pressed="false"] > span { opacity: 0.55; }
+.seriesToggle[aria-pressed="false"] .seriesSwatch { opacity: 0.55; }
 .seriesToggle[data-empty] { border-style: dashed; }
 .seriesToggle[data-empty] > small { color: var(--lx-label-tertiary); font-size: var(--lx-text-micro); }
 
@@ -347,14 +376,14 @@
   stroke: var(--lx-surface-base);
   stroke-width: 3px;
   paint-order: stroke;
-  font-size: var(--lx-text-2xs);
+  font-size: var(--lx-text-xs);
   font-weight: var(--lx-weight-medium);
   opacity: var(--lx-vs-alpha);
   pointer-events: none;
 }
 
 .shapeLabel {
-  fill: var(--visual-tone);
+  fill: var(--visual-tone-text);
   font-weight: var(--lx-weight-strong);
 }
 

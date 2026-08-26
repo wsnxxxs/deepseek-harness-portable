@@ -1,8 +1,10 @@
 /** `field_2d`: scalar heatmaps and contours with optional vector arrows. */
 import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { compileMathExpression } from '../../../math-expression.ts'
+import { colormapAt, colormapGradient } from '../core/colormap.ts'
 import { formatNumber, interpolate, normalizedPosition, ticks } from '../core/format.ts'
-import { FigureViewport } from '../core/shell-parts.tsx'
+import { labelTemplate, useVisualLabels } from '../core/labels.ts'
+import { EmptyFigure, FigureViewport } from '../core/shell-parts.tsx'
 import type { ChartGeometry, Field2DContent, RendererProps } from '../core/types.ts'
 import { chartGeometry } from '../layout/chart-geometry.ts'
 import { useContainerWidth } from '../state/hooks.ts'
@@ -82,9 +84,7 @@ function scaleBounds(content: Field2DContent, grid: NumberGrid | undefined): { m
 }
 
 function fieldColor(value: number, min: number, max: number): string {
-  if (!Number.isFinite(value)) return 'transparent'
-  const ratio = normalizedPosition(value, min, max)
-  return `hsl(${String(Math.round(235 - ratio * 220))} 72% ${String(Math.round(52 + Math.abs(ratio - 0.5) * 8))}%)`
+  return Number.isFinite(value) ? colormapAt(normalizedPosition(value, min, max)) : 'transparent'
 }
 
 function pointFor(grid: NumberGrid, column: number, row: number, content: Field2DContent, geometry: ChartGeometry): GridPoint {
@@ -153,6 +153,7 @@ function nearestVector(grid: VectorGrid | undefined, content: Field2DContent, pr
 }
 
 export function Field2DRenderer({ content }: RendererProps<Field2DContent>) {
+  const labels = useVisualLabels()
   const id = useId()
   const [viewportRef, width] = useContainerWidth()
   const geometry = useMemo(() => chartGeometry(width), [width])
@@ -170,12 +171,12 @@ export function Field2DRenderer({ content }: RendererProps<Field2DContent>) {
   const vectorMagnitude = vector === undefined ? 0 : Math.max(0, ...vector.u.map((u, index) => Math.hypot(u, vector.v[index] ?? 0)).filter(Number.isFinite))
   const probeScalar = probe === undefined ? undefined : nearestScalar(scalar, content, probe)
   const probeVector = probe === undefined ? undefined : nearestVector(vector, content, probe)
-  const probeText = probe === undefined ? '在场中移动指针或使用方向键读取坐标。' : [
+  const probeText = probe === undefined ? labels.fieldProbeHint : [
     `x ${formatNumber(probe.x)}`,
     `y ${formatNumber(probe.y)}`,
-    ...(probeScalar === undefined ? [] : [`值 ${formatNumber(probeScalar)}`]),
-    ...(probeVector === undefined ? [] : [`向量 (${formatNumber(probeVector.u)}, ${formatNumber(probeVector.v)})`]),
-  ].join('，')
+    ...(probeScalar === undefined ? [] : [labelTemplate(labels.fieldValue, { value: formatNumber(probeScalar) })]),
+    ...(probeVector === undefined ? [] : [labelTemplate(labels.fieldVector, { u: formatNumber(probeVector.u), v: formatNumber(probeVector.v) })]),
+  ].join(labels.listSeparator)
 
   const moveProbe = (event: PointerEvent<SVGSVGElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -242,7 +243,12 @@ export function Field2DRenderer({ content }: RendererProps<Field2DContent>) {
               const cellHeight = geometry.plotHeight / scalar.rows
               return <rect key={`heat-${String(index)}`} className={css.heatCell} x={geometry.left + column * cellWidth} y={geometry.top + (scalar.rows - row - 1) * cellHeight} width={cellWidth + 0.5} height={cellHeight + 0.5} fill={fieldColor(value, bounds.min, bounds.max)} />
             })}
-            {contours.map((path, index) => <path key={`contour-${String(index)}`} className={css.contour} d={path} />)}
+            {contours.map((path, index) => (
+              <g key={`contour-${String(index)}`}>
+                <path className={css.contourCasing} d={path} />
+                <path className={css.contour} d={path} />
+              </g>
+            ))}
             {vector === undefined ? null : vector.u.map((u, index) => {
               const v = vector.v[index] ?? Number.NaN
               if (!Number.isFinite(u) || !Number.isFinite(v)) return null
@@ -256,7 +262,16 @@ export function Field2DRenderer({ content }: RendererProps<Field2DContent>) {
               const length = Math.max(4, (magnitude / vectorMagnitude) * cell * 0.56)
               const dx = (u / magnitude) * length / 2
               const dy = -(v / magnitude) * length / 2
-              return <line key={`vector-${String(index)}`} className={css.vector} x1={x - dx} y1={y - dy} x2={x + dx} y2={y + dy} markerEnd={`url(#${id}-field-arrow)`} />
+              // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (scalar === undefined && vector === undefined) return <EmptyFigure />
+
+  return (
+                <g key={`vector-${String(index)}`}>
+                  <line className={css.vectorCasing} x1={x - dx} y1={y - dy} x2={x + dx} y2={y + dy} />
+                  <line className={css.vector} x1={x - dx} y1={y - dy} x2={x + dx} y2={y + dy} markerEnd={`url(#${id}-field-arrow)`} />
+                </g>
+              )
             })}
             {probe === undefined ? null : (
               <g className={css.probe}>
@@ -272,8 +287,8 @@ export function Field2DRenderer({ content }: RendererProps<Field2DContent>) {
         </svg>
       </FigureViewport>
       <div className={css.readout}>
-        {bounds === undefined ? null : <div className={css.legend}><span>{formatNumber(bounds.min)}</span><i aria-hidden="true" /><span>{formatNumber(bounds.max)}</span></div>}
-        {vector === undefined ? null : <span>最大向量模：{formatNumber(vectorMagnitude)}</span>}
+        {bounds === undefined ? null : <div className={css.legend}><span>{formatNumber(bounds.min)}</span><i aria-hidden="true" style={{ backgroundImage: colormapGradient() }} /><span>{formatNumber(bounds.max)}</span></div>}
+        {vector === undefined ? null : <span>{labelTemplate(labels.fieldMaxMagnitude, { value: formatNumber(vectorMagnitude) })}</span>}
         <output role="status" aria-live="polite">{probeText}</output>
       </div>
     </div>
