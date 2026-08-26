@@ -25,7 +25,7 @@ import {
 import { describeReanchor, reanchorVaultMemory } from '../src/material-reanchor.ts'
 import { ingestSource } from '../src/ingest/pipeline.ts'
 import { readLearnerMemory, upsertLearnerConcept, type LearnerConceptRecord } from '../src/learner-memory.ts'
-import { ensureVaultLayout, readStructure, type TopicVault } from '../src/topic-vault.ts'
+import { ensureVaultLayout, isVaultRoot, readManifest, readStructure, vaultFromRoot, type TopicVault } from '../src/topic-vault.ts'
 import {
   LEARNING_MATERIAL_POLICY,
   buildLearningTeachingPolicy,
@@ -413,6 +413,33 @@ describe('learning_visual refuses an ungrounded study map', () => {
       // something the learner described, not about a stored source.
       const result = await emitStudyMap(agentIn(plain), 'Chapter 9')
       expect(result.isError, JSON.stringify(result.content)).toBe(false)
+    } finally {
+      await rm(plain, { recursive: true, force: true })
+    }
+  })
+
+  it('ingests an attached source before the first learning prompt is assembled', async () => {
+    const plain = await mkdtemp(join(tmpdir(), 'dsh-attached-source-'))
+    try {
+      const attached = join(plain, 'attached.md')
+      await writeFile(attached, '# 附件课程\n\n卷积把局部模式汇总成响应。\n', 'utf8')
+      const agent = agentIn(plain)
+      ctx.emit('agent/inbox/claimed', {
+        agent,
+        message: {
+          id: 'attached-source-message',
+          role: 'user',
+          source: { kind: 'user' },
+          content: [{ type: 'text', text: `教我 @${attached}` }],
+        },
+        turn: 1,
+      } as never)
+
+      const assembly = await ctx.systemPrompt.assemble({ scope: agent, agent })
+      const manifest = await readManifest(vaultFromRoot(plain))
+      expect(await isVaultRoot(plain)).toBe(true)
+      expect(manifest.sources.map(source => source.originalName)).toEqual(['attached.md'])
+      expect(assembly.sections.some(section => section.text.includes('Supplied material'))).toBe(true)
     } finally {
       await rm(plain, { recursive: true, force: true })
     }

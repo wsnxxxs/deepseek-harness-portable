@@ -35,8 +35,10 @@ export declare function mentionedPaths(session: SessionLike): readonly string[];
  * supply it and deserves to know it was not read.
  * @param agent - The live agent whose session carries the mentions.
  * @param vault - The destination vault.
+ * @param extraMentions - Mentions from the currently claimed user message,
+ * before that message has been appended to the session log.
  * @returns one result per newly ingested path; empty when nothing was new.
  */
-export declare function syncMentionedMaterial(agent: Agent | undefined, vault: TopicVault): Promise<readonly IngestResult[]>;
+export declare function syncMentionedMaterial(agent: Agent | undefined, vault: TopicVault, extraMentions?: readonly string[]): Promise<readonly IngestResult[]>;
 export {};
 //# sourceMappingURL=material-intake.d.ts.map

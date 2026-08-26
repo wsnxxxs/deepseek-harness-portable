@@ -1931,6 +1931,8 @@ async function loadUnpdf() {
 	return await unpdfModule;
 }
 const MATH_FONT = /CMMI|CMSY|CMEX|MSAM|MSBM|STIXMath|Math|Symbol/i;
+/** Bump when the extracted structure changes so existing sources rebuild. */
+const PDF_PARSER = "pdf@2";
 /** Below this, a page carries no recoverable prose and is almost certainly an image. */
 const MIN_PAGE_CHARS = 24;
 /** A heading's font must exceed body text by this factor. */
@@ -1993,6 +1995,16 @@ function numberedDepth(text) {
 	if (dotted === null) return void 0;
 	return Math.min((dotted[1] ?? "").split(".").length + 1, 6);
 }
+/** Reject symbol-heavy formula fragments when using font size as a heading hint. */
+function isUsableHeadingText(text) {
+	const normalized = text.trim();
+	if (normalized.length < 2) return false;
+	if (/^(?:undefined|null)$/iu.test(normalized)) return false;
+	if (/^(?:https?:\/\/|www\.|by\s*:|[•▪*\-]|\[\d+\])/iu.test(normalized)) return false;
+	if (/(?:cricos|copyright|own work|derivative work|curid=)/iu.test(normalized)) return false;
+	const readable = normalized.match(/[\p{Letter}\p{Number}\s]/gu)?.length ?? 0;
+	return readable >= 2 && readable / normalized.length >= .6;
+}
 /**
 * Whether two well-separated horizontal bands hold the page's lines, which
 * means the reading order recovered here is probably wrong.
@@ -2006,7 +2018,8 @@ function looksMultiColumn(lines, width) {
 }
 /**
 * Parse a pdf into blocks, recovering sections from font size and from the
-* document's own chapter numbering.
+* document's own chapter numbering. When a page has no reliable heading, it
+* remains navigable as a page section instead of disappearing into its neighbour.
 * @param bytes - The pdf file.
 * @param options - Source identity and display title.
 * @returns the parsed source; an unreadable or dependency-less build yields no
@@ -2018,7 +2031,7 @@ async function parsePdfSource(bytes, options) {
 	if (unpdf === void 0) return {
 		sourceId,
 		title,
-		parser: "pdf@1",
+		parser: PDF_PARSER,
 		blocks: [],
 		degradation: [{
 			kind: "parser-unavailable",
@@ -2034,7 +2047,7 @@ async function parsePdfSource(bytes, options) {
 		return {
 			sourceId,
 			title,
-			parser: "pdf@1",
+			parser: PDF_PARSER,
 			blocks: [],
 			degradation: [{
 				kind: "unsupported-format",
@@ -2070,6 +2083,23 @@ async function parsePdfSource(bytes, options) {
 	const allLines = pages.flatMap((page) => page.lines);
 	const body = bodySize(allLines);
 	const headingSizes = [...new Set(allLines.filter((line) => line.size > body * HEADING_SIZE_RATIO && line.text.length <= MAX_HEADING_CHARS).map((line) => Math.round(line.size * 2) / 2))].sort((left, right) => right - left).slice(0, 4);
+	const lineFrequency = /* @__PURE__ */ new Map();
+	for (const line of allLines) {
+		const normalized = line.text.replace(/\s+/gu, " ").trim();
+		lineFrequency.set(normalized, (lineFrequency.get(normalized) ?? 0) + 1);
+	}
+	const repeatedLines = new Set([...lineFrequency.entries()].filter(([, count]) => count >= 3).map(([text]) => text));
+	const isRepeatedLine = (line) => repeatedLines.has(line.text.replace(/\s+/gu, " ").trim());
+	const headingLevelOf = (line) => {
+		if (isRepeatedLine(line) || !isUsableHeadingText(line.text)) return void 0;
+		const bySize = headingSizes.indexOf(Math.round(line.size * 2) / 2);
+		if (NUMBERED_HEADING.some((pattern) => pattern.test(line.text)) && line.text.length <= MAX_HEADING_CHARS) return numberedDepth(line.text) ?? 2;
+		if (bySize < 0) return void 0;
+		return Math.min(bySize + 2, 6);
+	};
+	const pageLabelOf = (pageNumber, lines) => {
+		return lines.find((line) => !isRepeatedLine(line) && isUsableHeadingText(line.text) && line.text.length <= MAX_HEADING_CHARS && line.size > body * HEADING_SIZE_RATIO)?.text ?? `第 ${pageNumber} 页`;
+	};
 	const blocks = [];
 	const headingPath = [title];
 	blocks.push({
@@ -2102,15 +2132,33 @@ async function parsePdfSource(bytes, options) {
 	};
 	for (const [index, page] of pages.entries()) {
 		const pageNumber = index + 1;
-		for (const line of page.lines) {
-			const bySize = headingSizes.indexOf(Math.round(line.size * 2) / 2);
-			const numbered = NUMBERED_HEADING.some((pattern) => pattern.test(line.text)) && line.text.length <= MAX_HEADING_CHARS;
-			if (bySize < 0 && !numbered) {
+		const pageHasHeading = page.lines.some((line) => headingLevelOf(line) !== void 0);
+		const syntheticLabel = pageNumber > 1 && !pageHasHeading ? pageLabelOf(pageNumber, page.lines) : void 0;
+		const syntheticIndex = syntheticLabel === void 0 ? -1 : page.lines.findIndex((line) => line.text === syntheticLabel);
+		if (syntheticLabel !== void 0) {
+			flush(pageNumber);
+			headingPath.splice(1);
+			headingPath.push(syntheticLabel);
+			blocks.push({
+				kind: "heading",
+				level: 2,
+				text: syntheticLabel,
+				anchor: {
+					sourceId,
+					headingPath: [...headingPath],
+					page: pageNumber,
+					quoteHash: quoteHashOf(syntheticLabel)
+				}
+			});
+		}
+		for (const [lineIndex, line] of page.lines.entries()) {
+			if (lineIndex === syntheticIndex) continue;
+			const level = headingLevelOf(line);
+			if (level === void 0) {
 				paragraph.push(line.text);
 				continue;
 			}
 			flush(pageNumber);
-			const level = numbered ? numberedDepth(line.text) ?? 2 : Math.min(bySize + 2, 6);
 			headingPath.splice(level - 1);
 			while (headingPath.length < level - 1) headingPath.push("");
 			headingPath.push(line.text);
@@ -2150,7 +2198,7 @@ async function parsePdfSource(bytes, options) {
 	return {
 		sourceId,
 		title,
-		parser: "pdf@1",
+		parser: PDF_PARSER,
 		blocks,
 		degradation
 	};
@@ -3365,14 +3413,17 @@ const synced = /* @__PURE__ */ new WeakMap();
 * supply it and deserves to know it was not read.
 * @param agent - The live agent whose session carries the mentions.
 * @param vault - The destination vault.
+* @param extraMentions - Mentions from the currently claimed user message,
+* before that message has been appended to the session log.
 * @returns one result per newly ingested path; empty when nothing was new.
 */
-async function syncMentionedMaterial(agent, vault) {
+async function syncMentionedMaterial(agent, vault, extraMentions = []) {
 	if (agent === void 0) return [];
 	const session = agent.session;
 	const cached = synced.get(agent);
-	if (cached?.count === session.events.length) return cached.results;
-	const mentions = mentionedPaths(session);
+	if (extraMentions.length === 0 && cached?.count === session.events.length) return cached.results;
+	const mentions = [...mentionedPaths(session)];
+	for (const mention of extraMentions) if (!mentions.includes(mention)) mentions.push(mention);
 	const results = [];
 	const reportedUnsupported = new Set(cached?.reportedUnsupported ?? []);
 	if (mentions.length > 0) for (const mention of mentions) {
@@ -4565,7 +4616,7 @@ const LEARNING_VISUAL_POLICY = [
 const LEARNING_MATERIAL_POLICY = [
 	"## Supplied material (conditional)",
 	"This session has a learning folder holding the learner's own parsed sources. Use `learning_material_map` for its real structure, `learning_material_read` for one section's actual words, and `learning_material_search` to locate a phrase. Never describe, outline, summarize, or quote a section you have not read this way.",
-	"Read one section at a time and teach from it; do not pull in a whole chapter because it is available. A long section returns its opening plus its child sections — follow the child you need rather than asking for everything.",
+	"Read one section at a time and teach from it; do not pull in a whole chapter because it is available. A long section returns its opening plus its child sections — follow the child you need rather than asking for everything. Use `view_image` only to inspect a specific diagram, formula, or page after the source has been indexed; it is not the document import path.",
 	"When you know what the learner is stuck on but not where the material addresses it, call `learning_material_recall`. It takes no query: what to retrieve is derived from the state you have been maintaining, so keep that state honest and it will pull the contradicting passage, the second example, or the missing prerequisite on its own. Its `rationale` is internal — act on it, never narrate it.",
 	"Record every material-grounded claim with `learning_state_update` `source_anchors_observed`, using the anchor string the tool returned verbatim. A `study_map` of a supplied source is refused unless each section carries such an anchor.",
 	"The tools return a coverage line naming what could NOT be read — image-only pages, a guessed multi-column order, dropped formulas, a truncated read. State that boundary in your own words before teaching from the source, and never present an unread part as covered. If the material contradicts you, the material is what the learner is studying: say so plainly rather than smoothing it over."

@@ -67,6 +67,8 @@ interface PdfLine {
 }
 
 const MATH_FONT = /CMMI|CMSY|CMEX|MSAM|MSBM|STIXMath|Math|Symbol/i
+/** Bump when the extracted structure changes so existing sources rebuild. */
+const PDF_PARSER = 'pdf@2'
 /** Below this, a page carries no recoverable prose and is almost certainly an image. */
 const MIN_PAGE_CHARS = 24
 /** A heading's font must exceed body text by this factor. */
@@ -130,6 +132,17 @@ function numberedDepth(text: string): number | undefined {
   return Math.min((dotted[1] ?? '').split('.').length + 1, 6)
 }
 
+/** Reject symbol-heavy formula fragments when using font size as a heading hint. */
+function isUsableHeadingText(text: string): boolean {
+  const normalized = text.trim()
+  if (normalized.length < 2) return false
+  if (/^(?:undefined|null)$/iu.test(normalized)) return false
+  if (/^(?:https?:\/\/|www\.|by\s*:|[•▪*\-]|\[\d+\])/iu.test(normalized)) return false
+  if (/(?:cricos|copyright|own work|derivative work|curid=)/iu.test(normalized)) return false
+  const readable = normalized.match(/[\p{Letter}\p{Number}\s]/gu)?.length ?? 0
+  return readable >= 2 && readable / normalized.length >= 0.6
+}
+
 /**
  * Whether two well-separated horizontal bands hold the page's lines, which
  * means the reading order recovered here is probably wrong.
@@ -144,7 +157,8 @@ function looksMultiColumn(lines: readonly PdfLine[], width: number): boolean {
 
 /**
  * Parse a pdf into blocks, recovering sections from font size and from the
- * document's own chapter numbering.
+ * document's own chapter numbering. When a page has no reliable heading, it
+ * remains navigable as a page section instead of disappearing into its neighbour.
  * @param bytes - The pdf file.
  * @param options - Source identity and display title.
  * @returns the parsed source; an unreadable or dependency-less build yields no
@@ -160,7 +174,7 @@ export async function parsePdfSource(
     return {
       sourceId,
       title,
-      parser: 'pdf@1',
+      parser: PDF_PARSER,
       blocks: [],
       degradation: [{ kind: 'parser-unavailable', extension: 'pdf', module: 'unpdf' }],
     }
@@ -178,7 +192,7 @@ export async function parsePdfSource(
     return {
       sourceId,
       title,
-      parser: 'pdf@1',
+      parser: PDF_PARSER,
       blocks: [],
       degradation: [{ kind: 'unsupported-format', extension: 'pdf' }],
     }
@@ -221,6 +235,36 @@ export async function parsePdfSource(
       .map(line => Math.round(line.size * 2) / 2),
   )].sort((left, right) => right - left).slice(0, 4)
 
+  // Repeated short lines are normally a deck's header, footer, or attribution,
+  // not a new concept. Do not let a large footer become 40 fake sections.
+  const lineFrequency = new Map<string, number>()
+  for (const line of allLines) {
+    const normalized = line.text.replace(/\s+/gu, ' ').trim()
+    lineFrequency.set(normalized, (lineFrequency.get(normalized) ?? 0) + 1)
+  }
+  const repeatedLines = new Set([...lineFrequency.entries()]
+    .filter(([, count]) => count >= 3)
+    .map(([text]) => text))
+  const isRepeatedLine = (line: PdfLine): boolean => repeatedLines.has(line.text.replace(/\s+/gu, ' ').trim())
+
+  const headingLevelOf = (line: PdfLine): number | undefined => {
+    if (isRepeatedLine(line) || !isUsableHeadingText(line.text)) return undefined
+    const bySize = headingSizes.indexOf(Math.round(line.size * 2) / 2)
+    const numbered = NUMBERED_HEADING.some(pattern => pattern.test(line.text))
+      && line.text.length <= MAX_HEADING_CHARS
+    if (numbered) return numberedDepth(line.text) ?? 2
+    if (bySize < 0) return undefined
+    return Math.min(bySize + 2, 6)
+  }
+
+  const pageLabelOf = (pageNumber: number, lines: readonly PdfLine[]): string => {
+    const candidate = lines.find(line => !isRepeatedLine(line)
+      && isUsableHeadingText(line.text)
+      && line.text.length <= MAX_HEADING_CHARS
+      && line.size > body * HEADING_SIZE_RATIO)
+    return candidate?.text ?? `第 ${pageNumber} 页`
+  }
+
   const blocks: ParsedBlock[] = []
   const headingPath: string[] = [title]
   blocks.push({
@@ -245,18 +289,35 @@ export async function parsePdfSource(
 
   for (const [index, page] of pages.entries()) {
     const pageNumber = index + 1
-    for (const line of page.lines) {
-      const bySize = headingSizes.indexOf(Math.round(line.size * 2) / 2)
-      const numbered = NUMBERED_HEADING.some(pattern => pattern.test(line.text))
-        && line.text.length <= MAX_HEADING_CHARS
-      if (bySize < 0 && !numbered) {
+    const pageHasHeading = page.lines.some(line => headingLevelOf(line) !== undefined)
+    const syntheticLabel = pageNumber > 1 && !pageHasHeading ? pageLabelOf(pageNumber, page.lines) : undefined
+    const syntheticIndex = syntheticLabel === undefined
+      ? -1
+      : page.lines.findIndex(line => line.text === syntheticLabel)
+    if (syntheticLabel !== undefined) {
+      flush(pageNumber)
+      headingPath.splice(1)
+      headingPath.push(syntheticLabel)
+      blocks.push({
+        kind: 'heading',
+        level: 2,
+        text: syntheticLabel,
+        anchor: {
+          sourceId,
+          headingPath: [...headingPath],
+          page: pageNumber,
+          quoteHash: quoteHashOf(syntheticLabel),
+        },
+      })
+    }
+    for (const [lineIndex, line] of page.lines.entries()) {
+      if (lineIndex === syntheticIndex) continue
+      const level = headingLevelOf(line)
+      if (level === undefined) {
         paragraph.push(line.text)
         continue
       }
       flush(pageNumber)
-      const level = numbered
-        ? numberedDepth(line.text) ?? 2
-        : Math.min(bySize + 2, 6)
       headingPath.splice(level - 1)
       while (headingPath.length < level - 1) headingPath.push('')
       headingPath.push(line.text)
@@ -285,5 +346,5 @@ export async function parsePdfSource(
     degradation.push({ kind: 'empty-source', reason: 'the pdf carries no extractable text layer' })
   }
 
-  return { sourceId, title, parser: 'pdf@1', blocks, degradation }
+  return { sourceId, title, parser: PDF_PARSER, blocks, degradation }
 }

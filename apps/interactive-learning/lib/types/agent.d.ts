@@ -1,4 +1,3 @@
-/** Model-facing entry mounted only by the `learning` preset. */
 import type { Context } from '@deepseek-ai/cordis';
 export declare const name = "interactive-learning-agent";
 export declare const inject: string[];

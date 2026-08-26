@@ -1,6 +1,8 @@
-import { B as buildConceptStudyMap, Ct as readManifest, J as readConceptCards, Lt as LEARN_INTENT_MODEL_GUIDANCE, Tt as resolveTopicVault, Y as readLearnerMemoryWithCards, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, h as MATERIAL_TOOL_NAMES, lt as conceptRecordFromState, m as validateStudyMapAgainstVault, mt as upsertLearnerConcept, p as formatStudyMapViolations, pt as renderLearnerMemory, u as routeLearningTurn, y as registerMaterialTools } from "./teaching-policy-DsE3V3lN.js";
+import { B as buildConceptStudyMap, C as syncMentionedMaterial, Ct as readManifest, J as readConceptCards, Lt as LEARN_INTENT_MODEL_GUIDANCE, S as parseFileMentions, Tt as resolveTopicVault, Y as readLearnerMemoryWithCards, bt as ensureVaultLayout, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, h as MATERIAL_TOOL_NAMES, lt as conceptRecordFromState, m as validateStudyMapAgainstVault, mt as upsertLearnerConcept, p as formatStudyMapViolations, pt as renderLearnerMemory, r as LEARNING_MATERIAL_POLICY, u as routeLearningTurn, y as registerMaterialTools } from "./teaching-policy-tJJ_sKBT.js";
 import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-CVgOF60h.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
+import { realpath, stat } from "node:fs/promises";
+import { basename, isAbsolute, resolve } from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { BlockAssembler, createUserMessage, deepFreeze } from "@deepseek-ai/dsh-llm";
 //#region lib/types/intent-router.js
@@ -135,6 +137,7 @@ async function classifyLearningIntentSemantically(ctx, agent, text, signal) {
 }
 //#endregion
 //#region lib/types/agent.js
+/** Model-facing entry mounted only by the `learning` preset. */
 const name = "interactive-learning-agent";
 const inject = [
 	"tools",
@@ -850,11 +853,19 @@ const LEARNING_TOOL_PREFIX = "learning_";
 const GENERIC_USER_WAIT_TOOL = "ask_user_question";
 const learningRoutes = /* @__PURE__ */ new WeakMap();
 const pendingSemanticRoutes = /* @__PURE__ */ new WeakMap();
+/** Mentions from the claimed message, before the loop appends it to the log. */
+const pendingMaterialMentions = /* @__PURE__ */ new WeakMap();
 const learningPromptStates = /* @__PURE__ */ new WeakMap();
 const learnerTranscriptStates = /* @__PURE__ */ new WeakMap();
 const richTeachingMoves = /* @__PURE__ */ new WeakMap();
 function textFromUserMessage(message) {
 	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("\n").trim();
+}
+/** The generic vision bridge reads one PDF page at a time. */
+function isPdfViewImageArguments(value) {
+	if (value === null || typeof value !== "object") return false;
+	const path = value.path;
+	return typeof path === "string" && path.trim().toLowerCase().endsWith(".pdf");
 }
 function lowConfidenceRouteContext(decision) {
 	return [
@@ -1006,6 +1017,48 @@ function durableLearningSegmentActive(services, agent) {
 function recordLearningRouteAnchor(services, agent, turn, session, decision) {
 	if (decision.intent.intent === "learn" && decision.segment === "active") services.learningActivities.recordLearningSegmentAnchor(agent, turn);
 	else if (session.active) services.learningActivities.recordLearningSegmentAnchor(agent, turn, "closed");
+}
+/** Whether a parsed mention points at a real file or directory. */
+async function hasRealMaterialMention(root, mentions) {
+	for (const mention of mentions) {
+		const path = isAbsolute(mention) ? mention : resolve(root, mention);
+		try {
+			const info = await stat(path);
+			if (info.isFile() || info.isDirectory()) return true;
+		} catch {}
+	}
+	return false;
+}
+/** Make an attached source available before the first model prompt is built. */
+async function prepareAttachedMaterial(services, agent) {
+	const mentions = pendingMaterialMentions.get(agent);
+	if (mentions === void 0) return;
+	pendingMaterialMentions.delete(agent);
+	if (learningRoutes.get(agent)?.intent.intent !== "learn") return;
+	const cwd = agent.session.header.cwd;
+	if (cwd === void 0 || cwd === "") return;
+	try {
+		let vault = await resolveTopicVault(services, cwd);
+		if (vault === void 0) {
+			const root = await realpath(cwd);
+			if (!await hasRealMaterialMention(root, mentions)) return;
+			vault = await ensureVaultLayout(root, basename(root));
+		}
+		await syncMentionedMaterial(agent, vault, mentions);
+	} catch (cause) {
+		services.logger.warn(`attached learning material was not prepared: ${String(cause)}`);
+	}
+}
+/** Add material guidance after async intake, because prompt sections are built before the waterfall. */
+function addPreparedMaterialPolicy(assembly, agent) {
+	if (agent === void 0 || vaultHasMaterial.get(agent) !== true) return assembly;
+	return {
+		...assembly,
+		sections: assembly.sections.map((section) => section.name !== "learning:policy" || section.text.includes("Supplied material") ? section : {
+			...section,
+			text: `${section.text}\n\n${LEARNING_MATERIAL_POLICY}`
+		})
+	};
 }
 async function resolvePendingSemanticRoute(services, agent, signal) {
 	const pending = pendingSemanticRoutes.get(agent);
@@ -1176,6 +1229,9 @@ function apply(ctx) {
 		const transcript = learnerTranscriptStates.get(agent);
 		if (transcript !== void 0 && transcript.session !== agent.session) learnerTranscriptStates.delete(agent);
 		const text = textFromUserMessage(message);
+		const mentions = parseFileMentions(text);
+		if (mentions.length === 0) pendingMaterialMentions.delete(agent);
+		else pendingMaterialMentions.set(agent, mentions);
 		if (text === "") return;
 		const currentState = services.learningActivities.learnerState(agent);
 		learningPromptStates.set(agent, {
@@ -1211,6 +1267,10 @@ function apply(ctx) {
 			kind: "deny",
 			reason: "learning tools are disabled for an ordinary turn"
 		});
+		if (decision?.intent.intent === "learn" && execution.name === "view_image" && isPdfViewImageArguments(execution.arguments) && (agent === void 0 || vaultHasMaterial.get(agent) !== true)) return Promise.resolve({
+			kind: "deny",
+			reason: "index the supplied PDF with learning_material_map before viewing an individual page"
+		});
 		if (!learningToolAvailable(decision, execution.name, services.learningActivities.richClientAvailable)) return Promise.resolve({
 			kind: "deny",
 			reason: "this rich learning tool is unavailable for the current route or client; continue in ordinary text"
@@ -1227,10 +1287,11 @@ function apply(ctx) {
 		const agent = context.agent;
 		if (agent !== void 0) {
 			await resolvePendingSemanticRoute(services, agent, context.signal);
+			await prepareAttachedMaterial(services, agent);
 			await refreshLearnerMemory(services, agent);
 		}
 		const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
-		const assembly = await next();
+		const assembly = addPreparedMaterialPolicy(await next(), agent);
 		if (!isConfidentNotLearn(decision)) return {
 			...assembly,
 			tools: assembly.tools.filter((tool) => learningToolAvailable(decision, tool.name, services.learningActivities.richClientAvailable))

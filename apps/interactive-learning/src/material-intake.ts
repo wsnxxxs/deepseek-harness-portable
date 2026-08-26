@@ -87,18 +87,27 @@ const synced = new WeakMap<object, {
  * supply it and deserves to know it was not read.
  * @param agent - The live agent whose session carries the mentions.
  * @param vault - The destination vault.
+ * @param extraMentions - Mentions from the currently claimed user message,
+ * before that message has been appended to the session log.
  * @returns one result per newly ingested path; empty when nothing was new.
  */
 export async function syncMentionedMaterial(
   agent: Agent | undefined,
   vault: TopicVault,
+  extraMentions: readonly string[] = [],
 ): Promise<readonly IngestResult[]> {
   if (agent === undefined) return []
   const session = agent.session as unknown as SessionLike
   const cached = synced.get(agent)
-  if (cached?.count === session.events.length) return cached.results
+  // The current user message is still in the inbox while the first prompt is
+  // assembled, so callers may pass its parsed mentions explicitly. A cache
+  // from the previous event count must not hide that new attachment.
+  if (extraMentions.length === 0 && cached?.count === session.events.length) return cached.results
 
-  const mentions = mentionedPaths(session)
+  const mentions = [...mentionedPaths(session)]
+  for (const mention of extraMentions) {
+    if (!mentions.includes(mention)) mentions.push(mention)
+  }
   const results: IngestResult[] = []
   const reportedUnsupported = new Set(cached?.reportedUnsupported ?? [])
   if (mentions.length > 0) {

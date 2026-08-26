@@ -255,7 +255,7 @@ describe('pptx parsing', () => {
 describe('pdf parsing', () => {
   it('never claims to have read a pdf it could not open', async () => {
     const parsed = await parseSource(Buffer.from('%PDF-1.7'), 'paper.pdf')
-    expect(parsed.parser).toBe('pdf@1')
+    expect(parsed.parser).toBe('pdf@2')
     expect(parsed.blocks).toEqual([])
     const [first] = parsed.degradation
     expect(first?.kind === 'parser-unavailable' || first?.kind === 'unsupported-format').toBe(true)
@@ -278,6 +278,7 @@ describe('pdf parsing', () => {
     expect(headings).toContain('3|3.2 Closures|2')
     // The third page carries only a rectangle, so it is reported, not skipped.
     expect(parsed.degradation).toContainEqual({ kind: 'image-only-pages', pages: [3] })
+    expect(structure.sections.some(section => section.page === 3 && section.label === '第 3 页')).toBe(true)
     expect(renderExtractedMarkdown(parsed)).toContain('<!-- p.2 -->')
   })
 })
