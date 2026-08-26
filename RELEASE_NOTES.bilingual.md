@@ -30,7 +30,7 @@ v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
 
 ## English Release Notes
 
-Windows x64, Linux x64, and macOS Apple Silicon desktop release · 2026-08-25
+Windows x64, Linux x64, and macOS Apple Silicon desktop release · 2026-08-27
 
 v1.5.6 is a feature and bug-fix release following v1.5.5.
 
