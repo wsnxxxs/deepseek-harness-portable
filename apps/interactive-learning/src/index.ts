@@ -33,6 +33,117 @@ export {
 } from './broker.ts'
 export { LearningActivityBroker as default } from './broker.ts'
 export {
+  VAULT_DIRECTORIES,
+  VAULT_MANIFEST_PATH,
+  VaultContainmentError,
+  containedPath,
+  ensureVaultLayout,
+  isVaultRoot,
+  readAllStructures,
+  readManifest,
+  readStructure,
+  resolveTopicVault,
+  structurePathOf,
+  upsertManifestEntry,
+  vaultFromRoot,
+  vaultRelative,
+  writeManifest,
+  type TopicVault,
+} from './topic-vault.ts'
+export {
+  SOURCE_STRUCTURE_PROTOCOL,
+  VAULT_MANIFEST_PROTOCOL,
+  SUPPORTED_EXTENSIONS,
+  deriveStructure,
+  emitSource,
+  extensionOf,
+  parseSource,
+  reanchor,
+  renderExtractedMarkdown,
+  sectionIdOf,
+  slugify,
+  titleOf,
+  type ParseDegradation,
+  type ParsedBlock,
+  type ParsedSource,
+  type SourceAnchor,
+  type SourceManifestEntry,
+  type SourceSection,
+  type SourceStructure,
+  type VaultManifest,
+} from './ingest/index.ts'
+export {
+  MAX_SOURCE_BYTES,
+  describeDegradation,
+  ingestDirectory,
+  ingestSource,
+  isSupportedSource,
+  type IngestResult,
+  type IngestStatus,
+} from './ingest/pipeline.ts'
+export {
+  MATERIAL_TOOL_NAMES,
+  MAX_MAP_SECTIONS,
+  MAX_READ_CHARS,
+  MAX_SEARCH_MATCHES,
+  registerMaterialTools,
+  sectionAnchor,
+} from './material-tools.ts'
+export {
+  mentionedPaths,
+  parseFileMentions,
+  syncMentionedMaterial,
+} from './material-intake.ts'
+export {
+  LEARNER_MEMORY_PROTOCOL,
+  MAX_RENDERED_CONCEPTS,
+  MAX_STORED_CONCEPTS,
+  conceptRecordFromState,
+  memoryPathOf,
+  parseLearnerConceptRecord,
+  readLearnerMemory,
+  renderLearnerMemory,
+  upsertLearnerConcept,
+  writeLearnerMemory,
+  type LearnerConceptRecord,
+  type LearnerMemory,
+} from './learner-memory.ts'
+export {
+  ANCHOR_PATH_SEPARATOR,
+  anchorPage,
+  anchorTargetsOf,
+  formatSectionAnchor,
+  mentionSupported,
+  parseAnchorText,
+  sameStringList,
+  resolveAnchorTarget,
+  sectionMentions,
+  type AnchorTarget,
+  type ParsedAnchor,
+} from './material-anchor.ts'
+export {
+  DEFAULT_RETRIEVAL_BUDGET_CHARS,
+  RETRIEVAL_INTENTS,
+  executeRetrievalPlan,
+  keyPhrases,
+  planRetrieval,
+  type LearnerPriorExcerpt,
+  type RetrievalIntent,
+  type RetrievalPlan,
+  type RetrievalResult,
+  type RetrievedPassage,
+} from './material-retrieval.ts'
+export {
+  formatStudyMapViolations,
+  validateStudyMapAgainstVault,
+  type StudyMapViolation,
+} from './material-validation.ts'
+export {
+  describeReanchor,
+  reanchorVaultMemory,
+  type ReanchorOutcome,
+} from './material-reanchor.ts'
+export {
   routeLearningRequest,
   routeLearningTurn,
   type LearningRoute,
@@ -44,6 +155,7 @@ export {
   LEARNING_TEACHING_POLICY,
   LEARNING_TEACHING_POLICY_CORE,
   LEARNING_GRADED_POLICY,
+  LEARNING_MATERIAL_POLICY,
   LEARNING_VISUAL_POLICY,
   LEARNING_CHINESE_TEMPLATES,
   buildLearningTeachingPolicy,

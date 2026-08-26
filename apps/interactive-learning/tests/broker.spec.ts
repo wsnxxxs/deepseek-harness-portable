@@ -470,6 +470,10 @@ describe('non-blocking Learning Agent v4.1', () => {
 
     const schemas = ctx.tools.schemas()
     expect(schemas.map(tool => tool.name)).toEqual([
+      'learning_material_map',
+      'learning_material_read',
+      'learning_material_search',
+      'learning_material_recall',
       'learning_visual_select',
       'learning_state_update',
       'learning_checkpoint_select',
@@ -515,6 +519,10 @@ describe('non-blocking Learning Agent v4.1', () => {
     await selectVisual(ctx, 'node_link')
     const selectedSchemas = ctx.tools.schemas()
     expect(selectedSchemas.map(tool => tool.name)).toEqual([
+      'learning_material_map',
+      'learning_material_read',
+      'learning_material_search',
+      'learning_material_recall',
       'learning_visual_select',
       'learning_state_update',
       'learning_checkpoint_select',

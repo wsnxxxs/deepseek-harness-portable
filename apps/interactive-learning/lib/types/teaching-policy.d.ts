@@ -7,12 +7,21 @@ export interface LearningPolicyContext {
     route?: LearningPolicyRoute;
     /** Add short Chinese scaffolding templates when the turn is Chinese/mixed. */
     language?: 'en' | 'zh' | 'mixed';
+    /** The session runs in a learning folder that holds parsed material. */
+    material?: boolean;
 }
 export declare const LEARNING_TEACHING_POLICY_CORE: string;
 /** Inject only when the turn is known to be assessed or submitted. */
 export declare const LEARNING_GRADED_POLICY: string;
 /** Inject only when a visual route has actually been selected. */
 export declare const LEARNING_VISUAL_POLICY: string;
+/**
+ * Inject only when the session runs in a learning folder holding parsed
+ * material. Nothing here restates or weakens the core policy's existing ban on
+ * inventing source anchors; it names the tools that make the ban checkable and
+ * the coverage boundary the parse actually reports.
+ */
+export declare const LEARNING_MATERIAL_POLICY: string;
 /** Short templates make the standing/tool prompt usable for Chinese turns. */
 export declare const LEARNING_CHINESE_TEMPLATES: string;
 /**

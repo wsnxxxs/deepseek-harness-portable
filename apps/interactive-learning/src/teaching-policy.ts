@@ -18,6 +18,8 @@ export interface LearningPolicyContext {
   route?: LearningPolicyRoute
   /** Add short Chinese scaffolding templates when the turn is Chinese/mixed. */
   language?: 'en' | 'zh' | 'mixed'
+  /** The session runs in a learning folder that holds parsed material. */
+  material?: boolean
 }
 
 export const LEARNING_TEACHING_POLICY_CORE = [
@@ -52,6 +54,21 @@ export const LEARNING_VISUAL_POLICY = [
   'For a plot, frame the slider as the learner\'s hand on the parameter: ask them to predict first, then drag. Treat interaction as a low-confidence, unknown-correctness self-observation like recall self-rating; never silently collect it as correctness, mastery, or transfer evidence.',
 ].join('\n\n')
 
+/**
+ * Inject only when the session runs in a learning folder holding parsed
+ * material. Nothing here restates or weakens the core policy's existing ban on
+ * inventing source anchors; it names the tools that make the ban checkable and
+ * the coverage boundary the parse actually reports.
+ */
+export const LEARNING_MATERIAL_POLICY = [
+  '## Supplied material (conditional)',
+  'This session has a learning folder holding the learner\'s own parsed sources. Use `learning_material_map` for its real structure, `learning_material_read` for one section\'s actual words, and `learning_material_search` to locate a phrase. Never describe, outline, summarize, or quote a section you have not read this way.',
+  'Read one section at a time and teach from it; do not pull in a whole chapter because it is available. A long section returns its opening plus its child sections — follow the child you need rather than asking for everything.',
+  'When you know what the learner is stuck on but not where the material addresses it, call `learning_material_recall`. It takes no query: what to retrieve is derived from the state you have been maintaining, so keep that state honest and it will pull the contradicting passage, the second example, or the missing prerequisite on its own. Its `rationale` is internal — act on it, never narrate it.',
+  'Record every material-grounded claim with `learning_state_update` `source_anchors_observed`, using the anchor string the tool returned verbatim. A `study_map` of a supplied source is refused unless each section carries such an anchor.',
+  'The tools return a coverage line naming what could NOT be read — image-only pages, a guessed multi-column order, dropped formulas, a truncated read. State that boundary in your own words before teaching from the source, and never present an unread part as covered. If the material contradicts you, the material is what the learner is studying: say so plainly rather than smoothing it over.',
+].join('\n\n')
+
 /** Short templates make the standing/tool prompt usable for Chinese turns. */
 export const LEARNING_CHINESE_TEMPLATES = [
   '中文模板：先给一个小支架，再问一个会改变下一步的问题。',
@@ -69,6 +86,7 @@ export function buildLearningTeachingPolicy(context: LearningPolicyContext = {})
   const visualRoute = context.visual
     && (context.route === 'teach-minimum' || context.route === 'continue' || context.route === 'overview' || context.route === 'direct')
   if (visualRoute) conditional.push(LEARNING_VISUAL_POLICY)
+  if (context.material) conditional.push(LEARNING_MATERIAL_POLICY)
   if (context.language === 'zh' || context.language === 'mixed') conditional.push(LEARNING_CHINESE_TEMPLATES)
   return [LEARNING_TEACHING_POLICY_CORE, ...conditional].join('\n\n')
 }

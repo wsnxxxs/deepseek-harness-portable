@@ -40,6 +40,18 @@ import type {
   ObservableLearnerEvent,
 } from './learner-state.ts'
 import { LEARN_INTENT_MODEL_GUIDANCE } from './learn-intent.ts'
+import { MATERIAL_TOOL_NAMES, registerMaterialTools } from './material-tools.ts'
+import {
+  conceptRecordFromState,
+  readLearnerMemory,
+  renderLearnerMemory,
+  upsertLearnerConcept,
+} from './learner-memory.ts'
+import { readManifest, resolveTopicVault } from './topic-vault.ts'
+import {
+  formatStudyMapViolations,
+  validateStudyMapAgainstVault,
+} from './material-validation.ts'
 import { buildLearningTeachingPolicy } from './teaching-policy.ts'
 import {
   routeLearningTurn,
@@ -346,7 +358,11 @@ interface LearningTurnPromptState {
   language: 'en' | 'zh' | 'mixed'
 }
 const learningPromptStates = new WeakMap<object, LearningTurnPromptState>()
-const learnerTranscriptStates = new WeakMap<object, LearnerState>()
+interface LearnerTranscriptState {
+  session: object
+  state: LearnerState
+}
+const learnerTranscriptStates = new WeakMap<object, LearnerTranscriptState>()
 type RichTeachingMove = 'visual' | 'checkpoint'
 const richTeachingMoves = new WeakMap<object, RichTeachingMove>()
 
@@ -489,6 +505,17 @@ function richTeachingMoveForTool(name: string): RichTeachingMove | undefined {
   return undefined
 }
 
+/**
+ * Learning tools that render nothing and therefore do not depend on a rich
+ * client. The material tools read the learner's own stored sources, which is as
+ * useful in a plain terminal as in the browser; gating them on the visual
+ * renderer would leave a text-only composition unable to open its own material.
+ */
+const LEARNING_NON_RICH_TOOLS: ReadonlySet<string> = new Set<string>([
+  'learning_state_update',
+  ...MATERIAL_TOOL_NAMES,
+])
+
 function learningToolAvailable(
   decision: LearningTurnRouteDecision | undefined,
   toolName: string,
@@ -497,7 +524,7 @@ function learningToolAvailable(
   if (decision?.intent.intent === 'learn'
     && decision.confidence !== 'low'
     && toolName === GENERIC_USER_WAIT_TOOL) return false
-  if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || toolName === 'learning_state_update') return true
+  if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || LEARNING_NON_RICH_TOOLS.has(toolName)) return true
   if (decision === undefined) return true
   if (!richClientAvailable) return false
   if (decision.intent.intent !== 'learn') return decision.confidence === 'low'
@@ -512,6 +539,52 @@ function learningToolAvailable(
       || (decision.route === 'direct' && decision.reason === 'resource-creation')
   }
   return true
+}
+
+/**
+ * Rendered prior-learning block per live agent. Held outside the prompt section
+ * because that callback is synchronous while reading a vault is not; the
+ * assemble waterfall refreshes this before the section is evaluated.
+ */
+const learnerMemoryBlocks = new WeakMap<Agent, string>()
+
+/**
+ * Whether this agent's session runs in a learning folder that holds parsed
+ * material. Drives the conditional material policy layer, which must not be
+ * injected for an ordinary session that has no sources to read.
+ */
+const vaultHasMaterial = new WeakMap<Agent, boolean>()
+
+/**
+ * Persist this session's concept state into the vault, then reload the vault's
+ * memory for the next request.
+ *
+ * Both halves happen here so a session that ends without ceremony — a crash, a
+ * closed window — has already written everything the last completed turn knew.
+ * A session outside a vault clears the block rather than keeping a stale one.
+ */
+async function refreshLearnerMemory(services: LearningAgentContext, agent: Agent): Promise<void> {
+  try {
+    const vault = await resolveTopicVault(services, agent.session.header.cwd)
+    if (vault === undefined) {
+      learnerMemoryBlocks.delete(agent)
+      vaultHasMaterial.delete(agent)
+      return
+    }
+    vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0)
+    const record = conceptRecordFromState(
+      services.learningActivities.learnerState(agent),
+      String(agent.session.id),
+    )
+    const memory = record === undefined
+      ? await readLearnerMemory(vault)
+      : await upsertLearnerConcept(vault, record)
+    learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }))
+  } catch (cause) {
+    // Long-term memory is an enhancement to a turn, never a precondition for
+    // one: a damaged or unreadable vault must not block teaching.
+    services.logger.warn(`learner memory was not refreshed: ${String(cause)}`)
+  }
 }
 
 function learningSegmentComplete(services: LearningAgentContext, agent: Agent): boolean {
@@ -716,7 +789,10 @@ export function apply(ctx: Context): void {
     // A new learner message starts a new decision and retires unfinished work.
     disposeDynamicTeachingTools(agent)
     richTeachingMoves.delete(agent)
-    learnerTranscriptStates.delete(agent)
+    const transcript = learnerTranscriptStates.get(agent)
+    if (transcript !== undefined && transcript.session !== agent.session) {
+      learnerTranscriptStates.delete(agent)
+    }
     const text = textFromUserMessage(message)
     if (text === '') return
     const currentState = services.learningActivities.learnerState(agent)
@@ -779,6 +855,9 @@ export function apply(ctx: Context): void {
   ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
     const agent = context.agent
     const decision = agent === undefined ? undefined : learningRoutes.get(agent)
+    // The one awaited seam before the prompt sections are evaluated, so vault
+    // memory is warm by the time `learning:learner-state` renders.
+    if (agent !== undefined) await refreshLearnerMemory(services, agent)
     const assembly = await next()
     if (!isConfidentNotLearn(decision)) {
       return {
@@ -797,6 +876,12 @@ export function apply(ctx: Context): void {
       tools: assembly.tools.filter(tool => !tool.name.startsWith(LEARNING_TOOL_PREFIX)),
     }
   })
+
+  // Read-only, vault-confined access to the learner's own material. Registered
+  // unconditionally so the tool catalog does not change with whether a vault
+  // exists; a session outside one gets a structured `no-vault` answer.
+  registerMaterialTools(services)
+
 
   services.tools.register(closeParameterRoot(defineTool({
     name: 'learning_visual_select',
@@ -834,7 +919,18 @@ export function apply(ctx: Context): void {
         },
         isConcurrencySafe: () => true,
         async execute(payload, payloadExec) {
-          parseLearningVisualV4(payload)
+          const visual = parseLearningVisualV4(payload)
+          // A study map is the one visual that asserts something about the
+          // learner's own document. Inside a vault that assertion is checkable,
+          // so it is checked — before the ephemeral tool is disposed, leaving
+          // the model able to rebuild the map from the real structure.
+          if (visual.content.kind === 'study_map') {
+            const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd)
+            if (vault !== undefined) {
+              const violations = await validateStudyMapAgainstVault(vault, visual.content)
+              if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations))
+            }
+          }
           try {
             return {
               protocol: VISUAL_RESULT_PROTOCOL_V4,
@@ -988,6 +1084,7 @@ export function apply(ctx: Context): void {
         graded: promptState?.graded ?? false,
         language: promptState?.language ?? 'en',
         route: decision?.route,
+        material: agent === undefined ? false : vaultHasMaterial.get(agent) ?? false,
         visual: decision !== undefined && learningToolAvailable(
           decision,
           'learning_visual_select',
@@ -1015,10 +1112,17 @@ export function apply(ctx: Context): void {
       if (agent === undefined) return ''
       const state = services.learningActivities.learnerState(agent)
       const previous = learnerTranscriptStates.get(agent)
-      learnerTranscriptStates.set(agent, state)
-      return previous === undefined
+      const sameSession = previous?.session === agent.session
+      learnerTranscriptStates.set(agent, { session: agent.session, state })
+      const current = previous === undefined || !sameSession
         ? services.learningActivities.learnerStateTranscript(agent, 300)
-        : compactLearnerStateDelta(state, previous)
+        : compactLearnerStateDelta(state, previous.state)
+      // Prior learning is sent once per session, with the first full transcript.
+      // Repeating it every turn would spend tokens restating a stable prior and
+      // invite treating it as something observed this turn.
+      const memory = !sameSession ? learnerMemoryBlocks.get(agent) ?? '' : ''
+      if (memory === '') return current
+      return current === '' ? memory : `${memory}\n\n${current}`
     },
   })
 }

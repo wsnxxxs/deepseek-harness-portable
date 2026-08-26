@@ -1,4 +1,4 @@
-import { c as routeLearningTurn, d as LEARN_INTENT_MODEL_GUIDANCE, o as buildLearningTeachingPolicy } from "./teaching-policy-CecVsZ4k.js";
+import { B as renderLearnerMemory, I as conceptRecordFromState, V as upsertLearnerConcept, d as validateStudyMapAgainstVault, f as MATERIAL_TOOL_NAMES, g as registerMaterialTools, it as readManifest, l as routeLearningTurn, mt as LEARN_INTENT_MODEL_GUIDANCE, ot as resolveTopicVault, s as buildLearningTeachingPolicy, u as formatStudyMapViolations, z as readLearnerMemory } from "./teaching-policy-D7vWKVJF.js";
 import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-nKmbv-Ul.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
@@ -800,9 +800,16 @@ function richTeachingMoveForTool(name) {
 	if (name === "learning_visual_select" || name === "learning_visual") return "visual";
 	if (name === "learning_checkpoint_select" || name === "learning_checkpoint") return "checkpoint";
 }
+/**
+* Learning tools that render nothing and therefore do not depend on a rich
+* client. The material tools read the learner's own stored sources, which is as
+* useful in a plain terminal as in the browser; gating them on the visual
+* renderer would leave a text-only composition unable to open its own material.
+*/
+const LEARNING_NON_RICH_TOOLS = /* @__PURE__ */ new Set(["learning_state_update", ...MATERIAL_TOOL_NAMES]);
 function learningToolAvailable(decision, toolName, richClientAvailable) {
 	if (decision?.intent.intent === "learn" && decision.confidence !== "low" && toolName === GENERIC_USER_WAIT_TOOL) return false;
-	if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || toolName === "learning_state_update") return true;
+	if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || LEARNING_NON_RICH_TOOLS.has(toolName)) return true;
 	if (decision === void 0) return true;
 	if (!richClientAvailable) return false;
 	if (decision.intent.intent !== "learn") return decision.confidence === "low";
@@ -810,6 +817,42 @@ function learningToolAvailable(decision, toolName, richClientAvailable) {
 	if (richMove === "checkpoint") return decision.route === "teach-minimum" || decision.route === "continue";
 	if (richMove === "visual") return decision.route === "teach-minimum" || decision.route === "continue" || decision.route === "overview" || decision.route === "direct" && decision.reason === "resource-creation";
 	return true;
+}
+/**
+* Rendered prior-learning block per live agent. Held outside the prompt section
+* because that callback is synchronous while reading a vault is not; the
+* assemble waterfall refreshes this before the section is evaluated.
+*/
+const learnerMemoryBlocks = /* @__PURE__ */ new WeakMap();
+/**
+* Whether this agent's session runs in a learning folder that holds parsed
+* material. Drives the conditional material policy layer, which must not be
+* injected for an ordinary session that has no sources to read.
+*/
+const vaultHasMaterial = /* @__PURE__ */ new WeakMap();
+/**
+* Persist this session's concept state into the vault, then reload the vault's
+* memory for the next request.
+*
+* Both halves happen here so a session that ends without ceremony — a crash, a
+* closed window — has already written everything the last completed turn knew.
+* A session outside a vault clears the block rather than keeping a stale one.
+*/
+async function refreshLearnerMemory(services, agent) {
+	try {
+		const vault = await resolveTopicVault(services, agent.session.header.cwd);
+		if (vault === void 0) {
+			learnerMemoryBlocks.delete(agent);
+			vaultHasMaterial.delete(agent);
+			return;
+		}
+		vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0);
+		const record = conceptRecordFromState(services.learningActivities.learnerState(agent), String(agent.session.id));
+		const memory = record === void 0 ? await readLearnerMemory(vault) : await upsertLearnerConcept(vault, record);
+		learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }));
+	} catch (cause) {
+		services.logger.warn(`learner memory was not refreshed: ${String(cause)}`);
+	}
 }
 function learningSegmentComplete(services, agent) {
 	const state = services.learningActivities.learnerState(agent);
@@ -974,7 +1017,8 @@ function apply(ctx) {
 		if (message.source.kind !== "user") return;
 		disposeDynamicTeachingTools(agent);
 		richTeachingMoves.delete(agent);
-		learnerTranscriptStates.delete(agent);
+		const transcript = learnerTranscriptStates.get(agent);
+		if (transcript !== void 0 && transcript.session !== agent.session) learnerTranscriptStates.delete(agent);
 		const text = textFromUserMessage(message);
 		if (text === "") return;
 		const currentState = services.learningActivities.learnerState(agent);
@@ -1018,6 +1062,7 @@ function apply(ctx) {
 	ctx.on("system-prompt/assemble", async (_assembly, context, next) => {
 		const agent = context.agent;
 		const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
+		if (agent !== void 0) await refreshLearnerMemory(services, agent);
 		const assembly = await next();
 		if (!isConfidentNotLearn(decision)) return {
 			...assembly,
@@ -1030,6 +1075,7 @@ function apply(ctx) {
 			tools: assembly.tools.filter((tool) => !tool.name.startsWith(LEARNING_TOOL_PREFIX))
 		};
 	});
+	registerMaterialTools(services);
 	services.tools.register(closeParameterRoot(defineTool({
 		name: "learning_visual_select",
 		description: "Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to exactly one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation. 中文模板：只呈现一个关系，把讲解和一个聚焦问题留在正文。",
@@ -1068,7 +1114,14 @@ function apply(ctx) {
 				},
 				isConcurrencySafe: () => true,
 				async execute(payload, payloadExec) {
-					parseLearningVisualV4(payload);
+					const visual = parseLearningVisualV4(payload);
+					if (visual.content.kind === "study_map") {
+						const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd);
+						if (vault !== void 0) {
+							const violations = await validateStudyMapAgainstVault(vault, visual.content);
+							if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
+						}
+					}
 					try {
 						return {
 							protocol: VISUAL_RESULT_PROTOCOL_V4,
@@ -1227,6 +1280,7 @@ function apply(ctx) {
 				graded: promptState?.graded ?? false,
 				language: promptState?.language ?? "en",
 				route: decision?.route,
+				material: agent === void 0 ? false : vaultHasMaterial.get(agent) ?? false,
 				visual: decision !== void 0 && learningToolAvailable(decision, "learning_visual_select", services.learningActivities.richClientAvailable)
 			});
 		}
@@ -1248,8 +1302,15 @@ function apply(ctx) {
 			if (agent === void 0) return "";
 			const state = services.learningActivities.learnerState(agent);
 			const previous = learnerTranscriptStates.get(agent);
-			learnerTranscriptStates.set(agent, state);
-			return previous === void 0 ? services.learningActivities.learnerStateTranscript(agent, 300) : compactLearnerStateDelta(state, previous);
+			const sameSession = previous?.session === agent.session;
+			learnerTranscriptStates.set(agent, {
+				session: agent.session,
+				state
+			});
+			const current = previous === void 0 || !sameSession ? services.learningActivities.learnerStateTranscript(agent, 300) : compactLearnerStateDelta(state, previous.state);
+			const memory = !sameSession ? learnerMemoryBlocks.get(agent) ?? "" : "";
+			if (memory === "") return current;
+			return current === "" ? memory : `${memory}\n\n${current}`;
 		}
 	});
 }

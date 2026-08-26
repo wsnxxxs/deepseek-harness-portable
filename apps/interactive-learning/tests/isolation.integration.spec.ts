@@ -125,6 +125,10 @@ describe('exact non-Learning catalog isolation', () => {
           'learning_visual_select',
           'learning_state_update',
           'learning_checkpoint_select',
+          'learning_material_map',
+          'learning_material_read',
+          'learning_material_search',
+          'learning_material_recall',
           'web_search',
           'skill',
         ]))
