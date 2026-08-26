@@ -59,15 +59,15 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 - Preinstalled, removable plugin marketplace with paginated GitHub search, one-click installation, update management, and agent-facing market tools.
 - Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, and GIF files through the kernel attachment and model services. It can automatically select a configured image-capable model—including the official `deepseek-v4-flash-vision-exp` catalog entry—or pin one in plugin settings, with no separate endpoint or API key.
 - The conversation input keeps image attachments as image data and represents ordinary local documents as `@file` path references. Document bytes are not uploaded or parsed by the desktop attachment layer; the model can use the existing shell/file-reference tools to read an accessible path.
-- Learning mode provides non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Teaching state advances from learner evidence and survives refresh, resume, and message compaction.
+- Learning mode provides material-grounded teaching with source anchors, concept reviews, learner memory, non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Teaching state advances from learner evidence and survives refresh, resume, and message compaction.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
 ## Latest release
 
 | Item | Version |
 | --- | --- |
-| Release | DeepSeek Harness Desktop **v1.5.5** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.5)) |
-| Distribution | 1.5.5 |
+| Release | DeepSeek Harness Desktop **v1.5.6** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.6)) |
+| Distribution | 1.5.6 |
 | Desktop shell | 0.1.0-shell.2 |
 | Kernel | 0.1.1-rc.2 |
 

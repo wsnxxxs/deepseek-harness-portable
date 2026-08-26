@@ -59,15 +59,15 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 - 预装可移除的插件市场，支持 GitHub 分页搜索、一键安装、插件更新管理和 Agent 市场工具。
 - Vision Bridge 的 `view_image` 复用内核附件与模型服务分析本地 PNG、JPEG、WebP 和 GIF；可自动选择已配置的图片模型（包括官方 `deepseek-v4-flash-vision-exp` 目录项），也可在插件设置中固定模型，不需要单独配置端点或 API 密钥。
 - 会话输入框会保留图片附件为图片数据，并将普通本地文档表示为 `@file` 路径引用。桌面附件层不会上传或解析文档字节；模型可通过现有 shell/file-reference 工具读取可访问的路径。
-- Learning 模式提供非阻塞的语义图示、按需理解检查和会话内学习路线；教学状态依据学习者证据更新，并可随刷新、恢复和消息压缩延续。
+- Learning 模式提供基于资料锚点的教学、概念复习、学习者记忆、非阻塞语义图示、按需理解检查和会话内学习路线；教学状态依据学习者证据更新，并可随刷新、恢复和消息压缩延续。
 - 使用量设置页基于持久化运行时投影汇总 token 消耗、模型明细、活跃度和会话耗时。
 
 ## 最新发布
 
 | 项目 | 版本 |
 | --- | --- |
-| 发布 | DeepSeek Harness Desktop **v1.5.5**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.5)) |
-| 分发版本 | 1.5.5 |
+| 发布 | DeepSeek Harness Desktop **v1.5.6**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.6)) |
+| 分发版本 | 1.5.6 |
 | 桌面外壳 | 0.1.0-shell.2 |
 | 内核 | 0.1.1-rc.2 |
 

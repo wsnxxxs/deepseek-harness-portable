@@ -1,27 +1,33 @@
-# DeepSeek Harness Desktop v1.5.5
+# DeepSeek Harness Desktop v1.5.6
 
 [中文](RELEASE_NOTES.zh.md)
 
-Windows x64, macOS Apple Silicon, and Linux x64 desktop release · 2026-08-25
+Windows x64, macOS Apple Silicon, and Linux x64 desktop release · 2026-08-27
 
-v1.5.5 focuses on local file references, native image paste handling, and a simpler attachment flow.
+v1.5.6 is a feature and bug-fix release following v1.5.5.
 
-## Highlights
+## Major Features
 
-- **Local file references**: ordinary PDF, Office, text, data, and source files are sent as `@file` path references; their bytes are not uploaded or parsed automatically.
-- **Native image attachments**: paste, drop, or select images and keep them as native image data for image-capable models.
-- **Learning Mode UI**: added session learning notes for goals, evidence, and route progress, with clearer visual activities and feedback layouts.
+- **Interactive Learning material grounding**: ingest supported PDF, DOCX, PPTX, Markdown, and text material locally, retrieve bounded evidence, and keep source anchors for teaching turns.
+- **Concept review and learner memory**: add structured concept cards, review feedback, and durable learner progress for continued study.
+- **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
+
+## Runtime and Compatibility
+
+- **Bundled runtimes refreshed**: update the packaged Interactive Learning and Vision Bridge components to the latest workspace state.
+- **Windows path handling**: dropped directories are now distinguished from empty files in the composer.
 
 ## Fixes
 
-- **Simplify submission by removing document-parser/upload paths while preserving image-only commands and rejecting unsupported non-image files.**
+- **Refresh generated Learning bundles and preserve the material, concept-review, and intent-routing contracts in the packaged runtime.**
+- **Keep the Windows release pipeline reusable by caching completed packaging layers without changing final artifact verification.**
 
 ## Components
 
-- Distribution: 1.5.5
+- Distribution: 1.5.6
 - Desktop shell: 0.1.0-shell.2
 - Kernel: 0.1.1-rc.2 (@deepseek-ai/dsh-web-app)
-- Tag: v1.5.5
+- Tag: v1.5.6
 
 ## Checksums and security
 

@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
-const approvedReleaseVersion = '1.5.5'
+const approvedReleaseVersion = '1.5.6'
 const dependencyManifestSnapshot = '28d237190c87e3e4d889e3fd7b1da1e27c631a7bd30c68b058173a4e86801bf7'
 const lockfileSnapshot = '97812d064f99b3d424bc56640ce25d0339aae5749ed2a97088ec0337d1ab9759'
 

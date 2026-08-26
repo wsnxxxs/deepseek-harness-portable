@@ -1,26 +1,28 @@
-# DeepSeek Harness Desktop v1.5.5
+# DeepSeek Harness Desktop v1.5.6
 
-Windows x64、Linux x64 与 macOS Apple Silicon 桌面版 · 2026-08-25
+Windows x64、Linux x64 与 macOS Apple Silicon 桌面版 · 2026-08-27
 
-v1.5.5 聚焦本地文件引用、图片原生粘贴和更简单的附件流程。
+v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
 
 ## 重大功能
 
-- **本地文件引用**：普通 PDF、Office、文本、数据和源码文件只发送 `@file` 路径引用，不自动上传或解析文件内容。
-- **原生图片附件**：支持粘贴、拖入或选择图片，并继续以原生图片数据提供给支持图片的模型。
-- **Learning 界面**：新增显示学习目标、证据要点和路线进度的会话笔记，并优化视觉活动与反馈布局。
+- **Interactive Learning 资料 grounding**：在本机导入受支持的 PDF、DOCX、PPTX、Markdown 和文本资料，按界限检索证据，并在教学回合中保留资料锚点。
+- **概念复习与学习者记忆**：新增结构化概念卡片、复习反馈和可持续的学习进度，便于继续学习。
+- **学习意图路由与视觉活动**：优化 learn/not-learn 路由、教学路线、学习笔记和语义视觉活动。
 
 ## 运行时与兼容性
 
-- **本地文件处理**保持路径引用语义，不启动文档解析 worker，也不把普通文档字节放入附件包体。
+- **内置运行时刷新**：更新打包后的 Interactive Learning 与 Vision Bridge 组件。
+- **Windows 路径处理**：拖入的目录现在可以与空文件正确区分。
 
 ## 问题修复
 
-- **移除文档解析与上传链路，同时保持仅图片命令行为，并在提交前拒绝不支持的非图片文件。**
+- **刷新生成的 Learning bundle，并在打包运行时中保持资料、概念复习和意图路由契约一致。**
+- **复用已完成的 Windows 打包层，同时保持最终产物校验不变。**
 
 ## 组件版本
 
-- 分发：1.5.5
+- 分发：1.5.6
 - 桌面外壳：0.1.0-shell.2
 - 运行时内核：0.1.1-rc.2
 
@@ -30,25 +32,27 @@ v1.5.5 聚焦本地文件引用、图片原生粘贴和更简单的附件流程�
 
 Windows x64, Linux x64, and macOS Apple Silicon desktop release · 2026-08-25
 
-v1.5.5 focuses on local file references, native image paste handling, and a simpler attachment flow.
+v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 ### Major Features
 
-- **Local file references**: ordinary PDF, Office, text, data, and source files are sent as `@file` path references; their bytes are not uploaded or parsed automatically.
-- **Native image attachments**: paste, drop, or select images and keep them as native image data for image-capable models.
-- **Learning Mode UI**: added session learning notes for goals, evidence, and route progress, with clearer visual activities and feedback layouts.
+- **Interactive Learning material grounding**: ingest supported PDF, DOCX, PPTX, Markdown, and text material locally, retrieve bounded evidence, and keep source anchors for teaching turns.
+- **Concept review and learner memory**: add structured concept cards, review feedback, and durable learner progress for continued study.
+- **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
 
 ### Runtime and Compatibility
 
-- **Local file handling** preserves path-reference semantics without starting document-parser workers or placing ordinary document bytes in the attachment package.
+- **Bundled runtimes refreshed**: update the packaged Interactive Learning and Vision Bridge components to the latest workspace state.
+- **Windows path handling**: dropped directories are now distinguished from empty files in the composer.
 
 ### Fixes
 
-- **Simplify submission by removing document-parser/upload paths while preserving image-only commands and rejecting unsupported non-image files.**
+- **Refresh generated Learning bundles and preserve the material, concept-review, and intent-routing contracts in the packaged runtime.**
+- **Keep the Windows release pipeline reusable by caching completed packaging layers without changing final artifact verification.**
 
 ### Component Versions
 
-- Distribution: 1.5.5
+- Distribution: 1.5.6
 - Desktop Shell: 0.1.0-shell.2
 - Runtime Kernel: 0.1.1-rc.2
 
@@ -58,8 +62,8 @@ v1.5.5 focuses on local file references, native image paste handling, and a simp
 
 最终 Windows 便携 ZIP、Setup 安装包以及 Linux AppImage/deb 的 SHA-256 值记录在 `SHA256SUMS.txt`。
 
-产物：`DeepSeek-Harness-1.5.5-win32-x64.zip`、`DeepSeek-Harness-Setup-1.5.5-win32-x64.exe`、`DeepSeek-Harness-1.5.5-linux-x64.AppImage`、`DeepSeek-Harness-1.5.5-linux-x64.deb`。
+产物：`DeepSeek-Harness-1.5.6-win32-x64.zip`、`DeepSeek-Harness-Setup-1.5.6-win32-x64.exe`，以及对应的 Linux x64 产物。
 
 The final Windows portable ZIP, Setup installer, and Linux AppImage/deb SHA-256 values are recorded in `SHA256SUMS.txt`.
 
-Artifacts: `DeepSeek-Harness-1.5.5-win32-x64.zip`, `DeepSeek-Harness-Setup-1.5.5-win32-x64.exe`, `DeepSeek-Harness-1.5.5-linux-x64.AppImage`, and `DeepSeek-Harness-1.5.5-linux-x64.deb`.
+Artifacts: `DeepSeek-Harness-1.5.6-win32-x64.zip`, `DeepSeek-Harness-Setup-1.5.6-win32-x64.exe`, plus the corresponding Linux x64 packages.
