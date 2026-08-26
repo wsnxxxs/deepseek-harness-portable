@@ -536,13 +536,14 @@ export function conceptCardDraftFromState(
     ...(state.currentMisconception === null ? [] : [state.currentMisconception]),
     ...state.misconceptions,
   ], 6)
+  const intervalDays = reviewIntervalDays(state.mastery, transfer?.independence)
   return {
     conceptSlug: slugify(label, 'concept'),
     label,
     mastery: state.mastery,
     masteryBasis: state.masteryBasis,
-    due: addDays(now, INITIAL_REVIEW_INTERVAL_DAYS),
-    intervalDays: reviewIntervalDays(state.mastery, transfer?.independence),
+    due: addDays(now, intervalDays),
+    intervalDays,
     anchors: list(state.sourceAnchors),
     staleAnchors: [],
     explanation,
