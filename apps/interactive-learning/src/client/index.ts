@@ -31,7 +31,7 @@ export function LearningStateUpdateToolView(): null {
 }
 
 export const name = 'interactive-learning-client'
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'connection']
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'interactive-learning: dictionaries')

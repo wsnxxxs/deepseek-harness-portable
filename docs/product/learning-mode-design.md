@@ -298,7 +298,7 @@ export interface LearnerConceptRecord {
   misconceptions: readonly string[]
   anchors: readonly string[]   // 来自 LearnerState.sourceAnchors
   evidenceCount: number
-  due: string | null           // ISO-8601；阶段 D 才写
+  due: string | null           // ISO-8601；概念卡确认后写入
   updatedAt: string
   sessionIds: readonly string[]
 }

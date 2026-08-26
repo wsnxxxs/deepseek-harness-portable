@@ -16,9 +16,16 @@ function studyRoleLabel(role: StudyMapContent['concepts'][number]['role'], label
   return undefined
 }
 
+function studyMasteryLabel(mastery: StudyMapContent['concepts'][number]['mastery'], labels: LearningVisualV4Labels): string {
+  if (mastery === 'transfer') return labels.mastered
+  if (mastery === 'emerging') return labels.studyProgress
+  return labels.unrated
+}
+
 export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapContent>) {
   const labels = useVisualLabels()
   const id = useId()
+  const conceptView = content.view === 'concepts'
   const conceptById = useMemo(() => new Map(content.concepts.map(concept => [concept.id, concept])), [content.concepts])
   const dependencyLevels = useMemo(() => {
     const levelCache = new Map<string, number>()
@@ -67,22 +74,28 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
       buttons?.[nextIndex]?.focus()
     }
   }
+  // An accepted payload with nothing in it says so, rather than presenting an
+  // empty frame that reads as a broken renderer.
+  if (content.concepts.length === 0 && content.sections.length === 0) return <EmptyFigure />
+
   return (
-    <div className={shell.rendererStack}>
+    <div className={shell.rendererStack} data-view={content.view ?? 'material'}>
       <div className={css.studySource}>
         <span>{labels.studySource}</span><strong>{content.sourceLabel}</strong>
         {content.goal === undefined ? null : <p><b>{labels.studyGoal}</b>{content.goal}</p>}
       </div>
-      <div className={css.studyDependencyMap} role="img" aria-label={`${labels.prerequisite} ${labels.studyConcepts}`} aria-hidden="true" style={{ gridTemplateColumns: `repeat(${Math.max(1, dependencyLevels.length)}, minmax(0, 1fr))` }}>
-        <div className={css.studyDependencyHeader}><span>{labels.prerequisite}</span><span>{labels.studyConcepts}</span></div>
-        <div className={css.studyDependencyTrack}>
-          {dependencyLevels.map((level, levelIndex) => (
-            <div className={css.studyDependencyLevel} key={`level-${String(levelIndex)}`}>
-              {level.map(concept => <span key={concept.id} className={css.studyDependencyNode} data-role={concept.role}>{concept.label}</span>)}
-            </div>
-          ))}
+      {conceptView ? null : (
+        <div className={css.studyDependencyMap} role="img" aria-label={`${labels.prerequisite} ${labels.studyConcepts}`} aria-hidden="true" style={{ gridTemplateColumns: `repeat(${Math.max(1, dependencyLevels.length)}, minmax(0, 1fr))` }}>
+          <div className={css.studyDependencyHeader}><span>{labels.prerequisite}</span><span>{labels.studyConcepts}</span></div>
+          <div className={css.studyDependencyTrack}>
+            {dependencyLevels.map((level, levelIndex) => (
+              <div className={css.studyDependencyLevel} key={`level-${String(levelIndex)}`}>
+                {level.map(concept => <span key={concept.id} className={css.studyDependencyNode} data-role={concept.role}>{concept.label}</span>)}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       <div className={css.studyLayout}>
         <nav className={css.studySections} role="tablist" aria-label={labels.studySections}>
           {content.sections.map((item, index) => (
@@ -123,24 +136,28 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
             {concepts.map((concept, index) => {
               const role = studyRoleLabel(concept.role, labels)
               const prerequisites = (concept.prerequisiteIds ?? []).map(prerequisiteId => conceptById.get(prerequisiteId)?.label ?? prerequisiteId)
-              // An accepted payload with nothing in it says so, rather than presenting an
-  // empty frame that reads as a broken renderer.
-  if (content.concepts.length === 0 && content.sections.length === 0) return <EmptyFigure />
-
-  return (
+              return (
                 <button
                   key={concept.id}
                   type="button"
                   className={`${shell.control} ${css.conceptCard}`}
                   data-tone={toneAt(concept.tone, index)}
                   data-role={concept.role}
+                  data-mastery={concept.mastery}
+                  data-due={concept.due === undefined ? undefined : 'true'}
+                  data-stale={concept.stale === true ? 'true' : undefined}
                   data-visual-state={concept.id === selectedConceptId ? 'selected' : elementState(concept.id, focus)}
                   data-selected={concept.id === selectedConceptId || undefined}
                   data-visual-id={concept.id}
                   onClick={() => setSelectedConceptId(concept.id)}
                 >
-                  <span>{role ?? labels.studyConcepts}</span><strong>{concept.label}</strong>
-                  <small><b>{labels.prerequisite}</b>{prerequisites.length === 0 ? labels.noPrerequisite : prerequisites.join(' → ')}</small>
+                  <span>{conceptView ? studyMasteryLabel(concept.mastery, labels) : role ?? labels.studyConcepts}</span><strong>{concept.label}</strong>
+                  {conceptView ? (
+                    <small>
+                      {concept.due === undefined ? null : <><b>{labels.studyDue}</b>{concept.due}</>}
+                      {concept.stale === true ? <><b>{labels.studyStale}</b></> : null}
+                    </small>
+                  ) : <small><b>{labels.prerequisite}</b>{prerequisites.length === 0 ? labels.noPrerequisite : prerequisites.join(' → ')}</small>}
                 </button>
               )
             })}
@@ -150,9 +167,14 @@ export function StudyMapRenderer({ content, focus }: RendererProps<StudyMapConte
       <div className={shell.selectionSlot}>
         {selectedConcept === undefined ? <p className={shell.interactionHint}>{labels.studyInteractionHint}</p> : (
           <aside className={css.studyDetail} aria-live="polite">
-            <div><span>{studyRoleLabel(selectedConcept.role, labels) ?? labels.studyConcepts}</span><strong>{selectedConcept.label}</strong></div>
+            <div><span>{conceptView ? studyMasteryLabel(selectedConcept.mastery, labels) : studyRoleLabel(selectedConcept.role, labels) ?? labels.studyConcepts}</span><strong>{selectedConcept.label}</strong></div>
             <p>{selectedConcept.detail ?? labels.noDetail}</p>
-            <dl><dt>{labels.prerequisite}</dt><dd>{(selectedConcept.prerequisiteIds ?? []).map(prerequisiteId => conceptById.get(prerequisiteId)?.label ?? prerequisiteId).join(' → ') || labels.noPrerequisite}</dd></dl>
+            <dl>
+              <dt>{conceptView ? labels.studyProgress : labels.prerequisite}</dt>
+              <dd>{conceptView ? studyMasteryLabel(selectedConcept.mastery, labels) : (selectedConcept.prerequisiteIds ?? []).map(prerequisiteId => conceptById.get(prerequisiteId)?.label ?? prerequisiteId).join(' → ') || labels.noPrerequisite}</dd>
+              {conceptView && selectedConcept.due !== undefined ? <><dt>{labels.studyDue}</dt><dd>{selectedConcept.due}</dd></> : null}
+              {conceptView && selectedConcept.stale === true ? <><dt>{labels.studyStale}</dt><dd>{labels.studyStale}</dd></> : null}
+            </dl>
             <button type="button" className={`${shell.control} ${shell.closeButton}`} onClick={() => setSelectedConceptId(undefined)} aria-label={labels.closeDetail}>×</button>
           </aside>
         )}
