@@ -140,9 +140,40 @@ export {
 } from './material-validation.ts'
 export {
   describeReanchor,
+  reanchorAnchorLists,
   reanchorVaultMemory,
   type ReanchorOutcome,
 } from './material-reanchor.ts'
+export {
+  INITIAL_REVIEW_INTERVAL_DAYS,
+  MAX_CONCEPT_CARDS,
+  buildConceptStudyMap,
+  conceptCardDraftFromState,
+  conceptCardPathOf,
+  conceptRecordFromCard,
+  hasFreshIndependentTransfer,
+  isConceptDue,
+  nextReviewSchedule,
+  readConceptCard,
+  readConceptCards,
+  readLearnerMemoryWithCards,
+  recallCardIdOf,
+  renderConceptCard,
+  reanchorConceptCards,
+  reviewIntervalDays,
+  saveConceptCard,
+  updateConceptCardAnchors,
+  updateConceptCardSchedule,
+  type ConceptCard,
+  type ConceptCardDraft,
+  type ConceptCardRating,
+  type ConceptCardSchedule,
+} from './concept-cards.ts'
+export {
+  CONCEPT_TOOL_NAMES,
+  registerConceptTools,
+  type ConceptToolContext,
+} from './concept-tools.ts'
 export {
   routeLearningRequest,
   routeLearningTurn,
@@ -156,6 +187,7 @@ export {
   LEARNING_TEACHING_POLICY_CORE,
   LEARNING_GRADED_POLICY,
   LEARNING_MATERIAL_POLICY,
+  LEARNING_REVIEW_POLICY,
   LEARNING_VISUAL_POLICY,
   LEARNING_CHINESE_TEMPLATES,
   buildLearningTeachingPolicy,

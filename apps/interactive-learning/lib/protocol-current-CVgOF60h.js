@@ -1050,7 +1050,12 @@ const studyMapContent = {
 			type: "string",
 			const: "study_map",
 			required: true,
-			description: "A navigable overview of a supplied document, chapter, slide deck, or multi-concept learning source. Preserve source sections and anchors instead of flattening the material."
+			description: "A navigable overview of supplied material, or the Host-materialized state of saved learner concepts."
+		},
+		view: {
+			type: "string",
+			enum: ["material", "concepts"],
+			description: "Use concepts to request the saved concept-card state; the Host supplies its sections and cards."
 		},
 		sourceLabel: {
 			type: "string",
@@ -1101,6 +1106,26 @@ const studyMapContent = {
 						required: true
 					},
 					detail: { type: "string" },
+					conceptSlug: {
+						type: "string",
+						description: "Saved concept-card identity in concepts view."
+					},
+					mastery: {
+						type: "string",
+						enum: [
+							"unseen",
+							"emerging",
+							"transfer"
+						]
+					},
+					due: {
+						type: "string",
+						description: "Next review date in YYYY-MM-DD form."
+					},
+					stale: {
+						type: "boolean",
+						description: "Whether one or more saved source anchors no longer resolve."
+					},
 					prerequisiteIds: {
 						type: "array",
 						items: { type: "string" },
@@ -2130,6 +2155,23 @@ const LEARNING_VISUAL_CONTENT_SCHEMAS_V4 = {
 	field_2d: field2DContent,
 	causal_loop: causalLoopContent
 };
+const visualContentSchemaV4 = { oneOf: [
+	plotContent,
+	nodeLinkContent,
+	sceneContent,
+	relationContent,
+	timelineContent,
+	formulaStepsContent,
+	studyMapContent,
+	recallDeckContent,
+	dataTableContent,
+	stateTransitionContent,
+	sequenceBufferContent,
+	sequenceDiagramContent,
+	codeTraceContent,
+	field2DContent,
+	causalLoopContent
+] };
 const LEARNING_VISUAL_SCHEMA_V4 = {
 	type: "object",
 	additionalProperties: false,
@@ -2145,23 +2187,7 @@ const LEARNING_VISUAL_SCHEMA_V4 = {
 		},
 		description: { type: "string" },
 		content: {
-			oneOf: [
-				plotContent,
-				nodeLinkContent,
-				sceneContent,
-				relationContent,
-				timelineContent,
-				formulaStepsContent,
-				studyMapContent,
-				recallDeckContent,
-				dataTableContent,
-				stateTransitionContent,
-				sequenceBufferContent,
-				sequenceDiagramContent,
-				codeTraceContent,
-				field2DContent,
-				causalLoopContent
-			],
+			...visualContentSchemaV4,
 			required: true
 		},
 		sequence: LEARNING_VISUAL_SEQUENCE_SCHEMA_V4,
@@ -2181,7 +2207,9 @@ const LEARNING_VISUAL_RESULT_SCHEMA_V4 = {
 			type: "string",
 			enum: LEARNING_VISUAL_STATUSES,
 			required: true
-		}
+		},
+		/** Host materialization for a saved-concepts study map. */
+		content: visualContentSchemaV4
 	}
 };
 const LEARNING_CHECKPOINT_SCHEMA_V1 = {
@@ -3381,15 +3409,18 @@ function validateStudyMapV4(value, issues) {
 	const focusIds = /* @__PURE__ */ new Set();
 	onlyKeys(value, [
 		"kind",
+		"view",
 		"sourceLabel",
 		"goal",
 		"sections",
 		"concepts"
 	], "visual.content", issues);
+	if (value.view !== void 0 && value.view !== "material" && value.view !== "concepts") issues.push("visual.content.view must be material or concepts");
+	const conceptView = value.view === "concepts";
 	text(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
 	if (value.goal !== void 0) text(value.goal, "visual.content.goal", issues, 600);
 	let sections = [];
-	if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 16) issues.push("visual.content.sections must contain 1 to 16 sections");
+	if (!Array.isArray(value.sections) || value.sections.length > 16 || !conceptView && value.sections.length < 1) issues.push(conceptView ? "visual.content.sections must contain 0 to 16 sections for concepts view" : "visual.content.sections must contain 1 to 16 sections");
 	else {
 		sections = value.sections.filter(record);
 		if (sections.length !== value.sections.length) issues.push("visual.content.sections entries must be objects");
@@ -3410,7 +3441,7 @@ function validateStudyMapV4(value, issues) {
 	}
 	const sectionIds = new Set(sections.flatMap((section) => typeof section.id === "string" ? [section.id] : []));
 	let concepts = [];
-	if (!Array.isArray(value.concepts) || value.concepts.length < 1 || value.concepts.length > 48) issues.push("visual.content.concepts must contain 1 to 48 concepts");
+	if (!Array.isArray(value.concepts) || value.concepts.length > 48 || !conceptView && value.concepts.length < 1) issues.push(conceptView ? "visual.content.concepts must contain 0 to 48 concepts for concepts view" : "visual.content.concepts must contain 1 to 48 concepts");
 	else {
 		concepts = value.concepts.filter(record);
 		if (concepts.length !== value.concepts.length) issues.push("visual.content.concepts entries must be objects");
@@ -3422,6 +3453,10 @@ function validateStudyMapV4(value, issues) {
 				"label",
 				"sectionId",
 				"detail",
+				"conceptSlug",
+				"mastery",
+				"due",
+				"stale",
 				"prerequisiteIds",
 				"role",
 				"tone"
@@ -3430,6 +3465,14 @@ function validateStudyMapV4(value, issues) {
 			text(concept.label, `${path}.label`, issues, 160);
 			if (typeof concept.sectionId !== "string" || !sectionIds.has(concept.sectionId)) issues.push(`${path}.sectionId must reference a declared section`);
 			if (concept.detail !== void 0) text(concept.detail, `${path}.detail`, issues, 1500);
+			if (concept.conceptSlug !== void 0) text(concept.conceptSlug, `${path}.conceptSlug`, issues, 64);
+			if (concept.mastery !== void 0 && ![
+				"unseen",
+				"emerging",
+				"transfer"
+			].includes(concept.mastery)) issues.push(`${path}.mastery must be unseen, emerging, or transfer`);
+			if (concept.due !== void 0) text(concept.due, `${path}.due`, issues, 32);
+			if (concept.stale !== void 0 && typeof concept.stale !== "boolean") issues.push(`${path}.stale must be a boolean`);
 			if (concept.role !== void 0 && ![
 				"foundation",
 				"core",
@@ -4327,7 +4370,11 @@ function parseLearningVisualV4(value) {
 function parseLearningVisualResultV4(value) {
 	const issues = [...validateLearningVisualResultSchemaV4(value)];
 	if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
-	onlyKeys(value, ["protocol", "status"], "visualResult", issues);
+	onlyKeys(value, [
+		"protocol",
+		"status",
+		"content"
+	], "visualResult", issues);
 	if (value.protocol !== "dsh-learning/visual-result@4") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`);
 	if (!LEARNING_VISUAL_STATUSES.includes(value.status)) issues.push(`visualResult.status must be one of ${LEARNING_VISUAL_STATUSES.join(", ")}`);
 	if (issues.length > 0) throw new LearningProtocolError(issues);

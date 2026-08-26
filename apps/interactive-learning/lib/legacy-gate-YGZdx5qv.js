@@ -1,6 +1,6 @@
-import { f as RESPONSE_PROTOCOL_V2 } from "./protocol-current-nKmbv-Ul.js";
+import { f as RESPONSE_PROTOCOL_V2 } from "./protocol-current-CVgOF60h.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
-import { i as learningWaitQuestionId, n as encodeLearningWaitDetail } from "./host-transport-B4sQooBx.js";
+import { i as learningWaitQuestionId, n as encodeLearningWaitDetail } from "./host-transport-DG7rmn_s.js";
 import { i as parseLearningResponseV2, n as parseLearningActivityV2 } from "./legacy-protocol-D0FKF_Kz.js";
 import { randomUUID } from "node:crypto";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";

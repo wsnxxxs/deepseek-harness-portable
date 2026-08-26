@@ -14,6 +14,7 @@
  */
 
 import type { LearningStudyMapV4 } from './protocol-current.ts'
+import { readConceptCards } from './concept-cards.ts'
 import { normalizeQuote } from './ingest/types.ts'
 import { anchorTargetsOf, resolveAnchorTarget, type AnchorTarget } from './material-anchor.ts'
 import { readAllStructures, type TopicVault } from './topic-vault.ts'
@@ -39,6 +40,15 @@ export async function validateStudyMapAgainstVault(
   vault: TopicVault,
   content: LearningStudyMapV4,
 ): Promise<readonly StudyMapViolation[]> {
+  if (content.view === 'concepts') {
+    return (await readConceptCards(vault)).length > 0
+      ? []
+      : [{
+          path: 'visual.content',
+          detail: 'This learning folder has no approved concept cards to display. '
+            + 'Complete an independent fresh transfer and confirm the concept-card proposal first.',
+        }]
+  }
   const structures = await readAllStructures(vault)
   if (structures.length === 0) {
     return [{

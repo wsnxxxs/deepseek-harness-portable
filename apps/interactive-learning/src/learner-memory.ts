@@ -63,6 +63,10 @@ export interface LearnerConceptRecord {
   evidenceCount: number
   /** ISO-8601 review date; `null` until scheduling is enabled. */
   due: string | null
+  /** Current review interval in days, when this concept has a saved card. */
+  reviewIntervalDays?: number
+  /** Last learner-owned review rating, when one exists. */
+  lastReviewedAt?: string | null
   updatedAt: string
   /** Sessions this concept was learned in, newest first, for lineage lookups. */
   sessionIds: readonly string[]
@@ -124,6 +128,12 @@ export function parseLearnerConceptRecord(value: unknown): LearnerConceptRecord 
       ? record.evidenceCount as number
       : 0,
     due: typeof record.due === 'string' && record.due !== '' ? record.due : null,
+    ...(Number.isSafeInteger(record.reviewIntervalDays) && (record.reviewIntervalDays as number) > 0
+      ? { reviewIntervalDays: record.reviewIntervalDays as number }
+      : {}),
+    ...(record.lastReviewedAt === null || typeof record.lastReviewedAt === 'string'
+      ? { lastReviewedAt: record.lastReviewedAt as string | null }
+      : {}),
     updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date(0).toISOString(),
     sessionIds: stringList(record.sessionIds),
   }
@@ -230,6 +240,8 @@ function mergeConcept(previous: LearnerConceptRecord, next: LearnerConceptRecord
       .filter(anchor => !activeAnchors.has(anchor))
       .slice(0, MAX_LIST_ITEMS),
     due: next.due ?? previous.due,
+    reviewIntervalDays: next.reviewIntervalDays ?? previous.reviewIntervalDays,
+    lastReviewedAt: next.lastReviewedAt ?? previous.lastReviewedAt,
     sessionIds,
   }
 }
@@ -296,6 +308,12 @@ export function renderLearnerMemory(
   ]
   for (const concept of shown) {
     const parts = [`${concept.label} — ${concept.mastery}`]
+    if (concept.due !== null) {
+      const today = new Date().toISOString().slice(0, 10)
+      parts.push(concept.due.slice(0, 10) <= today
+        ? 'DUE for review'
+        : `next review: ${concept.due.slice(0, 10)}`)
+    }
     if (concept.masteryBasis === 'user-correction') parts.push('(learner-corrected)')
     if (concept.gap !== 'unknown') parts.push(`open gap: ${concept.gap}`)
     if (concept.misconceptions.length > 0) {

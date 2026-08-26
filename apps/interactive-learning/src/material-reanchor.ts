@@ -67,17 +67,23 @@ function moveAnchor(
   return section === undefined ? undefined : formatSectionAnchor(next.sourceId, section)
 }
 
-/** Re-anchor one concept record; returns the record and what changed. */
-function reanchorConcept(
-  concept: LearnerConceptRecord,
+/** Re-anchor one pair of active/stale citation lists against a rebuilt source. */
+export function reanchorAnchorLists(
+  currentAnchors: readonly string[],
+  currentStaleAnchors: readonly string[],
   previous: SourceStructure | undefined,
   next: SourceStructure,
-): { concept: LearnerConceptRecord; outcome: ReanchorOutcome } {
+): {
+  anchors: readonly string[]
+  staleAnchors: readonly string[]
+  outcome: ReanchorOutcome
+  changed: boolean
+} {
   const outcome = { ...EMPTY_OUTCOME }
   const anchors: string[] = []
   const stale: string[] = []
 
-  for (const anchor of concept.anchors) {
+  for (const anchor of currentAnchors) {
     if (!belongsTo(anchor, next.sourceId)) {
       anchors.push(anchor)
       continue
@@ -94,7 +100,7 @@ function reanchorConcept(
   }
 
   // A section that comes back in a later edition should stop being marked stale.
-  for (const anchor of concept.staleAnchors) {
+  for (const anchor of currentStaleAnchors) {
     if (!belongsTo(anchor, next.sourceId)) {
       stale.push(anchor)
       continue
@@ -108,13 +114,28 @@ function reanchorConcept(
     outcome.recovered += 1
   }
 
-  const changed = !sameStringList(anchors, concept.anchors)
-    || !sameStringList([...new Set(stale)], concept.staleAnchors)
+  const staleAnchors = [...new Set(stale)]
   return {
-    concept: changed
-      ? { ...concept, anchors, staleAnchors: [...new Set(stale)] }
-      : concept,
+    anchors,
+    staleAnchors,
     outcome,
+    changed: !sameStringList(anchors, currentAnchors)
+      || !sameStringList(staleAnchors, currentStaleAnchors),
+  }
+}
+
+/** Re-anchor one concept record; returns the record and what changed. */
+function reanchorConcept(
+  concept: LearnerConceptRecord,
+  previous: SourceStructure | undefined,
+  next: SourceStructure,
+): { concept: LearnerConceptRecord; outcome: ReanchorOutcome } {
+  const result = reanchorAnchorLists(concept.anchors, concept.staleAnchors, previous, next)
+  return {
+    concept: result.changed
+      ? { ...concept, anchors: result.anchors, staleAnchors: result.staleAnchors }
+      : concept,
+    outcome: result.outcome,
   }
 }
 

@@ -1,5 +1,5 @@
-import { B as renderLearnerMemory, I as conceptRecordFromState, V as upsertLearnerConcept, d as validateStudyMapAgainstVault, f as MATERIAL_TOOL_NAMES, g as registerMaterialTools, it as readManifest, l as routeLearningTurn, mt as LEARN_INTENT_MODEL_GUIDANCE, ot as resolveTopicVault, s as buildLearningTeachingPolicy, u as formatStudyMapViolations, z as readLearnerMemory } from "./teaching-policy-D7vWKVJF.js";
-import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-nKmbv-Ul.js";
+import { B as buildConceptStudyMap, Ct as readManifest, J as readConceptCards, Lt as LEARN_INTENT_MODEL_GUIDANCE, Tt as resolveTopicVault, Y as readLearnerMemoryWithCards, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, h as MATERIAL_TOOL_NAMES, lt as conceptRecordFromState, m as validateStudyMapAgainstVault, mt as upsertLearnerConcept, p as formatStudyMapViolations, pt as renderLearnerMemory, u as routeLearningTurn, y as registerMaterialTools } from "./teaching-policy-BF6x7Sfr.js";
+import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-CVgOF60h.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 //#region lib/types/agent.js
@@ -806,7 +806,11 @@ function richTeachingMoveForTool(name) {
 * useful in a plain terminal as in the browser; gating them on the visual
 * renderer would leave a text-only composition unable to open its own material.
 */
-const LEARNING_NON_RICH_TOOLS = /* @__PURE__ */ new Set(["learning_state_update", ...MATERIAL_TOOL_NAMES]);
+const LEARNING_NON_RICH_TOOLS = /* @__PURE__ */ new Set([
+	"learning_state_update",
+	...MATERIAL_TOOL_NAMES,
+	...CONCEPT_TOOL_NAMES
+]);
 function learningToolAvailable(decision, toolName, richClientAvailable) {
 	if (decision?.intent.intent === "learn" && decision.confidence !== "low" && toolName === GENERIC_USER_WAIT_TOOL) return false;
 	if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || LEARNING_NON_RICH_TOOLS.has(toolName)) return true;
@@ -830,6 +834,8 @@ const learnerMemoryBlocks = /* @__PURE__ */ new WeakMap();
 * injected for an ordinary session that has no sources to read.
 */
 const vaultHasMaterial = /* @__PURE__ */ new WeakMap();
+/** Whether this agent's vault has approved concept cards available to review. */
+const vaultHasConcepts = /* @__PURE__ */ new WeakMap();
 /**
 * Persist this session's concept state into the vault, then reload the vault's
 * memory for the next request.
@@ -844,11 +850,14 @@ async function refreshLearnerMemory(services, agent) {
 		if (vault === void 0) {
 			learnerMemoryBlocks.delete(agent);
 			vaultHasMaterial.delete(agent);
+			vaultHasConcepts.delete(agent);
 			return;
 		}
 		vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0);
+		vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0);
 		const record = conceptRecordFromState(services.learningActivities.learnerState(agent), String(agent.session.id));
-		const memory = record === void 0 ? await readLearnerMemory(vault) : await upsertLearnerConcept(vault, record);
+		if (record !== void 0) await upsertLearnerConcept(vault, record);
+		const memory = await readLearnerMemoryWithCards(vault);
 		learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }));
 	} catch (cause) {
 		services.logger.warn(`learner memory was not refreshed: ${String(cause)}`);
@@ -886,7 +895,7 @@ const visualSelectorParameters = {
 			"Choose by relationship:",
 			"plot=quantitative axes or parameter sensitivity;",
 			"node_link=topology; scene_2d=spatial construction; relation=comparison, mapping, or sets;",
-			"timeline=chronology; formula_steps=derivation; study_map=source structure; recall_deck=active recall;",
+			"timeline=chronology; formula_steps=derivation; study_map=source structure or saved concept state; recall_deck=active recall;",
 			"data_table=records; state_transition=event-driven states; sequence_buffer=indexed slots;",
 			"sequence_diagram=ordered messages; code_trace=execution; field_2d=scalar/vector field; causal_loop=signed feedback."
 		].join(" ")
@@ -1076,6 +1085,7 @@ function apply(ctx) {
 		};
 	});
 	registerMaterialTools(services);
+	registerConceptTools(services);
 	services.tools.register(closeParameterRoot(defineTool({
 		name: "learning_visual_select",
 		description: "Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to exactly one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation. 中文模板：只呈现一个关系，把讲解和一个聚焦问题留在正文。",
@@ -1115,17 +1125,22 @@ function apply(ctx) {
 				isConcurrencySafe: () => true,
 				async execute(payload, payloadExec) {
 					const visual = parseLearningVisualV4(payload);
+					let materializedStudyMap;
 					if (visual.content.kind === "study_map") {
 						const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd);
 						if (vault !== void 0) {
-							const violations = await validateStudyMapAgainstVault(vault, visual.content);
-							if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
-						}
+							if (visual.content.view === "concepts") materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal);
+							else {
+								const violations = await validateStudyMapAgainstVault(vault, visual.content);
+								if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
+							}
+						} else if (visual.content.view === "concepts") throw new TypeError("study_map concepts view requires a learning vault");
 					}
 					try {
 						return {
 							protocol: VISUAL_RESULT_PROTOCOL_V4,
-							status: services.learningActivities.recordVisual(payloadExec.agent, String(payloadExec.callId))
+							status: services.learningActivities.recordVisual(payloadExec.agent, String(payloadExec.callId)),
+							...materializedStudyMap === void 0 ? {} : { content: materializedStudyMap }
 						};
 					} finally {
 						queueMicrotask(() => {
@@ -1281,6 +1296,7 @@ function apply(ctx) {
 				language: promptState?.language ?? "en",
 				route: decision?.route,
 				material: agent === void 0 ? false : vaultHasMaterial.get(agent) ?? false,
+				concepts: agent === void 0 ? false : vaultHasConcepts.get(agent) ?? false,
 				visual: decision !== void 0 && learningToolAvailable(decision, "learning_visual_select", services.learningActivities.richClientAvailable)
 			});
 		}

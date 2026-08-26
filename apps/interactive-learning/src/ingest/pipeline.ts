@@ -19,6 +19,7 @@ import {
   type TopicVault,
 } from '../topic-vault.ts'
 import { reanchorVaultMemory, type ReanchorOutcome } from '../material-reanchor.ts'
+import { reanchorConceptCards } from '../concept-cards.ts'
 import { emitSource } from './markdown.ts'
 import { extensionOf, parseSource, titleOf, SUPPORTED_EXTENSIONS } from './index.ts'
 import {
@@ -221,7 +222,14 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
     degradation: parsed.degradation,
   }
   await upsertManifestEntry(vault, entry)
-  const reanchored = await reanchorVaultMemory(vault, superseded, structure)
+  const memoryReanchored = await reanchorVaultMemory(vault, superseded, structure)
+  const cardReanchored = await reanchorConceptCards(vault, superseded, structure)
+  const reanchored: ReanchorOutcome = {
+    moved: memoryReanchored.moved + cardReanchored.moved,
+    unchanged: memoryReanchored.unchanged + cardReanchored.unchanged,
+    stale: memoryReanchored.stale + cardReanchored.stale,
+    recovered: memoryReanchored.recovered + cardReanchored.recovered,
+  }
   return { status: 'ingested', sourceId, title: parsed.title, entry, structure, reanchored }
 }
 

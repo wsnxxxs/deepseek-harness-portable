@@ -9,6 +9,8 @@ export interface LearningPolicyContext {
     language?: 'en' | 'zh' | 'mixed';
     /** The session runs in a learning folder that holds parsed material. */
     material?: boolean;
+    /** The learning folder contains at least one user-approved concept card. */
+    concepts?: boolean;
 }
 export declare const LEARNING_TEACHING_POLICY_CORE: string;
 /** Inject only when the turn is known to be assessed or submitted. */
@@ -22,6 +24,8 @@ export declare const LEARNING_VISUAL_POLICY: string;
  * the coverage boundary the parse actually reports.
  */
 export declare const LEARNING_MATERIAL_POLICY: string;
+/** Inject only when this vault has a real, user-approved card to review. */
+export declare const LEARNING_REVIEW_POLICY: string;
 /** Short templates make the standing/tool prompt usable for Chinese turns. */
 export declare const LEARNING_CHINESE_TEMPLATES: string;
 /**

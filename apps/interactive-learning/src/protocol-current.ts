@@ -586,6 +586,11 @@ export interface LearningStudyConceptV4 {
   label: string
   sectionId: string
   detail?: string
+  /** Stable concept-card identity when this is a saved-concepts view. */
+  conceptSlug?: string
+  mastery?: 'unseen' | 'emerging' | 'transfer'
+  due?: string
+  stale?: boolean
   prerequisiteIds?: string[]
   role?: 'foundation' | 'core' | 'extension' | 'practice'
   tone?: LearningVisualToneV4
@@ -593,6 +598,8 @@ export interface LearningStudyConceptV4 {
 
 export interface LearningStudyMapV4 {
   kind: 'study_map'
+  /** `concepts` asks the Host to materialize the saved card state. */
+  view?: 'material' | 'concepts'
   sourceLabel: string
   goal?: string
   sections: LearningStudySectionV4[]
@@ -2010,12 +2017,19 @@ function validateFormulaStepsV4(value: RecordValue, issues: string[]): Set<strin
 
 function validateStudyMapV4(value: RecordValue, issues: string[]): Set<string> {
   const focusIds = new Set<string>()
-  onlyKeys(value, ['kind', 'sourceLabel', 'goal', 'sections', 'concepts'], 'visual.content', issues)
+  onlyKeys(value, ['kind', 'view', 'sourceLabel', 'goal', 'sections', 'concepts'], 'visual.content', issues)
+  if (value.view !== undefined && value.view !== 'material' && value.view !== 'concepts') {
+    issues.push('visual.content.view must be material or concepts')
+  }
+  const conceptView = value.view === 'concepts'
   text(value.sourceLabel, 'visual.content.sourceLabel', issues, 240)
   if (value.goal !== undefined) text(value.goal, 'visual.content.goal', issues, 600)
   let sections: RecordValue[] = []
-  if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 16) {
-    issues.push('visual.content.sections must contain 1 to 16 sections')
+  if (!Array.isArray(value.sections) || value.sections.length > 16
+    || (!conceptView && value.sections.length < 1)) {
+    issues.push(conceptView
+      ? 'visual.content.sections must contain 0 to 16 sections for concepts view'
+      : 'visual.content.sections must contain 1 to 16 sections')
   } else {
     sections = value.sections.filter(record)
     if (sections.length !== value.sections.length) issues.push('visual.content.sections entries must be objects')
@@ -2031,21 +2045,32 @@ function validateStudyMapV4(value: RecordValue, issues: string[]): Set<string> {
   }
   const sectionIds = new Set(sections.flatMap(section => typeof section.id === 'string' ? [section.id] : []))
   let concepts: RecordValue[] = []
-  if (!Array.isArray(value.concepts) || value.concepts.length < 1 || value.concepts.length > 48) {
-    issues.push('visual.content.concepts must contain 1 to 48 concepts')
+  if (!Array.isArray(value.concepts) || value.concepts.length > 48
+    || (!conceptView && value.concepts.length < 1)) {
+    issues.push(conceptView
+      ? 'visual.content.concepts must contain 0 to 48 concepts for concepts view'
+      : 'visual.content.concepts must contain 1 to 48 concepts')
   } else {
     concepts = value.concepts.filter(record)
     if (concepts.length !== value.concepts.length) issues.push('visual.content.concepts entries must be objects')
     uniqueIds(concepts, 'visual.content.concepts', issues)
     for (const [index, concept] of concepts.entries()) {
       const path = `visual.content.concepts[${String(index)}]`
-      onlyKeys(concept, ['id', 'label', 'sectionId', 'detail', 'prerequisiteIds', 'role', 'tone'], path, issues)
+      onlyKeys(concept, ['id', 'label', 'sectionId', 'detail', 'conceptSlug', 'mastery', 'due', 'stale', 'prerequisiteIds', 'role', 'tone'], path, issues)
       if (id(concept.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, concept.id, `${path}.id`, issues)
       text(concept.label, `${path}.label`, issues, 160)
       if (typeof concept.sectionId !== 'string' || !sectionIds.has(concept.sectionId)) {
         issues.push(`${path}.sectionId must reference a declared section`)
       }
       if (concept.detail !== undefined) text(concept.detail, `${path}.detail`, issues, 1_500)
+      if (concept.conceptSlug !== undefined) text(concept.conceptSlug, `${path}.conceptSlug`, issues, 64)
+      if (concept.mastery !== undefined && !['unseen', 'emerging', 'transfer'].includes(concept.mastery as string)) {
+        issues.push(`${path}.mastery must be unseen, emerging, or transfer`)
+      }
+      if (concept.due !== undefined) text(concept.due, `${path}.due`, issues, 32)
+      if (concept.stale !== undefined && typeof concept.stale !== 'boolean') {
+        issues.push(`${path}.stale must be a boolean`)
+      }
       if (concept.role !== undefined && !['foundation', 'core', 'extension', 'practice'].includes(concept.role as string)) {
         issues.push(`${path}.role must be foundation, core, extension, or practice`)
       }
@@ -2800,7 +2825,7 @@ export function parseLearningVisualV4(value: unknown): LearningVisualV4 {
 export function parseLearningVisualResultV4(value: unknown): LearningVisualResultV4 {
   const issues: string[] = [...validateLearningVisualResultSchemaV4(value)]
   if (!record(value)) throw new LearningProtocolError(['visual result must be an object'])
-  onlyKeys(value, ['protocol', 'status'], 'visualResult', issues)
+  onlyKeys(value, ['protocol', 'status', 'content'], 'visualResult', issues)
   if (value.protocol !== VISUAL_RESULT_PROTOCOL_V4) {
     issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`)
   }

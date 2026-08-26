@@ -5,13 +5,13 @@
 # Material access deliberately does NOT arrive by mounting `dsh-tool-fs`: that
 # package registers `write` and `edit` alongside `read`, which would end this
 # preset's promise not to touch a person's files. Instead `learning-agent`
-# registers four READ-ONLY tools of its own — learning_material_map,
+# registers four READ-ONLY material tools of its own — learning_material_map,
 # learning_material_read, learning_material_search, and learning_material_recall
-# — each confined to the learning folder the current session runs in. Every
-# write into that folder
-# (ingesting a dropped source, updating learner memory) happens Host-side over
-# paths the Host built, so the model can read the learner's material and still
-# has no way to modify anything.
+# — plus Host-mediated concept-card proposal/review tools, each confined to the
+# learning folder the current session runs in. Every write into that folder
+# (ingesting a dropped source, updating learner memory, or saving a card after
+# explicit confirmation) happens Host-side over paths the Host built, so the
+# model has no filesystem mutation tool.
 
 - id: persona
   name: '@deepseek-ai/dsh-persona'

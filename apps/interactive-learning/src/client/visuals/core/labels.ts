@@ -64,6 +64,9 @@ export interface LearningVisualV4Labels {
   studyConcepts: string
   studyAnchor: string
   studySummary: string
+  studyProgress: string
+  studyDue: string
+  studyStale: string
   prerequisite: string
   noPrerequisite: string
   roleFoundation: string
@@ -199,6 +202,9 @@ export const DEFAULT_LABELS: LearningVisualV4Labels = {
   studyConcepts: '本节概念',
   studyAnchor: '位置',
   studySummary: '摘要',
+  studyProgress: '学习中',
+  studyDue: '到期复习',
+  studyStale: '引用待更新',
   prerequisite: '前置概念',
   noPrerequisite: '无',
   roleFoundation: '基础',

@@ -20,6 +20,8 @@ export interface LearningPolicyContext {
   language?: 'en' | 'zh' | 'mixed'
   /** The session runs in a learning folder that holds parsed material. */
   material?: boolean
+  /** The learning folder contains at least one user-approved concept card. */
+  concepts?: boolean
 }
 
 export const LEARNING_TEACHING_POLICY_CORE = [
@@ -69,6 +71,13 @@ export const LEARNING_MATERIAL_POLICY = [
   'The tools return a coverage line naming what could NOT be read — image-only pages, a guessed multi-column order, dropped formulas, a truncated read. State that boundary in your own words before teaching from the source, and never present an unread part as covered. If the material contradicts you, the material is what the learner is studying: say so plainly rather than smoothing it over.',
 ].join('\n\n')
 
+/** Inject only when this vault has a real, user-approved card to review. */
+export const LEARNING_REVIEW_POLICY = [
+  '## Saved concept cards (conditional)',
+  'This learning folder has approved concept cards. Review is optional and never blocks the learner\'s current request: call `learning_concept_recall` only when a due card would help, then use its returned cards for a `recall_deck`. Treat self-ratings as review signals, not proof of mastery.',
+  'After a correct independent fresh transfer, you may call `learning_concept_propose`; the Host will ask before writing the card. Do not create a card from an unverified explanation or infer links that were not explicitly discussed.',
+].join('\n\n')
+
 /** Short templates make the standing/tool prompt usable for Chinese turns. */
 export const LEARNING_CHINESE_TEMPLATES = [
   '中文模板：先给一个小支架，再问一个会改变下一步的问题。',
@@ -87,6 +96,7 @@ export function buildLearningTeachingPolicy(context: LearningPolicyContext = {})
     && (context.route === 'teach-minimum' || context.route === 'continue' || context.route === 'overview' || context.route === 'direct')
   if (visualRoute) conditional.push(LEARNING_VISUAL_POLICY)
   if (context.material) conditional.push(LEARNING_MATERIAL_POLICY)
+  if (context.concepts) conditional.push(LEARNING_REVIEW_POLICY)
   if (context.language === 'zh' || context.language === 'mixed') conditional.push(LEARNING_CHINESE_TEMPLATES)
   return [LEARNING_TEACHING_POLICY_CORE, ...conditional].join('\n\n')
 }

@@ -137,6 +137,11 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);
 }
 
+[data-view="concepts"] .conceptCard[data-due="true"] { border-color: color-mix(in srgb, var(--lx-danger) 58%, var(--lx-border-subtle)); }
+[data-view="concepts"] .conceptCard[data-stale="true"] { border-style: dashed; border-color: color-mix(in srgb, var(--lx-warn) 58%, var(--lx-border-subtle)); }
+[data-view="concepts"] .conceptCard[data-mastery="transfer"] > span { color: var(--lx-success); }
+[data-view="concepts"] .conceptCard[data-mastery="unseen"] > span { color: var(--lx-label-tertiary); }
+
 .studyDetail {
   position: relative;
   display: grid;

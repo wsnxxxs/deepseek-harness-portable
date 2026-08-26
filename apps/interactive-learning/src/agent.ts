@@ -41,9 +41,14 @@ import type {
 } from './learner-state.ts'
 import { LEARN_INTENT_MODEL_GUIDANCE } from './learn-intent.ts'
 import { MATERIAL_TOOL_NAMES, registerMaterialTools } from './material-tools.ts'
+import { CONCEPT_TOOL_NAMES, registerConceptTools } from './concept-tools.ts'
+import {
+  buildConceptStudyMap,
+  readConceptCards,
+  readLearnerMemoryWithCards,
+} from './concept-cards.ts'
 import {
   conceptRecordFromState,
-  readLearnerMemory,
   renderLearnerMemory,
   upsertLearnerConcept,
 } from './learner-memory.ts'
@@ -514,6 +519,7 @@ function richTeachingMoveForTool(name: string): RichTeachingMove | undefined {
 const LEARNING_NON_RICH_TOOLS: ReadonlySet<string> = new Set<string>([
   'learning_state_update',
   ...MATERIAL_TOOL_NAMES,
+  ...CONCEPT_TOOL_NAMES,
 ])
 
 function learningToolAvailable(
@@ -554,6 +560,8 @@ const learnerMemoryBlocks = new WeakMap<Agent, string>()
  * injected for an ordinary session that has no sources to read.
  */
 const vaultHasMaterial = new WeakMap<Agent, boolean>()
+/** Whether this agent's vault has approved concept cards available to review. */
+const vaultHasConcepts = new WeakMap<Agent, boolean>()
 
 /**
  * Persist this session's concept state into the vault, then reload the vault's
@@ -569,16 +577,17 @@ async function refreshLearnerMemory(services: LearningAgentContext, agent: Agent
     if (vault === undefined) {
       learnerMemoryBlocks.delete(agent)
       vaultHasMaterial.delete(agent)
+      vaultHasConcepts.delete(agent)
       return
     }
     vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0)
+    vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0)
     const record = conceptRecordFromState(
       services.learningActivities.learnerState(agent),
       String(agent.session.id),
     )
-    const memory = record === undefined
-      ? await readLearnerMemory(vault)
-      : await upsertLearnerConcept(vault, record)
+    if (record !== undefined) await upsertLearnerConcept(vault, record)
+    const memory = await readLearnerMemoryWithCards(vault)
     learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }))
   } catch (cause) {
     // Long-term memory is an enhancement to a turn, never a precondition for
@@ -610,7 +619,7 @@ const visualSelectorParameters = {
       'Choose by relationship:',
       'plot=quantitative axes or parameter sensitivity;',
       'node_link=topology; scene_2d=spatial construction; relation=comparison, mapping, or sets;',
-      'timeline=chronology; formula_steps=derivation; study_map=source structure; recall_deck=active recall;',
+      'timeline=chronology; formula_steps=derivation; study_map=source structure or saved concept state; recall_deck=active recall;',
       'data_table=records; state_transition=event-driven states; sequence_buffer=indexed slots;',
       'sequence_diagram=ordered messages; code_trace=execution; field_2d=scalar/vector field; causal_loop=signed feedback.',
     ].join(' '),
@@ -881,6 +890,7 @@ export function apply(ctx: Context): void {
   // unconditionally so the tool catalog does not change with whether a vault
   // exists; a session outside one gets a structured `no-vault` answer.
   registerMaterialTools(services)
+  registerConceptTools(services)
 
 
   services.tools.register(closeParameterRoot(defineTool({
@@ -920,6 +930,7 @@ export function apply(ctx: Context): void {
         isConcurrencySafe: () => true,
         async execute(payload, payloadExec) {
           const visual = parseLearningVisualV4(payload)
+          let materializedStudyMap: typeof visual.content | undefined
           // A study map is the one visual that asserts something about the
           // learner's own document. Inside a vault that assertion is checkable,
           // so it is checked — before the ephemeral tool is disposed, leaving
@@ -927,14 +938,21 @@ export function apply(ctx: Context): void {
           if (visual.content.kind === 'study_map') {
             const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd)
             if (vault !== undefined) {
-              const violations = await validateStudyMapAgainstVault(vault, visual.content)
-              if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations))
+              if (visual.content.view === 'concepts') {
+                materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal)
+              } else {
+                const violations = await validateStudyMapAgainstVault(vault, visual.content)
+                if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations))
+              }
+            } else if (visual.content.view === 'concepts') {
+              throw new TypeError('study_map concepts view requires a learning vault')
             }
           }
           try {
             return {
               protocol: VISUAL_RESULT_PROTOCOL_V4,
               status: services.learningActivities.recordVisual(payloadExec.agent, String(payloadExec.callId)),
+              ...(materializedStudyMap === undefined ? {} : { content: materializedStudyMap }),
             } satisfies LearningVisualResultV4
           } finally {
             queueMicrotask(() => {
@@ -1085,6 +1103,7 @@ export function apply(ctx: Context): void {
         language: promptState?.language ?? 'en',
         route: decision?.route,
         material: agent === undefined ? false : vaultHasMaterial.get(agent) ?? false,
+        concepts: agent === undefined ? false : vaultHasConcepts.get(agent) ?? false,
         visual: decision !== undefined && learningToolAvailable(
           decision,
           'learning_visual_select',

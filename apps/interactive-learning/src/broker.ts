@@ -55,6 +55,14 @@ import {
   type LearningCheckpointMetricStatus,
 } from './learner-state.ts'
 import { registerInteractiveLearningSessionCompatibility } from './bootstrap.ts'
+import {
+  nextReviewSchedule,
+  readConceptCards,
+  recallCardIdOf,
+  updateConceptCardSchedule,
+} from './concept-cards.ts'
+import { readLearnerMemory, upsertLearnerConcept } from './learner-memory.ts'
+import { resolveTopicVault } from './topic-vault.ts'
 
 // Register eagerly when the package is present. Persisted snapshots are also
 // optional log projections, so the compatibility path can retain older/newer
@@ -912,7 +920,34 @@ export class LearningActivityBroker extends Service {
         ...(turn === undefined ? {} : { turn }),
       },
     }])
+    if (feedback.status !== 'revealed') {
+      void this.persistRecallReview(active.agent, feedback).catch(cause => {
+        this.ctx.logger.warn(`recall review schedule was not persisted: ${String(cause)}`)
+      })
+    }
     return { status: 'recorded', observationId }
+  }
+
+  private async persistRecallReview(agent: Agent, feedback: LearningRecallFeedbackV1): Promise<void> {
+    const vault = await resolveTopicVault(this.ctx, agent.session.header.cwd)
+    if (vault === undefined) return
+    const card = (await readConceptCards(vault)).find(candidate => recallCardIdOf(candidate.conceptSlug) === feedback.cardId)
+    if (card === undefined) return
+    const schedule = nextReviewSchedule(card, feedback.status)
+    if (schedule === undefined) return
+    const updated = await updateConceptCardSchedule(vault, card.conceptSlug, schedule)
+    if (updated === undefined) return
+    const record = (await readLearnerMemory(vault)).concepts.find(
+      candidate => candidate.conceptSlug === card.conceptSlug,
+    )
+    if (record !== undefined) {
+      await upsertLearnerConcept(vault, {
+        ...record,
+        due: updated.due,
+        reviewIntervalDays: updated.intervalDays,
+        lastReviewedAt: updated.lastReviewedAt,
+      })
+    }
   }
 
   private recordCheckpointOutcome(

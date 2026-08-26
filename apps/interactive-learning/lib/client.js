@@ -1057,7 +1057,12 @@ window.__ModuleLoader__.load({
 					type: "string",
 					const: "study_map",
 					required: true,
-					description: "A navigable overview of a supplied document, chapter, slide deck, or multi-concept learning source. Preserve source sections and anchors instead of flattening the material."
+					description: "A navigable overview of supplied material, or the Host-materialized state of saved learner concepts."
+				},
+				view: {
+					type: "string",
+					enum: ["material", "concepts"],
+					description: "Use concepts to request the saved concept-card state; the Host supplies its sections and cards."
 				},
 				sourceLabel: {
 					type: "string",
@@ -1108,6 +1113,26 @@ window.__ModuleLoader__.load({
 								required: true
 							},
 							detail: { type: "string" },
+							conceptSlug: {
+								type: "string",
+								description: "Saved concept-card identity in concepts view."
+							},
+							mastery: {
+								type: "string",
+								enum: [
+									"unseen",
+									"emerging",
+									"transfer"
+								]
+							},
+							due: {
+								type: "string",
+								description: "Next review date in YYYY-MM-DD form."
+							},
+							stale: {
+								type: "boolean",
+								description: "Whether one or more saved source anchors no longer resolve."
+							},
 							prerequisiteIds: {
 								type: "array",
 								items: { type: "string" },
@@ -2120,6 +2145,23 @@ window.__ModuleLoader__.load({
 				}
 			}
 		] };
+		const visualContentSchemaV4 = { oneOf: [
+			plotContent,
+			nodeLinkContent,
+			sceneContent,
+			relationContent,
+			timelineContent,
+			formulaStepsContent,
+			studyMapContent,
+			recallDeckContent,
+			dataTableContent,
+			stateTransitionContent,
+			sequenceBufferContent,
+			sequenceDiagramContent,
+			codeTraceContent,
+			field2DContent,
+			causalLoopContent
+		] };
 		const LEARNING_VISUAL_SCHEMA_V4 = {
 			type: "object",
 			additionalProperties: false,
@@ -2135,23 +2177,7 @@ window.__ModuleLoader__.load({
 				},
 				description: { type: "string" },
 				content: {
-					oneOf: [
-						plotContent,
-						nodeLinkContent,
-						sceneContent,
-						relationContent,
-						timelineContent,
-						formulaStepsContent,
-						studyMapContent,
-						recallDeckContent,
-						dataTableContent,
-						stateTransitionContent,
-						sequenceBufferContent,
-						sequenceDiagramContent,
-						codeTraceContent,
-						field2DContent,
-						causalLoopContent
-					],
+					...visualContentSchemaV4,
 					required: true
 				},
 				sequence: LEARNING_VISUAL_SEQUENCE_SCHEMA_V4,
@@ -2171,7 +2197,9 @@ window.__ModuleLoader__.load({
 					type: "string",
 					enum: LEARNING_VISUAL_STATUSES,
 					required: true
-				}
+				},
+				/** Host materialization for a saved-concepts study map. */
+				content: visualContentSchemaV4
 			}
 		};
 		const LEARNING_CHECKPOINT_SCHEMA_V1 = {
@@ -3301,15 +3329,18 @@ window.__ModuleLoader__.load({
 			const focusIds = /* @__PURE__ */ new Set();
 			onlyKeys$1(value, [
 				"kind",
+				"view",
 				"sourceLabel",
 				"goal",
 				"sections",
 				"concepts"
 			], "visual.content", issues);
+			if (value.view !== void 0 && value.view !== "material" && value.view !== "concepts") issues.push("visual.content.view must be material or concepts");
+			const conceptView = value.view === "concepts";
 			text$1(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
 			if (value.goal !== void 0) text$1(value.goal, "visual.content.goal", issues, 600);
 			let sections = [];
-			if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 16) issues.push("visual.content.sections must contain 1 to 16 sections");
+			if (!Array.isArray(value.sections) || value.sections.length > 16 || !conceptView && value.sections.length < 1) issues.push(conceptView ? "visual.content.sections must contain 0 to 16 sections for concepts view" : "visual.content.sections must contain 1 to 16 sections");
 			else {
 				sections = value.sections.filter(record$1);
 				if (sections.length !== value.sections.length) issues.push("visual.content.sections entries must be objects");
@@ -3330,7 +3361,7 @@ window.__ModuleLoader__.load({
 			}
 			const sectionIds = new Set(sections.flatMap((section) => typeof section.id === "string" ? [section.id] : []));
 			let concepts = [];
-			if (!Array.isArray(value.concepts) || value.concepts.length < 1 || value.concepts.length > 48) issues.push("visual.content.concepts must contain 1 to 48 concepts");
+			if (!Array.isArray(value.concepts) || value.concepts.length > 48 || !conceptView && value.concepts.length < 1) issues.push(conceptView ? "visual.content.concepts must contain 0 to 48 concepts for concepts view" : "visual.content.concepts must contain 1 to 48 concepts");
 			else {
 				concepts = value.concepts.filter(record$1);
 				if (concepts.length !== value.concepts.length) issues.push("visual.content.concepts entries must be objects");
@@ -3342,6 +3373,10 @@ window.__ModuleLoader__.load({
 						"label",
 						"sectionId",
 						"detail",
+						"conceptSlug",
+						"mastery",
+						"due",
+						"stale",
 						"prerequisiteIds",
 						"role",
 						"tone"
@@ -3350,6 +3385,14 @@ window.__ModuleLoader__.load({
 					text$1(concept.label, `${path}.label`, issues, 160);
 					if (typeof concept.sectionId !== "string" || !sectionIds.has(concept.sectionId)) issues.push(`${path}.sectionId must reference a declared section`);
 					if (concept.detail !== void 0) text$1(concept.detail, `${path}.detail`, issues, 1500);
+					if (concept.conceptSlug !== void 0) text$1(concept.conceptSlug, `${path}.conceptSlug`, issues, 64);
+					if (concept.mastery !== void 0 && ![
+						"unseen",
+						"emerging",
+						"transfer"
+					].includes(concept.mastery)) issues.push(`${path}.mastery must be unseen, emerging, or transfer`);
+					if (concept.due !== void 0) text$1(concept.due, `${path}.due`, issues, 32);
+					if (concept.stale !== void 0 && typeof concept.stale !== "boolean") issues.push(`${path}.stale must be a boolean`);
 					if (concept.role !== void 0 && ![
 						"foundation",
 						"core",
@@ -4247,7 +4290,11 @@ window.__ModuleLoader__.load({
 		function parseLearningVisualResultV4(value) {
 			const issues = [...validateLearningVisualResultSchemaV4(value)];
 			if (!record$1(value)) throw new LearningProtocolError(["visual result must be an object"]);
-			onlyKeys$1(value, ["protocol", "status"], "visualResult", issues);
+			onlyKeys$1(value, [
+				"protocol",
+				"status",
+				"content"
+			], "visualResult", issues);
 			if (value.protocol !== "dsh-learning/visual-result@4") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V4}`);
 			if (!LEARNING_VISUAL_STATUSES.includes(value.status)) issues.push(`visualResult.status must be one of ${LEARNING_VISUAL_STATUSES.join(", ")}`);
 			if (issues.length > 0) throw new LearningProtocolError(issues);
@@ -7406,6 +7453,9 @@ window.__ModuleLoader__.load({
 			studyConcepts: "本节概念",
 			studyAnchor: "位置",
 			studySummary: "摘要",
+			studyProgress: "学习中",
+			studyDue: "到期复习",
+			studyStale: "引用待更新",
 			prerequisite: "前置概念",
 			noPrerequisite: "无",
 			roleFoundation: "基础",
@@ -10851,7 +10901,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/study.module.css.mjs
-		const css$7 = ".ApA5Lq_studySource{gap:var(--lx-space-3xs) var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 22%, var(--lx-surface-base));grid-template-columns:auto minmax(0,1fr);align-items:baseline;display:grid}.ApA5Lq_studySource>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.ApA5Lq_studySource>strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}.ApA5Lq_studySource>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.ApA5Lq_studySource>p b{margin-right:var(--lx-space-xs);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.ApA5Lq_studyDependencyMap{gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:grid}.ApA5Lq_studyDependencyHeader{justify-content:space-between;gap:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;display:flex}.ApA5Lq_studyDependencyTrack{grid-template-columns:subgrid;gap:var(--lx-space-sm);grid-column:1/-1;min-width:0;display:grid}.ApA5Lq_studyDependencyLevel{gap:var(--lx-space-xs);align-content:start;min-width:0;display:grid;position:relative}.ApA5Lq_studyDependencyLevel:not(:last-child):after{top:50%;right:calc(var(--lx-space-sm) * -1);color:var(--lx-accent);content:\"→\";font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);position:absolute}.ApA5Lq_studyDependencyNode{border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--lx-accent-soft) 18%, var(--lx-surface-base));color:var(--lx-label-primary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere}.ApA5Lq_studyDependencyNode[data-role=foundation]{border-color:color-mix(in srgb, var(--lx-success) 36%, var(--lx-border-subtle))}.ApA5Lq_studyDependencyNode[data-role=practice]{border-style:dashed}.ApA5Lq_studyLayout{gap:var(--lx-space-lg);grid-template-columns:minmax(160px,.32fr) minmax(0,1fr);min-width:0;display:grid}.ApA5Lq_studySections{gap:var(--lx-space-xs);flex-direction:column;min-width:0;display:flex}.ApA5Lq_sectionTab{gap:0 var(--lx-space-sm);min-width:0;padding:var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:24px minmax(0,1fr);justify-items:start;display:grid}.ApA5Lq_sectionTab>span{border-radius:var(--lx-radius-circle);background:var(--lx-border-subtle);width:22px;height:22px;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);grid-row:1/3;place-items:center;display:grid}.ApA5Lq_sectionTab>strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab[aria-selected=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 42%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm)}.ApA5Lq_sectionTab[aria-selected=true]>span{background:var(--lx-accent);color:var(--lx-label-on-accent)}.ApA5Lq_studySectionPanel{gap:var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-lg);background:var(--lx-surface-sunken);flex-direction:column;display:flex}.ApA5Lq_studySectionPanel>header{gap:var(--lx-space-xs);display:grid}.ApA5Lq_studySectionPanel>header span{color:var(--lx-accent);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.ApA5Lq_studySectionPanel>header h4{color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);margin:0}.ApA5Lq_studySectionPanel>header p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.ApA5Lq_studyConcepts{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));display:grid}.ApA5Lq_conceptCard{gap:var(--lx-space-3xs);border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);opacity:var(--lx-vs-alpha);text-align:left;transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);justify-items:start;display:grid}.ApA5Lq_conceptCard:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.ApA5Lq_conceptCard>span{color:var(--visual-tone-text);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.ApA5Lq_conceptCard>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.ApA5Lq_conceptCard>small{gap:var(--lx-space-3xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);display:grid}.ApA5Lq_conceptCard>small b{color:var(--lx-label-secondary);font-weight:var(--lx-weight-medium)}.ApA5Lq_conceptCard[data-selected]{border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);border-width:2px}.ApA5Lq_studyDetail{gap:var(--lx-space-xs) var(--lx-space-md);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 24%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);grid-template-columns:minmax(0,1fr) 28px;display:grid;position:relative}.ApA5Lq_studyDetail>div{gap:var(--lx-space-sm);align-items:baseline;min-width:0;display:flex}.ApA5Lq_studyDetail>div span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);flex:none}.ApA5Lq_studyDetail>div strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);overflow-wrap:anywhere}.ApA5Lq_studyDetail>p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1;margin:0}.ApA5Lq_studyDetail>dl{gap:var(--lx-space-sm);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);grid-column:1;margin:0;display:flex}.ApA5Lq_studyDetail dt{color:var(--lx-label-tertiary)}.ApA5Lq_studyDetail dd{color:var(--lx-label-secondary);margin:0}.ApA5Lq_studyDetail>button{grid-area:1/2/4;align-self:start}@container ApA5Lq_learning-visual-v4 (width<=560px){.ApA5Lq_studyLayout{grid-template-columns:1fr}.ApA5Lq_studySections{scrollbar-width:thin;flex-direction:row;padding-bottom:3px;overflow-x:auto}.ApA5Lq_sectionTab{min-width:156px}}";
+		const css$7 = ".ApA5Lq_studySource{gap:var(--lx-space-3xs) var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 22%, var(--lx-surface-base));grid-template-columns:auto minmax(0,1fr);align-items:baseline;display:grid}.ApA5Lq_studySource>span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}.ApA5Lq_studySource>strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}.ApA5Lq_studySource>p{margin:var(--lx-space-3xs) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1}.ApA5Lq_studySource>p b{margin-right:var(--lx-space-xs);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}.ApA5Lq_studyDependencyMap{gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:var(--lx-surface-sunken);display:grid}.ApA5Lq_studyDependencyHeader{justify-content:space-between;gap:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;display:flex}.ApA5Lq_studyDependencyTrack{grid-template-columns:subgrid;gap:var(--lx-space-sm);grid-column:1/-1;min-width:0;display:grid}.ApA5Lq_studyDependencyLevel{gap:var(--lx-space-xs);align-content:start;min-width:0;display:grid;position:relative}.ApA5Lq_studyDependencyLevel:not(:last-child):after{top:50%;right:calc(var(--lx-space-sm) * -1);color:var(--lx-accent);content:\"→\";font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);position:absolute}.ApA5Lq_studyDependencyNode{border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-radius:var(--lx-radius-sm);min-width:0;padding:var(--lx-space-2xs) var(--lx-space-xs);background:color-mix(in srgb, var(--lx-accent-soft) 18%, var(--lx-surface-base));color:var(--lx-label-primary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere}.ApA5Lq_studyDependencyNode[data-role=foundation]{border-color:color-mix(in srgb, var(--lx-success) 36%, var(--lx-border-subtle))}.ApA5Lq_studyDependencyNode[data-role=practice]{border-style:dashed}.ApA5Lq_studyLayout{gap:var(--lx-space-lg);grid-template-columns:minmax(160px,.32fr) minmax(0,1fr);min-width:0;display:grid}.ApA5Lq_studySections{gap:var(--lx-space-xs);flex-direction:column;min-width:0;display:flex}.ApA5Lq_sectionTab{gap:0 var(--lx-space-sm);min-width:0;padding:var(--lx-space-sm);text-align:left;opacity:var(--lx-vs-alpha);transition:background-color var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing);grid-template-columns:24px minmax(0,1fr);justify-items:start;display:grid}.ApA5Lq_sectionTab>span{border-radius:var(--lx-radius-circle);background:var(--lx-border-subtle);width:22px;height:22px;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);grid-row:1/3;place-items:center;display:grid}.ApA5Lq_sectionTab>strong{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab>small{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ApA5Lq_sectionTab[aria-selected=true]{border-color:var(--lx-accent);background:color-mix(in srgb, var(--lx-accent-soft) 42%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm)}.ApA5Lq_sectionTab[aria-selected=true]>span{background:var(--lx-accent);color:var(--lx-label-on-accent)}.ApA5Lq_studySectionPanel{gap:var(--lx-space-md);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-lg);background:var(--lx-surface-sunken);flex-direction:column;display:flex}.ApA5Lq_studySectionPanel>header{gap:var(--lx-space-xs);display:grid}.ApA5Lq_studySectionPanel>header span{color:var(--lx-accent);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}.ApA5Lq_studySectionPanel>header h4{color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);margin:0}.ApA5Lq_studySectionPanel>header p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}.ApA5Lq_studyConcepts{gap:var(--lx-space-sm);grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));display:grid}.ApA5Lq_conceptCard{gap:var(--lx-space-3xs);border-color:color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 8%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);opacity:var(--lx-vs-alpha);text-align:left;transition:border-color var(--lx-motion-fast) var(--lx-easing), box-shadow var(--lx-motion-fast) var(--lx-easing);justify-items:start;display:grid}.ApA5Lq_conceptCard:hover{border-color:var(--visual-tone);box-shadow:0 0 8px color-mix(in srgb, var(--visual-tone) 24%, transparent)}.ApA5Lq_conceptCard>span{color:var(--visual-tone-text);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong)}.ApA5Lq_conceptCard>strong{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}.ApA5Lq_conceptCard>small{gap:var(--lx-space-3xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);display:grid}.ApA5Lq_conceptCard>small b{color:var(--lx-label-secondary);font-weight:var(--lx-weight-medium)}.ApA5Lq_conceptCard[data-selected]{border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 32%, transparent);border-width:2px}[data-view=concepts] .ApA5Lq_conceptCard[data-due=true]{border-color:color-mix(in srgb, var(--lx-danger) 58%, var(--lx-border-subtle))}[data-view=concepts] .ApA5Lq_conceptCard[data-stale=true]{border-style:dashed;border-color:color-mix(in srgb, var(--lx-warn) 58%, var(--lx-border-subtle))}[data-view=concepts] .ApA5Lq_conceptCard[data-mastery=transfer]>span{color:var(--lx-success)}[data-view=concepts] .ApA5Lq_conceptCard[data-mastery=unseen]>span{color:var(--lx-label-tertiary)}.ApA5Lq_studyDetail{gap:var(--lx-space-xs) var(--lx-space-md);border:1px solid color-mix(in srgb, var(--lx-accent) 26%, var(--lx-border-subtle));border-left:3.5px solid var(--lx-accent);border-radius:var(--lx-radius-md);padding:var(--lx-space-md);background:color-mix(in srgb, var(--lx-accent-soft) 24%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);grid-template-columns:minmax(0,1fr) 28px;display:grid;position:relative}.ApA5Lq_studyDetail>div{gap:var(--lx-space-sm);align-items:baseline;min-width:0;display:flex}.ApA5Lq_studyDetail>div span{color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);flex:none}.ApA5Lq_studyDetail>div strong{min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-sm);overflow-wrap:anywhere}.ApA5Lq_studyDetail>p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1;margin:0}.ApA5Lq_studyDetail>dl{gap:var(--lx-space-sm);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);grid-column:1;margin:0;display:flex}.ApA5Lq_studyDetail dt{color:var(--lx-label-tertiary)}.ApA5Lq_studyDetail dd{color:var(--lx-label-secondary);margin:0}.ApA5Lq_studyDetail>button{grid-area:1/2/4;align-self:start}@container ApA5Lq_learning-visual-v4 (width<=560px){.ApA5Lq_studyLayout{grid-template-columns:1fr}.ApA5Lq_studySections{scrollbar-width:thin;flex-direction:row;padding-bottom:3px;overflow-x:auto}.ApA5Lq_sectionTab{min-width:156px}}";
 		const tagId$7 = "@dsh-portable/interactive-learning/study.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$7) + "]") === null) {
 			const tag = document.createElement("style");
@@ -10885,9 +10935,15 @@ window.__ModuleLoader__.load({
 			if (role === "extension") return labels.roleExtension;
 			if (role === "practice") return labels.rolePractice;
 		}
+		function studyMasteryLabel(mastery, labels) {
+			if (mastery === "transfer") return labels.mastered;
+			if (mastery === "emerging") return labels.studyProgress;
+			return labels.unrated;
+		}
 		function StudyMapRenderer({ content, focus }) {
 			const labels = useVisualLabels();
 			const id = (0, react.useId)();
+			const conceptView = content.view === "concepts";
 			const conceptById = (0, react.useMemo)(() => new Map(content.concepts.map((concept) => [concept.id, concept])), [content.concepts]);
 			const dependencyLevels = (0, react.useMemo)(() => {
 				const levelCache = /* @__PURE__ */ new Map();
@@ -10943,8 +10999,10 @@ window.__ModuleLoader__.load({
 					(event.currentTarget.parentElement?.querySelectorAll("[role=\"tab\"]"))?.[nextIndex]?.focus();
 				}
 			};
+			if (content.concepts.length === 0 && content.sections.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyFigure, {});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: shell_module_css_default.rendererStack,
+				"data-view": content.view ?? "material",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: study_module_css_default.studySource,
@@ -10954,7 +11012,7 @@ window.__ModuleLoader__.load({
 							content.goal === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: labels.studyGoal }), content.goal] })
 						]
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					conceptView ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: study_module_css_default.studyDependencyMap,
 						role: "img",
 						"aria-label": `${labels.prerequisite} ${labels.studyConcepts}`,
@@ -11011,20 +11069,22 @@ window.__ModuleLoader__.load({
 								children: concepts.map((concept, index) => {
 									const role = studyRoleLabel(concept.role, labels);
 									const prerequisites = (concept.prerequisiteIds ?? []).map((prerequisiteId) => conceptById.get(prerequisiteId)?.label ?? prerequisiteId);
-									if (content.concepts.length === 0 && content.sections.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyFigure, {});
 									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 										type: "button",
 										className: `${shell_module_css_default.control} ${study_module_css_default.conceptCard}`,
 										"data-tone": toneAt(concept.tone, index),
 										"data-role": concept.role,
+										"data-mastery": concept.mastery,
+										"data-due": concept.due === void 0 ? void 0 : "true",
+										"data-stale": concept.stale === true ? "true" : void 0,
 										"data-visual-state": concept.id === selectedConceptId ? "selected" : elementState(concept.id, focus),
 										"data-selected": concept.id === selectedConceptId || void 0,
 										"data-visual-id": concept.id,
 										onClick: () => setSelectedConceptId(concept.id),
 										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: role ?? labels.studyConcepts }),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: conceptView ? studyMasteryLabel(concept.mastery, labels) : role ?? labels.studyConcepts }),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: concept.label }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("small", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: labels.prerequisite }), prerequisites.length === 0 ? labels.noPrerequisite : prerequisites.join(" → ")] })
+											conceptView ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("small", { children: [concept.due === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: labels.studyDue }), concept.due] }), concept.stale === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: labels.studyStale }) }) : null] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("small", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: labels.prerequisite }), prerequisites.length === 0 ? labels.noPrerequisite : prerequisites.join(" → ")] })
 										]
 									}, concept.id);
 								})
@@ -11040,9 +11100,14 @@ window.__ModuleLoader__.load({
 							className: study_module_css_default.studyDetail,
 							"aria-live": "polite",
 							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: studyRoleLabel(selectedConcept.role, labels) ?? labels.studyConcepts }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: selectedConcept.label })] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: conceptView ? studyMasteryLabel(selectedConcept.mastery, labels) : studyRoleLabel(selectedConcept.role, labels) ?? labels.studyConcepts }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: selectedConcept.label })] }),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: selectedConcept.detail ?? labels.noDetail }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dl", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: labels.prerequisite }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: (selectedConcept.prerequisiteIds ?? []).map((prerequisiteId) => conceptById.get(prerequisiteId)?.label ?? prerequisiteId).join(" → ") || labels.noPrerequisite })] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dl", { children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: conceptView ? labels.studyProgress : labels.prerequisite }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: conceptView ? studyMasteryLabel(selectedConcept.mastery, labels) : (selectedConcept.prerequisiteIds ?? []).map((prerequisiteId) => conceptById.get(prerequisiteId)?.label ?? prerequisiteId).join(" → ") || labels.noPrerequisite }),
+									conceptView && selectedConcept.due !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: labels.studyDue }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: selectedConcept.due })] }) : null,
+									conceptView && selectedConcept.stale === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: labels.studyStale }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: labels.studyStale })] }) : null
+								] }),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: `${shell_module_css_default.control} ${shell_module_css_default.closeButton}`,
@@ -14078,6 +14143,9 @@ window.__ModuleLoader__.load({
 			studyConcepts: "visualStudyConcepts",
 			studyAnchor: "visualStudyAnchor",
 			studySummary: "visualStudySummary",
+			studyProgress: "visualStudyProgress",
+			studyDue: "visualStudyDue",
+			studyStale: "visualStudyStale",
 			prerequisite: "visualPrerequisite",
 			noPrerequisite: "visualNoPrerequisite",
 			roleFoundation: "visualRoleFoundation",
@@ -14507,8 +14575,13 @@ window.__ModuleLoader__.load({
 					protocol: "visual-v4",
 					t
 				});
+				const materializedContent = visualResult?.protocol === "dsh-learning/visual-result@4" && visualResult.content?.kind === "study_map" ? visualResult.content : void 0;
+				const renderedVisual = materializedContent === void 0 ? definition : {
+					...definition,
+					content: materializedContent
+				};
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningVisualV4, {
-					visual: definition,
+					visual: renderedVisual,
 					storageKey: `${String(sessionId)}:${callId ?? "visual"}`,
 					labels,
 					onRecallStatusChange: (cardId, status) => {
@@ -15084,6 +15157,9 @@ window.__ModuleLoader__.load({
 			visualStudyConcepts: "本节概念",
 			visualStudyAnchor: "位置",
 			visualStudySummary: "摘要",
+			visualStudyProgress: "学习中",
+			visualStudyDue: "到期复习",
+			visualStudyStale: "引用待更新",
 			visualPrerequisite: "前置概念",
 			visualNoPrerequisite: "无",
 			visualRoleFoundation: "基础",
@@ -15289,6 +15365,9 @@ window.__ModuleLoader__.load({
 			visualStudyConcepts: "Concepts in this section",
 			visualStudyAnchor: "Location",
 			visualStudySummary: "Summary",
+			visualStudyProgress: "Learning",
+			visualStudyDue: "Due for review",
+			visualStudyStale: "Stale citation",
 			visualPrerequisite: "Prerequisites",
 			visualNoPrerequisite: "None",
 			visualRoleFoundation: "Foundation",
@@ -15382,7 +15461,11 @@ window.__ModuleLoader__.load({
 			return null;
 		}
 		const name = "interactive-learning-client";
-		const inject = ["slots", "locale"];
+		const inject = [
+			"slots",
+			"locale",
+			"connection"
+		];
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, {
 				zh,

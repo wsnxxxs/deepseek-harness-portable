@@ -144,6 +144,9 @@ const VISUAL_LABEL_KEYS = {
   studyConcepts: 'visualStudyConcepts',
   studyAnchor: 'visualStudyAnchor',
   studySummary: 'visualStudySummary',
+  studyProgress: 'visualStudyProgress',
+  studyDue: 'visualStudyDue',
+  studyStale: 'visualStudyStale',
   prerequisite: 'visualPrerequisite',
   noPrerequisite: 'visualNoPrerequisite',
   roleFoundation: 'visualRoleFoundation',
@@ -652,9 +655,16 @@ export function LearningToolView({ block, inspect, t, useSession, sessionId }: L
         />
       )
     }
+    const materializedContent = visualResult?.protocol === VISUAL_RESULT_PROTOCOL_V4
+      && visualResult.content?.kind === 'study_map'
+      ? visualResult.content as LearningVisualV4Definition['content']
+      : undefined
+    const renderedVisual = materializedContent === undefined
+      ? definition
+      : { ...definition, content: materializedContent }
     return (
       <LearningVisualV4
-        visual={definition}
+        visual={renderedVisual}
         storageKey={`${String(sessionId)}:${callId ?? 'visual'}`}
         labels={labels}
         onRecallStatusChange={(cardId, status) => {

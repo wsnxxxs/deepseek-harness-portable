@@ -42,6 +42,10 @@ export interface LearnerConceptRecord {
     evidenceCount: number;
     /** ISO-8601 review date; `null` until scheduling is enabled. */
     due: string | null;
+    /** Current review interval in days, when this concept has a saved card. */
+    reviewIntervalDays?: number;
+    /** Last learner-owned review rating, when one exists. */
+    lastReviewedAt?: string | null;
     updatedAt: string;
     /** Sessions this concept was learned in, newest first, for lineage lookups. */
     sessionIds: readonly string[];

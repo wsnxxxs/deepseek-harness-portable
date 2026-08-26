@@ -569,12 +569,19 @@ export interface LearningStudyConceptV4 {
     label: string;
     sectionId: string;
     detail?: string;
+    /** Stable concept-card identity when this is a saved-concepts view. */
+    conceptSlug?: string;
+    mastery?: 'unseen' | 'emerging' | 'transfer';
+    due?: string;
+    stale?: boolean;
     prerequisiteIds?: string[];
     role?: 'foundation' | 'core' | 'extension' | 'practice';
     tone?: LearningVisualToneV4;
 }
 export interface LearningStudyMapV4 {
     kind: 'study_map';
+    /** `concepts` asks the Host to materialize the saved card state. */
+    view?: 'material' | 'concepts';
     sourceLabel: string;
     goal?: string;
     sections: LearningStudySectionV4[];

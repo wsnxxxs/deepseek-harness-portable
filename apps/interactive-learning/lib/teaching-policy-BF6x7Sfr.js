@@ -1,4 +1,6 @@
 import { _ as slugify, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as VAULT_MANIFEST_PROTOCOL, g as sectionIdOf, h as quoteHashOf, i as formatAnchorTarget, l as sameStringList, m as normalizeQuote, p as contentHashOf, r as anchorTargetsOf, s as parseAnchorText } from "./material-anchor-GE7zenuO.js";
+import { createHash } from "node:crypto";
+import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
 import { copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { inflateRawSync } from "node:zlib";
@@ -351,6 +353,181 @@ function isLearningBoundary(input) {
 /** Compact standing text; detailed diagnosis and moves stay in references. */
 const LEARNING_INTENT_POLICY = ["Classify the request before teaching: learn intent covers definitions (“what is X”), a bare concept name, ELI5/beginner requests, persistent confusion or rustiness (“I always mix these up / can’t remember / 没学会”), conceptual why/how questions, prerequisites, learning paths, and requested study artifacts such as “quiz me”, flashcards, or a study guide.", "Keep coding/implementation or debugging, direct calculation, personal troubleshooting, translation or rewriting, news/breaking updates, stable or current factual lookups, resource recommendations, and opinion or verdict requests on their ordinary task route. A current or contested topic is still learn intent when the user asks for structured understanding; a latest-news or current-value lookup is not."].join(" ");
 //#endregion
+//#region lib/types/ingest/markdown.js
+/**
+* The emitter: one {@link ParsedSource} becomes the extracted markdown a learner
+* (and `grep`) can read, plus the {@link SourceStructure} that is the single
+* source of truth for section ids and anchors.
+*
+* Nothing here consults a model. Every section id, label, and page marker is
+* derived from the parse, which is what makes a hallucinated chapter detectable
+* rather than merely discouraged.
+* @module @dsh-portable/interactive-learning/src/ingest/markdown
+*/
+/** Marker opening every extracted file; also the reimport provenance record. */
+const EXTRACTED_HEADER = "dsh-learning:source";
+function escapeAttribute(value) {
+	return value.replace(/["\\]/gu, "\\$&").replace(/\s+/gu, " ").trim();
+}
+/**
+* Render the extracted markdown, recording where each heading landed.
+*
+* Line positions are captured during rendering rather than recovered afterwards
+* so the structure can never disagree with the file it describes — a section
+* whose recorded line points at the wrong text would make every read from it
+* quote the wrong passage.
+*/
+function renderSource(source) {
+	const lines = [`<!-- ${EXTRACTED_HEADER} id=${source.sourceId} title="${escapeAttribute(source.title)}" parser=${source.parser} -->`, ""];
+	const headingLines = [];
+	let page;
+	for (const block of source.blocks) {
+		if (block.anchor.page !== void 0 && block.anchor.page !== page) {
+			page = block.anchor.page;
+			lines.push(`<!-- p.${page} -->`);
+		}
+		switch (block.kind) {
+			case "heading":
+				headingLines.push(lines.length + 1);
+				lines.push(`${"#".repeat(block.level ?? 1)} ${block.text}`, "");
+				break;
+			case "code":
+				lines.push(`\`\`\`${block.lang ?? ""}`, ...block.text.split("\n"), "```", "");
+				break;
+			case "caption":
+				lines.push(...block.text.split("\n").map((line) => `> ${line}`), "");
+				break;
+			default: lines.push(...block.text.split("\n"), "");
+		}
+	}
+	return {
+		markdown: `${lines.join("\n")}\n`,
+		headingLines,
+		totalLines: lines.length
+	};
+}
+/**
+* Render the extracted markdown for one parsed source.
+* @param source - The parse result.
+* @returns markdown text, ending with a newline.
+*/
+function renderExtractedMarkdown(source) {
+	return renderSource(source).markdown;
+}
+/**
+* Emit both artifacts of one parse in a single pass.
+*
+* This is the ingest pipeline's entry point: rendering and structure derivation
+* share the line positions, so the two files written to a vault always agree.
+* @param source - The parse result.
+* @param extractedPath - Vault-relative path the markdown will be written to.
+*/
+function emitSource(source, extractedPath) {
+	const rendered = renderSource(source);
+	return {
+		markdown: rendered.markdown,
+		structure: deriveStructure(source, extractedPath, rendered)
+	};
+}
+/**
+* Derive the navigable structure from a parse.
+*
+* Section ids come from the heading chain, so they survive repagination; a
+* duplicate chain (two chapters genuinely titled the same) is disambiguated by
+* an ordinal suffix rather than silently collapsed, because two sections
+* sharing one id would make every anchor into either of them ambiguous.
+* @param source - The parse result.
+* @param extractedPath - Vault-relative path of the emitted markdown.
+* @returns the structure record written to `.learning/structure/`.
+*/
+function deriveStructure(source, extractedPath, rendered = renderSource(source)) {
+	const sections = [];
+	const taken = /* @__PURE__ */ new Map();
+	const idByChain = /* @__PURE__ */ new Map();
+	let current;
+	let totalChars = 0;
+	let headingIndex = 0;
+	for (const block of source.blocks) {
+		if (block.kind !== "heading") {
+			totalChars += block.text.length;
+			if (current !== void 0) {
+				const opening = current.charCount === 0 ? { quoteHash: block.anchor.quoteHash } : {};
+				current = {
+					...current,
+					...opening,
+					charCount: current.charCount + block.text.length
+				};
+				sections[sections.length - 1] = current;
+			}
+			continue;
+		}
+		const line = rendered.headingLines[headingIndex] ?? 1;
+		headingIndex += 1;
+		if (current !== void 0) {
+			current = {
+				...current,
+				endLine: line
+			};
+			sections[sections.length - 1] = current;
+		}
+		const chain = block.anchor.headingPath;
+		const base = sectionIdOf(chain);
+		const used = taken.get(base) ?? 0;
+		taken.set(base, used + 1);
+		const id = used === 0 ? base : `${base}~${used + 1}`;
+		idByChain.set(chain.join("\0"), id);
+		const parentChain = chain.slice(0, -1);
+		const parentId = parentChain.length === 0 ? void 0 : idByChain.get(parentChain.join("\0"));
+		current = {
+			id,
+			label: block.text,
+			level: block.level ?? 1,
+			headingPath: [...chain],
+			...block.anchor.page === void 0 ? {} : { page: block.anchor.page },
+			...parentId === void 0 ? {} : { parentId },
+			charCount: 0,
+			quoteHash: block.anchor.quoteHash,
+			line,
+			endLine: rendered.totalLines + 1
+		};
+		sections.push(current);
+		totalChars += block.text.length;
+	}
+	return {
+		protocol: SOURCE_STRUCTURE_PROTOCOL,
+		sourceId: source.sourceId,
+		title: source.title,
+		parser: source.parser,
+		extractedPath,
+		sections,
+		degradation: source.degradation,
+		totalChars
+	};
+}
+/**
+* Re-anchor one stored anchor against a rebuilt structure, the reimport path.
+*
+* Two resolutions, in order. The heading chain is what a person actually wrote
+* down, so it wins when the section kept its title. The quote hash — the
+* identity of the section's opening BODY text — is what recovers a section that
+* a new edition retitled, which is the case the heading chain cannot survive.
+*
+* Nothing matching is reported as `undefined` so the caller can mark the anchor
+* stale; silently keeping the old page number would assert a location that no
+* longer exists.
+* @param headingPath - The stored heading chain.
+* @param quoteHash - The opening-body identity recorded by the previous parse.
+* @param structure - The freshly derived structure.
+* @returns the matching section, or `undefined` when the anchor is now stale.
+*/
+function reanchor(headingPath, quoteHash, structure) {
+	const key = headingPath.join("\0");
+	const exact = structure.sections.find((section) => section.headingPath.join("\0") === key);
+	if (exact !== void 0) return exact;
+	if (quoteHash === "") return void 0;
+	return structure.sections.find((section) => section.quoteHash === quoteHash);
+}
+//#endregion
 //#region lib/types/topic-vault.js
 /**
 * The topic vault: a learning topic IS a real directory, and that directory is a
@@ -598,6 +775,830 @@ function contain(absolute, root, candidate) {
 /** Vault-relative form of an absolute path, for display and for anchors. */
 function vaultRelative(vault, absolute) {
 	return relative(vault.root, absolute).split(sep).join("/");
+}
+//#endregion
+//#region lib/types/learner-memory.js
+/**
+* Cross-session learner memory, keyed by (vault, concept) instead of by session.
+*
+* The existing durability mechanism is not replaced. A full learner-state
+* snapshot still rides the session log and is folded back on load, which is what
+* survives refresh, resume, compaction, and fork. What was missing is only a key
+* that outlives one session — so this module writes a SECOND, bounded projection
+* per concept and reads it back when a later session opens the same vault.
+*
+* It lives in the vault rather than in harness storage so the whole promise of
+* the design holds literally: everything a person's learning produced is in one
+* folder they own, and deleting the folder deletes all of it. Note that
+* `.learning/memory.json` is the one file under `.learning/` that is NOT
+* rebuildable — the structure cache beside it is.
+* @module @dsh-portable/interactive-learning/src/learner-memory
+*/
+/** Memory-file protocol tag; bumped only on a breaking record change. */
+const LEARNER_MEMORY_PROTOCOL = "dsh-learning-memory@1";
+/** Concepts rendered into one prompt injection. */
+const MAX_RENDERED_CONCEPTS = 12;
+/** Concepts retained on disk before the least recently touched are dropped. */
+const MAX_STORED_CONCEPTS = 500;
+/** Anchors and misconceptions retained per concept. */
+const MAX_LIST_ITEMS = 6;
+const EMPTY = {
+	protocol: LEARNER_MEMORY_PROTOCOL,
+	concepts: []
+};
+const MASTERY$1 = /* @__PURE__ */ new Set([
+	"unseen",
+	"emerging",
+	"transfer"
+]);
+const MASTERY_BASIS$1 = /* @__PURE__ */ new Set(["evidence", "user-correction"]);
+const PHASES = /* @__PURE__ */ new Set([
+	"orient",
+	"teach",
+	"practice",
+	"repair",
+	"transfer",
+	"complete"
+]);
+const GAPS = /* @__PURE__ */ new Set([
+	"concept",
+	"procedure",
+	"notation",
+	"task-model",
+	"prerequisite",
+	"unknown"
+]);
+function stringList(value) {
+	if (!Array.isArray(value)) return [];
+	return value.filter((item) => typeof item === "string" && item.trim() !== "").map((item) => item.trim()).slice(0, MAX_LIST_ITEMS);
+}
+/**
+* Validate one stored record.
+*
+* Hand-written rather than schema-driven, matching `learner-state.ts`: the vault
+* is a folder a person can edit, so a malformed record must be dropped quietly
+* rather than fail the session that opened it.
+* @returns the record, or `undefined` when it is not usable.
+*/
+function parseLearnerConceptRecord(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const record = value;
+	const conceptSlug = typeof record.conceptSlug === "string" ? record.conceptSlug.trim() : "";
+	const label = typeof record.label === "string" ? record.label.trim() : "";
+	if (conceptSlug === "" || label === "") return void 0;
+	if (!MASTERY$1.has(record.mastery)) return void 0;
+	return {
+		conceptSlug,
+		label,
+		mastery: record.mastery,
+		masteryBasis: MASTERY_BASIS$1.has(record.masteryBasis) ? record.masteryBasis : "evidence",
+		phase: PHASES.has(record.phase) ? record.phase : "orient",
+		gap: GAPS.has(record.gap) ? record.gap : "unknown",
+		misconceptions: stringList(record.misconceptions),
+		anchors: stringList(record.anchors),
+		staleAnchors: stringList(record.staleAnchors),
+		evidenceCount: Number.isSafeInteger(record.evidenceCount) && record.evidenceCount >= 0 ? record.evidenceCount : 0,
+		due: typeof record.due === "string" && record.due !== "" ? record.due : null,
+		...Number.isSafeInteger(record.reviewIntervalDays) && record.reviewIntervalDays > 0 ? { reviewIntervalDays: record.reviewIntervalDays } : {},
+		...record.lastReviewedAt === null || typeof record.lastReviewedAt === "string" ? { lastReviewedAt: record.lastReviewedAt } : {},
+		updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : (/* @__PURE__ */ new Date(0)).toISOString(),
+		sessionIds: stringList(record.sessionIds)
+	};
+}
+/** Absolute path of a vault's memory file. */
+function memoryPathOf(vault) {
+	return join(vault.internal, "memory.json");
+}
+/**
+* Read a vault's learner memory.
+* @returns the memory, or an empty one when absent or damaged.
+*/
+async function readLearnerMemory(vault) {
+	try {
+		const parsed = JSON.parse(await readFile(memoryPathOf(vault), "utf8"));
+		if (parsed?.protocol !== "dsh-learning-memory@1" || !Array.isArray(parsed.concepts)) return EMPTY;
+		const concepts = parsed.concepts.map(parseLearnerConceptRecord).filter((record) => record !== void 0);
+		return {
+			protocol: LEARNER_MEMORY_PROTOCOL,
+			concepts
+		};
+	} catch {
+		return EMPTY;
+	}
+}
+/** Write a vault's learner memory, newest first and bounded. */
+async function writeLearnerMemory(vault, memory) {
+	await mkdir(vault.internal, { recursive: true });
+	const concepts = [...memory.concepts].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 500);
+	const next = {
+		protocol: LEARNER_MEMORY_PROTOCOL,
+		concepts
+	};
+	await writeFile(memoryPathOf(vault), `${JSON.stringify(next, void 0, 2)}\n`, "utf8");
+}
+/**
+* Merge one concept record into a vault's memory.
+*
+* Mastery never silently regresses: a stored `transfer` stays unless the new
+* record is an explicit user correction. A later session that opens on an
+* orientation turn must not erase evidence an earlier session actually observed.
+* @param vault - The vault holding the memory.
+* @param record - The record to merge.
+* @returns the memory after the merge.
+*/
+async function upsertLearnerConcept(vault, record) {
+	const anchors = await canonicalizeMaterialAnchors(vault, record.anchors);
+	const nextRecord = anchors === record.anchors ? record : {
+		...record,
+		anchors
+	};
+	const memory = await readLearnerMemory(vault);
+	const previous = memory.concepts.find((candidate) => candidate.conceptSlug === nextRecord.conceptSlug);
+	const concepts = [previous === void 0 ? nextRecord : mergeConcept(previous, nextRecord), ...memory.concepts.filter((candidate) => candidate.conceptSlug !== nextRecord.conceptSlug)];
+	const next = {
+		protocol: LEARNER_MEMORY_PROTOCOL,
+		concepts
+	};
+	await writeLearnerMemory(vault, next);
+	return next;
+}
+const MASTERY_ORDER = [
+	"unseen",
+	"emerging",
+	"transfer"
+];
+/** Keep material anchors canonical when a live state still carries an old edition. */
+async function canonicalizeMaterialAnchors(vault, anchors) {
+	const targets = (await readAllStructures(vault)).flatMap(anchorTargetsOf);
+	if (targets.length === 0) return anchors;
+	const sourceIds = new Set(targets.map((target) => target.sourceId));
+	return anchors.map((anchor) => {
+		const sourceId = parseAnchorText(anchor).sourceId;
+		if (sourceId === void 0 || !sourceIds.has(sourceId)) return anchor;
+		const target = resolveAnchorTarget(anchor, targets);
+		return target === void 0 ? void 0 : formatAnchorTarget(target);
+	}).filter((anchor) => anchor !== void 0);
+}
+function mergeConcept(previous, next) {
+	const mastery = MASTERY_ORDER.indexOf(next.mastery) < MASTERY_ORDER.indexOf(previous.mastery) && next.masteryBasis !== "user-correction" ? previous.mastery : next.mastery;
+	const sessionIds = [.../* @__PURE__ */ new Set([...next.sessionIds, ...previous.sessionIds])].slice(0, MAX_LIST_ITEMS);
+	const staleAnchors = /* @__PURE__ */ new Set([...next.staleAnchors, ...previous.staleAnchors]);
+	const anchors = [.../* @__PURE__ */ new Set([...next.anchors, ...previous.anchors])].filter((anchor) => !staleAnchors.has(anchor));
+	const activeAnchors = new Set(anchors);
+	return {
+		...next,
+		mastery,
+		masteryBasis: mastery === next.mastery ? next.masteryBasis : previous.masteryBasis,
+		evidenceCount: Math.max(previous.evidenceCount, next.evidenceCount),
+		misconceptions: [.../* @__PURE__ */ new Set([...next.misconceptions, ...previous.misconceptions])].slice(0, MAX_LIST_ITEMS),
+		anchors: anchors.slice(0, MAX_LIST_ITEMS),
+		staleAnchors: [...staleAnchors].filter((anchor) => !activeAnchors.has(anchor)).slice(0, MAX_LIST_ITEMS),
+		due: next.due ?? previous.due,
+		reviewIntervalDays: next.reviewIntervalDays ?? previous.reviewIntervalDays,
+		lastReviewedAt: next.lastReviewedAt ?? previous.lastReviewedAt,
+		sessionIds
+	};
+}
+/**
+* Project a live learner state into a durable concept record.
+*
+* A state with no goal is not a concept anyone can look up later, so it produces
+* nothing rather than an unnamed record.
+* @param state - The current learner state.
+* @param sessionId - The session that produced it.
+* @returns the record, or `undefined` when there is nothing worth storing.
+*/
+function conceptRecordFromState(state, sessionId) {
+	const label = state.goal?.trim() ?? "";
+	if (label === "") return void 0;
+	if (state.mastery === "unseen" && state.evidence.length === 0) return void 0;
+	return {
+		conceptSlug: slugify(label, "concept"),
+		label,
+		mastery: state.mastery,
+		masteryBasis: state.masteryBasis,
+		phase: state.phase,
+		gap: state.gap,
+		misconceptions: state.misconceptions.slice(0, MAX_LIST_ITEMS),
+		anchors: state.sourceAnchors.slice(0, MAX_LIST_ITEMS),
+		staleAnchors: [],
+		evidenceCount: state.evidence.length,
+		due: null,
+		updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+		sessionIds: [sessionId]
+	};
+}
+/**
+* Render the memory as a bounded prompt block.
+*
+* Explicitly framed as prior sessions' observations, not as current fact: the
+* standing policy already forbids inventing learner evidence, and memory read
+* back from disk is exactly the kind of input that could be mistaken for
+* something observed this turn.
+* @param memory - The vault's memory.
+* @param options - Vault title and how many concepts to render.
+* @returns the prompt block, or `''` when the memory is empty.
+*/
+function renderLearnerMemory(memory, options = { title: "this topic" }) {
+	if (memory.concepts.length === 0) return "";
+	const limit = options.limit ?? 12;
+	const ordered = [...memory.concepts].sort((left, right) => {
+		const byDue = (left.due ?? "9999").localeCompare(right.due ?? "9999");
+		return byDue !== 0 ? byDue : right.updatedAt.localeCompare(left.updatedAt);
+	});
+	const shown = ordered.slice(0, limit);
+	const lines = [`## Prior learning in ${options.title}`, "Observed in EARLIER sessions, not this turn. Treat each as a revisable prior: confirm with a fresh observation before relying on it, and never cite it as evidence the learner produced now."];
+	for (const concept of shown) {
+		const parts = [`${concept.label} — ${concept.mastery}`];
+		if (concept.due !== null) {
+			const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+			parts.push(concept.due.slice(0, 10) <= today ? "DUE for review" : `next review: ${concept.due.slice(0, 10)}`);
+		}
+		if (concept.masteryBasis === "user-correction") parts.push("(learner-corrected)");
+		if (concept.gap !== "unknown") parts.push(`open gap: ${concept.gap}`);
+		if (concept.misconceptions.length > 0) parts.push(`past misconception: ${concept.misconceptions[0]}`);
+		if (concept.anchors.length > 0) parts.push(`anchors: ${concept.anchors.slice(0, 2).join("; ")}`);
+		if (concept.staleAnchors.length > 0) parts.push(`${concept.staleAnchors.length} earlier citation(s) no longer exist in the current material`);
+		lines.push(`- ${parts.join(". ")}.`);
+	}
+	if (ordered.length > shown.length) lines.push(`- …and ${ordered.length - shown.length} more concepts in this folder.`);
+	return lines.join("\n");
+}
+//#endregion
+//#region lib/types/material-reanchor.js
+/**
+* Re-anchoring: what happens to a learner's stored citations when the source
+* they cite is replaced by a new edition.
+*
+* The two halves of a vault have different lifetimes. `extracted/` and
+* `.learning/structure/` are caches and are rebuilt wholesale on reimport;
+* learner memory is a user asset and must survive. This module is the bridge: it
+* moves each stored anchor onto the rebuilt structure, and when an anchor no
+* longer corresponds to anything, marks it stale rather than quietly keeping a
+* page number that now points somewhere else.
+*
+* Resolution order is heading path, then the opening-text hash recorded by the
+* PREVIOUS parse. The hash is what recovers a section that was merely retitled —
+* which is the common case for a second edition, and the case where silently
+* dropping the citation would cost the learner the most.
+* @module @dsh-portable/interactive-learning/src/material-reanchor
+*/
+const EMPTY_OUTCOME = {
+	moved: 0,
+	unchanged: 0,
+	stale: 0,
+	recovered: 0
+};
+/** Whether an anchor belongs to the source being rebuilt. */
+function belongsTo(anchor, sourceId) {
+	return parseAnchorText(anchor).sourceId === sourceId;
+}
+/**
+* Resolve one stored anchor against the rebuilt structure.
+* @returns the new anchor text, or `undefined` when nothing matches.
+*/
+function moveAnchor(anchor, previous, next) {
+	const { headingPath } = parseAnchorText(anchor);
+	if (headingPath.length === 0) return void 0;
+	const section = reanchor(headingPath, previous?.sections.find((section) => sameStringList(section.headingPath, headingPath))?.quoteHash ?? "", next);
+	return section === void 0 ? void 0 : formatSectionAnchor(next.sourceId, section);
+}
+/** Re-anchor one pair of active/stale citation lists against a rebuilt source. */
+function reanchorAnchorLists(currentAnchors, currentStaleAnchors, previous, next) {
+	const outcome = { ...EMPTY_OUTCOME };
+	const anchors = [];
+	const stale = [];
+	for (const anchor of currentAnchors) {
+		if (!belongsTo(anchor, next.sourceId)) {
+			anchors.push(anchor);
+			continue;
+		}
+		const moved = moveAnchor(anchor, previous, next);
+		if (moved === void 0) {
+			stale.push(anchor);
+			outcome.stale += 1;
+			continue;
+		}
+		anchors.push(moved);
+		if (moved === anchor) outcome.unchanged += 1;
+		else outcome.moved += 1;
+	}
+	for (const anchor of currentStaleAnchors) {
+		if (!belongsTo(anchor, next.sourceId)) {
+			stale.push(anchor);
+			continue;
+		}
+		const moved = moveAnchor(anchor, previous, next);
+		if (moved === void 0) {
+			stale.push(anchor);
+			continue;
+		}
+		if (!anchors.includes(moved)) anchors.push(moved);
+		outcome.recovered += 1;
+	}
+	const staleAnchors = [...new Set(stale)];
+	return {
+		anchors,
+		staleAnchors,
+		outcome,
+		changed: !sameStringList(anchors, currentAnchors) || !sameStringList(staleAnchors, currentStaleAnchors)
+	};
+}
+/** Re-anchor one concept record; returns the record and what changed. */
+function reanchorConcept(concept, previous, next) {
+	const result = reanchorAnchorLists(concept.anchors, concept.staleAnchors, previous, next);
+	return {
+		concept: result.changed ? {
+			...concept,
+			anchors: result.anchors,
+			staleAnchors: result.staleAnchors
+		} : concept,
+		outcome: result.outcome
+	};
+}
+/**
+* Move every stored citation for one source onto its rebuilt structure.
+*
+* Called by the ingest pipeline after a source is re-parsed. Writes only when
+* something actually changed, so a routine reingest of unchanged material costs
+* nothing.
+* @param vault - The vault whose memory holds the citations.
+* @param previous - The structure recorded before this reimport, when there was one.
+* @param next - The freshly derived structure.
+* @returns the totals across every concept.
+*/
+async function reanchorVaultMemory(vault, previous, next) {
+	const memory = await readLearnerMemory(vault);
+	if (memory.concepts.length === 0) return { ...EMPTY_OUTCOME };
+	const total = { ...EMPTY_OUTCOME };
+	const concepts = [];
+	let changed = false;
+	for (const concept of memory.concepts) {
+		const result = reanchorConcept(concept, previous, next);
+		concepts.push(result.concept);
+		if (result.concept !== concept) changed = true;
+		total.moved += result.outcome.moved;
+		total.unchanged += result.outcome.unchanged;
+		total.stale += result.outcome.stale;
+		total.recovered += result.outcome.recovered;
+	}
+	if (changed) await writeLearnerMemory(vault, {
+		...memory,
+		concepts
+	});
+	return total;
+}
+/** A sentence describing a re-anchor pass, or `''` when nothing moved. */
+function describeReanchor(outcome, sourceTitle) {
+	const parts = [];
+	if (outcome.moved > 0) parts.push(`${outcome.moved} citation(s) moved to their new location`);
+	if (outcome.recovered > 0) parts.push(`${outcome.recovered} earlier citation(s) resolve again`);
+	if (outcome.stale > 0) parts.push(`${outcome.stale} citation(s) no longer exist and are marked stale`);
+	return parts.length === 0 ? "" : `${sourceTitle}: ${parts.join("; ")}.`;
+}
+//#endregion
+//#region lib/types/concept-cards.js
+/** User-approved concept cards and their small review schedule. */
+const MAX_CONCEPT_CARDS = 48;
+const INITIAL_REVIEW_INTERVAL_DAYS = 3;
+const MASTERY = /* @__PURE__ */ new Set([
+	"unseen",
+	"emerging",
+	"transfer"
+]);
+const MASTERY_BASIS = /* @__PURE__ */ new Set(["evidence", "user-correction"]);
+const DATE = /^\d{4}-\d{2}-\d{2}$/u;
+const MAX_CARD_TEXT = 1200;
+function isFreshIndependentTransfer(evidence) {
+	return (evidence.source === "learner-message" || evidence.source === "learner-action") && evidence.kind === "transfer" && evidence.transferContext === "fresh" && evidence.correctness === "correct" && evidence.independence === "independent" && evidence.confidence !== "low";
+}
+function text(value, limit = MAX_CARD_TEXT) {
+	if (value === null || value === void 0) return "";
+	return value.replace(/[\u0000-\u001f\u007f]/gu, " ").trim().slice(0, limit);
+}
+function list(values, limit = 8) {
+	if (values === void 0) return [];
+	return [...new Set(values.map((value) => text(value)).filter((value) => value !== ""))].slice(0, limit);
+}
+function dateOf(value) {
+	if (value === null || value === void 0 || !DATE.test(value)) return null;
+	const parsed = /* @__PURE__ */ new Date(`${value}T00:00:00.000Z`);
+	return Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== value ? null : value;
+}
+function dateKey(now = /* @__PURE__ */ new Date()) {
+	return now.toISOString().slice(0, 10);
+}
+function addDays(now, days) {
+	return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days)).toISOString().slice(0, 10);
+}
+function isConceptDue(due, now = /* @__PURE__ */ new Date()) {
+	const normalized = dateOf(due);
+	return normalized !== null && normalized <= dateKey(now);
+}
+/** Build the actual saved-card view used by the second `study_map` mode. */
+async function buildConceptStudyMap(vault, goal, now = /* @__PURE__ */ new Date()) {
+	const cards = await readConceptCards(vault);
+	if (cards.length === 0) throw new TypeError("No approved concept cards exist in this learning vault");
+	const groups = [
+		{
+			id: "group-stale",
+			label: "需要更新引用",
+			summary: "这些概念卡有找不到的旧材料锚点。",
+			tone: "orange",
+			cards: []
+		},
+		{
+			id: "group-due",
+			label: "到期复习",
+			summary: "这些概念卡现在适合复习。",
+			tone: "red",
+			cards: []
+		},
+		{
+			id: "group-learning",
+			label: "学习中",
+			summary: "这些概念卡还在形成中。",
+			tone: "blue",
+			cards: []
+		},
+		{
+			id: "group-mastered",
+			label: "已完成迁移",
+			summary: "这些概念卡已有独立迁移记录。",
+			tone: "green",
+			cards: []
+		}
+	];
+	for (const card of cards) (card.staleAnchors.length > 0 ? groups[0] : isConceptDue(card.due, now) ? groups[1] : card.mastery === "transfer" ? groups[3] : groups[2]).cards.push(card);
+	const sections = groups.filter((group) => group.cards.length > 0).map((group) => ({
+		id: group.id,
+		label: group.label,
+		summary: group.summary
+	}));
+	const concepts = groups.flatMap((group) => group.cards.map((card) => ({
+		id: recallCardIdOf(card.conceptSlug),
+		label: card.label,
+		sectionId: group.id,
+		detail: [
+			card.explanation,
+			card.misconceptions.length === 0 ? "" : `曾有误解：${card.misconceptions[0]}`,
+			card.staleAnchors.length === 0 ? "" : `失效锚点：${card.staleAnchors.join("；")}`
+		].filter((value) => value !== "").join("\n"),
+		conceptSlug: card.conceptSlug,
+		mastery: card.mastery,
+		...card.due === null ? {} : { due: card.due },
+		stale: card.staleAnchors.length > 0,
+		role: "core",
+		tone: group.tone
+	})));
+	return {
+		kind: "study_map",
+		view: "concepts",
+		sourceLabel: vault.title,
+		...text(goal, 600) === "" ? {} : { goal: text(goal, 600) },
+		sections,
+		concepts
+	};
+}
+/** The small, deterministic schedule used for the first review after a card is saved. */
+function reviewIntervalDays(mastery, independence = "independent") {
+	if (mastery === "transfer" && independence === "independent") return 3;
+	if (mastery === "transfer") return 2;
+	if (mastery === "emerging" && independence === "independent") return 2;
+	return 1;
+}
+/** Apply one learner-owned rating without pretending the rating is mastery evidence. */
+function nextReviewSchedule(card, rating, now = /* @__PURE__ */ new Date()) {
+	if (rating === "revealed") return void 0;
+	const prior = Number.isSafeInteger(card.intervalDays) && card.intervalDays > 0 ? card.intervalDays : reviewIntervalDays(card.mastery);
+	const intervalDays = rating === "mastered" ? Math.max(1, prior * 2) : Math.max(1, Math.floor(prior / 2));
+	return {
+		due: addDays(now, intervalDays),
+		intervalDays,
+		lastReviewedAt: now.toISOString()
+	};
+}
+/** D1's gate: only a correct, independent, fresh transfer can create a card. */
+function hasFreshIndependentTransfer(state) {
+	return state.evidence.some(isFreshIndependentTransfer);
+}
+function relatedName(value) {
+	return text(value, 160).replace(/^\[\[/u, "").replace(/\]\]$/u, "").trim();
+}
+function bodyFromDraft(draft, now) {
+	const quote = draft.explanation === "" ? "—" : draft.explanation.split("\n").map((line) => `> ${line}`).join("\n");
+	const misconception = draft.misconceptions.length === 0 ? "—" : draft.misconceptions.join("\n");
+	const unverified = draft.unverifiedTransfer === "" ? "—" : draft.unverifiedTransfer;
+	const links = draft.relatedConcepts.length === 0 ? [] : [
+		"",
+		"## 相关概念",
+		draft.relatedConcepts.map((value) => `[[${value}]]`).join("、")
+	];
+	return [
+		`# ${draft.label}`,
+		"",
+		`## 我的解释（${dateKey(now)}）`,
+		quote,
+		"",
+		"## 当时的误解",
+		misconception,
+		"",
+		"## 还没验证",
+		unverified,
+		...links,
+		""
+	].join("\n");
+}
+function yamlString(value) {
+	return JSON.stringify(value);
+}
+function frontmatter(card) {
+	return `${[
+		"---",
+		`id: ${yamlString(card.conceptSlug)}`,
+		`mastery: ${card.mastery}`,
+		`basis: ${card.masteryBasis}`,
+		`due: ${card.due === null ? "null" : card.due}`,
+		`interval_days: ${String(card.intervalDays)}`,
+		`last_reviewed: ${card.lastReviewedAt === null ? "null" : yamlString(card.lastReviewedAt)}`,
+		`created_at: ${yamlString(card.createdAt)}`,
+		`updated_at: ${yamlString(card.updatedAt)}`,
+		"anchors:",
+		...card.anchors.map((anchor) => `  - ${yamlString(anchor)}`),
+		"stale_anchors:",
+		...card.staleAnchors.map((anchor) => `  - ${yamlString(anchor)}`),
+		"---"
+	].join("\n")}\n\n`;
+}
+function renderConceptCard(value, now = /* @__PURE__ */ new Date()) {
+	const card = "body" in value ? value : {
+		...value,
+		due: value.due,
+		lastReviewedAt: null,
+		createdAt: now.toISOString(),
+		updatedAt: now.toISOString(),
+		body: bodyFromDraft(value, now)
+	};
+	return `${frontmatter(card)}${card.body.trimEnd()}\n`;
+}
+function conceptCardPathOf(vault, conceptSlug) {
+	return join(vault.concepts, `${slugify(conceptSlug, "concept")}.md`);
+}
+function scalar(value) {
+	const trimmed = value.trim();
+	if (trimmed === "null" || trimmed === "") return null;
+	if (trimmed.startsWith("\"")) try {
+		const parsed = JSON.parse(trimmed);
+		return typeof parsed === "string" ? parsed : null;
+	} catch {
+		return null;
+	}
+	return trimmed;
+}
+function parseMarkdownCard(raw) {
+	const lines = raw.replace(/\r\n/gu, "\n").split("\n");
+	if (lines[0]?.trim() !== "---") return void 0;
+	const end = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+	if (end < 0) return void 0;
+	const fields = /* @__PURE__ */ new Map();
+	const lists = /* @__PURE__ */ new Map();
+	let activeList;
+	for (const line of lines.slice(1, end)) {
+		const item = /^\s+-\s+(.+)$/u.exec(line);
+		if (item !== null && activeList !== void 0) {
+			const value = scalar(item[1] ?? "");
+			if (value !== null) lists.get(activeList).push(value);
+			continue;
+		}
+		const field = /^([a-z_]+):\s*(.*)$/u.exec(line);
+		if (field === null) continue;
+		const key = field[1];
+		const value = field[2] ?? "";
+		if (value.trim() === "") {
+			activeList = key;
+			lists.set(key, []);
+		} else {
+			activeList = void 0;
+			fields.set(key, scalar(value));
+		}
+	}
+	return {
+		fields,
+		lists,
+		body: lines.slice(end + 1).join("\n").trim()
+	};
+}
+function sectionBody(body, prefix) {
+	const lines = body.split("\n");
+	const start = lines.findIndex((line) => {
+		return (/^##\s+(.+)$/u.exec(line)?.[1]?.trim() ?? "").startsWith(prefix);
+	});
+	if (start < 0) return "";
+	const end = lines.findIndex((line, index) => index > start && /^##\s+/u.test(line));
+	return lines.slice(start + 1, end < 0 ? lines.length : end).join("\n").replace(/^> ?/gmu, "").trim().replace(/^—$/u, "").trim();
+}
+function labelFromBody(body) {
+	return body.split("\n").find((line) => /^#\s+[^#]/u.test(line))?.replace(/^#\s+/u, "").trim() ?? "";
+}
+function parseCard(raw, path) {
+	const parsed = parseMarkdownCard(raw);
+	if (parsed === void 0) return void 0;
+	const fileSlug = basename(path, ".md");
+	const conceptSlug = slugify(parsed.fields.get("id") ?? fileSlug, fileSlug);
+	const label = labelFromBody(parsed.body) || conceptSlug;
+	const mastery = parsed.fields.get("mastery");
+	if (!MASTERY.has(mastery ?? "")) return void 0;
+	const basis = parsed.fields.get("basis");
+	const interval = Number(parsed.fields.get("interval_days") ?? "");
+	const now = (/* @__PURE__ */ new Date(0)).toISOString();
+	return {
+		conceptSlug,
+		label,
+		mastery,
+		masteryBasis: MASTERY_BASIS.has(basis ?? "") ? basis : "evidence",
+		due: dateOf(parsed.fields.get("due")),
+		intervalDays: Number.isSafeInteger(interval) && interval > 0 ? interval : 3,
+		lastReviewedAt: parsed.fields.get("last_reviewed") ?? null,
+		anchors: list(parsed.lists.get("anchors")),
+		staleAnchors: list(parsed.lists.get("stale_anchors")),
+		explanation: sectionBody(parsed.body, "我的解释"),
+		misconceptions: list(sectionBody(parsed.body, "当时的误解").split("\n"), 6),
+		unverifiedTransfer: sectionBody(parsed.body, "还没验证"),
+		relatedConcepts: list([...parsed.body.matchAll(/\[\[([^\]]+)\]\]/gu)].map((match) => relatedName(match[1] ?? "")), 8),
+		createdAt: parsed.fields.get("created_at") ?? now,
+		updatedAt: parsed.fields.get("updated_at") ?? now,
+		body: parsed.body,
+		path
+	};
+}
+async function readConceptCard(vault, conceptSlug) {
+	const path = conceptCardPathOf(vault, conceptSlug);
+	try {
+		return parseCard(await readFile(path, "utf8"), path);
+	} catch {
+		return;
+	}
+}
+async function readConceptCards(vault) {
+	let names;
+	try {
+		names = (await readdir(vault.concepts)).filter((name) => name.endsWith(".md")).sort();
+	} catch {
+		return [];
+	}
+	const cards = [];
+	for (const name of names.slice(0, 48)) {
+		const path = join(vault.concepts, name);
+		try {
+			const card = parseCard(await readFile(path, "utf8"), path);
+			if (card !== void 0) cards.push(card);
+		} catch {}
+	}
+	return cards;
+}
+function appendObservation(body, draft, now) {
+	const lines = [`## 新近观察（${dateKey(now)}）`];
+	if (draft.explanation !== "") lines.push(...draft.explanation.split("\n").map((line) => `> ${line}`));
+	if (draft.misconceptions.length > 0) lines.push(`误解：${draft.misconceptions.join("；")}`);
+	if (draft.unverifiedTransfer !== "") lines.push(`未验证：${draft.unverifiedTransfer}`);
+	if (draft.relatedConcepts.length > 0) lines.push(`相关概念：${draft.relatedConcepts.map((value) => `[[${value}]]`).join("、")}`);
+	return `${body.trimEnd()}\n\n${lines.join("\n")}\n`;
+}
+async function saveConceptCard(vault, draft, now = /* @__PURE__ */ new Date()) {
+	const path = conceptCardPathOf(vault, draft.conceptSlug);
+	const existing = await readConceptCard(vault, draft.conceptSlug);
+	const activeAnchors = list([...existing?.anchors ?? [], ...draft.anchors]);
+	const staleAnchors = list([...existing?.staleAnchors ?? [], ...draft.staleAnchors]).filter((anchor) => !activeAnchors.includes(anchor));
+	const next = {
+		...existing ?? {},
+		...draft,
+		due: existing === void 0 ? draft.due : existing.due,
+		intervalDays: existing === void 0 ? draft.intervalDays : existing.intervalDays,
+		lastReviewedAt: existing?.lastReviewedAt ?? null,
+		createdAt: existing?.createdAt ?? now.toISOString(),
+		updatedAt: now.toISOString(),
+		anchors: activeAnchors,
+		staleAnchors,
+		body: existing === void 0 ? bodyFromDraft(draft, now) : appendObservation(existing.body, draft, now),
+		path
+	};
+	await mkdir(vault.concepts, { recursive: true });
+	await writeFile(path, renderConceptCard(next, now), "utf8");
+	return next;
+}
+async function updateConceptCardSchedule(vault, conceptSlug, schedule) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const next = {
+		...card,
+		due: schedule.due,
+		intervalDays: schedule.intervalDays,
+		lastReviewedAt: schedule.lastReviewedAt,
+		updatedAt: schedule.lastReviewedAt
+	};
+	await writeFile(card.path, renderConceptCard(next), "utf8");
+	return next;
+}
+async function updateConceptCardAnchors(vault, conceptSlug, anchors, staleAnchors) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const next = {
+		...card,
+		anchors: list(anchors),
+		staleAnchors: list(staleAnchors).filter((anchor) => !anchors.includes(anchor)),
+		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+	};
+	await writeFile(card.path, renderConceptCard(next), "utf8");
+	return next;
+}
+function conceptRecordFromCard(card) {
+	return {
+		conceptSlug: card.conceptSlug,
+		label: card.label,
+		mastery: card.mastery,
+		masteryBasis: card.masteryBasis,
+		phase: "complete",
+		gap: "unknown",
+		misconceptions: card.misconceptions,
+		anchors: card.anchors,
+		staleAnchors: card.staleAnchors,
+		evidenceCount: 0,
+		due: card.due,
+		reviewIntervalDays: card.intervalDays,
+		lastReviewedAt: card.lastReviewedAt,
+		updatedAt: card.updatedAt,
+		sessionIds: []
+	};
+}
+/** Merge user-approved cards into the machine memory only for prompt/UI reads. */
+async function readLearnerMemoryWithCards(vault) {
+	const [memory, cards] = await Promise.all([readLearnerMemory(vault), readConceptCards(vault)]);
+	const concepts = [...memory.concepts];
+	for (const card of cards) {
+		const index = concepts.findIndex((concept) => concept.conceptSlug === card.conceptSlug);
+		if (index < 0) {
+			concepts.push(conceptRecordFromCard(card));
+			continue;
+		}
+		const current = concepts[index];
+		concepts[index] = {
+			...current,
+			label: card.label,
+			due: card.due,
+			reviewIntervalDays: card.intervalDays,
+			lastReviewedAt: card.lastReviewedAt,
+			anchors: card.anchors,
+			staleAnchors: card.staleAnchors,
+			updatedAt: current.updatedAt > card.updatedAt ? current.updatedAt : card.updatedAt
+		};
+	}
+	return {
+		protocol: memory.protocol,
+		concepts
+	};
+}
+function conceptCardDraftFromState(state, options = {}, now = /* @__PURE__ */ new Date()) {
+	const label = text(state.goal, 160);
+	if (label === "" || !hasFreshIndependentTransfer(state)) return void 0;
+	const transfer = [...state.evidence].reverse().find(isFreshIndependentTransfer);
+	const explanation = text(options.explanation) || text(transfer?.summary ?? state.lastExplanationSummary ?? "");
+	const misconceptions = list([...state.currentMisconception === null ? [] : [state.currentMisconception], ...state.misconceptions], 6);
+	const intervalDays = reviewIntervalDays(state.mastery, transfer?.independence);
+	return {
+		conceptSlug: slugify(label, "concept"),
+		label,
+		mastery: state.mastery,
+		masteryBasis: state.masteryBasis,
+		due: addDays(now, intervalDays),
+		intervalDays,
+		anchors: list(state.sourceAnchors),
+		staleAnchors: [],
+		explanation,
+		misconceptions,
+		unverifiedTransfer: text(options.unverifiedTransfer),
+		relatedConcepts: list((options.relatedConcepts ?? []).map(relatedName), 6)
+	};
+}
+function recallCardIdOf(conceptSlug) {
+	return `concept-${createHash("sha256").update(conceptSlug, "utf8").digest("hex").slice(0, 12)}`;
+}
+/** Re-anchor durable cards when an imported source is rebuilt. */
+async function reanchorConceptCards(vault, previous, next) {
+	const total = {
+		moved: 0,
+		unchanged: 0,
+		stale: 0,
+		recovered: 0
+	};
+	for (const card of await readConceptCards(vault)) {
+		const result = reanchorAnchorLists(card.anchors, card.staleAnchors, previous, next);
+		total.moved += result.outcome.moved;
+		total.unchanged += result.outcome.unchanged;
+		total.stale += result.outcome.stale;
+		total.recovered += result.outcome.recovered;
+		if (result.changed) await updateConceptCardAnchors(vault, card.conceptSlug, result.anchors, result.staleAnchors);
+	}
+	return total;
 }
 //#endregion
 //#region lib/types/ingest/zip.js
@@ -1669,181 +2670,6 @@ function parseTextSource(text, options) {
 	};
 }
 //#endregion
-//#region lib/types/ingest/markdown.js
-/**
-* The emitter: one {@link ParsedSource} becomes the extracted markdown a learner
-* (and `grep`) can read, plus the {@link SourceStructure} that is the single
-* source of truth for section ids and anchors.
-*
-* Nothing here consults a model. Every section id, label, and page marker is
-* derived from the parse, which is what makes a hallucinated chapter detectable
-* rather than merely discouraged.
-* @module @dsh-portable/interactive-learning/src/ingest/markdown
-*/
-/** Marker opening every extracted file; also the reimport provenance record. */
-const EXTRACTED_HEADER = "dsh-learning:source";
-function escapeAttribute(value) {
-	return value.replace(/["\\]/gu, "\\$&").replace(/\s+/gu, " ").trim();
-}
-/**
-* Render the extracted markdown, recording where each heading landed.
-*
-* Line positions are captured during rendering rather than recovered afterwards
-* so the structure can never disagree with the file it describes — a section
-* whose recorded line points at the wrong text would make every read from it
-* quote the wrong passage.
-*/
-function renderSource(source) {
-	const lines = [`<!-- ${EXTRACTED_HEADER} id=${source.sourceId} title="${escapeAttribute(source.title)}" parser=${source.parser} -->`, ""];
-	const headingLines = [];
-	let page;
-	for (const block of source.blocks) {
-		if (block.anchor.page !== void 0 && block.anchor.page !== page) {
-			page = block.anchor.page;
-			lines.push(`<!-- p.${page} -->`);
-		}
-		switch (block.kind) {
-			case "heading":
-				headingLines.push(lines.length + 1);
-				lines.push(`${"#".repeat(block.level ?? 1)} ${block.text}`, "");
-				break;
-			case "code":
-				lines.push(`\`\`\`${block.lang ?? ""}`, ...block.text.split("\n"), "```", "");
-				break;
-			case "caption":
-				lines.push(...block.text.split("\n").map((line) => `> ${line}`), "");
-				break;
-			default: lines.push(...block.text.split("\n"), "");
-		}
-	}
-	return {
-		markdown: `${lines.join("\n")}\n`,
-		headingLines,
-		totalLines: lines.length
-	};
-}
-/**
-* Render the extracted markdown for one parsed source.
-* @param source - The parse result.
-* @returns markdown text, ending with a newline.
-*/
-function renderExtractedMarkdown(source) {
-	return renderSource(source).markdown;
-}
-/**
-* Emit both artifacts of one parse in a single pass.
-*
-* This is the ingest pipeline's entry point: rendering and structure derivation
-* share the line positions, so the two files written to a vault always agree.
-* @param source - The parse result.
-* @param extractedPath - Vault-relative path the markdown will be written to.
-*/
-function emitSource(source, extractedPath) {
-	const rendered = renderSource(source);
-	return {
-		markdown: rendered.markdown,
-		structure: deriveStructure(source, extractedPath, rendered)
-	};
-}
-/**
-* Derive the navigable structure from a parse.
-*
-* Section ids come from the heading chain, so they survive repagination; a
-* duplicate chain (two chapters genuinely titled the same) is disambiguated by
-* an ordinal suffix rather than silently collapsed, because two sections
-* sharing one id would make every anchor into either of them ambiguous.
-* @param source - The parse result.
-* @param extractedPath - Vault-relative path of the emitted markdown.
-* @returns the structure record written to `.learning/structure/`.
-*/
-function deriveStructure(source, extractedPath, rendered = renderSource(source)) {
-	const sections = [];
-	const taken = /* @__PURE__ */ new Map();
-	const idByChain = /* @__PURE__ */ new Map();
-	let current;
-	let totalChars = 0;
-	let headingIndex = 0;
-	for (const block of source.blocks) {
-		if (block.kind !== "heading") {
-			totalChars += block.text.length;
-			if (current !== void 0) {
-				const opening = current.charCount === 0 ? { quoteHash: block.anchor.quoteHash } : {};
-				current = {
-					...current,
-					...opening,
-					charCount: current.charCount + block.text.length
-				};
-				sections[sections.length - 1] = current;
-			}
-			continue;
-		}
-		const line = rendered.headingLines[headingIndex] ?? 1;
-		headingIndex += 1;
-		if (current !== void 0) {
-			current = {
-				...current,
-				endLine: line
-			};
-			sections[sections.length - 1] = current;
-		}
-		const chain = block.anchor.headingPath;
-		const base = sectionIdOf(chain);
-		const used = taken.get(base) ?? 0;
-		taken.set(base, used + 1);
-		const id = used === 0 ? base : `${base}~${used + 1}`;
-		idByChain.set(chain.join("\0"), id);
-		const parentChain = chain.slice(0, -1);
-		const parentId = parentChain.length === 0 ? void 0 : idByChain.get(parentChain.join("\0"));
-		current = {
-			id,
-			label: block.text,
-			level: block.level ?? 1,
-			headingPath: [...chain],
-			...block.anchor.page === void 0 ? {} : { page: block.anchor.page },
-			...parentId === void 0 ? {} : { parentId },
-			charCount: 0,
-			quoteHash: block.anchor.quoteHash,
-			line,
-			endLine: rendered.totalLines + 1
-		};
-		sections.push(current);
-		totalChars += block.text.length;
-	}
-	return {
-		protocol: SOURCE_STRUCTURE_PROTOCOL,
-		sourceId: source.sourceId,
-		title: source.title,
-		parser: source.parser,
-		extractedPath,
-		sections,
-		degradation: source.degradation,
-		totalChars
-	};
-}
-/**
-* Re-anchor one stored anchor against a rebuilt structure, the reimport path.
-*
-* Two resolutions, in order. The heading chain is what a person actually wrote
-* down, so it wins when the section kept its title. The quote hash — the
-* identity of the section's opening BODY text — is what recovers a section that
-* a new edition retitled, which is the case the heading chain cannot survive.
-*
-* Nothing matching is reported as `undefined` so the caller can mark the anchor
-* stale; silently keeping the old page number would assert a location that no
-* longer exists.
-* @param headingPath - The stored heading chain.
-* @param quoteHash - The opening-body identity recorded by the previous parse.
-* @param structure - The freshly derived structure.
-* @returns the matching section, or `undefined` when the anchor is now stale.
-*/
-function reanchor(headingPath, quoteHash, structure) {
-	const key = headingPath.join("\0");
-	const exact = structure.sections.find((section) => section.headingPath.join("\0") === key);
-	if (exact !== void 0) return exact;
-	if (quoteHash === "") return void 0;
-	return structure.sections.find((section) => section.quoteHash === quoteHash);
-}
-//#endregion
 //#region lib/types/ingest/index.js
 /**
 * Parser dispatch: bytes plus a file name become one {@link ParsedSource}.
@@ -1928,367 +2754,6 @@ async function parseSource(bytes, fileName, sourceId = slugify(titleOf(fileName)
 			extension: extension === "" ? "(none)" : extension
 		}]
 	};
-}
-//#endregion
-//#region lib/types/learner-memory.js
-/**
-* Cross-session learner memory, keyed by (vault, concept) instead of by session.
-*
-* The existing durability mechanism is not replaced. A full learner-state
-* snapshot still rides the session log and is folded back on load, which is what
-* survives refresh, resume, compaction, and fork. What was missing is only a key
-* that outlives one session — so this module writes a SECOND, bounded projection
-* per concept and reads it back when a later session opens the same vault.
-*
-* It lives in the vault rather than in harness storage so the whole promise of
-* the design holds literally: everything a person's learning produced is in one
-* folder they own, and deleting the folder deletes all of it. Note that
-* `.learning/memory.json` is the one file under `.learning/` that is NOT
-* rebuildable — the structure cache beside it is.
-* @module @dsh-portable/interactive-learning/src/learner-memory
-*/
-/** Memory-file protocol tag; bumped only on a breaking record change. */
-const LEARNER_MEMORY_PROTOCOL = "dsh-learning-memory@1";
-/** Concepts rendered into one prompt injection. */
-const MAX_RENDERED_CONCEPTS = 12;
-/** Concepts retained on disk before the least recently touched are dropped. */
-const MAX_STORED_CONCEPTS = 500;
-/** Anchors and misconceptions retained per concept. */
-const MAX_LIST_ITEMS = 6;
-const EMPTY = {
-	protocol: LEARNER_MEMORY_PROTOCOL,
-	concepts: []
-};
-const MASTERY = /* @__PURE__ */ new Set([
-	"unseen",
-	"emerging",
-	"transfer"
-]);
-const MASTERY_BASIS = /* @__PURE__ */ new Set(["evidence", "user-correction"]);
-const PHASES = /* @__PURE__ */ new Set([
-	"orient",
-	"teach",
-	"practice",
-	"repair",
-	"transfer",
-	"complete"
-]);
-const GAPS = /* @__PURE__ */ new Set([
-	"concept",
-	"procedure",
-	"notation",
-	"task-model",
-	"prerequisite",
-	"unknown"
-]);
-function stringList(value) {
-	if (!Array.isArray(value)) return [];
-	return value.filter((item) => typeof item === "string" && item.trim() !== "").map((item) => item.trim()).slice(0, MAX_LIST_ITEMS);
-}
-/**
-* Validate one stored record.
-*
-* Hand-written rather than schema-driven, matching `learner-state.ts`: the vault
-* is a folder a person can edit, so a malformed record must be dropped quietly
-* rather than fail the session that opened it.
-* @returns the record, or `undefined` when it is not usable.
-*/
-function parseLearnerConceptRecord(value) {
-	if (typeof value !== "object" || value === null) return void 0;
-	const record = value;
-	const conceptSlug = typeof record.conceptSlug === "string" ? record.conceptSlug.trim() : "";
-	const label = typeof record.label === "string" ? record.label.trim() : "";
-	if (conceptSlug === "" || label === "") return void 0;
-	if (!MASTERY.has(record.mastery)) return void 0;
-	return {
-		conceptSlug,
-		label,
-		mastery: record.mastery,
-		masteryBasis: MASTERY_BASIS.has(record.masteryBasis) ? record.masteryBasis : "evidence",
-		phase: PHASES.has(record.phase) ? record.phase : "orient",
-		gap: GAPS.has(record.gap) ? record.gap : "unknown",
-		misconceptions: stringList(record.misconceptions),
-		anchors: stringList(record.anchors),
-		staleAnchors: stringList(record.staleAnchors),
-		evidenceCount: Number.isSafeInteger(record.evidenceCount) && record.evidenceCount >= 0 ? record.evidenceCount : 0,
-		due: typeof record.due === "string" && record.due !== "" ? record.due : null,
-		updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : (/* @__PURE__ */ new Date(0)).toISOString(),
-		sessionIds: stringList(record.sessionIds)
-	};
-}
-/** Absolute path of a vault's memory file. */
-function memoryPathOf(vault) {
-	return join(vault.internal, "memory.json");
-}
-/**
-* Read a vault's learner memory.
-* @returns the memory, or an empty one when absent or damaged.
-*/
-async function readLearnerMemory(vault) {
-	try {
-		const parsed = JSON.parse(await readFile(memoryPathOf(vault), "utf8"));
-		if (parsed?.protocol !== "dsh-learning-memory@1" || !Array.isArray(parsed.concepts)) return EMPTY;
-		const concepts = parsed.concepts.map(parseLearnerConceptRecord).filter((record) => record !== void 0);
-		return {
-			protocol: LEARNER_MEMORY_PROTOCOL,
-			concepts
-		};
-	} catch {
-		return EMPTY;
-	}
-}
-/** Write a vault's learner memory, newest first and bounded. */
-async function writeLearnerMemory(vault, memory) {
-	await mkdir(vault.internal, { recursive: true });
-	const concepts = [...memory.concepts].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 500);
-	const next = {
-		protocol: LEARNER_MEMORY_PROTOCOL,
-		concepts
-	};
-	await writeFile(memoryPathOf(vault), `${JSON.stringify(next, void 0, 2)}\n`, "utf8");
-}
-/**
-* Merge one concept record into a vault's memory.
-*
-* Mastery never silently regresses: a stored `transfer` stays unless the new
-* record is an explicit user correction. A later session that opens on an
-* orientation turn must not erase evidence an earlier session actually observed.
-* @param vault - The vault holding the memory.
-* @param record - The record to merge.
-* @returns the memory after the merge.
-*/
-async function upsertLearnerConcept(vault, record) {
-	const anchors = await canonicalizeMaterialAnchors(vault, record.anchors);
-	const nextRecord = anchors === record.anchors ? record : {
-		...record,
-		anchors
-	};
-	const memory = await readLearnerMemory(vault);
-	const previous = memory.concepts.find((candidate) => candidate.conceptSlug === nextRecord.conceptSlug);
-	const concepts = [previous === void 0 ? nextRecord : mergeConcept(previous, nextRecord), ...memory.concepts.filter((candidate) => candidate.conceptSlug !== nextRecord.conceptSlug)];
-	const next = {
-		protocol: LEARNER_MEMORY_PROTOCOL,
-		concepts
-	};
-	await writeLearnerMemory(vault, next);
-	return next;
-}
-const MASTERY_ORDER = [
-	"unseen",
-	"emerging",
-	"transfer"
-];
-/** Keep material anchors canonical when a live state still carries an old edition. */
-async function canonicalizeMaterialAnchors(vault, anchors) {
-	const targets = (await readAllStructures(vault)).flatMap(anchorTargetsOf);
-	if (targets.length === 0) return anchors;
-	const sourceIds = new Set(targets.map((target) => target.sourceId));
-	return anchors.map((anchor) => {
-		const sourceId = parseAnchorText(anchor).sourceId;
-		if (sourceId === void 0 || !sourceIds.has(sourceId)) return anchor;
-		const target = resolveAnchorTarget(anchor, targets);
-		return target === void 0 ? void 0 : formatAnchorTarget(target);
-	}).filter((anchor) => anchor !== void 0);
-}
-function mergeConcept(previous, next) {
-	const mastery = MASTERY_ORDER.indexOf(next.mastery) < MASTERY_ORDER.indexOf(previous.mastery) && next.masteryBasis !== "user-correction" ? previous.mastery : next.mastery;
-	const sessionIds = [.../* @__PURE__ */ new Set([...next.sessionIds, ...previous.sessionIds])].slice(0, MAX_LIST_ITEMS);
-	const staleAnchors = /* @__PURE__ */ new Set([...next.staleAnchors, ...previous.staleAnchors]);
-	const anchors = [.../* @__PURE__ */ new Set([...next.anchors, ...previous.anchors])].filter((anchor) => !staleAnchors.has(anchor));
-	const activeAnchors = new Set(anchors);
-	return {
-		...next,
-		mastery,
-		masteryBasis: mastery === next.mastery ? next.masteryBasis : previous.masteryBasis,
-		evidenceCount: Math.max(previous.evidenceCount, next.evidenceCount),
-		misconceptions: [.../* @__PURE__ */ new Set([...next.misconceptions, ...previous.misconceptions])].slice(0, MAX_LIST_ITEMS),
-		anchors: anchors.slice(0, MAX_LIST_ITEMS),
-		staleAnchors: [...staleAnchors].filter((anchor) => !activeAnchors.has(anchor)).slice(0, MAX_LIST_ITEMS),
-		due: next.due ?? previous.due,
-		sessionIds
-	};
-}
-/**
-* Project a live learner state into a durable concept record.
-*
-* A state with no goal is not a concept anyone can look up later, so it produces
-* nothing rather than an unnamed record.
-* @param state - The current learner state.
-* @param sessionId - The session that produced it.
-* @returns the record, or `undefined` when there is nothing worth storing.
-*/
-function conceptRecordFromState(state, sessionId) {
-	const label = state.goal?.trim() ?? "";
-	if (label === "") return void 0;
-	if (state.mastery === "unseen" && state.evidence.length === 0) return void 0;
-	return {
-		conceptSlug: slugify(label, "concept"),
-		label,
-		mastery: state.mastery,
-		masteryBasis: state.masteryBasis,
-		phase: state.phase,
-		gap: state.gap,
-		misconceptions: state.misconceptions.slice(0, MAX_LIST_ITEMS),
-		anchors: state.sourceAnchors.slice(0, MAX_LIST_ITEMS),
-		staleAnchors: [],
-		evidenceCount: state.evidence.length,
-		due: null,
-		updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-		sessionIds: [sessionId]
-	};
-}
-/**
-* Render the memory as a bounded prompt block.
-*
-* Explicitly framed as prior sessions' observations, not as current fact: the
-* standing policy already forbids inventing learner evidence, and memory read
-* back from disk is exactly the kind of input that could be mistaken for
-* something observed this turn.
-* @param memory - The vault's memory.
-* @param options - Vault title and how many concepts to render.
-* @returns the prompt block, or `''` when the memory is empty.
-*/
-function renderLearnerMemory(memory, options = { title: "this topic" }) {
-	if (memory.concepts.length === 0) return "";
-	const limit = options.limit ?? 12;
-	const ordered = [...memory.concepts].sort((left, right) => {
-		const byDue = (left.due ?? "9999").localeCompare(right.due ?? "9999");
-		return byDue !== 0 ? byDue : right.updatedAt.localeCompare(left.updatedAt);
-	});
-	const shown = ordered.slice(0, limit);
-	const lines = [`## Prior learning in ${options.title}`, "Observed in EARLIER sessions, not this turn. Treat each as a revisable prior: confirm with a fresh observation before relying on it, and never cite it as evidence the learner produced now."];
-	for (const concept of shown) {
-		const parts = [`${concept.label} — ${concept.mastery}`];
-		if (concept.masteryBasis === "user-correction") parts.push("(learner-corrected)");
-		if (concept.gap !== "unknown") parts.push(`open gap: ${concept.gap}`);
-		if (concept.misconceptions.length > 0) parts.push(`past misconception: ${concept.misconceptions[0]}`);
-		if (concept.anchors.length > 0) parts.push(`anchors: ${concept.anchors.slice(0, 2).join("; ")}`);
-		if (concept.staleAnchors.length > 0) parts.push(`${concept.staleAnchors.length} earlier citation(s) no longer exist in the current material`);
-		lines.push(`- ${parts.join(". ")}.`);
-	}
-	if (ordered.length > shown.length) lines.push(`- …and ${ordered.length - shown.length} more concepts in this folder.`);
-	return lines.join("\n");
-}
-//#endregion
-//#region lib/types/material-reanchor.js
-/**
-* Re-anchoring: what happens to a learner's stored citations when the source
-* they cite is replaced by a new edition.
-*
-* The two halves of a vault have different lifetimes. `extracted/` and
-* `.learning/structure/` are caches and are rebuilt wholesale on reimport;
-* learner memory is a user asset and must survive. This module is the bridge: it
-* moves each stored anchor onto the rebuilt structure, and when an anchor no
-* longer corresponds to anything, marks it stale rather than quietly keeping a
-* page number that now points somewhere else.
-*
-* Resolution order is heading path, then the opening-text hash recorded by the
-* PREVIOUS parse. The hash is what recovers a section that was merely retitled —
-* which is the common case for a second edition, and the case where silently
-* dropping the citation would cost the learner the most.
-* @module @dsh-portable/interactive-learning/src/material-reanchor
-*/
-const EMPTY_OUTCOME = {
-	moved: 0,
-	unchanged: 0,
-	stale: 0,
-	recovered: 0
-};
-/** Whether an anchor belongs to the source being rebuilt. */
-function belongsTo(anchor, sourceId) {
-	return parseAnchorText(anchor).sourceId === sourceId;
-}
-/**
-* Resolve one stored anchor against the rebuilt structure.
-* @returns the new anchor text, or `undefined` when nothing matches.
-*/
-function moveAnchor(anchor, previous, next) {
-	const { headingPath } = parseAnchorText(anchor);
-	if (headingPath.length === 0) return void 0;
-	const section = reanchor(headingPath, previous?.sections.find((section) => sameStringList(section.headingPath, headingPath))?.quoteHash ?? "", next);
-	return section === void 0 ? void 0 : formatSectionAnchor(next.sourceId, section);
-}
-/** Re-anchor one concept record; returns the record and what changed. */
-function reanchorConcept(concept, previous, next) {
-	const outcome = { ...EMPTY_OUTCOME };
-	const anchors = [];
-	const stale = [];
-	for (const anchor of concept.anchors) {
-		if (!belongsTo(anchor, next.sourceId)) {
-			anchors.push(anchor);
-			continue;
-		}
-		const moved = moveAnchor(anchor, previous, next);
-		if (moved === void 0) {
-			stale.push(anchor);
-			outcome.stale += 1;
-			continue;
-		}
-		anchors.push(moved);
-		if (moved === anchor) outcome.unchanged += 1;
-		else outcome.moved += 1;
-	}
-	for (const anchor of concept.staleAnchors) {
-		if (!belongsTo(anchor, next.sourceId)) {
-			stale.push(anchor);
-			continue;
-		}
-		const moved = moveAnchor(anchor, previous, next);
-		if (moved === void 0) {
-			stale.push(anchor);
-			continue;
-		}
-		if (!anchors.includes(moved)) anchors.push(moved);
-		outcome.recovered += 1;
-	}
-	return {
-		concept: !sameStringList(anchors, concept.anchors) || !sameStringList([...new Set(stale)], concept.staleAnchors) ? {
-			...concept,
-			anchors,
-			staleAnchors: [...new Set(stale)]
-		} : concept,
-		outcome
-	};
-}
-/**
-* Move every stored citation for one source onto its rebuilt structure.
-*
-* Called by the ingest pipeline after a source is re-parsed. Writes only when
-* something actually changed, so a routine reingest of unchanged material costs
-* nothing.
-* @param vault - The vault whose memory holds the citations.
-* @param previous - The structure recorded before this reimport, when there was one.
-* @param next - The freshly derived structure.
-* @returns the totals across every concept.
-*/
-async function reanchorVaultMemory(vault, previous, next) {
-	const memory = await readLearnerMemory(vault);
-	if (memory.concepts.length === 0) return { ...EMPTY_OUTCOME };
-	const total = { ...EMPTY_OUTCOME };
-	const concepts = [];
-	let changed = false;
-	for (const concept of memory.concepts) {
-		const result = reanchorConcept(concept, previous, next);
-		concepts.push(result.concept);
-		if (result.concept !== concept) changed = true;
-		total.moved += result.outcome.moved;
-		total.unchanged += result.outcome.unchanged;
-		total.stale += result.outcome.stale;
-		total.recovered += result.outcome.recovered;
-	}
-	if (changed) await writeLearnerMemory(vault, {
-		...memory,
-		concepts
-	});
-	return total;
-}
-/** A sentence describing a re-anchor pass, or `''` when nothing moved. */
-function describeReanchor(outcome, sourceTitle) {
-	const parts = [];
-	if (outcome.moved > 0) parts.push(`${outcome.moved} citation(s) moved to their new location`);
-	if (outcome.recovered > 0) parts.push(`${outcome.recovered} earlier citation(s) resolve again`);
-	if (outcome.stale > 0) parts.push(`${outcome.stale} citation(s) no longer exist and are marked stale`);
-	return parts.length === 0 ? "" : `${sourceTitle}: ${parts.join("; ")}.`;
 }
 //#endregion
 //#region lib/types/ingest/pipeline.js
@@ -2437,7 +2902,14 @@ async function ingestSource(vault, filePath) {
 		degradation: parsed.degradation
 	};
 	await upsertManifestEntry(vault, entry);
-	const reanchored = await reanchorVaultMemory(vault, superseded, structure);
+	const memoryReanchored = await reanchorVaultMemory(vault, superseded, structure);
+	const cardReanchored = await reanchorConceptCards(vault, superseded, structure);
+	const reanchored = {
+		moved: memoryReanchored.moved + cardReanchored.moved,
+		unchanged: memoryReanchored.unchanged + cardReanchored.unchanged,
+		stale: memoryReanchored.stale + cardReanchored.stale,
+		recovered: memoryReanchored.recovered + cardReanchored.recovered
+	};
 	return {
 		status: "ingested",
 		sourceId,
@@ -2974,7 +3446,7 @@ const NO_VAULT = Object.freeze({
 	status: "no-vault",
 	detail: "This session has no learning vault, so there is no stored material to read. Ask the learner to open a learning folder and add their material, and teach from conversation in the meantime. Do not claim to have read any source."
 });
-function closeRoot(tool) {
+function closeRoot$1(tool) {
 	return {
 		...tool,
 		parameters: {
@@ -2988,7 +3460,7 @@ function sectionAnchor(structure, section) {
 	return formatSectionAnchor(structure.sourceId, section);
 }
 /** The vault this agent's session runs in, if any. */
-async function vaultOf(ctx, agent) {
+async function vaultOf$1(ctx, agent) {
 	const cwd = agent?.session.header.cwd;
 	return cwd === void 0 ? void 0 : await resolveTopicVault(ctx, cwd);
 }
@@ -3230,7 +3702,7 @@ const searchOutput = {
 		}
 	}
 };
-const recallOutput = {
+const recallOutput$1 = {
 	type: "object",
 	additionalProperties: false,
 	properties: {
@@ -3319,7 +3791,7 @@ const recallOutput = {
 * @param ctx - The learning agent context, carrying `ctx.tools`.
 */
 function registerMaterialTools(ctx) {
-	ctx.tools.register(closeRoot(defineTool({
+	ctx.tools.register(closeRoot$1(defineTool({
 		name: "learning_material_map",
 		description: [
 			"Navigate the learner's own stored material. Returns the real section structure parsed from their sources — never a summary you wrote.",
@@ -3341,7 +3813,7 @@ function registerMaterialTools(ctx) {
 		},
 		isConcurrencySafe: () => true,
 		async execute(args, exec) {
-			const vault = await vaultOf(ctx, exec.agent);
+			const vault = await vaultOf$1(ctx, exec.agent);
 			if (vault === void 0) return { ...NO_VAULT };
 			const added = (await syncMentionedMaterial(exec.agent, vault)).flatMap((result) => [describeDegradation(result) || `${result.title}: read in full.`, ...result.reanchored === void 0 ? [] : [describeReanchor(result.reanchored, result.title)].filter((line) => line !== "")]);
 			const sourceId = typeof args.sourceId === "string" ? args.sourceId.trim() : "";
@@ -3402,7 +3874,7 @@ function registerMaterialTools(ctx) {
 			};
 		}
 	})));
-	ctx.tools.register(closeRoot(defineTool({
+	ctx.tools.register(closeRoot$1(defineTool({
 		name: "learning_material_read",
 		description: [
 			"Read one section of the learner's stored material, addressed by the section id that learning_material_map returned.",
@@ -3434,7 +3906,7 @@ function registerMaterialTools(ctx) {
 		},
 		isConcurrencySafe: () => true,
 		async execute(args, exec) {
-			const vault = await vaultOf(ctx, exec.agent);
+			const vault = await vaultOf$1(ctx, exec.agent);
 			if (vault === void 0) return { ...NO_VAULT };
 			await syncMentionedMaterial(exec.agent, vault);
 			const sourceId = String(args.sourceId ?? "").trim();
@@ -3481,7 +3953,7 @@ function registerMaterialTools(ctx) {
 			};
 		}
 	})));
-	ctx.tools.register(closeRoot(defineTool({
+	ctx.tools.register(closeRoot$1(defineTool({
 		name: "learning_material_search",
 		description: [
 			"Find a literal phrase inside the learner's stored material and get back the sections that contain it.",
@@ -3509,7 +3981,7 @@ function registerMaterialTools(ctx) {
 		},
 		isConcurrencySafe: () => true,
 		async execute(args, exec) {
-			const vault = await vaultOf(ctx, exec.agent);
+			const vault = await vaultOf$1(ctx, exec.agent);
 			if (vault === void 0) return { ...NO_VAULT };
 			await syncMentionedMaterial(exec.agent, vault);
 			const query = String(args.query ?? "").trim();
@@ -3558,7 +4030,7 @@ function registerMaterialTools(ctx) {
 			};
 		}
 	})));
-	ctx.tools.register(closeRoot(defineTool({
+	ctx.tools.register(closeRoot$1(defineTool({
 		name: "learning_material_recall",
 		description: [
 			"Retrieve the passage the CURRENT TEACHING SITUATION calls for. Takes no query: what to look for is derived from the learner state you have been maintaining — an open misconception pulls up contradicting material, an example that already failed pulls up a different one, a prerequisite gap pulls up the missing earlier rule.",
@@ -3568,7 +4040,7 @@ function registerMaterialTools(ctx) {
 		].join(" "),
 		parameters: {},
 		output: {
-			schema: recallOutput,
+			schema: recallOutput$1,
 			render: (_args, value) => [{
 				type: "text",
 				text: JSON.stringify(value)
@@ -3576,7 +4048,7 @@ function registerMaterialTools(ctx) {
 		},
 		isConcurrencySafe: () => true,
 		async execute(_args, exec) {
-			const vault = await vaultOf(ctx, exec.agent);
+			const vault = await vaultOf$1(ctx, exec.agent);
 			if (vault === void 0) return { ...NO_VAULT };
 			await syncMentionedMaterial(exec.agent, vault);
 			const agent = exec.agent;
@@ -3639,6 +4111,10 @@ const MAX_SUGGESTIONS = 8;
 * @returns every violation found; empty means the map is grounded.
 */
 async function validateStudyMapAgainstVault(vault, content) {
+	if (content.view === "concepts") return (await readConceptCards(vault)).length > 0 ? [] : [{
+		path: "visual.content",
+		detail: "This learning folder has no approved concept cards to display. Complete an independent fresh transfer and confirm the concept-card proposal first."
+	}];
 	const structures = await readAllStructures(vault);
 	if (structures.length === 0) return [{
 		path: "visual.content",
@@ -3686,6 +4162,271 @@ function formatStudyMapViolations(violations) {
 		...violations.map((violation) => `- ${violation.path}: ${violation.detail}`),
 		"Call learning_material_map to get the real structure, then rebuild the map from it. Do not invent a section, chapter, or page."
 	].join("\n");
+}
+//#endregion
+//#region lib/types/concept-tools.js
+/** Model-facing gates for saving and reviewing user-approved concept cards. */
+const CONCEPT_TOOL_NAMES = ["learning_concept_propose", "learning_concept_recall"];
+const SAVE_LABEL = "保存概念卡";
+const DECLINE_LABEL = "暂不保存";
+const proposalOutput = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		status: {
+			type: "string",
+			enum: [
+				"saved",
+				"updated",
+				"declined",
+				"not-ready",
+				"no-vault",
+				"unavailable"
+			],
+			required: true
+		},
+		detail: {
+			type: "string",
+			required: true
+		},
+		conceptSlug: { type: "string" },
+		due: { type: "string" },
+		path: { type: "string" }
+	}
+};
+const recallOutput = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		status: {
+			type: "string",
+			enum: [
+				"ok",
+				"empty",
+				"no-due",
+				"no-vault"
+			],
+			required: true
+		},
+		detail: { type: "string" },
+		cards: {
+			type: "array",
+			items: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					id: {
+						type: "string",
+						required: true
+					},
+					prompt: {
+						type: "string",
+						required: true
+					},
+					answer: {
+						type: "string",
+						required: true
+					},
+					hint: { type: "string" },
+					tags: {
+						type: "array",
+						items: { type: "string" }
+					},
+					due: {
+						type: "string",
+						required: true
+					},
+					mastery: {
+						type: "string",
+						required: true
+					},
+					stale: {
+						type: "boolean",
+						required: true
+					}
+				}
+			}
+		}
+	}
+};
+function closeRoot(tool) {
+	return {
+		...tool,
+		parameters: {
+			...tool.parameters,
+			additionalProperties: false
+		}
+	};
+}
+async function vaultOf(ctx, agent) {
+	const cwd = agent?.session.header.cwd;
+	return cwd === void 0 ? void 0 : await resolveTopicVault(ctx, cwd);
+}
+function interactionOf(ctx) {
+	return ctx.get("userQuestions");
+}
+function errorCode(cause) {
+	return cause instanceof UserQuestionError ? cause.code : void 0;
+}
+/** Register the host-mediated concept-card tools. */
+function registerConceptTools(ctx) {
+	ctx.tools.register(closeRoot(defineTool({
+		name: "learning_concept_propose",
+		description: [
+			"After the learner has independently solved a fresh transfer, propose one durable concept card from this teaching segment. Do not call before that evidence exists.",
+			"The Host shows the learner the exact Markdown card and asks for an explicit save decision. This tool never writes when the learner declines, and it never extracts an automatic concept graph.",
+			"You may supply the learner explanation, an unverified transfer context, and explicit related concept names; use only what the learner actually said or what was explicitly discussed.",
+			"中文模板：只有独立迁移完成后才提议保存；是否写入由学习者决定。"
+		].join(" "),
+		parameters: {
+			explanation: {
+				type: "string",
+				description: "Optional concise version of the learner's explanation, grounded in this segment."
+			},
+			unverifiedTransfer: {
+				type: "string",
+				description: "Optional new context the learner has not independently demonstrated yet."
+			},
+			relatedConcepts: {
+				type: "array",
+				items: { type: "string" },
+				description: "Optional explicit concept names to render as Obsidian [[wiki-links]]. Do not infer a graph."
+			}
+		},
+		output: {
+			schema: proposalOutput,
+			render: (_args, value) => [{
+				type: "text",
+				text: JSON.stringify(value)
+			}]
+		},
+		isConcurrencySafe: () => false,
+		async execute(args, exec) {
+			const agent = exec.agent;
+			if (agent === void 0) return {
+				status: "not-ready",
+				detail: "A live learning session is required to propose a concept card."
+			};
+			const state = ctx.learningActivities.learnerState(agent);
+			const draft = conceptCardDraftFromState(state, {
+				explanation: typeof args.explanation === "string" ? args.explanation : void 0,
+				unverifiedTransfer: typeof args.unverifiedTransfer === "string" ? args.unverifiedTransfer : void 0,
+				relatedConcepts: Array.isArray(args.relatedConcepts) ? args.relatedConcepts : void 0
+			});
+			if (draft === void 0) return {
+				status: "not-ready",
+				detail: "No correct, independent, fresh transfer is recorded yet; continue teaching instead of saving a card."
+			};
+			const vault = await vaultOf(ctx, agent);
+			if (vault === void 0) return {
+				status: "no-vault",
+				detail: "This session is not inside a learning vault, so no concept card was written."
+			};
+			const interaction = interactionOf(ctx);
+			if (interaction === void 0) return {
+				status: "unavailable",
+				detail: "No user-confirmation channel is available; no concept card was written."
+			};
+			let answer;
+			try {
+				answer = await interaction.ask({
+					questions: [{
+						id: "concept-card-confirm",
+						header: "概念卡",
+						question: "要把这次已经完成的独立迁移保存为概念卡吗？",
+						detail: renderConceptCard(draft),
+						options: [{
+							label: SAVE_LABEL,
+							description: "写入当前学习库的 concepts/，以后可以复习。"
+						}, {
+							label: DECLINE_LABEL,
+							description: "本次不写入，学习状态仍保留在会话记忆中。"
+						}]
+					}],
+					agent,
+					signal: exec.signal
+				});
+			} catch (cause) {
+				const code = errorCode(cause);
+				if (code === "NO_PROVIDER" || code === "ASK_CANCELLED" || code === "ASK_ABORTED") return {
+					status: "unavailable",
+					detail: "The save decision was unavailable; no concept card was written."
+				};
+				throw cause;
+			}
+			const item = answer.answers.find((candidate) => candidate.id === "concept-card-confirm");
+			if (!(item?.selected.length === 1 && item.selected[0] === SAVE_LABEL && item.custom === void 0)) return {
+				status: "declined",
+				detail: "The learner did not save the concept card; no file was written."
+			};
+			const existing = await readConceptCard(vault, draft.conceptSlug);
+			const card = await saveConceptCard(vault, draft);
+			const record = conceptRecordFromState(state, String(agent.session.id));
+			if (record !== void 0) await upsertLearnerConcept(vault, {
+				...record,
+				due: card.due,
+				reviewIntervalDays: card.intervalDays,
+				lastReviewedAt: card.lastReviewedAt,
+				anchors: card.anchors,
+				staleAnchors: card.staleAnchors
+			});
+			return {
+				status: existing === void 0 ? "saved" : "updated",
+				detail: existing === void 0 ? "The learner approved the concept card and it was saved in the learning vault." : "The learner approved the updated concept card; the existing note was retained and a new observation was added.",
+				conceptSlug: card.conceptSlug,
+				...card.due === null ? {} : { due: card.due },
+				path: conceptCardPathOf(vault, card.conceptSlug)
+			};
+		}
+	})));
+	ctx.tools.register(closeRoot(defineTool({
+		name: "learning_concept_recall",
+		description: [
+			"Read the learner's saved concept cards that are due for review. The cards come from concepts/*.md, not from generated guesses.",
+			"Use the returned prompts, answers, and ids to build a recall_deck when a non-blocking review is useful; a self-rating is not mastery evidence.",
+			"If there is no due card, continue the current teaching request instead of interrupting it for review.",
+			"中文模板：只在适合时主动复习到期卡片，不要打断当前问题。"
+		].join(" "),
+		parameters: {},
+		output: {
+			schema: recallOutput,
+			render: (_args, value) => [{
+				type: "text",
+				text: JSON.stringify(value)
+			}]
+		},
+		isConcurrencySafe: () => true,
+		async execute(_args, exec) {
+			const vault = await vaultOf(ctx, exec.agent);
+			if (vault === void 0) return {
+				status: "no-vault",
+				detail: "This session has no learning vault."
+			};
+			const cards = await readConceptCards(vault);
+			if (cards.length === 0) return {
+				status: "empty",
+				detail: "No approved concept cards exist in this learning vault yet."
+			};
+			const due = cards.filter((card) => isConceptDue(card.due)).sort((left, right) => (left.due ?? "").localeCompare(right.due ?? ""));
+			if (due.length === 0) return {
+				status: "no-due",
+				detail: "No saved concept card is due for review yet."
+			};
+			return {
+				status: "ok",
+				cards: due.slice(0, 16).map((card) => ({
+					id: recallCardIdOf(card.conceptSlug),
+					prompt: `用自己的话解释“${card.label}”。`,
+					answer: card.explanation || `概念卡：${card.label}`,
+					...card.misconceptions[0] === void 0 ? {} : { hint: `注意曾经的误解：${card.misconceptions[0]}` },
+					tags: [card.mastery, ...card.staleAnchors.length > 0 ? ["stale-anchor"] : []],
+					due: card.due,
+					mastery: card.mastery,
+					stale: card.staleAnchors.length > 0
+				}))
+			};
+		}
+	})));
 }
 //#endregion
 //#region lib/types/teaching-route.js
@@ -3825,6 +4566,12 @@ const LEARNING_MATERIAL_POLICY = [
 	"Record every material-grounded claim with `learning_state_update` `source_anchors_observed`, using the anchor string the tool returned verbatim. A `study_map` of a supplied source is refused unless each section carries such an anchor.",
 	"The tools return a coverage line naming what could NOT be read — image-only pages, a guessed multi-column order, dropped formulas, a truncated read. State that boundary in your own words before teaching from the source, and never present an unread part as covered. If the material contradicts you, the material is what the learner is studying: say so plainly rather than smoothing it over."
 ].join("\n\n");
+/** Inject only when this vault has a real, user-approved card to review. */
+const LEARNING_REVIEW_POLICY = [
+	"## Saved concept cards (conditional)",
+	"This learning folder has approved concept cards. Review is optional and never blocks the learner's current request: call `learning_concept_recall` only when a due card would help, then use its returned cards for a `recall_deck`. Treat self-ratings as review signals, not proof of mastery.",
+	"After a correct independent fresh transfer, you may call `learning_concept_propose`; the Host will ask before writing the card. Do not create a card from an unverified explanation or infer links that were not explicitly discussed."
+].join("\n\n");
 /** Short templates make the standing/tool prompt usable for Chinese turns. */
 const LEARNING_CHINESE_TEMPLATES = [
 	"中文模板：先给一个小支架，再问一个会改变下一步的问题。",
@@ -3840,10 +4587,11 @@ function buildLearningTeachingPolicy(context = {}) {
 	if (context.graded) conditional.push(LEARNING_GRADED_POLICY);
 	if (context.visual && (context.route === "teach-minimum" || context.route === "continue" || context.route === "overview" || context.route === "direct")) conditional.push(LEARNING_VISUAL_POLICY);
 	if (context.material) conditional.push(LEARNING_MATERIAL_POLICY);
+	if (context.concepts) conditional.push(LEARNING_REVIEW_POLICY);
 	if (context.language === "zh" || context.language === "mixed") conditional.push(LEARNING_CHINESE_TEMPLATES);
 	return [LEARNING_TEACHING_POLICY_CORE, ...conditional].join("\n\n");
 }
 /** Backwards-compatible standing-layer name used by existing agent wiring. */
 const LEARNING_TEACHING_POLICY = LEARNING_TEACHING_POLICY_CORE;
 //#endregion
-export { VaultContainmentError as $, isSupportedSource as A, renderLearnerMemory as B, executeRetrievalPlan as C, describeDegradation as D, MAX_SOURCE_BYTES as E, MAX_STORED_CONCEPTS as F, parseSource as G, writeLearnerMemory as H, conceptRecordFromState as I, emitSource as J, titleOf as K, memoryPathOf as L, reanchorVaultMemory as M, LEARNER_MEMORY_PROTOCOL as N, ingestDirectory as O, MAX_RENDERED_CONCEPTS as P, VAULT_MANIFEST_PATH as Q, parseLearnerConceptRecord as R, RETRIEVAL_INTENTS as S, planRetrieval as T, SUPPORTED_EXTENSIONS as U, upsertLearnerConcept as V, extensionOf as W, renderExtractedMarkdown as X, reanchor as Y, VAULT_DIRECTORIES as Z, sectionAnchor as _, classifyLearnIntent as _t, LEARNING_TEACHING_POLICY_CORE as a, readStructure as at, syncMentionedMaterial as b, routeLearningRequest as c, upsertManifestEntry as ct, validateStudyMapAgainstVault as d, writeManifest as dt, containedPath as et, MATERIAL_TOOL_NAMES as f, LEARNING_INTENT_POLICY as ft, registerMaterialTools as g, LEARN_INTENT_RULES as gt, MAX_SEARCH_MATCHES as h, LEARN_INTENT_NATURAL_LANGUAGE_RULES as ht, LEARNING_TEACHING_POLICY as i, readManifest as it, describeReanchor as j, ingestSource as k, routeLearningTurn as l, vaultFromRoot as lt, MAX_READ_CHARS as m, LEARN_INTENT_MODEL_GUIDANCE as mt, LEARNING_GRADED_POLICY as n, isVaultRoot as nt, LEARNING_VISUAL_POLICY as o, resolveTopicVault as ot, MAX_MAP_SECTIONS as p, LEARN_INTENT as pt, deriveStructure as q, LEARNING_MATERIAL_POLICY as r, readAllStructures as rt, buildLearningTeachingPolicy as s, structurePathOf as st, LEARNING_CHINESE_TEMPLATES as t, ensureVaultLayout as tt, formatStudyMapViolations as u, vaultRelative as ut, mentionedPaths as v, isLearnIntent as vt, keyPhrases as w, DEFAULT_RETRIEVAL_BUDGET_CHARS as x, parseFileMentions as y, isLearningBoundary as yt, readLearnerMemory as z };
+export { reviewIntervalDays as $, describeDegradation as A, writeManifest as At, buildConceptStudyMap as B, classifyLearnIntent as Bt, syncMentionedMaterial as C, readManifest as Ct, keyPhrases as D, upsertManifestEntry as Dt, executeRetrievalPlan as E, structurePathOf as Et, extensionOf as F, LEARNING_INTENT_POLICY as Ft, isConceptDue as G, conceptCardPathOf as H, isLearningBoundary as Ht, parseSource as I, LEARN_INTENT as It, readConceptCards as J, nextReviewSchedule as K, titleOf as L, LEARN_INTENT_MODEL_GUIDANCE as Lt, ingestSource as M, emitSource as Mt, isSupportedSource as N, reanchor as Nt, planRetrieval as O, vaultFromRoot as Ot, SUPPORTED_EXTENSIONS as P, renderExtractedMarkdown as Pt, renderConceptCard as Q, INITIAL_REVIEW_INTERVAL_DAYS as R, LEARN_INTENT_NATURAL_LANGUAGE_RULES as Rt, parseFileMentions as S, readAllStructures as St, RETRIEVAL_INTENTS as T, resolveTopicVault as Tt, conceptRecordFromCard as U, conceptCardDraftFromState as V, isLearnIntent as Vt, hasFreshIndependentTransfer as W, reanchorConceptCards as X, readLearnerMemoryWithCards as Y, recallCardIdOf as Z, MAX_READ_CHARS as _, VAULT_MANIFEST_PATH as _t, LEARNING_TEACHING_POLICY as a, reanchorVaultMemory as at, sectionAnchor as b, ensureVaultLayout as bt, buildLearningTeachingPolicy as c, MAX_STORED_CONCEPTS as ct, CONCEPT_TOOL_NAMES as d, parseLearnerConceptRecord as dt, saveConceptCard as et, registerConceptTools as f, readLearnerMemory as ft, MAX_MAP_SECTIONS as g, VAULT_DIRECTORIES as gt, MATERIAL_TOOL_NAMES as h, writeLearnerMemory as ht, LEARNING_REVIEW_POLICY as i, reanchorAnchorLists as it, ingestDirectory as j, deriveStructure as jt, MAX_SOURCE_BYTES as k, vaultRelative as kt, routeLearningRequest as l, conceptRecordFromState as lt, validateStudyMapAgainstVault as m, upsertLearnerConcept as mt, LEARNING_GRADED_POLICY as n, updateConceptCardSchedule as nt, LEARNING_TEACHING_POLICY_CORE as o, LEARNER_MEMORY_PROTOCOL as ot, formatStudyMapViolations as p, renderLearnerMemory as pt, readConceptCard as q, LEARNING_MATERIAL_POLICY as r, describeReanchor as rt, LEARNING_VISUAL_POLICY as s, MAX_RENDERED_CONCEPTS as st, LEARNING_CHINESE_TEMPLATES as t, updateConceptCardAnchors as tt, routeLearningTurn as u, memoryPathOf as ut, MAX_SEARCH_MATCHES as v, VaultContainmentError as vt, DEFAULT_RETRIEVAL_BUDGET_CHARS as w, readStructure as wt, mentionedPaths as x, isVaultRoot as xt, registerMaterialTools as y, containedPath as yt, MAX_CONCEPT_CARDS as z, LEARN_INTENT_RULES as zt };

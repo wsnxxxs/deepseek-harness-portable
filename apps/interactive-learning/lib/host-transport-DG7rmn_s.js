@@ -1,4 +1,4 @@
-import { m as TRANSPORT_PROTOCOL_V2, r as CHECKPOINT_TRANSPORT_PROTOCOL } from "./protocol-current-nKmbv-Ul.js";
+import { m as TRANSPORT_PROTOCOL_V2, r as CHECKPOINT_TRANSPORT_PROTOCOL } from "./protocol-current-CVgOF60h.js";
 //#region lib/types/host-transport.js
 /**
 * Host-only transport writers.

@@ -453,8 +453,9 @@ const formulaStepsContent = { type: 'object', additionalProperties: false, prope
 const studyMapContent = { type: 'object', additionalProperties: false, properties: {
   kind: {
     type: 'string', const: 'study_map', required: true,
-    description: 'A navigable overview of a supplied document, chapter, slide deck, or multi-concept learning source. Preserve source sections and anchors instead of flattening the material.',
+    description: 'A navigable overview of supplied material, or the Host-materialized state of saved learner concepts.',
   },
+  view: { type: 'string', enum: ['material', 'concepts'], description: 'Use concepts to request the saved concept-card state; the Host supplies its sections and cards.' },
   sourceLabel: { type: 'string', required: true },
   goal: { type: 'string' },
   sections: { type: 'array', required: true, items: {
@@ -468,6 +469,10 @@ const studyMapContent = { type: 'object', additionalProperties: false, propertie
     type: 'object', additionalProperties: false, properties: {
       id: { ...identifier, required: true }, label: { type: 'string', required: true },
       sectionId: { type: 'string', required: true }, detail: { type: 'string' },
+      conceptSlug: { type: 'string', description: 'Saved concept-card identity in concepts view.' },
+      mastery: { type: 'string', enum: ['unseen', 'emerging', 'transfer'] },
+      due: { type: 'string', description: 'Next review date in YYYY-MM-DD form.' },
+      stale: { type: 'boolean', description: 'Whether one or more saved source anchors no longer resolve.' },
       prerequisiteIds: {
         type: 'array', items: { type: 'string' },
         description: 'Optional; at most 8 unique declared concept ids, excluding this concept, with no cycles.',
@@ -841,6 +846,8 @@ export const LEARNING_VISUAL_RESULT_SCHEMA_V4 = {
   properties: {
     protocol: { type: 'string', const: VISUAL_RESULT_PROTOCOL_V4, required: true },
     status: { type: 'string', enum: LEARNING_VISUAL_STATUSES, required: true },
+    /** Host materialization for a saved-concepts study map. */
+    content: visualContentSchemaV4,
   },
 } as const satisfies ValueSchemaSpec
 

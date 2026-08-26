@@ -28,6 +28,13 @@ export interface ReanchorOutcome {
     /** Anchors previously marked stale that resolve again. */
     recovered: number;
 }
+/** Re-anchor one pair of active/stale citation lists against a rebuilt source. */
+export declare function reanchorAnchorLists(currentAnchors: readonly string[], currentStaleAnchors: readonly string[], previous: SourceStructure | undefined, next: SourceStructure): {
+    anchors: readonly string[];
+    staleAnchors: readonly string[];
+    outcome: ReanchorOutcome;
+    changed: boolean;
+};
 /**
  * Move every stored citation for one source onto its rebuilt structure.
  *

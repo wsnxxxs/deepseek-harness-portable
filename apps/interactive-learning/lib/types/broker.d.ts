@@ -153,6 +153,7 @@ export declare class LearningActivityBroker extends Service {
      * correctness, independence, or transfer mastery.
      */
     recordRecallFeedback(feedback: LearningRecallFeedbackV1): LearningRecallFeedbackResult;
+    private persistRecallReview;
     private recordCheckpointOutcome;
     /** Optional V4.1 path: one answer-free checkpoint, independent of V2 lessons. */
     presentCheckpoint(request: PresentLearningCheckpointRequest): Promise<LearningCheckpointResultV1>;
