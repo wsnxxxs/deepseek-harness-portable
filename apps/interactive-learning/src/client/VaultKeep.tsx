@@ -193,14 +193,14 @@ export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t
               <>
                 <input
                   type="text"
-                  className={css.search}
+                  className={css.keepTitleInput}
                   value={title}
                   placeholder={t('vaultNoteTitlePlaceholder')}
                   aria-label={t('vaultNoteTitlePlaceholder')}
                   onChange={(event) => { setTitle(event.target.value) }}
                 />
                 <textarea
-                  className={css.editor}
+                  className={css.keepEditor}
                   value={body}
                   rows={10}
                   aria-label={t('vaultKeepBody')}

@@ -1000,6 +1000,44 @@
   box-shadow: var(--lx-shadow-md);
 }
 
+/* The keep form follows the host composer: elevated dark surface, generous
+   16px type, and the same quiet border/focus treatment. Keep these selectors
+   separate from `.search`/`.editor`, which belong to the library's dense
+   filtering and source-editing surfaces. */
+.keepTitleInput,
+.keepEditor {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--lx-border-default);
+  border-radius: var(--lx-radius-xl);
+  background: var(--lx-surface-raised);
+  color: var(--lx-label-primary);
+  font: inherit;
+  font-size: var(--lx-text-md);
+  line-height: var(--lx-leading-md);
+}
+
+.keepTitleInput {
+  min-height: 40px;
+  padding: 4px var(--lx-space-lg) 4px var(--lx-space-xl);
+}
+
+.keepEditor {
+  min-height: 180px;
+  padding: var(--lx-space-md) var(--lx-space-lg) var(--lx-space-md) var(--lx-space-xl);
+  resize: vertical;
+}
+
+.keepTitleInput::placeholder,
+.keepEditor::placeholder { color: var(--lx-label-tertiary); }
+
+.keepTitleInput:focus-visible,
+.keepEditor:focus-visible {
+  border-color: var(--lx-border-strong);
+  outline: var(--lx-focus-width) solid var(--lx-focus-color);
+  outline-offset: var(--lx-focus-offset);
+}
+
 .keepAction {
   display: inline-flex;
   align-items: center;
