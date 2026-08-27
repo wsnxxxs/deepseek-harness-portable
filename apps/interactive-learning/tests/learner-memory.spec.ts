@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   MAX_RENDERED_CONCEPTS,
+  MAX_RENDERED_MEMORY_CHARS,
   conceptRecordFromState,
   memoryPathOf,
   parseLearnerConceptRecord,
@@ -221,6 +222,18 @@ describe('rendering prior learning into the prompt', () => {
     const rows = text.split('\n').filter(line => line.startsWith('- 概念'))
     expect(rows).toHaveLength(MAX_RENDERED_CONCEPTS)
     expect(text).toContain('and 5 more concepts')
+  })
+
+  it('prioritizes the current goal and enforces a character cap', () => {
+    const text = renderLearnerMemory({
+      protocol: 'dsh-learning-memory@1',
+      concepts: [
+        record({ conceptSlug: 'other', label: '其他概念', updatedAt: '2026-08-26T00:00:00.000Z' }),
+        record({ conceptSlug: 'closures', label: '闭包', updatedAt: '2026-08-20T00:00:00.000Z' }),
+      ],
+    }, { title: '学习库', goal: '闭包', maxChars: MAX_RENDERED_MEMORY_CHARS })
+    expect(text.indexOf('闭包 — emerging')).toBeLessThan(text.indexOf('其他概念 — emerging'))
+    expect(text.length).toBeLessThanOrEqual(MAX_RENDERED_MEMORY_CHARS)
   })
 
   it('puts a due concept ahead of a merely recent one', () => {

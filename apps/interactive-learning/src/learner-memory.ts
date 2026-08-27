@@ -38,6 +38,8 @@ export const LEARNER_MEMORY_PROTOCOL = 'dsh-learning-memory@1' as const
 
 /** Concepts rendered into one prompt injection. */
 export const MAX_RENDERED_CONCEPTS = 12
+/** Maximum characters rendered into one prompt injection. */
+export const MAX_RENDERED_MEMORY_CHARS = 4000
 /** Concepts retained on disk before the least recently touched are dropped. */
 export const MAX_STORED_CONCEPTS = 500
 /** Anchors and misconceptions retained per concept. */
@@ -292,11 +294,21 @@ export function conceptRecordFromState(
  */
 export function renderLearnerMemory(
   memory: LearnerMemory,
-  options: { title: string; limit?: number } = { title: 'this topic' },
+  options: {
+    title: string
+    limit?: number
+    goal?: string
+    maxChars?: number
+  } = { title: 'this topic' },
 ): string {
   if (memory.concepts.length === 0) return ''
   const limit = options.limit ?? MAX_RENDERED_CONCEPTS
+  const maxChars = Math.max(1, options.maxChars ?? MAX_RENDERED_MEMORY_CHARS)
+  const today = new Date().toISOString().slice(0, 10)
+  const goal = options.goal?.trim() ?? ''
   const ordered = [...memory.concepts].sort((left, right) => {
+    const byRelevance = memoryRelevance(right, goal, today) - memoryRelevance(left, goal, today)
+    if (byRelevance !== 0) return byRelevance
     const byDue = (left.due ?? '9999').localeCompare(right.due ?? '9999')
     return byDue !== 0 ? byDue : right.updatedAt.localeCompare(left.updatedAt)
   })
@@ -306,10 +318,11 @@ export function renderLearnerMemory(
     'Observed in EARLIER sessions, not this turn. Treat each as a revisable prior:'
     + ' confirm with a fresh observation before relying on it, and never cite it as evidence the learner produced now.',
   ]
+  let renderedChars = lines[0].length + lines[1].length + 1
+  let renderedCount = 0
   for (const concept of shown) {
-    const parts = [`${concept.label} — ${concept.mastery}`]
+    const parts = [`${boundedText(concept.label, 160)} — ${concept.mastery}`]
     if (concept.due !== null) {
-      const today = new Date().toISOString().slice(0, 10)
       parts.push(concept.due.slice(0, 10) <= today
         ? 'DUE for review'
         : `next review: ${concept.due.slice(0, 10)}`)
@@ -317,16 +330,48 @@ export function renderLearnerMemory(
     if (concept.masteryBasis === 'user-correction') parts.push('(learner-corrected)')
     if (concept.gap !== 'unknown') parts.push(`open gap: ${concept.gap}`)
     if (concept.misconceptions.length > 0) {
-      parts.push(`past misconception: ${concept.misconceptions[0]}`)
+      parts.push(`past misconception: ${boundedText(concept.misconceptions[0]!, 240)}`)
     }
-    if (concept.anchors.length > 0) parts.push(`anchors: ${concept.anchors.slice(0, 2).join('; ')}`)
+    if (concept.anchors.length > 0) {
+      parts.push(`anchors: ${concept.anchors.slice(0, 2).map(anchor => boundedText(anchor, 180)).join('; ')}`)
+    }
     if (concept.staleAnchors.length > 0) {
       parts.push(`${concept.staleAnchors.length} earlier citation(s) no longer exist in the current material`)
     }
-    lines.push(`- ${parts.join('. ')}.`)
+    const line = `- ${parts.join('. ')}.`
+    if (renderedChars + line.length + 1 > maxChars) break
+    lines.push(line)
+    renderedChars += line.length + 1
+    renderedCount += 1
   }
-  if (ordered.length > shown.length) {
-    lines.push(`- …and ${ordered.length - shown.length} more concepts in this folder.`)
+  if (ordered.length > renderedCount) {
+    const omitted = `- …and ${ordered.length - renderedCount} more concepts in this folder.`
+    if (renderedChars + omitted.length + 1 <= maxChars) lines.push(omitted)
   }
-  return lines.join('\n')
+  return lines.join('\n').slice(0, maxChars)
+}
+
+function boundedText(value: string, maxChars: number): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - 1)}…`
+}
+
+function memoryRelevance(
+  concept: LearnerConceptRecord,
+  goal: string,
+  today: string,
+): number {
+  const haystack = `${concept.label} ${concept.conceptSlug}`.toLocaleLowerCase()
+  const normalizedGoal = goal.toLocaleLowerCase()
+  let score = 0
+  if (normalizedGoal !== '' && (haystack.includes(normalizedGoal) || normalizedGoal.includes(haystack))) {
+    score += 12
+  }
+  if (normalizedGoal !== '') {
+    const terms = normalizedGoal.match(/[\p{Script=Han}]|[A-Za-z0-9][A-Za-z0-9_-]*/gu) ?? []
+    score += terms.filter(term => term.length > 1 && haystack.includes(term)).length * 3
+  }
+  if (concept.due !== null) score += concept.due.slice(0, 10) <= today ? 4 : 2
+  if (concept.gap !== 'unknown') score += 1
+  return score
 }

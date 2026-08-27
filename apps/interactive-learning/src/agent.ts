@@ -46,9 +46,14 @@ import { LEARN_INTENT_MODEL_GUIDANCE } from './learn-intent.ts'
 import { classifyLearningIntentSemantically } from './intent-router.ts'
 import { MATERIAL_TOOL_NAMES, registerMaterialTools } from './material-tools.ts'
 import { parseFileMentions, syncMentionedMaterial } from './material-intake.ts'
-import { CONCEPT_TOOL_NAMES, registerConceptTools } from './concept-tools.ts'
+import {
+  CONCEPT_TOOL_NAMES,
+  registerConceptTools,
+  validateRecallDeckAgainstVault,
+} from './concept-tools.ts'
 import {
   buildConceptStudyMap,
+  hasFreshIndependentTransfer,
   readConceptCards,
   readLearnerMemoryWithCards,
 } from './concept-cards.ts'
@@ -62,6 +67,10 @@ import {
   formatStudyMapViolations,
   validateStudyMapAgainstVault,
 } from './material-validation.ts'
+import {
+  assertMaterialAnchorsReadable,
+  beginMaterialTurn,
+} from './material-receipts.ts'
 import { buildLearningTeachingPolicy } from './teaching-policy.ts'
 import { LEARNING_MATERIAL_POLICY } from './teaching-policy.ts'
 import {
@@ -416,6 +425,7 @@ function lowConfidenceRouteContext(decision: LearningTurnRouteDecision): string[
 function routeContextText(
   decision: LearningTurnRouteDecision,
   richClientAvailable: boolean,
+  materialAvailable = false,
 ): string {
   if (decision.confidence === 'low') {
     return [
@@ -440,6 +450,9 @@ function routeContextText(
       : 'This turn opens a learning segment; the learner\'s evidence still determines the next teaching move.',
     ...(decision.intent.trigger === 'current-topic'
       ? ['Use web_search before making substantive current or contested claims, then ground the structured explanation in the returned sources.']
+      : []),
+    ...(materialAvailable
+      ? ['Indexed learning material is available. Retrieve it internally when claims depend on it; do not make the learner orchestrate the retrieval sequence.']
       : []),
     decision.route === 'calibrate'
       ? 'Give one tiny useful foothold, then ask exactly one route-changing question; do not dump an overview.'
@@ -544,15 +557,26 @@ const LEARNING_NON_RICH_TOOLS: ReadonlySet<string> = new Set<string>([
   ...CONCEPT_TOOL_NAMES,
 ])
 
+const MATERIAL_TOOL_SET: ReadonlySet<string> = new Set(MATERIAL_TOOL_NAMES)
+
 function learningToolAvailable(
   decision: LearningTurnRouteDecision | undefined,
   toolName: string,
   richClientAvailable: boolean,
+  agent?: Agent,
+  state?: LearnerState,
 ): boolean {
   if (decision?.intent.intent === 'learn'
     && decision.confidence !== 'low'
     && toolName === GENERIC_USER_WAIT_TOOL) return false
-  if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || LEARNING_NON_RICH_TOOLS.has(toolName)) return true
+  if (!toolName.startsWith(LEARNING_TOOL_PREFIX)) return true
+  if (decision?.intent.intent === 'learn' && agent !== undefined) {
+    if (MATERIAL_TOOL_SET.has(toolName) && vaultHasMaterial.get(agent) !== true) return false
+    if (toolName === 'learning_concept_recall' && vaultHasConcepts.get(agent) !== true) return false
+    if (toolName === 'learning_concept_propose'
+      && (vaultAvailable.get(agent) !== true || state === undefined || !hasFreshIndependentTransfer(state))) return false
+  }
+  if (LEARNING_NON_RICH_TOOLS.has(toolName)) return true
   if (decision === undefined) return true
   if (!richClientAvailable) return false
   if (decision.intent.intent !== 'learn') return decision.confidence === 'low'
@@ -584,6 +608,10 @@ const learnerMemoryBlocks = new WeakMap<Agent, string>()
 const vaultHasMaterial = new WeakMap<Agent, boolean>()
 /** Whether this agent's vault has approved concept cards available to review. */
 const vaultHasConcepts = new WeakMap<Agent, boolean>()
+/** Whether this agent is inside a learning vault, even when it has no sources yet. */
+const vaultAvailable = new WeakMap<Agent, boolean>()
+/** Last learner-state revision projected into durable memory for this agent. */
+const learnerMemoryProjectionRevisions = new WeakMap<Agent, { session: object; revision: number }>()
 
 /**
  * Persist this session's concept state into the vault, then reload the vault's
@@ -600,17 +628,26 @@ async function refreshLearnerMemory(services: LearningAgentContext, agent: Agent
       learnerMemoryBlocks.delete(agent)
       vaultHasMaterial.delete(agent)
       vaultHasConcepts.delete(agent)
+      vaultAvailable.delete(agent)
+      learnerMemoryProjectionRevisions.delete(agent)
       return
     }
+    vaultAvailable.set(agent, true)
     vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0)
     vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0)
-    const record = conceptRecordFromState(
-      services.learningActivities.learnerState(agent),
-      String(agent.session.id),
-    )
-    if (record !== undefined) await upsertLearnerConcept(vault, record)
+    const state = services.learningActivities.learnerState(agent)
+    const priorProjection = learnerMemoryProjectionRevisions.get(agent)
+    if (priorProjection?.session !== agent.session || priorProjection.revision !== state.revision) {
+      const record = conceptRecordFromState(state, String(agent.session.id))
+      if (record !== undefined) await upsertLearnerConcept(vault, record)
+      learnerMemoryProjectionRevisions.set(agent, { session: agent.session, revision: state.revision })
+    }
     const memory = await readLearnerMemoryWithCards(vault)
-    learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }))
+    learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, {
+      title: vault.title,
+      goal: state.goal ?? undefined,
+      maxChars: 4_000,
+    }))
   } catch (cause) {
     // Long-term memory is an enhancement to a turn, never a precondition for
     // one: a damaged or unreadable vault must not block teaching.
@@ -867,29 +904,115 @@ function assertSingleCheckpointInModelStep(exec: ToolRunContext): void {
   if (agent === undefined) {
     throw new LearningProtocolError(['learning_checkpoint requires a live agent session'])
   }
-  const calls = agent.session.events.filter(event => event.type === 'tool/call')
-  const ownCalls = calls.filter(event => event.data.callId === exec.callId)
-  if (ownCalls.length === 0) {
+  const position = modelStepPosition(exec)
+  if (position === undefined) {
     throw new LearningProtocolError(['learning_checkpoint callId is absent from the session tool/call log'])
   }
-  const locations = new Set(ownCalls.map(event => `${String(event.data.turn)}:${String(event.data.step)}`))
-  if (locations.size !== 1 || ownCalls.some(event => event.data.name !== 'learning_checkpoint')) {
-    throw new LearningProtocolError(['learning_checkpoint callId does not identify one checkpoint model step'])
-  }
-  const own = ownCalls[ownCalls.length - 1]!
-  const checkpointCallIds = new Set(calls
-    .filter(event => event.data.turn === own.data.turn
-      && event.data.step === own.data.step
-      && event.data.name === 'learning_checkpoint')
-    .map(event => String(event.data.callId)))
-  if (checkpointCallIds.size > 1) {
+  const names = modelStepToolNames(agent, position)
+  if (names.filter(name => name === 'learning_checkpoint').length > 1) {
     throw new LearningProtocolError(['a model step may contain at most one learning_checkpoint call'])
   }
-  if (calls.some(event => event.data.turn === own.data.turn
-    && event.data.step === own.data.step
-    && event.data.name !== 'learning_checkpoint')) {
+  if (names.some(name => name !== 'learning_checkpoint')) {
     throw new LearningProtocolError(['learning_checkpoint must be the only tool call in its model step'])
   }
+}
+
+interface ModelStepPosition {
+  turn: number
+  step: number
+}
+
+type ToolCallContext = Pick<ToolRunContext, 'agent' | 'callId'>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** Locate the model step that owns one direct tool execution. */
+function modelStepPosition(exec: ToolCallContext): ModelStepPosition | undefined {
+  const agent = exec.agent
+  if (agent === undefined) return undefined
+  const callId = String(exec.callId)
+  for (const event of [...agent.session.events].reverse()) {
+    if (event.type !== 'tool/call' || String(event.data.callId) !== callId) continue
+    return { turn: event.data.turn, step: event.data.step }
+  }
+  return undefined
+}
+
+/** Include calls already logged and calls still waiting in the assistant step. */
+function modelStepToolNames(agent: Agent, position: ModelStepPosition): readonly string[] {
+  const names: string[] = []
+  for (const event of agent.session.events) {
+    if (event.type === 'tool/call'
+      && event.data.turn === position.turn
+      && event.data.step === position.step) {
+      names.push(event.data.name)
+    }
+  }
+  const assistant = [...agent.session.events].reverse().find(event => (
+    event.type === 'assistant/message'
+      && event.data.turn === position.turn
+      && event.data.step === position.step
+  ))
+  if (assistant?.type !== 'assistant/message') return names
+  const content = isRecord(assistant.data.message) ? assistant.data.message.content : undefined
+  if (!Array.isArray(content)) return names
+  for (const block of content) {
+    if (!isRecord(block) || block.type !== 'tool-call' || typeof block.name !== 'string') continue
+    names.push(block.name)
+  }
+  return [...new Set(names)]
+}
+
+function completedToolCallIds(agent: Agent, position: ModelStepPosition): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const event of agent.session.events) {
+    if (event.type !== 'tool/result'
+      || event.data.turn !== position.turn
+      || event.data.step !== position.step) continue
+    const content = event.data.message.content
+    for (const block of content) {
+      if (block.type === 'tool-result') ids.add(String(block.toolCallId))
+    }
+  }
+  return ids
+}
+
+/** A material call must wait for every state observation earlier in its step. */
+function hasPendingStateUpdateInModelStep(exec: ToolCallContext): boolean {
+  const agent = exec.agent
+  const position = modelStepPosition(exec)
+  if (agent === undefined || position === undefined) return false
+  const names = modelStepToolNames(agent, position)
+  if (!names.includes('learning_state_update')) return false
+  const calls = agent.session.events.filter(event => (
+    event.type === 'tool/call'
+      && event.data.turn === position.turn
+      && event.data.step === position.step
+      && event.data.name === 'learning_state_update'
+  ))
+  const completed = completedToolCallIds(agent, position)
+  return calls.some(call => !completed.has(String((call.data as { callId?: unknown }).callId)))
+    || calls.length < names.filter(name => name === 'learning_state_update').length
+}
+
+function assertOnlyToolInModelStep(exec: ToolCallContext, expectedName: string): void {
+  const agent = exec.agent
+  const position = modelStepPosition(exec)
+  if (agent === undefined || position === undefined) return
+  const names = modelStepToolNames(agent, position)
+  if (names.some(name => name !== expectedName)) {
+    throw new LearningProtocolError([`${expectedName} must be the only tool call in its model step`])
+  }
+  if (names.filter(name => name === expectedName).length > 1) {
+    throw new LearningProtocolError([`a model step may contain at most one ${expectedName} call`])
+  }
+}
+
+function sourceAnchorsFromEvent(value: unknown): readonly string[] {
+  if (!isRecord(value) || value.type !== 'source_anchors_observed' || !Array.isArray(value.anchors)) return []
+  return value.anchors.filter((anchor): anchor is string => typeof anchor === 'string')
 }
 
 function boundedSelectionText(value: string, field: string, maxLength: number): string {
@@ -912,6 +1035,7 @@ export function apply(ctx: Context): void {
     // A new learner message starts a new decision and retires unfinished work.
     disposeDynamicTeachingTools(agent)
     richTeachingMoves.delete(agent)
+    beginMaterialTurn(agent, turn)
     const transcript = learnerTranscriptStates.get(agent)
     if (transcript !== undefined && transcript.session !== agent.session) {
       learnerTranscriptStates.delete(agent)
@@ -967,7 +1091,22 @@ export function apply(ctx: Context): void {
         reason: 'index the supplied PDF with learning_material_map before viewing an individual page',
       })
     }
-    if (!learningToolAvailable(decision, execution.name, services.learningActivities.richClientAvailable)) {
+    if (decision?.intent.intent === 'learn'
+      && agent !== undefined
+      && MATERIAL_TOOL_SET.has(execution.name)
+      && hasPendingStateUpdateInModelStep(execution)) {
+      return Promise.resolve({
+        kind: 'deny' as const,
+        reason: 'finish learning_state_update in an earlier tool step before retrieving learning material',
+      })
+    }
+    if (!learningToolAvailable(
+      decision,
+      execution.name,
+      services.learningActivities.richClientAvailable,
+      agent,
+      agent === undefined ? undefined : services.learningActivities.learnerState(agent),
+    )) {
       return Promise.resolve({
         kind: 'deny' as const,
         reason: 'this rich learning tool is unavailable for the current route or client; continue in ordinary text',
@@ -1007,6 +1146,8 @@ export function apply(ctx: Context): void {
           decision,
           tool.name,
           services.learningActivities.richClientAvailable,
+          agent,
+          agent === undefined ? undefined : services.learningActivities.learnerState(agent),
         )),
       }
     }
@@ -1035,6 +1176,7 @@ export function apply(ctx: Context): void {
     },
     isConcurrencySafe: () => false,
     async execute(args, exec) {
+      assertOnlyToolInModelStep(exec, 'learning_visual_select')
       const purpose = boundedSelectionText(args.purpose, 'learning_visual_select.purpose', 500)
       const learnerAction = typeof args.learnerAction === 'string' ? args.learnerAction.trim() : ''
       const pairedQuestion = typeof args.pairedQuestion === 'string' ? args.pairedQuestion.trim() : ''
@@ -1063,12 +1205,12 @@ export function apply(ctx: Context): void {
         async execute(payload, payloadExec) {
           const visual = parseLearningVisualV4(payload)
           let materializedStudyMap: typeof visual.content | undefined
+          const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd)
           // A study map is the one visual that asserts something about the
           // learner's own document. Inside a vault that assertion is checkable,
           // so it is checked — before the ephemeral tool is disposed, leaving
           // the model able to rebuild the map from the real structure.
           if (visual.content.kind === 'study_map') {
-            const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd)
             if (vault !== undefined) {
               if (visual.content.view === 'concepts') {
                 materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal)
@@ -1078,6 +1220,11 @@ export function apply(ctx: Context): void {
               }
             } else if (visual.content.view === 'concepts') {
               throw new TypeError('study_map concepts view requires a learning vault')
+            }
+          } else if (visual.content.kind === 'recall_deck' && vault !== undefined) {
+            const violations = await validateRecallDeckAgainstVault(vault, visual.content)
+            if (violations.length > 0) {
+              throw new TypeError(`recall_deck must copy saved concept cards verbatim: ${violations.join('; ')}`)
             }
           }
           try {
@@ -1145,6 +1292,7 @@ export function apply(ctx: Context): void {
         if (args.event === undefined || args.correction !== undefined || args.observation !== undefined) {
           throw new TypeError('action=update requires only event')
         }
+        assertMaterialAnchorsReadable(agent, sourceAnchorsFromEvent(args.event))
         return services.learningActivities.updateLearnerState({
           action: 'update',
           agent,
@@ -1185,6 +1333,7 @@ export function apply(ctx: Context): void {
     },
     isConcurrencySafe: () => false,
     async execute(args, exec) {
+      assertOnlyToolInModelStep(exec, 'learning_checkpoint_select')
       const selection: CheckpointSelection = {
         kind: args.kind,
         expectedEvidence: args.expectedEvidence,
@@ -1240,6 +1389,8 @@ export function apply(ctx: Context): void {
           decision,
           'learning_visual_select',
           services.learningActivities.richClientAvailable,
+          agent,
+          agent === undefined ? undefined : services.learningActivities.learnerState(agent),
         ),
       })
     },
@@ -1252,7 +1403,11 @@ export function apply(ctx: Context): void {
       const decision = agent === undefined ? undefined : learningRoutes.get(agent)
       return decision === undefined
         ? ''
-        : routeContextText(decision, services.learningActivities.richClientAvailable)
+        : routeContextText(
+            decision,
+            services.learningActivities.richClientAvailable,
+            agent === undefined ? false : vaultHasMaterial.get(agent) === true,
+          )
     },
   })
   services.systemPrompt.context({

@@ -74,7 +74,9 @@ const MAX_PRIOR_CHARS = 400
 const STOPWORDS: ReadonlySet<string> = new Set([
   'the', 'and', 'for', 'with', 'that', 'this', 'from', 'what', 'why', 'how',
   'are', 'was', 'were', 'has', 'have', 'not', 'but', 'its', 'into', 'about',
+  'learn', 'learning', 'teach', 'explain', 'explanation', 'understand',
   '的', '了', '和', '是', '在', '与', '及', '或', '这个', '那个', '什么', '为什么', '怎么',
+  '理解', '学习', '学会', '掌握', '解释', '讲解', '教我',
 ])
 
 const LATIN_WORD = /[\p{Letter}\p{Number}][\p{Letter}\p{Number}'-]*/gu
@@ -114,6 +116,7 @@ const MAX_BIGRAMS = 4
  */
 export function keyPhrases(text: string): readonly string[] {
   const normalized = normalizeQuote(text)
+    .replace(/(?:教我|学习|学会|理解|掌握|解释|讲解|了解|教|讲)(?=[㐀-鿿豈-﫿])/gu, '')
   if (normalized === '') return []
   const whole: string[] = []
   const bigrams: string[] = []
@@ -183,10 +186,14 @@ export function planRetrieval(
   ): RetrievalPlan => ({
     intent,
     rationale,
-    // Goal terms lead. They name the concept and are the most reliable
-    // discriminator, and `terms[0]` is what the learner-prior leg searches past
-    // sessions for — a noise bigram from a misconception would be a poor query.
-    terms: [...new Set([...goalTerms, ...extra])].slice(0, MAX_TERMS),
+    // Keep the first two goal terms as the stable concept query, then add the
+    // situation terms. A long learner misconception must not crowd the concept
+    // itself out of the bounded search plan.
+    terms: [...new Set([
+      ...goalTerms.slice(0, 2),
+      ...extra,
+      ...goalTerms.slice(2),
+    ])].slice(0, MAX_TERMS),
     preferredAnchors: state.sourceAnchors.slice(0, 4),
     includeLearnerPrior: PRIOR_RELEVANT.has(intent),
     budgetChars,
@@ -273,20 +280,36 @@ function scoreSection(
   const anchor = formatSectionAnchor(structure.sourceId, section)
   const preferred = plan.preferredAnchors.some(candidate =>
     candidate.includes(section.label) || anchor === candidate)
+  if (plan.intent === 'second-example' && preferred) return undefined
   // An already-cited section is where the learner already is; that is the right
   // place to look for counter-evidence and the wrong one for a second example.
   const adjustment = plan.intent === 'second-example'
-    ? (preferred ? -1 : 0)
+    ? 0
     : (preferred ? 1 : 0)
   return { structure, section, body, matched, score: matched.length + adjustment }
 }
 
+/** Return the supplied terms that occur in a body, preserving their order. */
+export function matchedTerms(
+  body: string,
+  terms: string | readonly string[],
+): readonly string[] {
+  const candidates = typeof terms === 'string' ? [terms] : terms
+  const haystack = body.toLocaleLowerCase()
+  return candidates.filter(term => term.trim() !== '' && haystack.includes(term.toLocaleLowerCase()))
+}
+
 /** Excerpt around the first matched term, bounded. */
-function excerpt(body: string, matched: readonly string[], limit: number): string {
+export function excerptAround(
+  body: string,
+  matched: string | readonly string[],
+  limit: number,
+): string {
+  const terms = typeof matched === 'string' ? [matched] : matched
   const trimmed = body.trim()
   if (limit <= 0) return ''
   if (trimmed.length <= limit) return trimmed
-  const first = matched[0]?.toLowerCase()
+  const first = terms[0]?.toLowerCase()
   const at = first === undefined ? -1 : trimmed.toLowerCase().indexOf(first)
   const from = at < 0 ? 0 : Math.max(0, at - Math.floor(limit / 3))
   const prefix = from > 0 ? '…' : ''
@@ -296,6 +319,8 @@ function excerpt(body: string, matched: readonly string[], limit: number): strin
   const slice = trimmed.slice(from, from + contentLimit).trim()
   return `${prefix}${slice}${suffix}`
 }
+
+const excerpt = excerptAround
 
 /** The session-query reads this module uses; opportunistic, never required. */
 interface SessionQueryLike {
@@ -325,7 +350,7 @@ async function retrieveLearnerPrior(
   const concept = memory.concepts.find(candidate => candidate.conceptSlug === slugify(goal, 'concept'))
   if (concept === undefined) return []
 
-  const term = plan.terms[0]
+  const term = keyPhrases(goal)[0]
   const excerpts: LearnerPriorExcerpt[] = []
   for (const sessionId of concept.sessionIds) {
     if (excerpts.length >= MAX_PRIOR) break

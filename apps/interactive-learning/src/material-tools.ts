@@ -27,6 +27,10 @@ import {
   executeRetrievalPlan,
   planRetrieval,
 } from './material-retrieval.ts'
+import {
+  materialStructureMapped,
+  recordMaterialReceipt,
+} from './material-receipts.ts'
 import { syncMentionedMaterial } from './material-intake.ts'
 import type { SourceSection, SourceStructure } from './ingest/types.ts'
 import type { LearnerState } from './learner-state.ts'
@@ -171,6 +175,10 @@ const sourceRow = {
       type: 'string', required: true,
       description: 'What could NOT be read from this source; empty when it parsed cleanly.',
     },
+    receiptId: {
+      type: 'string',
+      description: 'Ephemeral structure receipt; it proves this source was mapped this turn.',
+    },
     outline: { type: 'array', required: true, items: outlineRow },
   },
 } as const
@@ -181,6 +189,10 @@ const mapOutput = {
     vault: { type: 'string' },
     sources: { type: 'array', items: sourceRow },
     sourceId: { type: 'string' },
+    receiptId: {
+      type: 'string',
+      description: 'Ephemeral structure receipt for the mapped source.',
+    },
     title: { type: 'string' },
     parser: { type: 'string' },
     coverage: { type: 'string' },
@@ -212,6 +224,10 @@ const readOutput = {
     page: { type: 'integer' },
     anchor: { type: 'string' },
     coverage: { type: 'string' },
+    receiptId: {
+      type: 'string',
+      description: 'Ephemeral content receipt; cite the returned anchor only after this read succeeds.',
+    },
     text: { type: 'string' },
     truncated: { type: 'boolean' },
     children: { type: 'array', items: childRow },
@@ -226,6 +242,10 @@ const matchRow = {
     page: { type: 'integer' },
     anchor: { type: 'string', required: true },
     line: { type: 'integer', required: true },
+    receiptId: {
+      type: 'string',
+      description: 'Ephemeral locator receipt; read the section before using its contents as evidence.',
+    },
     preview: { type: 'string', required: true },
   },
 } as const
@@ -252,6 +272,10 @@ const passageRow = {
     page: { type: 'integer' },
     text: { type: 'string', required: true },
     matchedTerms: { type: 'array', required: true, items: { type: 'string' } },
+    receiptId: {
+      type: 'string', required: true,
+      description: 'Ephemeral content receipt for this exact passage and anchor.',
+    },
   },
 } as const
 
@@ -311,7 +335,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       schema: mapOutput,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
-    isConcurrencySafe: () => true,
+    isConcurrencySafe: () => false,
     async execute(args, exec) {
       const vault = await vaultOf(ctx, exec.agent)
       if (vault === undefined) return { ...NO_VAULT }
@@ -342,6 +366,12 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           parser: structure.parser,
           sectionCount: structure.sections.length,
           coverage: coverageOf(structure),
+          ...(exec.agent === undefined ? {} : {
+            receiptId: recordMaterialReceipt(exec.agent, {
+              kind: 'structure',
+              sourceId: structure.sourceId,
+            }).receiptId,
+          }),
           outline: structure.sections
             .filter(section => section.level <= 2)
             .slice(0, 12)
@@ -376,9 +406,14 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
         anchor: sectionAnchor(structure, section),
         chars: section.charCount,
       }))
+      const receipt = exec.agent === undefined ? undefined : recordMaterialReceipt(exec.agent, {
+        kind: 'structure',
+        sourceId: structure.sourceId,
+      })
       return {
         status: 'ok' as const,
         sourceId: structure.sourceId,
+        ...(receipt === undefined ? {} : { receiptId: receipt.receiptId }),
         title: structure.title,
         parser: structure.parser,
         coverage: coverageOf(structure),
@@ -399,7 +434,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       'Read one section of the learner\'s stored material, addressed by the section id that learning_material_map returned.',
       'This is the only way to see a source\'s actual words. Do not assert what a section says without reading it first.',
       'A long section returns its opening plus its child section ids rather than the whole text: read the child you actually need, one at a time.',
-      'The returned anchor is the exact citation to record with learning_state_update source_anchors_observed.',
+      'The returned receiptId and anchor are evidence for learning_state_update source_anchors_observed; cite only this exact anchor after the read succeeds.',
       '中文模板：一次只读你真正要讲的那一节，并引用返回的锚点。',
     ].join(' '),
     parameters: {
@@ -417,7 +452,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       schema: readOutput,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
-    isConcurrencySafe: () => true,
+    isConcurrencySafe: () => false,
     async execute(args, exec) {
       const vault = await vaultOf(ctx, exec.agent)
       if (vault === undefined) return { ...NO_VAULT }
@@ -429,6 +464,13 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           status: 'unknown-source' as const,
           detail: `No source '${sourceId}' in this learning folder.`,
           known: (await readManifest(vault)).sources.map(entry => entry.sourceId),
+        }
+      }
+      if (exec.agent !== undefined && !materialStructureMapped(exec.agent, structure.sourceId)) {
+        return {
+          status: 'invalid' as const,
+          sourceId,
+          detail: 'Call learning_material_map with this sourceId before reading a section.',
         }
       }
       if (structure.sections.length === 0) {
@@ -468,6 +510,16 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           chars: candidate.charCount,
         }))
       const truncated = body.length > MAX_READ_CHARS
+      const text = truncated ? `${body.slice(0, MAX_READ_CHARS)}\n…` : body
+      const receipt = exec.agent === undefined || body === ''
+        ? undefined
+        : recordMaterialReceipt(exec.agent, {
+            kind: 'content',
+            sourceId: structure.sourceId,
+            sectionId: section.id,
+            anchor: sectionAnchor(structure, section),
+            text,
+          })
       return {
         status: 'ok' as const,
         sourceId,
@@ -476,7 +528,8 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
         ...(section.page === undefined ? {} : { page: section.page }),
         anchor: sectionAnchor(structure, section),
         coverage: coverageOf(structure),
-        text: truncated ? `${body.slice(0, MAX_READ_CHARS)}\n…` : body,
+        ...(receipt === undefined ? {} : { receiptId: receipt.receiptId }),
+        text,
         truncated,
         children,
       }
@@ -488,7 +541,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
     description: [
       'Find a literal phrase inside the learner\'s stored material and get back the sections that contain it.',
       'Use it to locate where the material defines a term, states a rule, or gives another worked example — then read that section.',
-      'Matching is literal and case-insensitive, not a regular expression. Results are section-anchored, so a hit is directly citable.',
+      'Matching is literal and case-insensitive, not a regular expression. Results carry locator receipts only: read the section before treating a hit as content evidence.',
       '中文模板：先定位材料里真正讲到这个词的地方，再去读那一节。',
     ].join(' '),
     parameters: {
@@ -499,7 +552,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       schema: searchOutput,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
-    isConcurrencySafe: () => true,
+    isConcurrencySafe: () => false,
     async execute(args, exec) {
       const vault = await vaultOf(ctx, exec.agent)
       if (vault === undefined) return { ...NO_VAULT }
@@ -543,6 +596,12 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           if (section === undefined) continue
           const at = line.toLowerCase().indexOf(needle)
           const from = Math.max(0, at - MATCH_PREVIEW_CHARS / 2)
+          const receipt = exec.agent === undefined ? undefined : recordMaterialReceipt(exec.agent, {
+            kind: 'locator',
+            sourceId: structure.sourceId,
+            sectionId: section.id,
+            anchor: sectionAnchor(structure, section),
+          })
           matches.push({
             sourceId: structure.sourceId,
             sectionId: section.id,
@@ -550,6 +609,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
             ...(section.page === undefined ? {} : { page: section.page }),
             anchor: sectionAnchor(structure, section),
             line: index + 1,
+            ...(receipt === undefined ? {} : { receiptId: receipt.receiptId }),
             preview: line.slice(from, from + MATCH_PREVIEW_CHARS).trim(),
           })
         }
@@ -572,7 +632,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
     description: [
       'Retrieve the passage the CURRENT TEACHING SITUATION calls for. Takes no query: what to look for is derived from the learner state you have been maintaining — an open misconception pulls up contradicting material, an example that already failed pulls up a different one, a prerequisite gap pulls up the missing earlier rule.',
       'Use it when you know what is wrong but not where the material addresses it. Use learning_material_search instead when you already know the exact phrase to find, and learning_material_read when you already know the section.',
-      'The result names the retrieval intent and why it was chosen; teach from the passages and cite their anchors. Passages are bounded to a per-turn budget, so ask for one section with learning_material_read when you need more of it.',
+      'The result names the retrieval intent and why it was chosen; teach from the passages and cite their receipt-backed anchors. Passages are bounded to a per-turn budget, so ask for one section with learning_material_read when you need more of it.',
       '中文模板：当前卡在哪里，就去材料里找能解开那一处的段落，而不是把整章拉进来。',
     ].join(' '),
     parameters: {},
@@ -580,7 +640,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       schema: recallOutput,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
-    isConcurrencySafe: () => true,
+    isConcurrencySafe: () => false,
     async execute(_args, exec) {
       const vault = await vaultOf(ctx, exec.agent)
       if (vault === undefined) return { ...NO_VAULT }
@@ -622,7 +682,20 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
         rationale: plan.rationale,
         terms: [...plan.terms],
         usedChars: result.usedChars,
-        passages: result.passages.map(passage => ({ ...passage, matchedTerms: [...passage.matchedTerms] })),
+        passages: result.passages.map(passage => {
+          const receipt = recordMaterialReceipt(agent, {
+            kind: 'content',
+            sourceId: passage.sourceId,
+            sectionId: passage.sectionId,
+            anchor: passage.anchor,
+            text: passage.text,
+          })
+          return {
+            ...passage,
+            matchedTerms: [...passage.matchedTerms],
+            receiptId: receipt.receiptId,
+          }
+        }),
         learnerPrior: [...result.learnerPrior],
       }
     },

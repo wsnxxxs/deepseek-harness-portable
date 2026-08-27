@@ -16,6 +16,7 @@ import {
 } from './concept-cards.ts'
 import { conceptRecordFromState, upsertLearnerConcept } from './learner-memory.ts'
 import type { LearnerState } from './learner-state.ts'
+import type { LearningRecallDeckV4 } from './protocol-current.ts'
 import { resolveTopicVault, type TopicVault } from './topic-vault.ts'
 
 export const CONCEPT_TOOL_NAMES = [
@@ -85,6 +86,28 @@ function errorCode(cause: unknown): string | undefined {
     : undefined
 }
 
+/** Check that a generated recall deck still represents saved card content. */
+export async function validateRecallDeckAgainstVault(
+  vault: TopicVault,
+  deck: LearningRecallDeckV4,
+): Promise<readonly string[]> {
+  const cards = await readConceptCards(vault)
+  const byId = new Map(cards.map(card => [recallCardIdOf(card.conceptSlug), card]))
+  const issues: string[] = []
+  for (const [index, item] of deck.cards.entries()) {
+    const card = byId.get(item.id)
+    if (card === undefined) {
+      issues.push(`card ${String(index + 1)} has no matching saved concept card`)
+      continue
+    }
+    const expectedPrompt = `用自己的话解释“${card.label}”。`
+    const expectedAnswer = card.explanation || `概念卡：${card.label}`
+    if (item.prompt !== expectedPrompt) issues.push(`card ${item.id} changed its saved prompt`)
+    if (item.answer !== expectedAnswer) issues.push(`card ${item.id} changed its saved answer`)
+  }
+  return issues
+}
+
 /** Register the host-mediated concept-card tools. */
 export function registerConceptTools(ctx: ConceptToolContext): void {
   ctx.tools.register(closeRoot(defineTool({
@@ -92,17 +115,17 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
     description: [
       'After the learner has independently solved a fresh transfer, propose one durable concept card from this teaching segment. Do not call before that evidence exists.',
       'The Host shows the learner the exact Markdown card and asks for an explicit save decision. This tool never writes when the learner declines, and it never extracts an automatic concept graph.',
-      'You may supply the learner explanation, an unverified transfer context, and explicit related concept names; use only what the learner actually said or what was explicitly discussed.',
+      'You may supply the learner explanation, an unverified transfer context, and explicit related concept names; copy only learner wording or contexts explicitly discussed in this segment, and omit fields you cannot ground.',
       '中文模板：只有独立迁移完成后才提议保存；是否写入由学习者决定。',
     ].join(' '),
     parameters: {
       explanation: {
         type: 'string',
-        description: 'Optional concise version of the learner\'s explanation, grounded in this segment.',
+        description: 'Optional learner wording from this segment; omit it rather than writing an assistant summary as learner evidence.',
       },
       unverifiedTransfer: {
         type: 'string',
-        description: 'Optional new context the learner has not independently demonstrated yet.',
+        description: 'Optional context explicitly discussed but not independently demonstrated; do not invent one.',
       },
       relatedConcepts: {
         type: 'array', items: { type: 'string' },
@@ -198,7 +221,7 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
     name: 'learning_concept_recall',
     description: [
       'Read the learner\'s saved concept cards that are due for review. The cards come from concepts/*.md, not from generated guesses.',
-      'Use the returned prompts, answers, and ids to build a recall_deck when a non-blocking review is useful; a self-rating is not mastery evidence.',
+      'When a non-blocking review is useful, copy the returned prompt, answer, id, hint, and tags verbatim into one recall_deck; do not rewrite answers or invent cards. A self-rating is not mastery evidence.',
       'If there is no due card, continue the current teaching request instead of interrupting it for review.',
       '中文模板：只在适合时主动复习到期卡片，不要打断当前问题。',
     ].join(' '),
