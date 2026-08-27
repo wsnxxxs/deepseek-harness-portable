@@ -95,6 +95,10 @@ export interface RetrievalResult {
     /** Characters of material text in `passages`; the budget metric's input. */
     usedChars: number;
 }
+/** Return the supplied terms that occur in a body, preserving their order. */
+export declare function matchedTerms(body: string, terms: string | readonly string[]): readonly string[];
+/** Excerpt around the first matched term, bounded. */
+export declare function excerptAround(body: string, matched: string | readonly string[], limit: number): string;
 /** The session-query reads this module uses; opportunistic, never required. */
 interface SessionQueryLike {
     filterEvents(sessionId: string, filters: readonly ({

@@ -11,6 +11,8 @@ import { MATERIAL_TOOL_NAMES, MAX_READ_CHARS } from '../src/material-tools.ts'
 import * as materialToolsHost from './material-tools-host.ts'
 import { parseFileMentions } from '../src/material-intake.ts'
 import { ingestSource } from '../src/ingest/pipeline.ts'
+import { sectionIdOf } from '../src/ingest/types.ts'
+import { beginMaterialTurn } from '../src/material-receipts.ts'
 import { ensureVaultLayout, type TopicVault } from '../src/topic-vault.ts'
 
 const signal = new AbortController().signal
@@ -173,6 +175,24 @@ describe('material tools', () => {
     expect((value.children as { label: string }[]).map(child => child.label)).toEqual(['3.2 闭包'])
     expect(value.truncated).toBe(false)
     expect(String(value.anchor)).toContain('第3章 作用域')
+  })
+
+  it('reads a known section directly without mapping first', async () => {
+    const agent = agentIn(root)
+    beginMaterialTurn(agent, 1)
+    const value = await call(
+      host,
+      'learning_material_read',
+      {
+        sourceId: 'js-guide',
+        sectionId: sectionIdOf(['JavaScript 权威指南', '第3章 作用域']),
+      },
+      agent,
+    )
+    expect(value.status).toBe('ok')
+    expect(String(value.text)).toContain('作用域决定标识符的可见范围。')
+    expect(String(value.anchor)).toContain('第3章 作用域')
+    expect(String(value.receiptId)).toMatch(/^material-/)
   })
 
   it('refuses a section id that is not in the structure', async () => {

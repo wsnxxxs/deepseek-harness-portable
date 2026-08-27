@@ -46,8 +46,17 @@ export declare function reviewIntervalDays(mastery: LearnerMastery, independence
 export declare function nextReviewSchedule(card: Pick<ConceptCard, 'intervalDays' | 'mastery'>, rating: ConceptCardRating, now?: Date): ConceptCardSchedule | undefined;
 /** D1's gate: only a correct, independent, fresh transfer can create a card. */
 export declare function hasFreshIndependentTransfer(state: LearnerState): boolean;
+/** Quote one scalar for the frontmatter writers; shared with the notes store. */
+export declare function yamlString(value: string): string;
 export declare function renderConceptCard(value: ConceptCardDraft | ConceptCard, now?: Date): string;
 export declare function conceptCardPathOf(vault: TopicVault, conceptSlug: string): string;
+export interface ParsedMarkdownCard {
+    fields: Map<string, string | null>;
+    lists: Map<string, string[]>;
+    body: string;
+}
+export declare function parseMarkdownFrontmatter(raw: string): ParsedMarkdownCard | undefined;
+export declare function labelFromBody(body: string): string;
 export declare function readConceptCard(vault: TopicVault, conceptSlug: string): Promise<ConceptCard | undefined>;
 export declare function readConceptCards(vault: TopicVault): Promise<readonly ConceptCard[]>;
 export declare function saveConceptCard(vault: TopicVault, draft: ConceptCardDraft, now?: Date): Promise<ConceptCard>;

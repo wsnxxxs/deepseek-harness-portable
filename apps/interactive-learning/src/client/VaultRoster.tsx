@@ -219,7 +219,6 @@ export function VaultRosterAction({
               )
             })}
           </ul>
-          <p className={css.local}>{t('vaultRosterLocal')}</p>
         </div>
       )}
     </div>

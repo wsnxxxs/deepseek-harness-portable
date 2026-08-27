@@ -286,7 +286,6 @@ function ConceptCard({
           </div>
         )}
 
-      {!editing && <p className={css.hint}>{t('vaultDeferHint')}</p>}
       {notice !== '' && <p className={css.notice}>{notice}</p>}
       {failure !== '' && <p className={css.staleNote} role="alert">{failure}</p>}
       {file !== undefined && <pre className={css.readingBody}>{file}</pre>}
@@ -314,6 +313,7 @@ export function ConceptsSection({
   }
   return (
     <div className={css.sources}>
+      <p className={css.hint}>{t('vaultDeferHint')}</p>
       {list.concepts.map(concept => (
         <ConceptCard
           key={concept.conceptSlug}
@@ -477,7 +477,6 @@ export function ReviewSection({
       </section>
       {outcome !== '' && <p className={css.notice}>{outcome}</p>}
       {failure !== '' && <p className={css.staleNote} role="alert">{failure}</p>}
-      <p className={css.local}>{t('vaultLocalOnly')}</p>
     </div>
   )
 }

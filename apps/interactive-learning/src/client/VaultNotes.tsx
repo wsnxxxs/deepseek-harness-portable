@@ -6,11 +6,9 @@
  * kind of file and get the same editor — one textarea over the whole Markdown,
  * because a note has no derived fields to protect and no schedule to corrupt.
  *
- * The one asymmetry is the promote button, and it is the design's rule made
- * visible: on a blocked draft it renders DISABLED and labelled 「本轮未满足」,
- * with the reason stated beside it rather than hidden behind a tooltip. A
- * disabled control that explains itself teaches the gate; a control that is
- * simply absent leaves a person guessing why their note never became a card.
+ * The one asymmetry is the promote button. Ready drafts can be merged into an
+ * existing card; blocked drafts keep a visible state badge and group-level
+ * explanation, but do not render a non-actionable control.
  * @module @dsh-portable/interactive-learning/src/client/VaultNotes
  */
 
@@ -223,15 +221,15 @@ function NoteCard({
               <button type="button" className={css.button} onClick={() => { setEditing(true) }}>
                 {t('vaultEdit')}
               </button>
-              {note.kind === 'pending-concept' && (
+              {note.kind === 'pending-concept' && note.gate === 'ready' && (
                 <button
                   type="button"
-                  className={note.gate === 'ready' ? css.buttonPrimary : css.button}
-                  disabled={busy || note.gate !== 'ready'}
+                  className={css.buttonPrimary}
+                  disabled={busy}
                   title={t('vaultNotePromoteHint')}
                   onClick={promote}
                 >
-                  {note.gate === 'ready' ? t('vaultNotePromote') : t('vaultNoteGateUnmet')}
+                  {t('vaultNotePromote')}
                 </button>
               )}
               {confirming
@@ -260,7 +258,6 @@ function NoteCard({
                   </button>
                 )}
             </div>
-            {note.gate === 'blocked' && <p className={css.hint}>{t('vaultNotePromoteHint')}</p>}
           </>
         )}
 
@@ -403,7 +400,6 @@ export function NotesSection({
           </div>
         )
       })}
-      <p className={css.local}>{t('vaultLocalOnly')}</p>
     </div>
   )
 }

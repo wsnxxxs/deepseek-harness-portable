@@ -1,9 +1,9 @@
 /**
  * The re-read control — the one place in this panel that spends money.
  *
- * Everything else under 学习库 is local file I/O, and the footer says so on
- * every screen. This control has to break that promise honestly, so it is
- * built to be unmistakable rather than convenient:
+ * Everything else under 学习库 is local file I/O by default. This control is
+ * the explicit exception, so it is built to be unmistakable rather than
+ * convenient:
  *
  * - It is OUTLINED in the accent, never filled. Filled buttons in this panel
  *   mean "commits locally"; the outline plus the 「调用模型」 marker is the

@@ -7,14 +7,11 @@
  * `conversation.chat.assistant-actions`, the per-message action strip, so
  * keeping an explanation is one click from where a person read it.
  *
- * The sheet offers exactly two destinations and shows a third it will not
- * write. 「存为笔记」 keeps prose as prose. 「存为待确认概念卡」 keeps it as a
- * draft aimed at a concept, which becomes a card only once the learner has
- * demonstrated that concept in a teaching session. 「存为概念卡」 renders
- * DISABLED, because a concept card is the conclusion of observed evidence and
- * a button here would make it a self-report. Showing it disabled rather than
- * hiding it is the point: the rule is legible where a person would otherwise
- * assume the feature was missing.
+ * The sheet offers exactly two destinations. 「存为笔记」 keeps prose as prose;
+ * 「存为待确认概念卡」 keeps it as a draft aimed at a concept. A concept card
+ * is created only after the learner has demonstrated that concept in a
+ * teaching session, so the sheet explains that boundary without offering a
+ * non-actionable control.
  *
  * Only assistant messages reach this slot, so the text kept here is always the
  * model's explanation — never the learner's own words, which have their own
@@ -191,17 +188,8 @@ export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t
               >
                 {t('vaultKeepAsPending')}
               </button>
-              <button
-                type="button"
-                className={css.button}
-                disabled
-                title={t('vaultKeepAsCardHint')}
-              >
-                {t('vaultKeepAsCardUnmet')}
-              </button>
             </div>
             <p className={css.hint}>{t('vaultKeepAsCardHint')}</p>
-            <p className={css.local}>{t('vaultLocalOnly')}</p>
           </>
         )
         : (

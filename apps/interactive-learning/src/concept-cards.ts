@@ -224,7 +224,8 @@ function bodyFromDraft(draft: ConceptCardDraft, now: Date): string {
   ].join('\n')
 }
 
-function yamlString(value: string): string {
+/** Quote one scalar for the frontmatter writers; shared with the notes store. */
+export function yamlString(value: string): string {
   return JSON.stringify(value)
 }
 
@@ -280,13 +281,13 @@ function scalar(value: string): string | null {
   return trimmed
 }
 
-interface ParsedMarkdownCard {
+export interface ParsedMarkdownCard {
   fields: Map<string, string | null>
   lists: Map<string, string[]>
   body: string
 }
 
-function parseMarkdownCard(raw: string): ParsedMarkdownCard | undefined {
+export function parseMarkdownFrontmatter(raw: string): ParsedMarkdownCard | undefined {
   const normalized = raw.replace(/\r\n/gu, '\n')
   const lines = normalized.split('\n')
   if (lines[0]?.trim() !== '---') return undefined
@@ -334,12 +335,12 @@ function sectionBody(body: string, prefix: string): string {
     .trim()
 }
 
-function labelFromBody(body: string): string {
+export function labelFromBody(body: string): string {
   return body.split('\n').find(line => /^#\s+[^#]/u.test(line))?.replace(/^#\s+/u, '').trim() ?? ''
 }
 
 function parseCard(raw: string, path: string): ConceptCard | undefined {
-  const parsed = parseMarkdownCard(raw)
+  const parsed = parseMarkdownFrontmatter(raw)
   if (parsed === undefined) return undefined
   const fileSlug = basename(path, '.md')
   const conceptSlug = slugify(parsed.fields.get('id') ?? fileSlug, fileSlug)

@@ -165,7 +165,7 @@ describe('parse coverage', () => {
     expect(screen.getAllByText(/3 sections/u).length).toBeGreaterThan(0)
   })
 
-  it('states plainly that it spends no tokens', async () => {
+  it('states the local default and the visual reread exception', async () => {
     const { call } = readyHost()
     render(<Panel cwd="/home/ryan/fourier" call={call} t={t} />)
     expect(await screen.findByText(en.vaultLocalOnly)).toBeTruthy()

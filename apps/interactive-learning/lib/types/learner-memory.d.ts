@@ -20,6 +20,8 @@ import { type TopicVault } from './topic-vault.ts';
 export declare const LEARNER_MEMORY_PROTOCOL: "dsh-learning-memory@1";
 /** Concepts rendered into one prompt injection. */
 export declare const MAX_RENDERED_CONCEPTS = 12;
+/** Maximum characters rendered into one prompt injection. */
+export declare const MAX_RENDERED_MEMORY_CHARS = 4000;
 /** Concepts retained on disk before the least recently touched are dropped. */
 export declare const MAX_STORED_CONCEPTS = 500;
 /** One concept's durable learning record within a vault. */
@@ -108,5 +110,7 @@ export declare function conceptRecordFromState(state: LearnerState, sessionId: s
 export declare function renderLearnerMemory(memory: LearnerMemory, options?: {
     title: string;
     limit?: number;
+    goal?: string;
+    maxChars?: number;
 }): string;
 //# sourceMappingURL=learner-memory.d.ts.map

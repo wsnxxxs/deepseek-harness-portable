@@ -1,4 +1,4 @@
-import { B as buildConceptStudyMap, C as syncMentionedMaterial, Ct as readManifest, J as readConceptCards, Lt as LEARN_INTENT_MODEL_GUIDANCE, S as parseFileMentions, Tt as resolveTopicVault, Y as readLearnerMemoryWithCards, bt as ensureVaultLayout, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, h as MATERIAL_TOOL_NAMES, lt as conceptRecordFromState, m as validateStudyMapAgainstVault, mt as upsertLearnerConcept, p as formatStudyMapViolations, pt as renderLearnerMemory, r as LEARNING_MATERIAL_POLICY, u as routeLearningTurn, y as registerMaterialTools } from "./teaching-policy-tJJ_sKBT.js";
+import { Bt as LEARN_INTENT_MODEL_GUIDANCE, C as parseFileMentions, Ct as ensureVaultLayout, E as beginMaterialTurn, Et as readManifest, Ot as resolveTopicVault, Q as readLearnerMemoryWithCards, T as assertMaterialAnchorsReadable, U as buildConceptStudyMap, Z as readConceptCards, _t as upsertLearnerConcept, b as registerMaterialTools, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, ft as conceptRecordFromState, g as MATERIAL_TOOL_NAMES, gt as renderLearnerMemory, h as validateStudyMapAgainstVault, m as formatStudyMapViolations, p as validateRecallDeckAgainstVault, q as hasFreshIndependentTransfer, r as LEARNING_MATERIAL_POLICY, u as routeLearningTurn, w as syncMentionedMaterial } from "./teaching-policy-CjrAtxWh.js";
 import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-CVgOF60h.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
 import { realpath, stat } from "node:fs/promises";
@@ -17,7 +17,7 @@ const LEARNING_INTENT_ROUTER_PROMPT = [
 	"For learn, choose calibrate for an underspecified learning goal, teach-minimum for a definition/beginner/confusion/specific concept question, overview for a complete or current structured explanation, and direct for a requested study artifact or urgent concrete help.",
 	"Use ambiguous when the request does not provide enough evidence. The route is optional when intent is ambiguous or not-learn."
 ].join("\n");
-function isRecord(value) {
+function isRecord$1(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function parseJsonObject(text) {
@@ -28,7 +28,7 @@ function parseJsonObject(text) {
 	if (start >= 0 && end > start) candidates.push(trimmed.slice(start, end + 1));
 	for (const candidate of candidates) try {
 		const value = JSON.parse(candidate);
-		if (isRecord(value)) return value;
+		if (isRecord$1(value)) return value;
 	} catch {}
 }
 const SEMANTIC_INTENTS = /* @__PURE__ */ new Set([
@@ -60,7 +60,7 @@ function parseLearningIntentModelOutput(text) {
 	};
 }
 function routeFrom(value) {
-	if (!isRecord(value) || typeof value.provider !== "string" || typeof value.model !== "string") return void 0;
+	if (!isRecord$1(value) || typeof value.provider !== "string" || typeof value.model !== "string") return void 0;
 	if (value.provider.trim() === "" || value.model.trim() === "") return void 0;
 	return {
 		provider: value.provider,
@@ -875,7 +875,7 @@ function lowConfidenceRouteContext(decision) {
 		"Do not mention this internal classification."
 	];
 }
-function routeContextText(decision, richClientAvailable) {
+function routeContextText(decision, richClientAvailable, materialAvailable = false) {
 	if (decision.confidence === "low") return [...lowConfidenceRouteContext(decision), ...!richClientAvailable ? ["No rich learning client is available. Use a Markdown table or compact ASCII structure when one relationship needs a scaffold; keep teaching and the focused question in prose. Do not record a visual teaching move unless a native visual actually rendered."] : []].join("\n");
 	if (decision.intent.intent === "not-learn") return [
 		"## Current turn route",
@@ -887,6 +887,7 @@ function routeContextText(decision, richClientAvailable) {
 		`intent=learn; trigger=${decision.intent.trigger}; route=${decision.route}; reason=${decision.reason}.`,
 		decision.inherited ? "This turn continues the active learning segment; short answers, confusion, pressure, and ordinary evidence inherit the teaching context." : "This turn opens a learning segment; the learner's evidence still determines the next teaching move.",
 		...decision.intent.trigger === "current-topic" ? ["Use web_search before making substantive current or contested claims, then ground the structured explanation in the returned sources."] : [],
+		...materialAvailable ? ["Indexed learning material is available. Retrieve it internally when claims depend on it; do not make the learner orchestrate the retrieval sequence."] : [],
 		decision.route === "calibrate" ? "Give one tiny useful foothold, then ask exactly one route-changing question; do not dump an overview." : decision.route === "teach-minimum" ? "Teach the smallest useful concept now with one concrete scaffold; ask a question only if its answer changes the next move." : decision.route === "overview" ? "Give the requested structured exposition directly; do not require calibration, a quiz, or a checkpoint first." : decision.route === "direct" ? "Fulfil the requested resource or immediate help directly; do not add a ritual teaching gate." : "Use the newest learner evidence, change the move when the prior one failed, and stop if the segment is complete.",
 		...!richClientAvailable ? ["No rich learning client is available. Use a Markdown table or compact ASCII structure when one relationship needs a scaffold; keep teaching and the focused question in prose. Do not record a visual teaching move unless a native visual actually rendered."] : []
 	].join("\n");
@@ -955,9 +956,16 @@ const LEARNING_NON_RICH_TOOLS = /* @__PURE__ */ new Set([
 	...MATERIAL_TOOL_NAMES,
 	...CONCEPT_TOOL_NAMES
 ]);
-function learningToolAvailable(decision, toolName, richClientAvailable) {
+const MATERIAL_TOOL_SET = new Set(MATERIAL_TOOL_NAMES);
+function learningToolAvailable(decision, toolName, richClientAvailable, agent, state) {
 	if (decision?.intent.intent === "learn" && decision.confidence !== "low" && toolName === GENERIC_USER_WAIT_TOOL) return false;
-	if (!toolName.startsWith(LEARNING_TOOL_PREFIX) || LEARNING_NON_RICH_TOOLS.has(toolName)) return true;
+	if (!toolName.startsWith(LEARNING_TOOL_PREFIX)) return true;
+	if (decision?.intent.intent === "learn" && agent !== void 0) {
+		if (MATERIAL_TOOL_SET.has(toolName) && vaultHasMaterial.get(agent) !== true) return false;
+		if (toolName === "learning_concept_recall" && vaultHasConcepts.get(agent) !== true) return false;
+		if (toolName === "learning_concept_propose" && (vaultAvailable.get(agent) !== true || state === void 0 || !hasFreshIndependentTransfer(state))) return false;
+	}
+	if (LEARNING_NON_RICH_TOOLS.has(toolName)) return true;
 	if (decision === void 0) return true;
 	if (!richClientAvailable) return false;
 	if (decision.intent.intent !== "learn") return decision.confidence === "low";
@@ -980,6 +988,10 @@ const learnerMemoryBlocks = /* @__PURE__ */ new WeakMap();
 const vaultHasMaterial = /* @__PURE__ */ new WeakMap();
 /** Whether this agent's vault has approved concept cards available to review. */
 const vaultHasConcepts = /* @__PURE__ */ new WeakMap();
+/** Whether this agent is inside a learning vault, even when it has no sources yet. */
+const vaultAvailable = /* @__PURE__ */ new WeakMap();
+/** Last learner-state revision projected into durable memory for this agent. */
+const learnerMemoryProjectionRevisions = /* @__PURE__ */ new WeakMap();
 /**
 * Persist this session's concept state into the vault, then reload the vault's
 * memory for the next request.
@@ -995,14 +1007,29 @@ async function refreshLearnerMemory(services, agent) {
 			learnerMemoryBlocks.delete(agent);
 			vaultHasMaterial.delete(agent);
 			vaultHasConcepts.delete(agent);
+			vaultAvailable.delete(agent);
+			learnerMemoryProjectionRevisions.delete(agent);
 			return;
 		}
+		vaultAvailable.set(agent, true);
 		vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0);
 		vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0);
-		const record = conceptRecordFromState(services.learningActivities.learnerState(agent), String(agent.session.id));
-		if (record !== void 0) await upsertLearnerConcept(vault, record);
+		const state = services.learningActivities.learnerState(agent);
+		const priorProjection = learnerMemoryProjectionRevisions.get(agent);
+		if (priorProjection?.session !== agent.session || priorProjection.revision !== state.revision) {
+			const record = conceptRecordFromState(state, String(agent.session.id));
+			if (record !== void 0) await upsertLearnerConcept(vault, record);
+			learnerMemoryProjectionRevisions.set(agent, {
+				session: agent.session,
+				revision: state.revision
+			});
+		}
 		const memory = await readLearnerMemoryWithCards(vault);
-		learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, { title: vault.title }));
+		learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, {
+			title: vault.title,
+			goal: state.goal ?? void 0,
+			maxChars: 4e3
+		}));
 	} catch (cause) {
 		services.logger.warn(`learner memory was not refreshed: ${String(cause)}`);
 	}
@@ -1206,13 +1233,73 @@ function dynamicToolKey(_services, exec) {
 function assertSingleCheckpointInModelStep(exec) {
 	const agent = exec.agent;
 	if (agent === void 0) throw new LearningProtocolError(["learning_checkpoint requires a live agent session"]);
-	const calls = agent.session.events.filter((event) => event.type === "tool/call");
-	const ownCalls = calls.filter((event) => event.data.callId === exec.callId);
-	if (ownCalls.length === 0) throw new LearningProtocolError(["learning_checkpoint callId is absent from the session tool/call log"]);
-	if (new Set(ownCalls.map((event) => `${String(event.data.turn)}:${String(event.data.step)}`)).size !== 1 || ownCalls.some((event) => event.data.name !== "learning_checkpoint")) throw new LearningProtocolError(["learning_checkpoint callId does not identify one checkpoint model step"]);
-	const own = ownCalls[ownCalls.length - 1];
-	if (new Set(calls.filter((event) => event.data.turn === own.data.turn && event.data.step === own.data.step && event.data.name === "learning_checkpoint").map((event) => String(event.data.callId))).size > 1) throw new LearningProtocolError(["a model step may contain at most one learning_checkpoint call"]);
-	if (calls.some((event) => event.data.turn === own.data.turn && event.data.step === own.data.step && event.data.name !== "learning_checkpoint")) throw new LearningProtocolError(["learning_checkpoint must be the only tool call in its model step"]);
+	const position = modelStepPosition(exec);
+	if (position === void 0) throw new LearningProtocolError(["learning_checkpoint callId is absent from the session tool/call log"]);
+	const names = modelStepToolNames(agent, position);
+	if (names.filter((name) => name === "learning_checkpoint").length > 1) throw new LearningProtocolError(["a model step may contain at most one learning_checkpoint call"]);
+	if (names.some((name) => name !== "learning_checkpoint")) throw new LearningProtocolError(["learning_checkpoint must be the only tool call in its model step"]);
+}
+function isRecord(value) {
+	return typeof value === "object" && value !== null;
+}
+/** Locate the model step that owns one direct tool execution. */
+function modelStepPosition(exec) {
+	const agent = exec.agent;
+	if (agent === void 0) return void 0;
+	const callId = String(exec.callId);
+	for (const event of [...agent.session.events].reverse()) {
+		if (event.type !== "tool/call" || String(event.data.callId) !== callId) continue;
+		return {
+			turn: event.data.turn,
+			step: event.data.step
+		};
+	}
+}
+/** Include calls already logged and calls still waiting in the assistant step. */
+function modelStepToolNames(agent, position) {
+	const names = [];
+	for (const event of agent.session.events) if (event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step) names.push(event.data.name);
+	const assistant = [...agent.session.events].reverse().find((event) => event.type === "assistant/message" && event.data.turn === position.turn && event.data.step === position.step);
+	if (assistant?.type !== "assistant/message") return names;
+	const content = isRecord(assistant.data.message) ? assistant.data.message.content : void 0;
+	if (!Array.isArray(content)) return names;
+	for (const block of content) {
+		if (!isRecord(block) || block.type !== "tool-call" || typeof block.name !== "string") continue;
+		names.push(block.name);
+	}
+	return [...new Set(names)];
+}
+function completedToolCallIds(agent, position) {
+	const ids = /* @__PURE__ */ new Set();
+	for (const event of agent.session.events) {
+		if (event.type !== "tool/result" || event.data.turn !== position.turn || event.data.step !== position.step) continue;
+		const content = event.data.message.content;
+		for (const block of content) if (block.type === "tool-result") ids.add(String(block.toolCallId));
+	}
+	return ids;
+}
+/** A material call must wait for every state observation earlier in its step. */
+function hasPendingStateUpdateInModelStep(exec) {
+	const agent = exec.agent;
+	const position = modelStepPosition(exec);
+	if (agent === void 0 || position === void 0) return false;
+	const names = modelStepToolNames(agent, position);
+	if (!names.includes("learning_state_update")) return false;
+	const calls = agent.session.events.filter((event) => event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step && event.data.name === "learning_state_update");
+	const completed = completedToolCallIds(agent, position);
+	return calls.some((call) => !completed.has(String(call.data.callId))) || calls.length < names.filter((name) => name === "learning_state_update").length;
+}
+function assertOnlyToolInModelStep(exec, expectedName) {
+	const agent = exec.agent;
+	const position = modelStepPosition(exec);
+	if (agent === void 0 || position === void 0) return;
+	const names = modelStepToolNames(agent, position);
+	if (names.some((name) => name !== expectedName)) throw new LearningProtocolError([`${expectedName} must be the only tool call in its model step`]);
+	if (names.filter((name) => name === expectedName).length > 1) throw new LearningProtocolError([`a model step may contain at most one ${expectedName} call`]);
+}
+function sourceAnchorsFromEvent(value) {
+	if (!isRecord(value) || value.type !== "source_anchors_observed" || !Array.isArray(value.anchors)) return [];
+	return value.anchors.filter((anchor) => typeof anchor === "string");
 }
 function boundedSelectionText(value, field, maxLength) {
 	const normalized = value.trim();
@@ -1226,6 +1313,7 @@ function apply(ctx) {
 		if (message.source.kind !== "user") return;
 		disposeDynamicTeachingTools(agent);
 		richTeachingMoves.delete(agent);
+		beginMaterialTurn(agent, turn);
 		const transcript = learnerTranscriptStates.get(agent);
 		if (transcript !== void 0 && transcript.session !== agent.session) learnerTranscriptStates.delete(agent);
 		const text = textFromUserMessage(message);
@@ -1271,7 +1359,11 @@ function apply(ctx) {
 			kind: "deny",
 			reason: "index the supplied PDF with learning_material_map before viewing an individual page"
 		});
-		if (!learningToolAvailable(decision, execution.name, services.learningActivities.richClientAvailable)) return Promise.resolve({
+		if (decision?.intent.intent === "learn" && agent !== void 0 && MATERIAL_TOOL_SET.has(execution.name) && hasPendingStateUpdateInModelStep(execution)) return Promise.resolve({
+			kind: "deny",
+			reason: "finish learning_state_update in an earlier tool step before retrieving learning material"
+		});
+		if (!learningToolAvailable(decision, execution.name, services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent))) return Promise.resolve({
 			kind: "deny",
 			reason: "this rich learning tool is unavailable for the current route or client; continue in ordinary text"
 		});
@@ -1294,7 +1386,7 @@ function apply(ctx) {
 		const assembly = addPreparedMaterialPolicy(await next(), agent);
 		if (!isConfidentNotLearn(decision)) return {
 			...assembly,
-			tools: assembly.tools.filter((tool) => learningToolAvailable(decision, tool.name, services.learningActivities.richClientAvailable))
+			tools: assembly.tools.filter((tool) => learningToolAvailable(decision, tool.name, services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent)))
 		};
 		return {
 			...assembly,
@@ -1318,6 +1410,7 @@ function apply(ctx) {
 		},
 		isConcurrencySafe: () => false,
 		async execute(args, exec) {
+			assertOnlyToolInModelStep(exec, "learning_visual_select");
 			const purpose = boundedSelectionText(args.purpose, "learning_visual_select.purpose", 500);
 			const learnerAction = typeof args.learnerAction === "string" ? args.learnerAction.trim() : "";
 			const pairedQuestion = typeof args.pairedQuestion === "string" ? args.pairedQuestion.trim() : "";
@@ -1345,8 +1438,8 @@ function apply(ctx) {
 				async execute(payload, payloadExec) {
 					const visual = parseLearningVisualV4(payload);
 					let materializedStudyMap;
+					const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd);
 					if (visual.content.kind === "study_map") {
-						const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd);
 						if (vault !== void 0) {
 							if (visual.content.view === "concepts") materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal);
 							else {
@@ -1354,6 +1447,9 @@ function apply(ctx) {
 								if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
 							}
 						} else if (visual.content.view === "concepts") throw new TypeError("study_map concepts view requires a learning vault");
+					} else if (visual.content.kind === "recall_deck" && vault !== void 0) {
+						const violations = await validateRecallDeckAgainstVault(vault, visual.content);
+						if (violations.length > 0) throw new TypeError(`recall_deck must copy saved concept cards verbatim: ${violations.join("; ")}`);
 					}
 					try {
 						return {
@@ -1429,6 +1525,7 @@ function apply(ctx) {
 			const expectedRevision = services.learningActivities.learnerState(agent).revision;
 			if (args.action === "update") {
 				if (args.event === void 0 || args.correction !== void 0 || args.observation !== void 0) throw new TypeError("action=update requires only event");
+				assertMaterialAnchorsReadable(agent, sourceAnchorsFromEvent(args.event));
 				return services.learningActivities.updateLearnerState({
 					action: "update",
 					agent,
@@ -1467,6 +1564,7 @@ function apply(ctx) {
 		},
 		isConcurrencySafe: () => false,
 		async execute(args, exec) {
+			assertOnlyToolInModelStep(exec, "learning_checkpoint_select");
 			const selection = {
 				kind: args.kind,
 				expectedEvidence: args.expectedEvidence,
@@ -1516,7 +1614,7 @@ function apply(ctx) {
 				route: decision?.route,
 				material: agent === void 0 ? false : vaultHasMaterial.get(agent) ?? false,
 				concepts: agent === void 0 ? false : vaultHasConcepts.get(agent) ?? false,
-				visual: decision !== void 0 && learningToolAvailable(decision, "learning_visual_select", services.learningActivities.richClientAvailable)
+				visual: decision !== void 0 && learningToolAvailable(decision, "learning_visual_select", services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent))
 			});
 		}
 	});
@@ -1526,7 +1624,7 @@ function apply(ctx) {
 		text: (context) => {
 			const agent = context.agent ?? services.agent;
 			const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
-			return decision === void 0 ? "" : routeContextText(decision, services.learningActivities.richClientAvailable);
+			return decision === void 0 ? "" : routeContextText(decision, services.learningActivities.richClientAvailable, agent === void 0 ? false : vaultHasMaterial.get(agent) === true);
 		}
 	});
 	services.systemPrompt.context({

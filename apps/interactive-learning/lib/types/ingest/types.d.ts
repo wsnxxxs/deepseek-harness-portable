@@ -143,6 +143,13 @@ export interface SourceManifestEntry {
     bytes: number;
     ingestedAt: string;
     degradation: readonly ParseDegradation[];
+    /** Pages a vision model re-read after the parser reported them unreadable. */
+    reparsed?: {
+        pages: readonly number[];
+        /** `provider/model` that read them. */
+        via: string;
+        at: string;
+    };
 }
 /** `.learning/manifest.json`: the vault's own record of what it holds. */
 export interface VaultManifest {

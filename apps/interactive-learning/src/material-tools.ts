@@ -320,7 +320,7 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
     name: 'learning_material_map',
     description: [
       'Navigate the learner\'s own stored material. Returns the real section structure parsed from their sources — never a summary you wrote.',
-      'Call this before describing, outlining, or citing any supplied source. Without a sourceId it lists every source and its top-level sections; with one it returns that source\'s section tree.',
+      'Use this to explore a supplied source or choose a section when no trusted locator is known. Without a sourceId it lists every source and its top-level sections; with one it returns that source\'s section tree. When a valid sectionId or page is already known, learning_material_read may go directly.',
       'The returned coverage line states which parts could NOT be read; repeat that boundary to the learner instead of implying the whole source was understood.',
       'Never mention a section, chapter, or page that is not in this result.',
       '中文模板：先看真实结构，再决定教什么；未读到的部分要如实说明。',
@@ -431,17 +431,18 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
   ctx.tools.register(closeRoot(defineTool({
     name: 'learning_material_read',
     description: [
-      'Read one section of the learner\'s stored material, addressed by the section id that learning_material_map returned.',
+      'Read one section of the learner\'s stored material, addressed by a known section id or page from the parsed source structure.',
       'This is the only way to see a source\'s actual words. Do not assert what a section says without reading it first.',
       'A long section returns its opening plus its child section ids rather than the whole text: read the child you actually need, one at a time.',
       'The returned receiptId and anchor are evidence for learning_state_update source_anchors_observed; cite only this exact anchor after the read succeeds.',
+      'If sourceId plus a valid sectionId or page is already known, call this directly; use learning_material_map when you need to explore the source structure.',
       '中文模板：一次只读你真正要讲的那一节，并引用返回的锚点。',
     ].join(' '),
     parameters: {
       sourceId: { type: 'string', required: true },
       sectionId: {
         type: 'string',
-        description: 'Section id from learning_material_map; omit to read the source\'s opening section.',
+        description: 'Known section id from learning_material_map or another trusted material reference; omit to read the source\'s opening section.',
       },
       page: {
         type: 'integer',
@@ -464,13 +465,6 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           status: 'unknown-source' as const,
           detail: `No source '${sourceId}' in this learning folder.`,
           known: (await readManifest(vault)).sources.map(entry => entry.sourceId),
-        }
-      }
-      if (exec.agent !== undefined && !materialStructureMapped(exec.agent, structure.sourceId)) {
-        return {
-          status: 'invalid' as const,
-          sourceId,
-          detail: 'Call learning_material_map with this sourceId before reading a section.',
         }
       }
       if (structure.sections.length === 0) {
@@ -496,6 +490,16 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           sourceId,
           detail: `No section '${requested}' in '${sourceId}'.`,
           known: structure.sections.slice(0, 40).map(candidate => candidate.id),
+        }
+      }
+      if (exec.agent !== undefined
+        && requested === ''
+        && page === undefined
+        && !materialStructureMapped(exec.agent, structure.sourceId)) {
+        return {
+          status: 'invalid' as const,
+          sourceId,
+          detail: 'Call learning_material_map with this sourceId, or provide a valid sectionId or page, before reading a section.',
         }
       }
 

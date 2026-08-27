@@ -3,10 +3,9 @@
  *
  * Four sections behind one rail: material (read-only), notes (free Markdown,
  * plus the pending-card inbox), concepts (prose edits and two narrow schedule
- * outlets) and review (a local deck). Every action in here is Host-side file
- * I/O over the session's own vault; the panel holds no model and spends no
- * tokens. That is the whole point of the split: the asset layer has to be
- * inspectable, editable and reviewable without paying for a turn.
+ * outlets) and review (a local deck). The ordinary browse, edit and review
+ * actions are Host-side file I/O over the session's own vault; the material
+ * pane also exposes an explicit visual re-read that calls a model.
  * @module @dsh-portable/interactive-learning/src/client/VaultView
  */
 

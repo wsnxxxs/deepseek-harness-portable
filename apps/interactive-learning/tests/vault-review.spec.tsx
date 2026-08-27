@@ -66,7 +66,7 @@ describe('concept list', () => {
   it('explains why the shelf is bare instead of just saying "empty"', () => {
     render(<Concepts list={list([])} ask={host({}).ask} onChanged={() => {}} t={t} />)
     expect(screen.getByText(en.vaultConceptsEmptyTitle)).toBeTruthy()
-    expect(screen.getByText(/used the idea correctly, on your own/u)).toBeTruthy()
+    expect(screen.getByText(/independent transfer/u)).toBeTruthy()
   })
 
   it('shows mastery, its basis, and the schedule as read-only facts', () => {
@@ -164,8 +164,15 @@ describe('the two manual outlets', () => {
   })
 
   it('says the defer does not disturb the interval', () => {
-    render(<Concepts list={list([concept()])} ask={host({}).ask} onChanged={() => {}} t={t} />)
-    expect(screen.getByText(en.vaultDeferHint)).toBeTruthy()
+    render(
+      <Concepts
+        list={list([concept(), concept({ conceptSlug: 'fourier', label: '傅里叶' })])}
+        ask={host({}).ask}
+        onChanged={() => {}}
+        t={t}
+      />,
+    )
+    expect(screen.getAllByText(en.vaultDeferHint)).toHaveLength(1)
   })
 
   it('lowers mastery through the correction and names the new level', async () => {
@@ -283,9 +290,9 @@ describe('review deck', () => {
     expect(screen.queryByText(en.vaultReviewDone)).toBeNull()
   })
 
-  it('states that reviewing costs nothing', () => {
+  it('does not repeat the panel local notice inside the review deck', () => {
     render(<Review list={list([concept()])} ask={host({}).ask} onChanged={() => {}} t={t} />)
-    expect(screen.getByText(en.vaultLocalOnly)).toBeTruthy()
+    expect(screen.queryByText(en.vaultLocalOnly)).toBeNull()
   })
 
   it('distinguishes "nothing due" from "you just finished"', async () => {
