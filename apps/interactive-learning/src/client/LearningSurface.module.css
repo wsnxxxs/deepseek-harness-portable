@@ -114,11 +114,163 @@
   line-height: var(--lx-leading-xs);
 }
 
-/* Learning is a learner-facing surface. Host context, tool payloads and
-   engineering measurements remain available in trajectory/debug, while the
-   compact Think disclosure stays visible so the learner can follow the
-   assistant's current work without opening a second panel. */
+/* A compact, optional progress disclosure replaces the host's generic waiting
+   label. It explains the learner-facing work without putting raw internal
+   reasoning or tool payloads into the lesson. */
+.progress {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto var(--lx-space-sm);
+  color: var(--lx-label-secondary);
+}
+
+.progressDetails {
+  overflow: hidden;
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-surface-raised);
+}
+
+.progressSummary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 32px;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space-2xs) var(--lx-space-md);
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+  line-height: var(--lx-leading-2xs);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.progressSummary::-webkit-details-marker { display: none; }
+
+.progressSummary::after {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--lx-label-tertiary);
+  content: '›';
+  font-size: var(--lx-text-lg);
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);
+}
+
+.progressDetails[open] .progressSummary::after {
+  color: var(--lx-accent);
+  transform: rotate(90deg);
+}
+
+.progressSummary:hover {
+  background: var(--lx-surface-sunken);
+}
+
+.progressSummary:focus-visible {
+  outline: var(--lx-focus-width) solid var(--lx-focus-color);
+  outline-offset: -2px;
+}
+
+.progressMark {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--lx-radius-circle);
+  background: var(--lx-label-tertiary);
+}
+
+.progressMark[data-state='running'] {
+  background: var(--lx-accent);
+  animation: learning-progress-pulse 1.4s var(--lx-easing) infinite;
+}
+
+.progressMark[data-state='done'] {
+  background: var(--lx-success);
+}
+
+.progressTitle {
+  flex: none;
+  color: var(--lx-label-primary);
+  font-weight: var(--lx-weight-medium);
+  white-space: nowrap;
+}
+
+.progressStatus {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lx-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progressStatus[data-state='running'] {
+  color: var(--lx-accent);
+}
+
+.progressBody {
+  display: grid;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space-sm) var(--lx-space-md) var(--lx-space-md);
+  border-top: 1px solid var(--lx-border-subtle);
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+  line-height: var(--lx-leading-2xs);
+}
+
+.progressBody p,
+.progressFacts,
+.progressEvidence {
+  margin: 0;
+}
+
+.progressIntro,
+.progressHint {
+  color: var(--lx-label-tertiary);
+}
+
+.progressFacts {
+  display: grid;
+  gap: var(--lx-space-xs);
+}
+
+.progressFact {
+  display: grid;
+  grid-template-columns: 5em minmax(0, 1fr);
+  gap: var(--lx-space-md);
+  min-width: 0;
+}
+
+.progressFact dt {
+  color: var(--lx-label-tertiary);
+  font-weight: var(--lx-weight-medium);
+}
+
+.progressFact dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.progressEvidence {
+  display: grid;
+  gap: var(--lx-space-2xs);
+  padding-inline-start: var(--lx-space-lg);
+}
+
+@keyframes learning-progress-pulse {
+  0%,
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--lx-accent) 28%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--lx-accent) 0%, transparent); }
+}
+
+/* Learning is a learner-facing surface. Host context, tool payloads, the raw
+   Think row and the generic waiting label remain available in trajectory/debug;
+   the compact progress disclosure above is the conversation-safe summary. */
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='context']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow] [data-variant='think']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow] > [role='status']),
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_state_update'])),
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_map'])),
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_read'])),
@@ -135,6 +287,12 @@
 
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-slot='conversation.composer.dock'] > *:not([data-learning-notes='session']):not(:has([data-learning-notes='session']))) {
   display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressMark[data-state='running'] {
+    animation: none;
+  }
 }
 
 @container (max-width: 640px) {
