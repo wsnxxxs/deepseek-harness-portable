@@ -386,7 +386,7 @@ function phaseLabel(t: LearningNotesProps['t'], phase: LearningPhase): string {
   return t(PHASE_LABELS[phase][0])
 }
 
-export function routeProgress(
+function routeProgress(
   notes: LearningNotesProjection,
   t: LearningNotesProps['t'],
 ): string {

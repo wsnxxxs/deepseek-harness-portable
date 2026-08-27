@@ -15418,7 +15418,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningSurface.module.css.mjs
-		const css$1 = "._7yM2JG_root{box-sizing:border-box;gap:var(--lx-space-2xl) var(--lx-space-3xl);width:100%;margin-block:var(--lx-space-md) var(--lx-space-sm);padding:var(--lx-space-2xl) clamp(16px, 3vw, 28px);border:var(--lx-card-border);border-radius:var(--lx-card-radius);background:linear-gradient(135deg, var(--lx-surface-accent), var(--lx-surface-card) 48%);box-shadow:var(--lx-shadow-sm);color:var(--lx-label-primary);grid-template-columns:minmax(0,1.15fr) minmax(250px,.85fr);align-items:end;display:grid;container-type:inline-size}._7yM2JG_header{min-width:0}._7yM2JG_eyebrow,._7yM2JG_quickLabel{margin:0 0 var(--lx-space-xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._7yM2JG_header h1{max-width:20ch;font-size:var(--lx-text-xl);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xl);margin:0}._7yM2JG_subtitle{max-width:58ch;margin:var(--lx-space-sm) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}._7yM2JG_promises{gap:var(--lx-space-xs);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;padding:0;list-style:none;display:grid}._7yM2JG_promises li{padding-inline-start:var(--lx-space-xl);position:relative}._7yM2JG_promiseIcon{color:var(--lx-success);display:inline-flex;position:absolute;inset-block-start:2px;inset-inline-start:0}._7yM2JG_quickStart{padding-top:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);grid-column:1/-1}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);background:var(--lx-surface-card);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing)}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._7yM2JG_example{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1;margin:0}._7yM2JG_progress{box-sizing:border-box;width:100%;margin:0 auto var(--lx-space-sm);color:var(--lx-label-secondary)}._7yM2JG_progressDetails{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-md);background:var(--lx-surface-raised);overflow:hidden}._7yM2JG_progressSummary{align-items:center;gap:var(--lx-space-sm);min-width:0;min-height:32px;padding:var(--lx-space-2xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);cursor:pointer;user-select:none;list-style:none;display:flex}._7yM2JG_progressSummary::-webkit-details-marker{display:none}._7yM2JG_progressSummary:after{color:var(--lx-label-tertiary);content:\"›\";font-size:var(--lx-text-lg);transition:transform var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);flex:none;margin-inline-start:auto;line-height:1;transform:rotate(0)}._7yM2JG_progressDetails[open] ._7yM2JG_progressSummary:after{color:var(--lx-accent);transform:rotate(90deg)}._7yM2JG_progressSummary:hover{background:var(--lx-surface-sunken)}._7yM2JG_progressSummary:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:-2px}._7yM2JG_progressMark{border-radius:var(--lx-radius-circle);background:var(--lx-label-tertiary);flex:none;width:7px;height:7px}._7yM2JG_progressMark[data-state=running]{background:var(--lx-accent);animation:_7yM2JG_learning-progress-pulse 1.4s var(--lx-easing) infinite}._7yM2JG_progressMark[data-state=done]{background:var(--lx-success)}._7yM2JG_progressTitle{color:var(--lx-label-primary);font-weight:var(--lx-weight-medium);white-space:nowrap;flex:none}._7yM2JG_progressStatus{min-width:0;color:var(--lx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._7yM2JG_progressStatus[data-state=running]{color:var(--lx-accent)}._7yM2JG_progressBody{gap:var(--lx-space-sm);padding:var(--lx-space-sm) var(--lx-space-md) var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);display:grid}._7yM2JG_progressBody p,._7yM2JG_progressFacts,._7yM2JG_progressEvidence{margin:0}._7yM2JG_progressIntro,._7yM2JG_progressHint{color:var(--lx-label-tertiary)}._7yM2JG_progressFacts{gap:var(--lx-space-xs);display:grid}._7yM2JG_progressFact{gap:var(--lx-space-md);grid-template-columns:5em minmax(0,1fr);min-width:0;display:grid}._7yM2JG_progressFact dt{color:var(--lx-label-tertiary);font-weight:var(--lx-weight-medium)}._7yM2JG_progressFact dd{overflow-wrap:anywhere;min-width:0;margin:0}._7yM2JG_progressEvidence{gap:var(--lx-space-2xs);padding-inline-start:var(--lx-space-lg);display:grid}@keyframes _7yM2JG_learning-progress-pulse{0%,to{box-shadow:0 0 0 0 color-mix(in srgb, var(--lx-accent) 28%, transparent)}50%{box-shadow:0 0 0 4px color-mix(in srgb, var(--lx-accent) 0%, transparent)}}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow] [data-variant=think],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow]>[role=status],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_state_update]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_map]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_read]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_search]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_propose]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_visual_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_checkpoint_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@media (prefers-reduced-motion:reduce){._7yM2JG_progressMark[data-state=running]{animation:none}}@container (width<=640px){._7yM2JG_root{gap:var(--lx-space-xl);grid-template-columns:1fr}._7yM2JG_quickStart,._7yM2JG_example{grid-column:auto}}";
+		const css$1 = "._7yM2JG_root{box-sizing:border-box;gap:var(--lx-space-2xl) var(--lx-space-3xl);width:100%;margin-block:var(--lx-space-md) var(--lx-space-sm);padding:var(--lx-space-2xl) clamp(16px, 3vw, 28px);border:var(--lx-card-border);border-radius:var(--lx-card-radius);background:linear-gradient(135deg, var(--lx-surface-accent), var(--lx-surface-card) 48%);box-shadow:var(--lx-shadow-sm);color:var(--lx-label-primary);grid-template-columns:minmax(0,1.15fr) minmax(250px,.85fr);align-items:end;display:grid;container-type:inline-size}._7yM2JG_header{min-width:0}._7yM2JG_eyebrow,._7yM2JG_quickLabel{margin:0 0 var(--lx-space-xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._7yM2JG_header h1{max-width:20ch;font-size:var(--lx-text-xl);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xl);margin:0}._7yM2JG_subtitle{max-width:58ch;margin:var(--lx-space-sm) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}._7yM2JG_promises{gap:var(--lx-space-xs);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;padding:0;list-style:none;display:grid}._7yM2JG_promises li{padding-inline-start:var(--lx-space-xl);position:relative}._7yM2JG_promiseIcon{color:var(--lx-success);display:inline-flex;position:absolute;inset-block-start:2px;inset-inline-start:0}._7yM2JG_quickStart{padding-top:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);grid-column:1/-1}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);background:var(--lx-surface-card);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing)}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._7yM2JG_example{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1;margin:0}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_state_update]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_map]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_read]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_search]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_propose]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_visual_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_checkpoint_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@container (width<=640px){._7yM2JG_root{gap:var(--lx-space-xl);grid-template-columns:1fr}._7yM2JG_quickStart,._7yM2JG_example{grid-column:auto}}";
 		const tagId$1 = "@dsh-portable/interactive-learning/LearningSurface.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
@@ -15432,19 +15432,6 @@ window.__ModuleLoader__.load({
 			"example": "_7yM2JG_example",
 			"eyebrow": "_7yM2JG_eyebrow",
 			"header": "_7yM2JG_header",
-			"learning-progress-pulse": "_7yM2JG_learning-progress-pulse",
-			"progress": "_7yM2JG_progress",
-			"progressBody": "_7yM2JG_progressBody",
-			"progressDetails": "_7yM2JG_progressDetails",
-			"progressEvidence": "_7yM2JG_progressEvidence",
-			"progressFact": "_7yM2JG_progressFact",
-			"progressFacts": "_7yM2JG_progressFacts",
-			"progressHint": "_7yM2JG_progressHint",
-			"progressIntro": "_7yM2JG_progressIntro",
-			"progressMark": "_7yM2JG_progressMark",
-			"progressStatus": "_7yM2JG_progressStatus",
-			"progressSummary": "_7yM2JG_progressSummary",
-			"progressTitle": "_7yM2JG_progressTitle",
 			"promiseIcon": "_7yM2JG_promiseIcon",
 			"promises": "_7yM2JG_promises",
 			"quickLabel": "_7yM2JG_quickLabel",
@@ -15472,95 +15459,6 @@ window.__ModuleLoader__.load({
 				prompt: "learningStartCheckPrompt"
 			}
 		];
-		/** Learner-facing labels for the active tool, never the raw tool payload. */
-		const PROGRESS_LABELS = {
-			learning_state_update: "learningProgressState",
-			learning_material_map: "learningProgressMaterialMap",
-			learning_material_read: "learningProgressMaterialRead",
-			learning_material_search: "learningProgressMaterialSearch",
-			learning_material_recall: "learningProgressMaterialRecall",
-			learning_concept_recall: "learningProgressConceptRecall",
-			learning_concept_propose: "learningProgressConceptPropose",
-			learning_visual_select: "learningProgressVisualSelect",
-			learning_checkpoint_select: "learningProgressCheckpointSelect",
-			learning_visual: "learningProgressVisual",
-			learning_checkpoint: "learningProgressCheckpoint",
-			learning_activity: "learningProgressActivity",
-			learning_question: "learningProgressQuestion",
-			learning_reveal: "learningProgressReveal"
-		};
-		function progressStatus(session, t) {
-			if (!session.running) return t("learningProgressDone");
-			const activeCall = session.runningCalls[session.runningCalls.length - 1];
-			if (activeCall === void 0) return t("learningProgressOrient");
-			const progressKey = PROGRESS_LABELS[activeCall.name];
-			return t(progressKey ?? "learningProgressWorking");
-		}
-		function LearningProgress({ session, t }) {
-			const notes = projectLearningNotes(session);
-			if (!session.running && !notes.visible) return null;
-			const evidence = notes.evidence.slice(-3);
-			const route = notes.visible ? routeProgress(notes, t) : t("learningProgressRoutePending");
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("section", {
-				className: LearningSurface_module_css_default.progress,
-				...learningScope,
-				"data-learning-progress": true,
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-					className: LearningSurface_module_css_default.progressDetails,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", {
-						className: LearningSurface_module_css_default.progressSummary,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.progressMark,
-								"data-state": session.running ? "running" : "done",
-								"aria-hidden": true
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.progressTitle,
-								children: t("learningProgressTitle")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.progressStatus,
-								"data-state": session.running ? "running" : "done",
-								children: progressStatus(session, t)
-							})
-						]
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningSurface_module_css_default.progressBody,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningSurface_module_css_default.progressIntro,
-								children: t("learningProgressBody")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dl", {
-								className: LearningSurface_module_css_default.progressFacts,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: LearningSurface_module_css_default.progressFact,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("learningProgressGoal") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: notes.goal ?? t("learningProgressGoalPending") })]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: LearningSurface_module_css_default.progressFact,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("learningProgressRoute") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: route })]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: LearningSurface_module_css_default.progressFact,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("dt", { children: t("learningProgressEvidence") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dd", { children: evidence.length === 0 ? t("learningProgressEvidencePending") : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-											className: LearningSurface_module_css_default.progressEvidence,
-											children: evidence.map((item, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: item }, `${item}-${index}`))
-										}) })]
-									})
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningSurface_module_css_default.progressHint,
-								children: t("learningProgressTrajectory")
-							})
-						]
-					})]
-				})
-			});
-		}
 		/** The learner-facing entry card and the presentation boundary for a learning session. */
 		function LearningSurface({ session, input, inputActions, sessionId, useSessions, t }) {
 			const isLearningSession = useSessions((state) => state.byId[sessionId]?.agentPreset === LEARNING_PRESET_ID);
@@ -15573,11 +15471,7 @@ window.__ModuleLoader__.load({
 					if (root.dataset.learningSurface === "true") delete root.dataset.learningSurface;
 				};
 			}, [isLearningSession]);
-			if (!isLearningSession) return null;
-			if (!session.blank) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningProgress, {
-				session,
-				t
-			});
+			if (!isLearningSession || !session.blank) return null;
 			const disabled = session.removed || session.running || input.phase !== "plain";
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: LearningSurface_module_css_default.root,
@@ -18236,32 +18130,6 @@ window.__ModuleLoader__.load({
 			learningNotesDeepenPrompt: "继续深挖当前学习片段。",
 			learningNotesRephrasePrompt: "换一种讲法解释刚才的内容。",
 			learningNotesEndPrompt: "完成了",
-			learningProgressTitle: "AI 工作摘要",
-			learningProgressOrient: "正在理解你的问题",
-			learningProgressWorking: "正在整理这次回答",
-			learningProgressState: "正在更新学习路线",
-			learningProgressMaterialMap: "正在定位材料结构",
-			learningProgressMaterialRead: "正在阅读相关内容",
-			learningProgressMaterialSearch: "正在检索相关内容",
-			learningProgressMaterialRecall: "正在回顾已学材料",
-			learningProgressConceptRecall: "正在回顾相关概念",
-			learningProgressConceptPropose: "正在整理概念卡草案",
-			learningProgressVisualSelect: "正在判断是否需要交互图",
-			learningProgressCheckpointSelect: "正在准备理解检查",
-			learningProgressVisual: "正在生成交互图",
-			learningProgressCheckpoint: "正在准备学习检查点",
-			learningProgressActivity: "正在准备练习",
-			learningProgressQuestion: "正在准备问题",
-			learningProgressReveal: "正在整理揭示",
-			learningProgressDone: "本轮回答已完成",
-			learningProgressBody: "这里展示可理解的工作摘要；更详细的执行记录在「轨迹」中。",
-			learningProgressGoal: "目标",
-			learningProgressGoalPending: "正在确认学习目标",
-			learningProgressRoute: "路线",
-			learningProgressRoutePending: "路线正在建立",
-			learningProgressEvidence: "最近证据",
-			learningProgressEvidencePending: "回答后会显示在这里",
-			learningProgressTrajectory: "展开后可以查看摘要，不会打断对话；需要更详细的执行记录时，打开「轨迹」。",
 			learningStartEyebrow: "学习模式",
 			learningStartTitle: "从一个问题开始真正理解",
 			learningStartSubtitle: "我会先确认你想解决什么，再用小步讲解、练习和新例子帮助你把它用出来。",
@@ -18658,32 +18526,6 @@ window.__ModuleLoader__.load({
 			learningNotesDeepenPrompt: "Continue exploring this learning segment.",
 			learningNotesRephrasePrompt: "Explain the last idea another way.",
 			learningNotesEndPrompt: "Done.",
-			learningProgressTitle: "AI work summary",
-			learningProgressOrient: "Understanding your question",
-			learningProgressWorking: "Organizing this answer",
-			learningProgressState: "Updating the learning route",
-			learningProgressMaterialMap: "Locating the material structure",
-			learningProgressMaterialRead: "Reading the relevant material",
-			learningProgressMaterialSearch: "Searching the material",
-			learningProgressMaterialRecall: "Reviewing learned material",
-			learningProgressConceptRecall: "Reviewing related concepts",
-			learningProgressConceptPropose: "Drafting a concept card",
-			learningProgressVisualSelect: "Deciding whether an interactive visual helps",
-			learningProgressCheckpointSelect: "Preparing an understanding check",
-			learningProgressVisual: "Building the interactive visual",
-			learningProgressCheckpoint: "Preparing a learning checkpoint",
-			learningProgressActivity: "Preparing practice",
-			learningProgressQuestion: "Preparing a question",
-			learningProgressReveal: "Organizing the explanation",
-			learningProgressDone: "This answer is complete",
-			learningProgressBody: "This is a learner-facing work summary; the detailed execution record is in Trajectory.",
-			learningProgressGoal: "Goal",
-			learningProgressGoalPending: "Confirming the learning goal",
-			learningProgressRoute: "Route",
-			learningProgressRoutePending: "The route is being formed",
-			learningProgressEvidence: "Latest evidence",
-			learningProgressEvidencePending: "It will appear here after a response",
-			learningProgressTrajectory: "Expand for the summary without leaving the conversation; open Trajectory for the detailed execution record.",
 			learningStartEyebrow: "Learning mode",
 			learningStartTitle: "Start with a question and build real understanding",
 			learningStartSubtitle: "I will clarify what you need, then use small explanations, practice, and a fresh case to help you use it.",
