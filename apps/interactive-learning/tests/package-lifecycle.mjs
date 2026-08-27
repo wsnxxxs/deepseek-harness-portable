@@ -185,8 +185,8 @@ try {
     sourceTypeClosure,
     'source lib/types must contain exactly the public declaration and map closure',
   )
-  assert.equal(sourceDeclarations.length, 35, 'source build must retain exactly 35 public declarations')
-  assert.equal(sourceDeclarationMaps.length, 35, 'source build must retain exactly 35 public declaration maps')
+  assert.equal(sourceDeclarations.length, 39, 'source build must retain exactly 39 public declarations')
+  assert.equal(sourceDeclarationMaps.length, 39, 'source build must retain exactly 39 public declaration maps')
 
   const packRoot = join(smokeRoot, 'pack')
   await mkdir(packRoot, { recursive: true })
