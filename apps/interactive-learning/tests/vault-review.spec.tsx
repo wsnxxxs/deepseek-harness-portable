@@ -312,6 +312,7 @@ describe('panel rail', () => {
       'vault/sources': { status: 'ok', sources: [] },
       'concepts/list': list(concepts),
       'concepts/review': list(due),
+      'notes/list': { status: 'ok', notes: [], pending: 0, blocked: 0 },
     }
   }
 

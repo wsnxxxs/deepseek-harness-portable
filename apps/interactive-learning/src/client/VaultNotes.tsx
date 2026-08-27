@@ -140,16 +140,20 @@ function NoteCard({
   }, [ask, note.noteSlug, onChanged, onConcept, t])
 
   const remove = useCallback(() => {
+    setFailure('')
     setBusy(true)
     void (async () => {
       try {
         const answer = await ask<{ status: string }>('notes/delete', { noteSlug: note.noteSlug })
         if (answer?.status === 'ok') onRemoved(note.noteSlug)
+        else setFailure(t('vaultKeepFailed'))
+      } catch {
+        setFailure(t('vaultKeepFailed'))
       } finally {
         setBusy(false)
       }
     })()
-  }, [ask, note.noteSlug, onRemoved])
+  }, [ask, note.noteSlug, onRemoved, t])
 
   return (
     <section className={css.card}>

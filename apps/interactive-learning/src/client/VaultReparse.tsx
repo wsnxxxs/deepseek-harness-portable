@@ -106,49 +106,61 @@ export function ReparseControl({
   const [asked, setAsked] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ReparseResult | undefined>(undefined)
+  const [failure, setFailure] = useState('')
 
   useEffect(() => {
     if (!asked) return
     let cancelled = false
     void (async () => {
-      const answer = await ask<RouteInfo>('material/route-info', {
-        sourceId,
-        ...(sessionId === undefined ? {} : { sessionId }),
-      })
-      if (!cancelled && answer !== undefined) setInfo(answer)
+      try {
+        const answer = await ask<RouteInfo>('material/route-info', {
+          sourceId,
+          ...(sessionId === undefined ? {} : { sessionId }),
+        })
+        if (answer === undefined) throw new Error(t('vaultFailed'))
+        if (!cancelled) setInfo(answer)
+      } catch {
+        if (!cancelled) setFailure(t('vaultFailed'))
+      }
     })()
     return () => { cancelled = true }
-  }, [ask, asked, sessionId, sourceId])
+  }, [ask, asked, sessionId, sourceId, t])
 
   const run = useCallback(() => {
     setBusy(true)
+    setFailure('')
     void (async () => {
       try {
         const answer = await ask<ReparseResult>('material/reparse-pages', {
           sourceId,
           ...(sessionId === undefined ? {} : { sessionId }),
         })
-        if (answer !== undefined) {
-          setResult(answer)
-          if (answer.recovered.length > 0) onDone()
-        }
+        if (answer === undefined) throw new Error(t('vaultFailed'))
+        setResult(answer)
+        if (answer.recovered.length > 0) onDone()
+      } catch (cause) {
+        setFailure(cause instanceof Error ? cause.message : t('vaultFailed'))
       } finally {
         setBusy(false)
       }
     })()
-  }, [ask, onDone, sessionId, sourceId])
+  }, [ask, onDone, sessionId, sourceId, t])
 
   if (!degraded && result === undefined) return null
 
   if (!asked) {
     return (
-      <button type="button" className={css.button} onClick={() => { setAsked(true) }}>
+      <button type="button" className={css.button} onClick={() => { setFailure(''); setAsked(true) }}>
         {t('vaultReparseOffer')}
       </button>
     )
   }
 
-  if (info === undefined) return <p className={css.hint}>{t('vaultLoading')}</p>
+  if (info === undefined) {
+    return failure === ''
+      ? <p className={css.hint}>{t('vaultLoading')}</p>
+      : <p className={css.staleNote} role="alert">{failure}</p>
+  }
 
   const blocked = blockedText(info, t)
   const runnable = blocked === '' && info.pages.length > 0
@@ -209,6 +221,7 @@ export function ReparseControl({
           )}
         </div>
       )}
+      {failure !== '' && <p className={css.staleNote} role="alert">{failure}</p>}
     </div>
   )
 }

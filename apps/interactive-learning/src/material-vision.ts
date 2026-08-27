@@ -4,7 +4,8 @@
  * Every other endpoint in this app's panel surface reads or writes local files.
  * This one spends tokens, and the whole module is shaped around making that
  * fact checkable BEFORE anyone commits to it: {@link materialRouteInfo} answers
- * "what would happen and who would read it" without calling anything, and
+ * "what would happen and who would read it" without generating model output
+ * (it may query the provider/model catalog), and
  * {@link reparsePages} is the only function here that reaches a provider.
  *
  * Route selection restates the rule the Vision Bridge uses rather than
@@ -37,7 +38,7 @@ import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { emitSource } from './ingest/markdown.ts'
+import { emitSource, EXTRACTED_HEADER, PAGE_MARKER } from './ingest/markdown.ts'
 import { parseSource } from './ingest/index.ts'
 import { parseMarkdownBlocks } from './ingest/text.ts'
 import { quoteHashOf, type ParseDegradation, type ParsedBlock, type ParsedSource } from './ingest/types.ts'
@@ -637,7 +638,16 @@ async function currentExtraction(
   if (structure === undefined) return undefined
   try {
     const markdown = await readFile(join(vault.root, entry.extractedPath), 'utf8')
-    const parsed = parseMarkdownBlocks(markdown, entry.sourceId, entry.title)
+    // The emitted file carries its own header and page markers as HTML
+    // comments. They are metadata for the emitter, not learning content; strip
+    // them before feeding the file back through the Markdown parser.
+    const content = markdown.split(/\r?\n/u)
+      .filter(line => {
+        const trimmed = line.trim()
+        return !trimmed.startsWith(`<!-- ${EXTRACTED_HEADER}`) && !PAGE_MARKER.test(trimmed)
+      })
+      .join('\n')
+    const parsed = parseMarkdownBlocks(content, entry.sourceId, entry.title)
     const sections = structure.sections
     const blocks = parsed.map(block => {
       const section = sections.find(candidate =>

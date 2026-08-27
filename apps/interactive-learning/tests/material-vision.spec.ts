@@ -379,6 +379,7 @@ describe('re-reading pages', () => {
     const markdown = await readFile(join(vault.root, entry.extractedPath), 'utf8')
     expect(markdown).toContain('P3 recovered.')
     expect(markdown).toContain('P4 recovered.')
+    expect(markdown.match(/dsh-learning:source/gu)).toHaveLength(1)
     expect(markdown.match(/^## 第 3 页（视觉重读）$/gmu)).toHaveLength(1)
     expect(markdown).not.toMatch(/^## 第 3 页$/mu)
     for (const page of [3, 4]) {

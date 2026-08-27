@@ -95,8 +95,14 @@ function shaped<T>(value: unknown): T | undefined {
 
 /** `{ ok, value }` envelopes are unwrapped here so no caller repeats the shape. */
 function unwrap<T>(answer: unknown): T | undefined {
-  const record = shaped<{ ok?: unknown; value?: unknown }>(answer)
-  if (record?.ok !== true) return undefined
+  const record = shaped<{ ok?: unknown; value?: unknown; error?: unknown }>(answer)
+  if (record?.ok !== true) {
+    const error = shaped<{ message?: unknown }>(record?.error)
+    const message = typeof error?.message === 'string' && error.message.trim() !== ''
+      ? error.message
+      : 'vault RPC failed'
+    throw new Error(message)
+  }
   return shaped<T>(record.value)
 }
 
@@ -400,6 +406,8 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult | undefined>(undefined)
   const [reading, setReading] = useState<Reading | undefined>(undefined)
+  const [searchFailure, setSearchFailure] = useState('')
+  const [readingFailure, setReadingFailure] = useState('')
   /** Bumped to re-run the whole load; a re-read rewrites the source on disk. */
   const [reloads, setReloads] = useState(0)
   const live = useRef(true)
@@ -413,13 +421,17 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
     payload: Record<string, unknown> = {},
   ): Promise<T | undefined> => {
     if (cwd === undefined || cwd === '') return undefined
-    return unwrap<T>(await call(endpoint, { ...payload, cwd }))
+    const value = unwrap<T>(await call(endpoint, { ...payload, cwd }))
+    if (value === undefined) throw new Error(`${endpoint} did not return a usable response`)
+    return value
   }, [call, cwd])
 
   useEffect(() => {
     let cancelled = false
     setPhase('loading')
     setFailure('')
+    setSearchFailure('')
+    setReadingFailure('')
     setReading(undefined)
     setResults(undefined)
     void (async () => {
@@ -479,13 +491,24 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
   // each run reads every extracted file in the vault.
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed === '') { setResults(undefined); return }
+    if (trimmed === '') {
+      setResults(undefined)
+      setSearchFailure('')
+      return
+    }
     let cancelled = false
+    setSearchFailure('')
     const timer = setTimeout(() => {
       void (async () => {
-        const found = await ask<SearchResult>('vault/search', { query: trimmed })
-        if (cancelled || !live.current) return
-        setResults(found)
+        try {
+          const found = await ask<SearchResult>('vault/search', { query: trimmed })
+          if (cancelled || !live.current) return
+          setResults(found)
+        } catch (cause) {
+          if (cancelled || !live.current) return
+          setResults(undefined)
+          setSearchFailure(cause instanceof Error ? cause.message : String(cause))
+        }
       })()
     }, SEARCH_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
@@ -495,12 +518,26 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
     setSection('material')
     setResults(undefined)
     setReading(undefined)
+    setReadingFailure('')
     void (async () => {
-      const found = await ask<Reading>('vault/read', { sourceId, sectionId })
-      if (!live.current) return
-      setReading(found?.status === 'ok' ? found : undefined)
+      try {
+        const found = await ask<Reading>('vault/read', { sourceId, sectionId })
+        if (!live.current) return
+        if (found === undefined) {
+          setReadingFailure(t('vaultFailed'))
+          return
+        }
+        if (found.status !== 'ok') {
+          setReadingFailure(`${t('vaultFailed')}: ${found.status}`)
+          return
+        }
+        setReading(found)
+      } catch (cause) {
+        if (!live.current) return
+        setReadingFailure(cause instanceof Error ? cause.message : String(cause))
+      }
     })()
-  }, [ask])
+  }, [ask, t])
 
   /**
    * Fold one changed card back into both lists without refetching.
@@ -612,6 +649,7 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
     )
     : (
       <div className={css.sources}>
+        {readingFailure !== '' && <p className={css.staleNote} role="alert">{readingFailure}</p>}
         {sources.map(source => (
           <SourceCard
             key={source.sourceId}
@@ -672,7 +710,9 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
         <p className={css.local}>{t('vaultLocalOnly')}</p>
       </header>
 
-      {results !== undefined
+      {searchFailure !== ''
+        ? <p className={css.staleNote} role="alert">{t('vaultFailed')}: {searchFailure}</p>
+        : results !== undefined
         ? (
           <div className={css.results}>
             {results.material.length + results.concepts.length + results.notes.length === 0
