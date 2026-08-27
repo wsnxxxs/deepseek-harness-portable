@@ -24,11 +24,14 @@
  * @module @dsh-portable/interactive-learning/src/client/VaultRoster
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { IconBrowseOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { learningScope } from './tokens.ts'
 import css from './VaultView.module.css'
+import { VaultLibrary } from './VaultView.tsx'
 
 /** One vault, as `vault-rpc.ts` projects it for this list. */
 export interface RosterVault {
@@ -61,8 +64,6 @@ function subscribeVaultRosterRefresh(listener: VaultRosterRefreshListener): () =
 export interface VaultRosterInjected {
   /** One Connection RPC call on the `/interactive-learning` channel. */
   call: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
-  /** Select an existing session; the shell's `sessions.open`. */
-  openSession: (sessionId: string) => void
 }
 
 type VaultRosterProps = PropsRuntime<'sidebar.footer.action'>
@@ -77,16 +78,15 @@ interface SessionRow { cwd?: string; updatedAt?: number }
 /**
  * Candidate folders, most recently touched first.
  *
- * One entry per distinct `cwd`, carrying the newest session in that folder —
- * which is the session a click should land on. Ordering by recency means the
- * cap, when it bites, drops the topics a person has not opened in the longest
- * time rather than an arbitrary slice.
+ * One entry per distinct `cwd`, carrying only enough recency to make the cap
+ * deterministic. The external library does not navigate sessions; it simply
+ * closes back to whatever conversation was already open.
  */
 export function candidateFolders(
   ids: readonly string[],
   byId: Readonly<Record<string, SessionRow>>,
-): { cwd: string; sessionId: string; updatedAt: number }[] {
-  const newest = new Map<string, { cwd: string; sessionId: string; updatedAt: number }>()
+): { cwd: string; updatedAt: number }[] {
+  const newest = new Map<string, { cwd: string; updatedAt: number }>()
   for (const id of ids) {
     const row = byId[id]
     const cwd = row?.cwd
@@ -94,7 +94,7 @@ export function candidateFolders(
     const updatedAt = row?.updatedAt ?? 0
     const existing = newest.get(cwd)
     if (existing === undefined || updatedAt > existing.updatedAt) {
-      newest.set(cwd, { cwd, sessionId: id, updatedAt })
+      newest.set(cwd, { cwd, updatedAt })
     }
   }
   return [...newest.values()]
@@ -120,12 +120,13 @@ function unwrap<T>(answer: unknown): T | undefined {
  * permanent advertisement for a feature the person is not using.
  */
 export function VaultRosterAction({
-  wide, useSessions, call, openSession, t,
+  wide, useSessions, call, t,
 }: VaultRosterProps) {
   const ids = useSessions(state => state.ids)
   const byId = useSessions(state => state.byId)
   const [roster, setRoster] = useState<Roster | undefined>(undefined)
   const [open, setOpen] = useState(false)
+  const [selectedCwd, setSelectedCwd] = useState<string | undefined>(undefined)
   const [refreshVersion, setRefreshVersion] = useState(0)
   const live = useRef(true)
 
@@ -137,11 +138,6 @@ export function VaultRosterAction({
   const candidates = useMemo(
     () => candidateFolders(ids as readonly string[], byId as Readonly<Record<string, SessionRow>>),
     [ids, byId],
-  )
-
-  const sessionFor = useCallback(
-    (cwd: string) => candidates.find(entry => entry.cwd === cwd)?.sessionId,
-    [candidates],
   )
 
   // Keyed on the folder list and explicit vault writes rather than on a timer.
@@ -160,7 +156,25 @@ export function VaultRosterAction({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` summarizes `candidates`.
   }, [call, key, refreshVersion])
 
+  useEffect(() => {
+    if (roster === undefined) return
+    setSelectedCwd(current => roster.vaults.some(vault => vault.cwd === current)
+      ? current
+      : roster.vaults[0]?.cwd)
+  }, [roster])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [open])
+
   if (roster === undefined || roster.vaults.length === 0) return null
+
+  const selected = roster.vaults.find(vault => vault.cwd === selectedCwd) ?? roster.vaults[0]!
 
   return (
     <div {...learningScope} className={css.rosterRoot}>
@@ -169,57 +183,75 @@ export function VaultRosterAction({
         className={css.rosterTrigger}
         aria-expanded={open}
         title={t('vaultRosterTitle')}
-        onClick={() => { setOpen(value => !value) }}
+        onClick={() => {
+          setOpen(value => !value)
+        }}
       >
-        <span className={css.rosterMark} aria-hidden="true">◧</span>
+        <IconBrowseOutline16 className={css.rosterMark} size={16} />
         {wide && <span className={css.rosterLabel}>{t('vaultTab')}</span>}
         {roster.due > 0 && (
           <span className={css.railDue}>{String(roster.due)}</span>
         )}
       </button>
 
-      {open && (
-        <div className={css.rosterSheet}>
-          <p className={css.groupTitle}>
-            {t('vaultRosterTitle')}
-            <span className={css.groupCount}>{roster.vaults.length}</span>
-          </p>
-          <ul className={css.rosterList}>
-            {roster.vaults.map((vault) => {
-              const sessionId = sessionFor(vault.cwd)
-              return (
-                <li key={vault.cwd}>
-                  <button
-                    type="button"
-                    className={css.rosterRow}
-                    disabled={sessionId === undefined}
-                    onClick={() => {
-                      if (sessionId === undefined) return
-                      openSession(sessionId)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className={css.rosterName}>{vault.title}</span>
-                    <span className={css.rosterCounts}>
-                      {vault.due > 0 && <span className={css.railDue}>{String(vault.due)}</span>}
-                      <span className={css.railCount}>
-                        {t('vaultRosterRow', {
+      {open && typeof document !== 'undefined' && createPortal(
+        <div {...learningScope} className={css.libraryOverlay} role="presentation">
+          <div className={css.libraryMask} aria-hidden="true" onClick={() => { setOpen(false) }} />
+          <div className={css.libraryPanel} role="dialog" aria-modal="true" aria-label={t('vaultRosterTitle')}>
+            <nav className={css.libraryNav} aria-label={t('vaultRosterTitle')}>
+              <div className={css.libraryNavTitle}>
+                <IconBrowseOutline16 size={16} />
+                <span>{t('vaultRosterTitle')}</span>
+              </div>
+              <p className={css.libraryNavMeta}>
+                {t('vaultLibraryTopics', { count: String(roster.vaults.length) })}
+              </p>
+              <ul className={css.libraryTopicList}>
+                {roster.vaults.map((vault) => (
+                  <li key={vault.cwd}>
+                    <button
+                      type="button"
+                      className={vault.cwd === selected.cwd ? css.libraryTopicOn : css.libraryTopic}
+                      aria-current={vault.cwd === selected.cwd ? 'page' : undefined}
+                      onClick={() => { setSelectedCwd(vault.cwd) }}
+                    >
+                      <span className={css.libraryTopicName}>{vault.title}</span>
+                      <span className={css.libraryTopicMeta}>
+                        {vault.due > 0 && <span className={css.railDue}>{String(vault.due)}</span>}
+                        <span>{t('vaultRosterRow', {
                           concepts: String(vault.concepts),
                           notes: String(vault.notes),
-                        })}
+                        })}</span>
                       </span>
-                    </span>
-                  </button>
-                  {vault.blocked > 0 && (
-                    <p className={css.rosterNote}>
-                      {t('vaultPendingCount', { count: String(vault.blocked) })}
-                    </p>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <section className={css.libraryMain}>
+              <div className={css.libraryHeader}>
+                <span className={css.libraryHeaderTitle}>{selected.title}</span>
+                <button
+                  type="button"
+                  className={css.libraryClose}
+                  aria-label={t('vaultKeepClose')}
+                  onClick={() => { setOpen(false) }}
+                >
+                  <IconCloseOutline16 size={14} />
+                </button>
+              </div>
+              <div className={css.libraryScroll}>
+                <VaultLibrary
+                  cwd={selected.cwd}
+                  call={call}
+                  t={t}
+                  onClose={() => { setOpen(false) }}
+                />
+              </div>
+            </section>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

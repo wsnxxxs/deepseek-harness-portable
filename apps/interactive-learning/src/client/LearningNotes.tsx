@@ -1,12 +1,71 @@
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { isExplicitLearningBoundary } from '../learning-boundary.ts'
 import { learningScope } from './tokens.ts'
 import css from './LearningNotes.module.css'
 import type { LearningLocaleKey } from './locales.ts'
 
 type LearningNotesProps = PropsRuntime<'conversation.composer.dock'> & PropsLocale<'interactive-learning'>
+
+/** Business face for the learner's current-session notes view. */
+export interface LearningNotesViewInjected {
+  cwd: string | undefined
+  call: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
+}
+
+type LearningNotesViewProps = ConvViewProps
+  & InjectFace<LearningNotesViewInjected>
+  & PropsLocale<'interactive-learning'>
+
+type LearningInputBridgeSnapshot = Pick<LearningNotesProps, 'input' | 'inputActions'> & {
+  sessionId: string
+}
+
+let inputBridgeSnapshot: LearningInputBridgeSnapshot | undefined
+const inputBridgeListeners = new Set<() => void>()
+
+function notifyInputBridge(): void {
+  for (const listener of inputBridgeListeners) listener()
+}
+
+function subscribeInputBridge(listener: () => void): () => void {
+  inputBridgeListeners.add(listener)
+  return () => { inputBridgeListeners.delete(listener) }
+}
+
+function readInputBridge(): LearningInputBridgeSnapshot | undefined {
+  return inputBridgeSnapshot
+}
+
+/**
+ * Keeps the normal composer actions available to the notes tab without making
+ * the tab own a second input machine. The bridge paints nothing; it only shares
+ * the same session-scoped action face with the view ring.
+ */
+export function LearningInputBridge({ session, input, inputActions }: LearningNotesProps): null {
+  useEffect(() => {
+    const next: LearningInputBridgeSnapshot = {
+      sessionId: String(session.sessionId),
+      input,
+      inputActions,
+    }
+    inputBridgeSnapshot = next
+    notifyInputBridge()
+    return () => {
+      if (inputBridgeSnapshot !== next) return
+      inputBridgeSnapshot = undefined
+      notifyInputBridge()
+    }
+  }, [input, inputActions, session.sessionId])
+  return null
+}
+
+function useLearningInputBridge(sessionId: string): LearningInputBridgeSnapshot | undefined {
+  const bridge = useSyncExternalStore(subscribeInputBridge, readInputBridge, readInputBridge)
+  return bridge?.sessionId === String(sessionId) ? bridge : undefined
+}
 
 const LEARNING_CALLS = new Set([
   'learning_visual',
@@ -351,6 +410,200 @@ function sendIntent(
   if (input.phase !== 'plain') return
   inputActions.setDraft(prompt)
   inputActions.submit()
+}
+
+function savedSessionNoteBody(notes: LearningNotesProjection, t: LearningNotesViewProps['t']): string {
+  const evidence = notes.evidence.length === 0
+    ? `- ${t('learningNotesNoEvidence')}`
+    : notes.evidence.map(item => `- ${item}`).join('\n')
+  const route = routeProgress(notes, t)
+  return [
+    `# ${notes.goal ?? t('learningNotesUnknown')}`,
+    '',
+    `## ${t('learningNotesEvidence')}`,
+    evidence,
+    '',
+    `## ${t('learningNotesRoute')}`,
+    route,
+    notes.plan?.objective ?? '',
+    '',
+    `> ${notes.verifiedTransfer ? t('learningResultTransfer') : t('learningResultTransferPending')}`,
+  ].filter((line, index, lines) => line !== '' || lines[index - 1] !== '').join('\n').trim()
+}
+
+function planRatio(notes: LearningNotesProjection): number {
+  if (notes.plan === null || notes.plan.steps.length === 0) return 0
+  const completed = notes.plan.steps.filter(step => notes.plan?.completedStepIds.has(step.id)).length
+  return Math.max(0, Math.min(1, completed / notes.plan.steps.length))
+}
+
+/**
+ * The full current-session note. It lives in the conversation view ring so
+ * the header reads `对话 / 轨迹 / 笔记`; the composer only remains responsible
+ * for entering the next learner message.
+ */
+export function LearningNotesView({
+  useSession, sessionId, cwd, call, t,
+}: LearningNotesViewProps) {
+  const session = useSession(state => state)
+  const notes = projectLearningNotes(session)
+  const bridge = useLearningInputBridge(sessionId)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [failure, setFailure] = useState('')
+  const disabled = session.removed || session.running || bridge?.input.phase !== 'plain'
+  const progress = planRatio(notes)
+
+  const save = (): void => {
+    if (saving || saved || cwd === undefined || cwd === '' || !notes.visible) return
+    setSaving(true)
+    setFailure('')
+    void (async () => {
+      try {
+        const answer = await call('notes/save', {
+          cwd,
+          title: notes.goal ?? t('learningNotesTitle'),
+          body: savedSessionNoteBody(notes, t),
+          kind: 'note',
+          sessionId: String(sessionId),
+        })
+        const record = typeof answer === 'object' && answer !== null
+          ? answer as { ok?: unknown; value?: { status?: unknown } }
+          : undefined
+        if (record?.ok === true && record.value?.status === 'ok') {
+          setSaved(true)
+        } else if (record?.value?.status === 'no-vault') {
+          setFailure(t('learningNotesSaveNoVault'))
+        } else {
+          setFailure(t('learningNotesSaveFailed'))
+        }
+      } catch (cause) {
+        setFailure(cause instanceof Error ? cause.message : t('learningNotesSaveFailed'))
+      } finally {
+        setSaving(false)
+      }
+    })()
+  }
+
+  if (!notes.visible) {
+    return (
+      <main {...learningScope} className={css.viewRoot} data-learning-notes="view">
+        <section className={css.emptyView}>
+          <p className={css.viewEyebrow}>{t('learningNotesTab')}</p>
+          <h1>{t('learningNotesEmptyTitle')}</h1>
+          <p>{t('learningNotesEmptyBody')}</p>
+        </section>
+      </main>
+    )
+  }
+
+  return (
+    <main {...learningScope} className={css.viewRoot} data-learning-notes="view">
+      <header className={css.viewHeader}>
+        <div>
+          <p className={css.viewEyebrow}>{t('learningNotesTab')}</p>
+          <h1>{t('learningNotesTitle')}</h1>
+          <p className={css.viewIntro}>{t('learningNotesViewIntro')}</p>
+        </div>
+        <span className={notes.active ? css.viewStatusActive : css.viewStatusDone}>
+          {notes.active ? t('learningNotesStatusActive') : t('learningNotesStatusDone')}
+        </span>
+      </header>
+
+      <section className={css.goalCard}>
+        <p className={css.cardEyebrow}>{t('learningNotesGoal')}</p>
+        <p className={css.goalText}>{notes.goal ?? t('learningNotesUnknown')}</p>
+        <p className={css.routeText}>{routeProgress(notes, t)}</p>
+      </section>
+
+      <div className={css.noteGrid}>
+        <section className={css.noteCard}>
+          <div className={css.cardHeading}>
+            <h2>{t('learningNotesEvidence')}</h2>
+            <span className={css.cardCount}>{notes.evidence.length}</span>
+          </div>
+          {notes.evidence.length === 0
+            ? <p className={css.cardMuted}>{t('learningNotesNoEvidence')}</p>
+            : <ul className={css.evidenceList}>{notes.evidence.map((item, index) => (
+              <li key={`${item}:${String(index)}`}>{item}</li>
+            ))}</ul>}
+        </section>
+
+        <section className={css.noteCard}>
+          <div className={css.cardHeading}>
+            <h2>{t('learningNotesRoute')}</h2>
+            {notes.plan !== null && <span className={css.cardCount}>{notes.plan.steps.length}</span>}
+          </div>
+          <p className={css.cardBody}>{routeProgress(notes, t)}</p>
+          {notes.plan !== null && (
+            <>
+              <div className={css.progressTrack} aria-hidden="true">
+                <span className={css.progressFill} style={{ transform: `scaleX(${String(progress)})` }} />
+              </div>
+              <ol className={css.routeList}>
+                {notes.plan.steps.map(step => (
+                  <li key={step.id} data-complete={notes.plan?.completedStepIds.has(step.id) || undefined}>
+                    {step.label}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </section>
+      </div>
+
+      {!notes.active && (
+        <section className={css.resultView} data-learning-result>
+          <p className={css.cardEyebrow}>{t('learningResultTitle')}</p>
+          <p>{notes.phase === 'complete' ? t('learningResultComplete') : t('learningResultEnded')}</p>
+          <p>{notes.verifiedTransfer ? t('learningResultTransfer') : t('learningResultTransferPending')}</p>
+          <p className={css.cardMuted}>{t('learningResultEvidenceNote')}</p>
+        </section>
+      )}
+
+      <footer className={css.viewActions} aria-label={t('learningNotesViewActions')}>
+        {notes.active && bridge !== undefined && (
+          <>
+            <button
+              type="button"
+              disabled={disabled}
+              data-learning-segment-action="deepen"
+              onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesDeepenPrompt'))}
+            >{t('learningNotesDeepen')}</button>
+            <button
+              type="button"
+              disabled={disabled}
+              data-learning-segment-action="rephrase"
+              onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesRephrasePrompt'))}
+            >{t('learningNotesRephrase')}</button>
+            <button
+              type="button"
+              className={css.actionQuiet}
+              disabled={disabled}
+              data-learning-segment-action="end"
+              onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesEndPrompt'))}
+            >{t('learningNotesEnd')}</button>
+          </>
+        )}
+        {!notes.active && bridge !== undefined && (
+          <button
+            type="button"
+            disabled={disabled}
+            data-learning-result-action="practice"
+            onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningResultPracticePrompt'))}
+          >{t('learningResultPractice')}</button>
+        )}
+        <button
+          type="button"
+          className={saved ? css.actionSaved : css.actionPrimary}
+          disabled={saving || saved || cwd === undefined || cwd === ''}
+          data-learning-save="session-note"
+          onClick={save}
+        >{saving ? t('learningNotesSaving') : saved ? t('learningNotesSaved') : t('learningNotesSave')}</button>
+      </footer>
+      {failure !== '' && <p className={css.viewError} role="alert">{failure}</p>}
+    </main>
+  )
 }
 
 export function LearningSessionNotes({ session, input, inputActions, t }: LearningNotesProps) {

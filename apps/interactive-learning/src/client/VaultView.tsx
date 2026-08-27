@@ -1,11 +1,11 @@
 /**
  * The vault panel: a window onto the topic folder, not another view of the chat.
  *
- * Four sections behind one rail: material (read-only), notes (free Markdown,
- * plus the pending-card inbox), concepts (prose edits and two narrow schedule
- * outlets) and review (a local deck). The ordinary browse, edit and review
- * actions are Host-side file I/O over the session's own vault; the material
- * pane also exposes an explicit visual re-read that calls a model.
+ * Four sections behind one rail: material (read-only), saved notes (free
+ * Markdown, plus the pending-card inbox), concept cards (prose edits and two
+ * narrow schedule outlets) and review (a local deck). The ordinary browse,
+ * edit and review actions are Host-side file I/O over the selected vault; the
+ * material pane also exposes an explicit visual re-read that calls a model.
  * @module @dsh-portable/interactive-learning/src/client/VaultView
  */
 
@@ -20,7 +20,7 @@ import css from './VaultView.module.css'
 
 /** Business face supplied by the slot registration. */
 export interface VaultViewInjected {
-  /** The session's immutable working directory; the vault is this folder. */
+  /** The selected working directory; the vault is this folder. */
   cwd: string | undefined
   /** One Connection RPC call on the `/interactive-learning` channel. */
   call: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
@@ -29,6 +29,15 @@ export interface VaultViewInjected {
 type VaultViewProps = ConvViewProps
   & InjectFace<VaultViewInjected>
   & PropsLocale<'interactive-learning'>
+
+/** Reusable library surface for both the settings-style external panel and legacy view consumers. */
+export interface VaultLibraryProps {
+  cwd: string | undefined
+  call: VaultViewInjected['call']
+  t: VaultViewProps['t']
+  /** Optional close action supplied by the external library shell. */
+  onClose?: () => void
+}
 
 /** Milliseconds of quiet before a query is sent; typing must not thrash the disk. */
 const SEARCH_DEBOUNCE_MS = 220
@@ -228,14 +237,12 @@ function SourceCard({
   return (
     <section className={css.card}>
       <header className={css.cardHead}>
-        <h3 className={css.cardTitle}>{source.title}</h3>
-        <span className={css.meta}>
-          {source.parser}
-          {source.lastPage > 0 ? ` · ${t('vaultReadTo', { page: String(source.lastPage) })}` : ''}
-          {` · ${t('vaultSectionCount', { count: String(source.sectionCount) })}`}
-          {` · ${kilo(source.totalChars)}`}
-        </span>
-        <span className={css.metaRight}>{megabytes(source.bytes)}</span>
+        <div className={css.cardIdentity}>
+          <h3 className={css.cardTitle}>{source.title}</h3>
+          <p className={css.cardStatus}>
+            {source.lastPage > 0 ? t('vaultReadTo', { page: String(source.lastPage) }) : t('vaultSectionCount', { count: String(source.sectionCount) })}
+          </p>
+        </div>
       </header>
 
       <CoverageStrip source={source} t={t} />
@@ -260,6 +267,17 @@ function SourceCard({
         />
       )}
 
+      <details className={css.sourceDetails}>
+        <summary>{t('vaultSourceDetails')}</summary>
+        <dl className={css.sourceMeta}>
+          <div><dt>{t('vaultSourceParser')}</dt><dd>{source.parser}</dd></div>
+          <div><dt>{t('vaultSourceSections')}</dt><dd>{source.sectionCount}</dd></div>
+          <div><dt>{t('vaultSourceCharacters')}</dt><dd>{kilo(source.totalChars)}</dd></div>
+          <div><dt>{t('vaultSourceSize')}</dt><dd>{megabytes(source.bytes)}</dd></div>
+          <div className={css.sourceMetaWide}><dt>{t('vaultSourcePath')}</dt><dd><code className={css.path}>{source.sourcePath}</code></dd></div>
+        </dl>
+      </details>
+
       <footer className={css.cardFoot}>
         <button
           type="button"
@@ -269,7 +287,6 @@ function SourceCard({
         >
           {expanded ? t('vaultHideSections') : t('vaultShowSections')}
         </button>
-        <code className={css.path}>{source.sourcePath}</code>
       </footer>
 
       {expanded && (
@@ -393,7 +410,7 @@ type SectionId = typeof SECTIONS[number]['id']
  * per section, because the rail badges the due count — the number has to be
  * right before anyone clicks "review" to find out.
  */
-export function VaultView({ cwd, call, t }: VaultViewProps) {
+export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [failure, setFailure] = useState('')
   const [section, setSection] = useState<SectionId>('material')
@@ -673,30 +690,37 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
     )
 
   return (
-    <div {...learningScope} className={css.root}>
+    <div {...learningScope} className={css.root} data-learning-library>
       <header className={css.head}>
         <div className={css.headRow}>
           <h2 className={css.title}>{summary?.title ?? ''}</h2>
-          <ul className={css.counts}>
-            <li className={css.count}>{t('vaultCountSources', { count: String(summary?.sources ?? 0) })}</li>
-            <li className={css.count}>{t('vaultConceptCount', { count: String(counts.concepts) })}</li>
-            {counts.review > 0 && (
-              <li className={css.countDue}>{t('vaultCountDue', { count: String(counts.review) })}</li>
+          <div className={css.headActions}>
+            <ul className={css.counts}>
+              <li className={css.count}>{t('vaultCountSources', { count: String(summary?.sources ?? 0) })}</li>
+              <li className={css.count}>{t('vaultConceptCount', { count: String(counts.concepts) })}</li>
+              {counts.review > 0 && (
+                <li className={css.countDue}>{t('vaultCountDue', { count: String(counts.review) })}</li>
+              )}
+              {(notes?.blocked ?? summary?.pendingNotes ?? 0) > 0 && (
+                <li className={css.countWarn}>
+                  {t('vaultPendingCount', { count: String(notes?.blocked ?? summary?.pendingNotes ?? 0) })}
+                </li>
+              )}
+              {(concepts?.stale ?? 0) > 0 && (
+                <li className={css.countWarn}>{t('vaultStaleCount', { count: String(concepts?.stale ?? 0) })}</li>
+              )}
+              {(summary?.degradedSources ?? 0) > 0 && (
+                <li className={css.countWarn}>
+                  {t('vaultCountDegraded', { count: String(summary?.degradedSources ?? 0) })}
+                </li>
+              )}
+            </ul>
+            {onClose !== undefined && (
+              <button type="button" className={css.headerButton} onClick={onClose}>
+                {t('vaultLibraryOpenSession')}
+              </button>
             )}
-            {(notes?.blocked ?? summary?.pendingNotes ?? 0) > 0 && (
-              <li className={css.countWarn}>
-                {t('vaultPendingCount', { count: String(notes?.blocked ?? summary?.pendingNotes ?? 0) })}
-              </li>
-            )}
-            {(concepts?.stale ?? 0) > 0 && (
-              <li className={css.countWarn}>{t('vaultStaleCount', { count: String(concepts?.stale ?? 0) })}</li>
-            )}
-            {(summary?.degradedSources ?? 0) > 0 && (
-              <li className={css.countWarn}>
-                {t('vaultCountDegraded', { count: String(summary?.degradedSources ?? 0) })}
-              </li>
-            )}
-          </ul>
+          </div>
         </div>
         <input
           type="search"
@@ -771,4 +795,9 @@ export function VaultView({ cwd, call, t }: VaultViewProps) {
         )}
     </div>
   )
+}
+
+/** Legacy conversation-view adapter; the long-term library now renders outside the session. */
+export function VaultView({ cwd, call, t }: VaultViewProps) {
+  return <VaultLibrary cwd={cwd} call={call} t={t} />
 }
