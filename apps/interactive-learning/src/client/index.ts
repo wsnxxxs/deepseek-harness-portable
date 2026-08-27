@@ -1,20 +1,60 @@
-/** Client entry: one composer takeover and one replayable keyed tool renderer. */
+/**
+ * Client entry: the composer takeover, the replayable keyed tool renderers, and
+ * the two gated vault surfaces — the 学习库 panel and the per-message
+ * 「留到库里」 action.
+ */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { LearningComposer, selectLearningActivity } from './LearningComposer.tsx'
 import { LearningToolView } from './LearningToolView.tsx'
 import { LearningSessionNotes } from './LearningNotes.tsx'
+import { VaultView, type VaultViewInjected } from './VaultView.tsx'
+import { VaultKeepAction, type VaultKeepInjected } from './VaultKeep.tsx'
+import {
+  notifyVaultRosterRefresh,
+  VaultRosterAction,
+  type VaultRosterInjected,
+} from './VaultRoster.tsx'
+import { startVaultGate, type VaultGateOptions } from './vault-gate.ts'
 import { subscribeLearningUiLifecycle } from './lifecycle.ts'
 import { en, zh } from './locales.ts'
 
 export { ActivityRendererRegistry, activityRendererRegistry } from './ActivityRenderer.tsx'
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts'
+export { VaultView, type VaultViewInjected } from './VaultView.tsx'
+export { VaultKeepAction, messageText, titleFrom, type VaultKeepInjected } from './VaultKeep.tsx'
+export {
+  notifyVaultRosterRefresh,
+  VaultRosterAction,
+  candidateFolders,
+  type VaultRosterInjected,
+} from './VaultRoster.tsx'
+export {
+  startVaultGate, wantsVaultTabByPreset, LEARNING_PRESET_ID,
+  type GateSessions, type GateSessionRow, type VaultGateOptions,
+} from './vault-gate.ts'
 
 const NS = 'interactive-learning'
+const CHANNEL = '/interactive-learning'
+/** Slot id of the vault tab; also the persisted active-view key. */
+const VAULT_VIEW_ID = 'vault'
+/** After `轨迹` (order 10), so the reading order is chat → trajectory → vault. */
+const VAULT_VIEW_ORDER = 20
+/** Slot id of the per-message 「留到库里」 action. */
+const VAULT_KEEP_ID = 'vault-keep'
+/** After the shipped feedback entry (order 10), which owns the leading seat. */
+const VAULT_KEEP_ORDER = 20
+/** Slot id of the out-of-session sidebar entry. */
+const VAULT_ROSTER_ID = 'vault-roster'
+/** After the Cordis panel, which occupies the foot's leading seat. */
+const VAULT_ROSTER_ORDER = 20
+const ROSTER_REFRESH_ENDPOINTS = new Set(['concepts/rate', 'concepts/correct', 'concepts/defer'])
 type RecallConnection = { rpc: { call(channel: string, endpoint: string, payload: unknown): Promise<unknown> } }
+type VaultGateSessions = VaultGateOptions['sessions']
 export const LEARNING_TOOL_VIEW_KEYS = [
   'learning_visual',
   'learning_checkpoint',
@@ -95,4 +135,105 @@ export function apply(ctx: ClientContext): void {
     order: -1,
     locale: NS,
   }, LearningSessionNotes))
+
+  // The vault tab is gated rather than registered outright: `conversation.view`
+  // is a global list slot, so an unconditional registration would put a
+  // "学习库" tab above every ordinary code session too. See `vault-gate.ts`.
+  // The sidebar entry is deliberately NOT gated. There is no session out here
+  // to gate on, and it removes itself when the roster comes back with no
+  // vaults — the same outcome as a gate, decided by data rather than a guess.
+  ctx.inject(['sessions', 'connection'], (rosterCtx) => {
+    const sessions = rosterCtx.get('sessions') as {
+      open?: (id: string) => void
+    } | undefined
+    const connection = rosterCtx.get('connection') as RecallConnection | undefined
+    if (sessions?.open === undefined || connection === undefined) return
+    const open = sessions.open.bind(sessions)
+    rosterCtx.slots.inject('sidebar.footer.action', () => rosterCtx.slots.register({
+      name: 'sidebar.footer.action',
+      id: VAULT_ROSTER_ID,
+      order: VAULT_ROSTER_ORDER,
+      locale: NS,
+      label: () => rosterCtx.locale.bind(NS)('vaultRosterTitle'),
+      inject: (): VaultRosterInjected => ({
+        call: async (endpoint, payload) => connection.rpc.call(CHANNEL, endpoint, payload),
+        openSession: open,
+      }),
+    }, VaultRosterAction))
+  })
+
+  ctx.inject(['sessions', 'connection'], (gateCtx) => {
+    const sessions = (gateCtx.get('sessions') as { list?: VaultGateSessions } | undefined)?.list
+    const connection = gateCtx.get('connection') as RecallConnection | undefined
+    if (sessions === undefined || connection === undefined) return
+    const t = gateCtx.locale.bind(NS)
+
+    const callVault = async (
+      endpoint: string,
+      payload: Record<string, unknown>,
+    ): Promise<unknown> => {
+      const answer = await connection.rpc.call(CHANNEL, endpoint, payload)
+      if (ROSTER_REFRESH_ENDPOINTS.has(endpoint)
+        && typeof answer === 'object'
+        && answer !== null
+        && (answer as { ok?: unknown; value?: { status?: unknown } }).ok === true
+        && (answer as { value?: { status?: unknown } }).value?.status === 'ok') {
+        notifyVaultRosterRefresh()
+      }
+      return answer
+    }
+
+    const cwdOf = (sessionId: string): string | undefined =>
+      sessions.getSnapshot().byId[sessionId]?.cwd
+
+    gateCtx.effect(() => startVaultGate({
+      sessions,
+      probe: async (cwd) => {
+        const answer = await callVault('vault/probe', { cwd })
+        return (answer as { ok?: boolean; value?: { vault?: boolean } } | undefined)?.ok === true
+          && (answer as { value?: { vault?: boolean } }).value?.vault === true
+      },
+      // Both surfaces ride ONE gate. The 学习库 tab and the per-message
+      // 「留到库里」 action answer the same question — does this session have a
+      // topic vault to read from and write to — so splitting them into two
+      // gates would only create a state where one is visible and the other is
+      // not, which is worse than either being absent.
+      //
+      // Through `slots.inject`, not a bare `register`: the registration must
+      // wait for the slot to be declared, and must be re-applied if the
+      // declaring package's epoch changes. `slots.inject` returns the disposer
+      // the gate needs, so gating composes with it directly.
+      mount: () => {
+        const face = (sessionId: string): VaultViewInjected & VaultKeepInjected => ({
+          cwd: cwdOf(sessionId),
+          call: (endpoint, payload) => callVault(endpoint, {
+            ...payload,
+            ...(endpoint === 'material/route-info' || endpoint === 'material/reparse-pages'
+              ? { sessionId }
+              : {}),
+          }),
+        })
+        const tab = gateCtx.slots.inject('conversation.view', () => gateCtx.slots.register({
+          name: 'conversation.view',
+          id: VAULT_VIEW_ID,
+          order: VAULT_VIEW_ORDER,
+          locale: NS,
+          // A thunk, so the tab label follows a locale switch without
+          // re-registering — the same contract ui-trajectory's label uses.
+          label: () => t('vaultTab'),
+          inject: face,
+        }, VaultView))
+        const keep = gateCtx.slots.inject('conversation.chat.assistant-actions', () =>
+          gateCtx.slots.register({
+            name: 'conversation.chat.assistant-actions',
+            id: VAULT_KEEP_ID,
+            order: VAULT_KEEP_ORDER,
+            locale: NS,
+            label: () => t('vaultKeep'),
+            inject: face,
+          }, VaultKeepAction))
+        return () => { keep(); tab() }
+      },
+    }), 'interactive-learning: vault tab gate')
+  })
 }
