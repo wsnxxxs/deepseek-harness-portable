@@ -1,12 +1,12 @@
 /**
- * Client entry: the composer takeover, the replayable keyed tool renderers, and
- * the two gated vault surfaces — the 学习库 panel and the per-message
+ * Client entry: the composer takeover, the replayable keyed tool renderers, the
+ * current-session 笔记 view, and the external 学习库 with its per-message
  * 「留到库里」 action.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 export { ActivityRendererRegistry, activityRendererRegistry } from './ActivityRenderer.tsx';
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts';
-export { VaultView, type VaultViewInjected } from './VaultView.tsx';
+export { VaultLibrary, VaultView, type VaultViewInjected } from './VaultView.tsx';
 export { VaultKeepAction, messageText, titleFrom, type VaultKeepInjected } from './VaultKeep.tsx';
 export { notifyVaultRosterRefresh, VaultRosterAction, candidateFolders, type VaultRosterInjected, } from './VaultRoster.tsx';
 export { startVaultGate, wantsVaultTabByPreset, LEARNING_PRESET_ID, type GateSessions, type GateSessionRow, type VaultGateOptions, } from './vault-gate.ts';

@@ -46,8 +46,6 @@ export declare function notifyVaultRosterRefresh(): void;
 export interface VaultRosterInjected {
     /** One Connection RPC call on the `/interactive-learning` channel. */
     call: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>;
-    /** Select an existing session; the shell's `sessions.open`. */
-    openSession: (sessionId: string) => void;
 }
 type VaultRosterProps = PropsRuntime<'sidebar.footer.action'> & InjectFace<VaultRosterInjected> & PropsLocale<'interactive-learning'>;
 interface SessionRow {
@@ -57,14 +55,12 @@ interface SessionRow {
 /**
  * Candidate folders, most recently touched first.
  *
- * One entry per distinct `cwd`, carrying the newest session in that folder —
- * which is the session a click should land on. Ordering by recency means the
- * cap, when it bites, drops the topics a person has not opened in the longest
- * time rather than an arbitrary slice.
+ * One entry per distinct `cwd`, carrying only enough recency to make the cap
+ * deterministic. The external library does not navigate sessions; it simply
+ * closes back to whatever conversation was already open.
  */
 export declare function candidateFolders(ids: readonly string[], byId: Readonly<Record<string, SessionRow>>): {
     cwd: string;
-    sessionId: string;
     updatedAt: number;
 }[];
 /**
@@ -74,6 +70,6 @@ export declare function candidateFolders(ids: readonly string[], byId: Readonly<
  * An entry that showed "0 topics" in every ordinary install would be a
  * permanent advertisement for a feature the person is not using.
  */
-export declare function VaultRosterAction({ wide, useSessions, call, openSession, t, }: VaultRosterProps): import("react").JSX.Element | null;
+export declare function VaultRosterAction({ wide, useSessions, call, t, }: VaultRosterProps): import("react").JSX.Element | null;
 export {};
 //# sourceMappingURL=VaultRoster.d.ts.map

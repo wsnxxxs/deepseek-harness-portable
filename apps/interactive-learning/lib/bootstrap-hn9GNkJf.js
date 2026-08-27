@@ -510,9 +510,12 @@ function reduceLearnerState(state, event) {
 	}
 	let next = { ...state };
 	switch (event.type) {
-		case "goal_observed":
-			next.goal = normalizeRequiredText(event.goal, "goal");
+		case "goal_observed": {
+			const goal = normalizeRequiredText(event.goal, "goal");
+			if (state.goal !== null && state.goal !== goal) throw new TypeError("goal_observed cannot replace an active learning goal; reset or correct it first");
+			next.goal = goal;
 			break;
+		}
 		case "request_kind_observed":
 			next.requestKind = assertEnum(event.requestKind, REQUEST_KINDS, "requestKind");
 			break;

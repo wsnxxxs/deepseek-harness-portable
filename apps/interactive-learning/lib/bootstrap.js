@@ -1,2 +1,2 @@
-import { t as registerInteractiveLearningSessionCompatibility } from "./bootstrap-BWi6OfwS.js";
+import { t as registerInteractiveLearningSessionCompatibility } from "./bootstrap-hn9GNkJf.js";
 export { registerInteractiveLearningSessionCompatibility };

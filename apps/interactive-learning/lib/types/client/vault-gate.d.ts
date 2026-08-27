@@ -1,12 +1,10 @@
 /**
  * The gate on both in-conversation vault surfaces.
  *
- * Two registrations ride it: the 学习库 tab in `conversation.view`, and the
- * per-message 「留到库里」 action in `conversation.chat.assistant-actions`. Only
- * the first one forces the gate to exist — the action slot is session-scoped
- * and could gate itself — but they answer the same question, and one gate is
- * the only way to guarantee a person never sees the action without the panel
- * it writes into.
+ * Two registrations ride it: the current-session 笔记 tab in `conversation.view`,
+ * and the per-message 「留到库里」 action in `conversation.chat.assistant-actions`.
+ * The external material library is intentionally outside this gate and is
+ * opened from the sidebar.
  *
  * `conversation.view` is a GLOBAL list slot: `views.list()` walks
  * `slots.entries('conversation.view')` with no session in hand, and the
@@ -58,6 +56,8 @@ export interface VaultGateOptions {
     probe(cwd: string): Promise<boolean>;
     /** Registers both surfaces; the returned function disposes them. */
     mount(): () => void;
+    /** When true, only the learning preset can mount the in-session surfaces. */
+    presetOnly?: boolean;
     /** Test seam: called after each evaluation settles, mounted state included. */
     onSettled?(mounted: boolean): void;
 }
