@@ -59,7 +59,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 - Preinstalled, removable plugin marketplace with paginated GitHub search, one-click installation, update management, and agent-facing market tools.
 - Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, and GIF files through the kernel attachment and model services. It can automatically select a configured image-capable model—including the official `deepseek-v4-flash-vision-exp` catalog entry—or pin one in plugin settings, with no separate endpoint or API key.
 - The conversation input keeps image attachments as image data and represents ordinary local documents as `@file` path references. Document bytes are not uploaded or parsed by the desktop attachment layer; the model can use the existing shell/file-reference tools to read an accessible path.
-- Learning mode provides material-grounded teaching with source anchors, concept reviews, learner memory, non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Teaching state advances from learner evidence and survives refresh, resume, and message compaction.
+- Learning mode provides material-grounded teaching with session notes, source anchors, concept reviews, learner memory, non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Durable content lives in the separate Learning Library; teaching state advances from learner evidence and survives refresh, resume, and message compaction.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
 ## Latest release
@@ -161,6 +161,7 @@ Minimal mode runs the requested shell command unchanged. Recursive `grep` over t
 | [Desktop shell guide](apps/desktop/README.md) | Desktop contributors | Electron behavior, native output layout, tests, and release identity |
 | [Runtime architecture and release gates](docs/runtime-architecture.md) | Runtime and release maintainers | Capability probes, mode contracts, manifests, CI, and signing gates |
 | [Interactive Learning pack](apps/interactive-learning/README.md) | Feature contributors | Protocol boundaries, development workflow, activation, and compatibility |
+| [Learning mode product notes (Chinese)](docs/product/learning-mode.md) | Product and feature maintainers | Current learning flow, library boundaries, and future scope |
 | [Vision Bridge](apps/vision-bridge/README.md) | Users and feature contributors | Image-model routing, configuration, failure behavior, and development checks |
 | [Release notes](RELEASE_NOTES.md) | Users and maintainers | User-visible changes and upgrade information |
 
