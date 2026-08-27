@@ -19,8 +19,10 @@
  * @module @dsh-portable/interactive-learning/src/client/VaultKeep
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { learningScope } from './tokens.ts'
 import css from './VaultView.module.css'
@@ -40,6 +42,15 @@ const MAX_PREFILL_CHARS = 6_000
 
 /** Longest title derived from the message's own first line. */
 const MAX_TITLE_CHARS = 60
+
+/** Safe distance kept between the floating sheet and the viewport edges. */
+const PANEL_MARGIN = 12
+
+/** Distance between the keep trigger and its floating sheet. */
+const PANEL_GAP = 4
+
+/** Hide the first paint while the anchored-position hook measures the sheet. */
+const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 interface TextBlock { kind: string; text?: string }
 interface MessageNode { kind: string; messageId?: string; blocks?: readonly TextBlock[] }
@@ -89,8 +100,18 @@ export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState<SavedNote | undefined>(undefined)
   const [failure, setFailure] = useState('')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const suggested = useMemo(() => titleFrom(text), [text])
+
+  const position = useAnchoredPosition({
+    open,
+    anchorRef: triggerRef,
+    panelRef,
+    gap: PANEL_GAP,
+    margin: PANEL_MARGIN,
+  })
 
   const start = useCallback(() => {
     setTitle(suggested)
@@ -134,75 +155,90 @@ export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t
 
   if (text === '') return null
 
-  if (!open) {
-    return (
-      <button type="button" className={css.keepButton} onClick={start} title={t('vaultKeepHint')}>
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={css.keepButton}
+        onClick={() => { if (open) setOpen(false); else start() }}
+        title={t('vaultKeepHint')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
         {t('vaultKeep')}
       </button>
-    )
-  }
-
-  return (
-    <div {...learningScope} className={css.keepSheet}>
-      <header className={css.cardHead}>
-        <h3 className={css.cardTitle}>{t('vaultKeepTitle')}</h3>
-        <span className={css.metaRight}>
-          <button type="button" className={css.button} onClick={() => { setOpen(false) }}>
-            {t('vaultKeepClose')}
-          </button>
-        </span>
-      </header>
-
-      {saved === undefined
-        ? (
-          <>
-            <input
-              type="text"
-              className={css.search}
-              value={title}
-              placeholder={t('vaultNoteTitlePlaceholder')}
-              aria-label={t('vaultNoteTitlePlaceholder')}
-              onChange={(event) => { setTitle(event.target.value) }}
-            />
-            <textarea
-              className={css.editor}
-              value={body}
-              rows={10}
-              aria-label={t('vaultKeepBody')}
-              onChange={(event) => { setBody(event.target.value) }}
-            />
-            <div className={css.actions}>
-              <button
-                type="button"
-                className={css.buttonPrimary}
-                disabled={busy}
-                onClick={() => { keep('note') }}
-              >
-                {busy ? t('vaultSaving') : t('vaultKeepAsNote')}
+      {open && createPortal(
+        <div
+          {...learningScope}
+          ref={panelRef}
+          className={css.keepSheet}
+          role="dialog"
+          aria-label={t('vaultKeepTitle')}
+          style={position ?? MEASURE_STYLE}
+        >
+          <header className={css.cardHead}>
+            <h3 className={css.cardTitle}>{t('vaultKeepTitle')}</h3>
+            <span className={css.metaRight}>
+              <button type="button" className={css.button} onClick={() => { setOpen(false) }}>
+                {t('vaultKeepClose')}
               </button>
-              <button
-                type="button"
-                className={css.button}
-                disabled={busy}
-                onClick={() => { keep('pending-concept') }}
-              >
-                {t('vaultKeepAsPending')}
-              </button>
-            </div>
-            <p className={css.hint}>{t('vaultKeepAsCardHint')}</p>
-          </>
-        )
-        : (
-          <>
-            <p className={css.notice}>
-              {saved.kind === 'pending-concept' ? t('vaultKeptAsPending') : t('vaultKeptAsNote')}
-            </p>
-            <code className={css.path}>{saved.path}</code>
-            <p className={css.hint}>{t('vaultKeptWhere')}</p>
-          </>
-        )}
+            </span>
+          </header>
 
-      {failure !== '' && <p className={css.staleNote}>{failure}</p>}
-    </div>
+          {saved === undefined
+            ? (
+              <>
+                <input
+                  type="text"
+                  className={css.search}
+                  value={title}
+                  placeholder={t('vaultNoteTitlePlaceholder')}
+                  aria-label={t('vaultNoteTitlePlaceholder')}
+                  onChange={(event) => { setTitle(event.target.value) }}
+                />
+                <textarea
+                  className={css.editor}
+                  value={body}
+                  rows={10}
+                  aria-label={t('vaultKeepBody')}
+                  onChange={(event) => { setBody(event.target.value) }}
+                />
+                <div className={css.actions}>
+                  <button
+                    type="button"
+                    className={css.buttonPrimary}
+                    disabled={busy}
+                    onClick={() => { keep('note') }}
+                  >
+                    {busy ? t('vaultSaving') : t('vaultKeepAsNote')}
+                  </button>
+                  <button
+                    type="button"
+                    className={css.button}
+                    disabled={busy}
+                    onClick={() => { keep('pending-concept') }}
+                  >
+                    {t('vaultKeepAsPending')}
+                  </button>
+                </div>
+                <p className={css.hint}>{t('vaultKeepAsCardHint')}</p>
+              </>
+            )
+            : (
+              <>
+                <p className={css.notice}>
+                  {saved.kind === 'pending-concept' ? t('vaultKeptAsPending') : t('vaultKeptAsNote')}
+                </p>
+                <code className={css.path}>{saved.path}</code>
+                <p className={css.hint}>{t('vaultKeptWhere')}</p>
+              </>
+            )}
+
+          {failure !== '' && <p className={css.staleNote}>{failure}</p>}
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }

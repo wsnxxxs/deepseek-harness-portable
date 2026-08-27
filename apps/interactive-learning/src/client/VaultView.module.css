@@ -980,24 +980,24 @@
 
 /* ---------- the in-conversation keep action ---------- */
 
-/*
- * The action strip is a horizontal row of icon-sized controls, so the sheet
- * takes a full basis of its own rather than trying to sit inside that row.
- * Without this it would squeeze the sibling actions down to nothing on the
- * first render and push the whole message header out of shape.
- */
+/* The action strip is a fixed 28px row. Keep the editor out of that flex
+   layout and anchor it to the trigger in the document body instead. This also
+   lets it paint above the sticky composer and escape the chat scroller's clip. */
 .keepSheet {
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--lx-space-md);
-  flex-basis: 100%;
-  width: 100%;
-  max-width: 640px;
-  margin-block-start: var(--lx-space-md);
   border: var(--lx-card-border);
   border-radius: var(--lx-radius-lg);
   background: var(--lx-surface-card);
   padding: var(--lx-space-lg) var(--lx-space-xl);
+  box-shadow: var(--lx-shadow-md);
 }
 
 .keepButton {

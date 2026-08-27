@@ -63,8 +63,11 @@ describe('vault action copy and controls', () => {
 
     fireEvent.click(screen.getByRole('button', { name: en.vaultKeep }))
 
+    const sheet = screen.getByRole('dialog', { name: en.vaultKeepTitle })
     expect(screen.getByRole('button', { name: en.vaultKeepAsNote })).toBeTruthy()
     expect(screen.getByRole('button', { name: en.vaultKeepAsPending })).toBeTruthy()
+    expect(sheet.parentElement).toBe(document.body)
+    expect(screen.getByRole('button', { name: en.vaultKeep }).getAttribute('aria-expanded')).toBe('true')
     expect(screen.queryByRole('button', { name: /concept card/i })).toBeNull()
     expect(screen.getByText(en.vaultKeepAsCardHint)).toBeTruthy()
     expect(screen.queryByText(en.vaultLocalOnly)).toBeNull()
