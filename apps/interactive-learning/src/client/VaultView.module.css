@@ -1365,7 +1365,9 @@
   overflow: hidden;
   border: 1px solid var(--lx-border-subtle);
   border-radius: 24px;
-  background: var(--lx-surface-raised);
+  /* Keep the modal surface opaque so the conversation below cannot compete
+     with library text through the panel. */
+  background: color-mix(in srgb, var(--lx-host-bg) 96%, var(--lx-host-label) 4%);
   box-shadow: var(--lx-shadow-lg);
 }
 
