@@ -16,6 +16,10 @@ import {
 } from './capability-report-cache.js'
 
 const require = createRequire(import.meta.url)
+// node-pty is owned by the local subprocess implementation. Resolve it from
+// that package so the capability probe uses the same dependency path as the
+// shell providers, including the portable runtime's nested dependency layout.
+const subprocessRequire = createRequire(require.resolve('@deepseek-ai/dsh-subprocess-local/package.json'))
 const PROBE_TIMEOUT_MS = 8_000
 
 interface PtyHandle {
@@ -113,7 +117,7 @@ function unavailable(
 }
 
 async function loadNodePty(): Promise<NodePty> {
-  const loaded = require('node-pty') as NodePty & { default?: NodePty }
+  const loaded = subprocessRequire('node-pty') as NodePty & { default?: NodePty }
   const nodePty = loaded.default ?? loaded
   if (typeof nodePty.spawn !== 'function') throw new Error('node-pty does not export spawn()')
   return nodePty

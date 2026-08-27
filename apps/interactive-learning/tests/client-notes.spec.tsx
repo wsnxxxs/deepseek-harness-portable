@@ -206,7 +206,7 @@ describe('session learning notes', () => {
     expect(projectLearningNotes(session).goal).toBe('我想理解二叉搜索树为什么查找快。')
   })
 
-  it('shows the localized start card only for a blank learning session', () => {
+  it('shows only generic quick starts for a blank learning session', () => {
     const setDraft = vi.fn()
     const useSessions = (select: (state: { byId: Record<string, { agentPreset?: string }> }) => boolean): boolean =>
       select({ byId: { 'session-learning': { agentPreset: 'learning' } } })
@@ -229,7 +229,12 @@ describe('session learning notes', () => {
       />,
     )
 
-    expect(screen.getByText(en.learningStartTitle)).toBeTruthy()
+    expect(screen.getByText(en.learningStartQuickLabel)).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.learningStartConcept })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.learningStartQuestion })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.learningStartMaterial })).toBeTruthy()
+    expect(screen.queryByText(/binary search tree/i)).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(3)
     fireEvent.click(screen.getByRole('button', { name: en.learningStartConcept }))
     expect(setDraft).toHaveBeenCalledWith(en.learningStartConceptPrompt)
     expect(document.documentElement.dataset.learningSurface).toBe('true')

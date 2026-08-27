@@ -10,6 +10,10 @@ import { Context } from '@deepseek-ai/cordis';
 import { LocalSandboxProvider } from '@deepseek-ai/dsh-sandbox-local';
 import { currentCapabilityCacheIdentity, readCapabilityReportCache, writeCapabilityReportCache, } from './capability-report-cache.js';
 const require = createRequire(import.meta.url);
+// node-pty is owned by the local subprocess implementation. Resolve it from
+// that package so the capability probe uses the same dependency path as the
+// shell providers, including the portable runtime's nested dependency layout.
+const subprocessRequire = createRequire(require.resolve('@deepseek-ai/dsh-subprocess-local/package.json'));
 const PROBE_TIMEOUT_MS = 8_000;
 function runtimeUpstreamVersion() {
     const fromEnvironment = process.env.DSH_UPSTREAM_COMMIT?.trim();
@@ -59,7 +63,7 @@ function unavailable(reason, remediation = 'Run on a supported native platform o
     };
 }
 async function loadNodePty() {
-    const loaded = require('node-pty');
+    const loaded = subprocessRequire('node-pty');
     const nodePty = loaded.default ?? loaded;
     if (typeof nodePty.spawn !== 'function')
         throw new Error('node-pty does not export spawn()');

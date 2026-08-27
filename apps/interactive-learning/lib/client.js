@@ -15418,7 +15418,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningSurface.module.css.mjs
-		const css$1 = "._7yM2JG_root{box-sizing:border-box;gap:var(--lx-space-2xl) var(--lx-space-3xl);width:100%;margin-block:var(--lx-space-md) var(--lx-space-sm);padding:var(--lx-space-2xl) clamp(16px, 3vw, 28px);border:var(--lx-card-border);border-radius:var(--lx-card-radius);background:linear-gradient(135deg, var(--lx-surface-accent), var(--lx-surface-card) 48%);box-shadow:var(--lx-shadow-sm);color:var(--lx-label-primary);grid-template-columns:minmax(0,1.15fr) minmax(250px,.85fr);align-items:end;display:grid;container-type:inline-size}._7yM2JG_header{min-width:0}._7yM2JG_eyebrow,._7yM2JG_quickLabel{margin:0 0 var(--lx-space-xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._7yM2JG_header h1{max-width:20ch;font-size:var(--lx-text-xl);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-xl);margin:0}._7yM2JG_subtitle{max-width:58ch;margin:var(--lx-space-sm) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}._7yM2JG_promises{gap:var(--lx-space-xs);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;padding:0;list-style:none;display:grid}._7yM2JG_promises li{padding-inline-start:var(--lx-space-xl);position:relative}._7yM2JG_promiseIcon{color:var(--lx-success);display:inline-flex;position:absolute;inset-block-start:2px;inset-inline-start:0}._7yM2JG_quickStart{padding-top:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);grid-column:1/-1}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);background:var(--lx-surface-card);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing)}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._7yM2JG_example{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);grid-column:1/-1;margin:0}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_state_update]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_map]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_read]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_search]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_propose]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_visual_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_checkpoint_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@container (width<=640px){._7yM2JG_root{gap:var(--lx-space-xl);grid-template-columns:1fr}._7yM2JG_quickStart,._7yM2JG_example{grid-column:auto}}";
+		const css$1 = "._7yM2JG_root{box-sizing:border-box;align-items:center;gap:var(--lx-space-sm);width:100%;min-width:0;padding:0 var(--lx-space-md);color:var(--lx-label-secondary);order:2;margin:0 auto;display:flex;container-type:inline-size}._7yM2JG_quickLabel{color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;flex:none;margin:0}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;min-width:0;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing);background:0 0}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_state_update]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_map]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_read]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_search]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_propose]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_visual_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_checkpoint_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@container (width<=520px){._7yM2JG_root{align-items:flex-start;gap:var(--lx-space-xs);flex-direction:column}}";
 		const tagId$1 = "@dsh-portable/interactive-learning/LearningSurface.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
@@ -15429,15 +15429,8 @@ window.__ModuleLoader__.load({
 		}
 		var LearningSurface_module_css_default = {
 			"choices": "_7yM2JG_choices",
-			"example": "_7yM2JG_example",
-			"eyebrow": "_7yM2JG_eyebrow",
-			"header": "_7yM2JG_header",
-			"promiseIcon": "_7yM2JG_promiseIcon",
-			"promises": "_7yM2JG_promises",
 			"quickLabel": "_7yM2JG_quickLabel",
-			"quickStart": "_7yM2JG_quickStart",
-			"root": "_7yM2JG_root",
-			"subtitle": "_7yM2JG_subtitle"
+			"root": "_7yM2JG_root"
 		};
 		//#endregion
 		//#region src/client/LearningSurface.tsx
@@ -15453,13 +15446,9 @@ window.__ModuleLoader__.load({
 			{
 				key: "learningStartMaterial",
 				prompt: "learningStartMaterialPrompt"
-			},
-			{
-				key: "learningStartCheck",
-				prompt: "learningStartCheckPrompt"
 			}
 		];
-		/** The learner-facing entry card and the presentation boundary for a learning session. */
+		/** The learner-facing quick-start row and the presentation boundary for a learning session. */
 		function LearningSurface({ session, input, inputActions, sessionId, useSessions, t }) {
 			const isLearningSession = useSessions((state) => state.byId[sessionId]?.agentPreset === LEARNING_PRESET_ID);
 			(0, react.useEffect)(() => {
@@ -15477,62 +15466,19 @@ window.__ModuleLoader__.load({
 				className: LearningSurface_module_css_default.root,
 				...learningScope,
 				"data-learning-onboarding": true,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningSurface_module_css_default.header,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningSurface_module_css_default.eyebrow,
-								children: t("learningStartEyebrow")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h1", { children: t("learningStartTitle") }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningSurface_module_css_default.subtitle,
-								children: t("learningStartSubtitle")
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("ul", {
-						className: LearningSurface_module_css_default.promises,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.promiseIcon,
-								"aria-hidden": true,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutline16, { size: 14 })
-							}), t("learningStartPromise1")] }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.promiseIcon,
-								"aria-hidden": true,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutline16, { size: 14 })
-							}), t("learningStartPromise2")] }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningSurface_module_css_default.promiseIcon,
-								"aria-hidden": true,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCheckOutline16, { size: 14 })
-							}), t("learningStartPromise3")] })
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningSurface_module_css_default.quickStart,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: LearningSurface_module_css_default.quickLabel,
-							children: t("learningStartQuickLabel")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: LearningSurface_module_css_default.choices,
-							children: QUICK_STARTS.map(({ key, prompt }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								disabled,
-								"data-learning-start-choice": key,
-								onClick: () => inputActions.setDraft(t(prompt)),
-								children: t(key)
-							}, key))
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningSurface_module_css_default.example,
-						children: t("learningStartExample")
-					})
-				]
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: LearningSurface_module_css_default.quickLabel,
+					children: t("learningStartQuickLabel")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: LearningSurface_module_css_default.choices,
+					children: QUICK_STARTS.map(({ key, prompt }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						disabled,
+						"data-learning-start-choice": key,
+						onClick: () => inputActions.setDraft(t(prompt)),
+						children: t(key)
+					}, key))
+				})]
 			});
 		}
 		//#endregion
@@ -18130,22 +18076,13 @@ window.__ModuleLoader__.load({
 			learningNotesDeepenPrompt: "继续深挖当前学习片段。",
 			learningNotesRephrasePrompt: "换一种讲法解释刚才的内容。",
 			learningNotesEndPrompt: "完成了",
-			learningStartEyebrow: "学习模式",
-			learningStartTitle: "从一个问题开始真正理解",
-			learningStartSubtitle: "我会先确认你想解决什么，再用小步讲解、练习和新例子帮助你把它用出来。",
-			learningStartPromise1: "每次只推进一个关键关系",
-			learningStartPromise2: "根据你的回答调整讲法和难度",
-			learningStartPromise3: "用新例子验证能不能迁移",
 			learningStartQuickLabel: "快速开始",
 			learningStartConcept: "理解一个概念",
 			learningStartQuestion: "解决一个疑惑",
-			learningStartMaterial: "带我读一份材料",
-			learningStartCheck: "检查我是否理解",
-			learningStartExample: "例如：解释一下二叉搜索树为什么这样查找",
-			learningStartConceptPrompt: "我想真正理解一个概念：二叉搜索树为什么这样查找？",
-			learningStartQuestionPrompt: "我有一个疑惑，帮我定位我卡在哪里：为什么二叉搜索树的查找可以变快？",
-			learningStartMaterialPrompt: "我会提供一份材料，请带我按真实章节逐步读懂它。",
-			learningStartCheckPrompt: "先检查我是否真的理解了：给我一个小问题，但不要直接给答案。",
+			learningStartMaterial: "学习一份材料",
+			learningStartConceptPrompt: "我想真正理解一个概念：",
+			learningStartQuestionPrompt: "我有一个疑惑，帮我定位我卡在哪里：",
+			learningStartMaterialPrompt: "我想学习一份材料，请带我按真实章节逐步读懂它。",
 			learningResultTitle: "本段学习结果",
 			learningResultComplete: "当前练习已完成。",
 			learningResultEnded: "当前学习片段已结束。",
@@ -18526,22 +18463,13 @@ window.__ModuleLoader__.load({
 			learningNotesDeepenPrompt: "Continue exploring this learning segment.",
 			learningNotesRephrasePrompt: "Explain the last idea another way.",
 			learningNotesEndPrompt: "Done.",
-			learningStartEyebrow: "Learning mode",
-			learningStartTitle: "Start with a question and build real understanding",
-			learningStartSubtitle: "I will clarify what you need, then use small explanations, practice, and a fresh case to help you use it.",
-			learningStartPromise1: "Move one important relationship at a time",
-			learningStartPromise2: "Adjust the explanation and difficulty from your response",
-			learningStartPromise3: "Use a fresh case to check whether it transfers",
 			learningStartQuickLabel: "Quick starts",
 			learningStartConcept: "Understand a concept",
 			learningStartQuestion: "Work through a confusion",
 			learningStartMaterial: "Study a piece of material",
-			learningStartCheck: "Check my understanding",
-			learningStartExample: "For example: explain why a binary search tree searches this way",
-			learningStartConceptPrompt: "I want to really understand a concept: why does a binary search tree search this way?",
-			learningStartQuestionPrompt: "I am confused about something. Help me locate the gap: why can a binary search tree search faster?",
-			learningStartMaterialPrompt: "I will provide some material. Guide me through its real sections step by step.",
-			learningStartCheckPrompt: "Check whether I really understand: give me a small question, but do not give me the answer.",
+			learningStartConceptPrompt: "I want to really understand a concept:",
+			learningStartQuestionPrompt: "I am confused about something. Help me locate the gap:",
+			learningStartMaterialPrompt: "I want to study a piece of material. Guide me through its real sections step by step.",
 			learningResultTitle: "Learning result",
 			learningResultComplete: "The current practice is complete.",
 			learningResultEnded: "This learning segment has ended.",
