@@ -177,10 +177,10 @@ export function VaultRosterAction({
   const selected = roster.vaults.find(vault => vault.cwd === selectedCwd) ?? roster.vaults[0]!
 
   return (
-    <div {...learningScope} className={css.rosterRoot}>
+    <div {...learningScope} className={`${css.rosterRoot} ${!wide ? css.rosterRootRail : ''}`}>
       <button
         type="button"
-        className={css.rosterTrigger}
+        className={`${css.rosterTrigger} ${!wide ? css.rosterTriggerRail : ''}`}
         aria-expanded={open}
         title={t('vaultRosterTitle')}
         onClick={() => {

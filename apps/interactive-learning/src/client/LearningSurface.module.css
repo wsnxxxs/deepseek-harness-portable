@@ -7,7 +7,7 @@
   width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: 0 var(--lx-space-md);
+  padding: 0 var(--lx-space-xl);
   color: var(--lx-label-secondary);
   container-type: inline-size;
 }
@@ -16,7 +16,8 @@
   flex: none;
   margin: 0;
   color: var(--lx-accent);
-  font-size: var(--lx-text-2xs);
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
   font-weight: var(--lx-weight-strong);
   letter-spacing: var(--lx-tracking-eyebrow);
   text-transform: uppercase;

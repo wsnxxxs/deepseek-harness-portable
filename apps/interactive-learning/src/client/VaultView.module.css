@@ -1238,25 +1238,45 @@
 
 /* ---------- the out-of-session sidebar entry (S4) ---------- */
 
-.rosterRoot { position: relative; }
-
-.rosterTrigger {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-sm);
+.rosterRoot {
+  position: relative;
   width: 100%;
-  border: 0;
-  border-radius: var(--lx-radius-sm);
-  background: transparent;
-  padding: var(--lx-space-xs) var(--lx-space-sm);
-  color: var(--lx-label-secondary);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  text-align: start;
-  cursor: pointer;
 }
 
-.rosterTrigger:hover { background: var(--lx-surface-sunken); color: var(--lx-label-primary); }
+.rosterRootRail { width: 36px; }
+
+.rosterTrigger {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 4px);
+  height: 42px;
+  margin: 4px -2px;
+  padding: 0 10px 0 8px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--lx-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.rosterTrigger:hover { background: var(--dsw-alias-interactive-bg-hover, var(--lx-surface-sunken)); }
+
+.rosterTriggerRail {
+  width: 36px;
+  height: 36px;
+  margin: 8px 0 10px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
+}
 
 .rosterTrigger:focus-visible {
   outline: var(--lx-focus-width) solid var(--lx-focus-color);
