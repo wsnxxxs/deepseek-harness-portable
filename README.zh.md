@@ -27,9 +27,9 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 ## 为什么选择 DeepSeek Harness Desktop？
 
-上游 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 主要面向 POSIX Shell 与容器环境。本分发版增加原生 Electron 外壳、平台运行时适配、可验证的发布打包和手动发布流程；对上游的适配集中在受审查补丁和 Cordis 扩展点中，避免散落修改。
+上游 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 主要面向 POSIX Shell 与容器环境。本分发版增加原生 Electron 外壳和平台运行时适配，支持可验证的发布打包与手动发布流程；对上游的适配集中在受审查补丁和 Cordis 扩展点中，避免散落修改。
 
-应用自带 Electron/Node.js runtime，用户数据保存在应用目录之外，并提供工作区选择、更新诊断、插件市场、视觉工具和交互式学习预设等桌面集成功能。
+应用自带 Electron/Node.js runtime，用户数据保存在应用目录之外；桌面集成功能包括工作区选择、更新诊断和插件市场，也包括视觉工具与交互式学习预设。
 
 ## 平台支持
 
@@ -86,7 +86,7 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 > **注意：** `setup-shortcuts.ps1`（安装程序以及便携包中的 `创建桌面快捷方式.bat` 会调用它）会创建指向无控制台 GUI 启动器的桌面快捷方式，并把便携目录加入**用户 PATH**；卸载程序会一并移除这两项。
 
-安装器和更新器会校验 ZIP 摘要、发布清单、应用清单以及必要的原生模块，不会创建证书，也不会修改 Windows 信任存储。
+安装器和更新器会校验 ZIP 摘要和发布清单，以及应用清单和必要的原生模块，不会创建证书，也不会修改 Windows 信任存储。
 
 ## 便携目录结构
 
@@ -137,7 +137,7 @@ Linux AppImage 和 deb 包内含原生 Electron runtime 与桌面入口；deb �
 Smart App Control 可能直接阻止未签名的应用。如果设备已启用该功能，可能需要为应用将其关闭，或使用经企业批准、CA 签名的构建。参考 Microsoft 的 [Smart App Control 概述](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview)。
 
 **需要安装 Node.js 吗？**
-不需要。桌面模式、浏览器/网页模式、DSH 插件 CLI 和 pnpm 均使用 Electron 内置的 Node.js runtime。
+不需要。桌面模式和浏览器/网页模式，以及 DSH 插件 CLI、pnpm，均使用 Electron 内置的 Node.js runtime。
 
 **我的数据存在哪里？**
 在 `%USERPROFILE%\.dsh`（或 `$DSH_HOME`），位于应用目录之外。见[用户数据与API密钥](#用户数据与api密钥)。
@@ -206,7 +206,7 @@ Windows 已验证 bundle 位于 `dist-desktop/verified/win32-x64/`。发布是�
 会使用 `musl-gcc` 本地编译并暂存进 Linux runtime；launcher 缺失或 Landlock
 内核不可用时，运行时仍保持失败关闭。
 
-打包流程会为源码 workspace 生成指纹，并在输入未变化时复用已成功的编译、运行时部署、补丁、Electron 目录和最终平台容器层。相同源码和目标重复打包时，会跳过耗时较长的 workspace 编译，以及 AppImage/deb、ZIP/Setup 或 DMG 的重新生成。Linux release 包装脚本默认也会保留缓存；排查干净构建时，可向 package 命令传入 `--no-cache`。需要有意打包现有编译产物时，仍可使用 `--skip-build`。release 命令不接受构建参数、不运行测试、不打补丁、不签名、也不重建压缩包；它只会重新校验 `artifact-verification.json` 指定的精确字节并复制它们。
+打包流程会为源码 workspace 生成指纹，并在输入未变化时复用已成功的编译和运行时部署，也复用补丁、Electron 目录和最终平台容器层。相同源码和目标重复打包时，会跳过耗时较长的 workspace 编译，以及 AppImage/deb、ZIP/Setup 或 DMG 的重新生成。Linux release 包装脚本默认也会保留缓存；排查干净构建时，可向 package 命令传入 `--no-cache`。需要有意打包现有编译产物时，仍可使用 `--skip-build`。release 命令不接受构建参数、不运行测试、不打补丁、不签名、也不重建压缩包；它只会重新校验 `artifact-verification.json` 指定的精确字节并复制它们。
 
 桌面包保留三层独立版本：
 
@@ -214,9 +214,9 @@ Windows 已验证 bundle 位于 `dist-desktop/verified/win32-x64/`。发布是�
 - 桌面外壳版本：Electron 外壳包版本。
 - 内核版本：打包进来的 `@deepseek-ai/dsh-web-app` 版本。
 
-原生 package CI matrix 是平台支持的唯一权威：Linux 使用原生 Linux x64，Windows 使用带可用 WSL distribution 和 Inno Setup 的原生 x64 runner，macOS 使用原生 Apple Silicon runner。交叉构建或未在本机实测的产物不能获得 verification record；release workflow 只消费这些记录，不重新构建。
+原生 package CI matrix 是平台支持的唯一权威：Linux 使用原生 Linux x64，Windows 使用原生 x64 runner，该 runner 带可用 WSL distribution 和 Inno Setup，macOS 使用原生 Apple Silicon runner。交叉构建或未在本机实测的产物不能获得 verification record；release workflow 只消费这些记录，不重新构建。
 
-当前本地包均标记为 `non-official-unsigned`。正式发布会失败关闭，直至附加目标特定证据：Windows Authenticode、macOS 签名与公证、Linux 外部包签名。`--allow-non-official` 仅是维护者发布 prerelease 的显式开关，不会改变产物分类。详见[运行时架构与发布门禁](docs/runtime-architecture.md)。准备新版本时，请同步更新 `RELEASE_NOTES.md`、`RELEASE_NOTES.zh.md` 和 `apps/desktop/src/release-notes.json`。
+当前本地包均标记为 `non-official-unsigned`。正式发布会失败关闭，直至附加目标特定证据：Windows Authenticode；macOS 签名与公证；Linux 外部包签名。`--allow-non-official` 仅是维护者发布 prerelease 的显式开关，不会改变产物分类。详见[运行时架构与发布门禁](docs/runtime-architecture.md)。准备新版本时，请同步更新 `RELEASE_NOTES.md`、`RELEASE_NOTES.zh.md` 和 `apps/desktop/src/release-notes.json`。
 
 `dist-desktop/` 是可重建的临时构建目录，发布后可以删除。下一次构建所需的源码保存在 `vendor/deepseek-harness` 中；不要用 `node_modules/` 或便携 ZIP 替代源码提交到仓库。
 

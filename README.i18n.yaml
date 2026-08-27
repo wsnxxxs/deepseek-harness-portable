@@ -2,4 +2,4 @@
 # Keep both views synchronized when the documentation changes.
 # Verify with: pnpm run readme:check  (refresh values with git hash-object after editing).
 README.md: 6af2e65797816ccbf3f3653089dc3e3ef3b858c4
-README.zh.md: 19671c62d3cd517e247f6b9ee6940bd4467d91d1
+README.zh.md: 2f14495ab9f5a52047aa63e83aeb703a2c6dd63b
