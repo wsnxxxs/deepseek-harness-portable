@@ -114,22 +114,22 @@
   line-height: var(--lx-leading-xs);
 }
 
-/* Learning is a learner-facing surface. Host execution/context furniture and
-   engineering measurements remain available in trajectory/debug, but do not
-   compete with the lesson in the conversation. */
+/* Learning is a learner-facing surface. Host context, tool payloads and
+   engineering measurements remain available in trajectory/debug, while the
+   compact Think disclosure stays visible so the learner can follow the
+   assistant's current work without opening a second panel. */
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='context']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind] [data-variant='think']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_state_update']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_map']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_read']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_search']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_recall']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_concept_recall']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_concept_propose']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_visual_select']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_checkpoint_select']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='view_image']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-chat-call-id]:not(:has(*))) {
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_state_update'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_map'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_read'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_search'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_recall'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_concept_recall'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_concept_propose'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_visual_select'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_checkpoint_select'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='view_image'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:not(:has([data-slot='tool.call.toolview'] > *))) {
   display: none !important;
 }
 
