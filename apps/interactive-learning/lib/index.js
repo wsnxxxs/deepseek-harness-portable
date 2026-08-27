@@ -1,12 +1,1783 @@
 import { S as serializeLearnerStateSnapshot, _ as parseLearnerStateSnapshotEvent, a as LEARNER_STATE_SESSION_EVENT_TYPE, b as renderLearnerStateTranscript, c as LEARNING_CHECKPOINT_METRIC_KINDS, d as LEARNING_SEGMENT_SESSION_EVENT_TYPE, f as MAX_FAILED_MOVES, g as hydrateLearnerStateSnapshot, h as foldLearnerStateSession, i as LEARNER_STATE_PROTOCOL, l as LEARNING_CHECKPOINT_METRIC_STATUSES, m as createLearnerStateSnapshotEvent, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, p as createInitialLearnerState, r as LEARNER_STATE_EVENT_PROTOCOL, s as LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, t as registerInteractiveLearningSessionCompatibility, u as LEARNING_SEGMENT_EVENT_PROTOCOL, v as reduceLearnerState, x as resetLearnerState, y as registerLearningSessionEventType } from "./bootstrap-BWi6OfwS.js";
-import { $ as reanchorConceptCards, A as keyPhrases, At as upsertManifestEntry, B as titleOf, Bt as LEARN_INTENT_MODEL_GUIDANCE, C as parseFileMentions, Ct as ensureVaultLayout, D as DEFAULT_RETRIEVAL_BUDGET_CHARS, Dt as readStructure, Et as readManifest, F as ingestSource, Ft as emitSource, G as conceptCardPathOf, Gt as isLearningBoundary, H as MAX_CONCEPT_CARDS, Ht as LEARN_INTENT_RULES, I as isSupportedSource, It as reanchor, J as isConceptDue, K as conceptRecordFromCard, L as SUPPORTED_EXTENSIONS, Lt as renderExtractedMarkdown, M as MAX_SOURCE_BYTES, Mt as vaultRelative, N as describeDegradation, Nt as writeManifest, O as RETRIEVAL_INTENTS, Ot as resolveTopicVault, P as ingestDirectory, Pt as deriveStructure, Q as readLearnerMemoryWithCards, R as extensionOf, Rt as LEARNING_INTENT_POLICY, S as mentionedPaths, St as containedPath, Tt as readAllStructures, U as buildConceptStudyMap, Ut as classifyLearnIntent, V as INITIAL_REVIEW_INTERVAL_DAYS, Vt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, W as conceptCardDraftFromState, Wt as isLearnIntent, X as readConceptCard, Y as nextReviewSchedule, Z as readConceptCards, _ as MAX_MAP_SECTIONS, _t as upsertLearnerConcept, a as LEARNING_TEACHING_POLICY, at as updateConceptCardSchedule, b as registerMaterialTools, bt as VAULT_MANIFEST_PATH, c as buildLearningTeachingPolicy, ct as reanchorVaultMemory, d as CONCEPT_TOOL_NAMES, dt as MAX_STORED_CONCEPTS, et as recallCardIdOf, f as registerConceptTools, ft as conceptRecordFromState, g as MATERIAL_TOOL_NAMES, gt as renderLearnerMemory, h as validateStudyMapAgainstVault, ht as readLearnerMemory, i as LEARNING_REVIEW_POLICY, it as updateConceptCardAnchors, j as planRetrieval, jt as vaultFromRoot, k as executeRetrievalPlan, kt as structurePathOf, l as routeLearningRequest, lt as LEARNER_MEMORY_PROTOCOL, m as formatStudyMapViolations, mt as parseLearnerConceptRecord, n as LEARNING_GRADED_POLICY, nt as reviewIntervalDays, o as LEARNING_TEACHING_POLICY_CORE, ot as describeReanchor, pt as memoryPathOf, q as hasFreshIndependentTransfer, r as LEARNING_MATERIAL_POLICY, rt as saveConceptCard, s as LEARNING_VISUAL_POLICY, st as reanchorAnchorLists, t as LEARNING_CHINESE_TEMPLATES, tt as renderConceptCard, u as routeLearningTurn, ut as MAX_RENDERED_CONCEPTS, v as MAX_READ_CHARS, vt as writeLearnerMemory, w as syncMentionedMaterial, wt as isVaultRoot, x as sectionAnchor, xt as VaultContainmentError, y as MAX_SEARCH_MATCHES, yt as VAULT_DIRECTORIES, z as parseSource, zt as LEARN_INTENT } from "./teaching-policy-CjrAtxWh.js";
+import { $ as labelFromBody, $t as isLearnIntent, A as ingestSource, At as ensureVaultLayout, B as executeRetrievalPlan, Bt as writeManifest, C as parseFileMentions, Ct as renderLearnerMemory, D as MAX_SOURCE_BYTES, Dt as VAULT_MANIFEST_PATH, Et as VAULT_DIRECTORIES, F as titleOf, Ft as resolveTopicVault, G as MAX_CONCEPT_CARDS, Gt as reanchor, H as matchedTerms, Ht as PAGE_MARKER, I as parseMarkdownBlocks, It as structurePathOf, J as conceptCardPathOf, Jt as LEARN_INTENT, K as buildConceptStudyMap, Kt as renderExtractedMarkdown, L as DEFAULT_RETRIEVAL_BUDGET_CHARS, Lt as upsertManifestEntry, M as SUPPORTED_EXTENSIONS, Mt as readAllStructures, N as extensionOf, Nt as readManifest, O as describeDegradation, Ot as VaultContainmentError, P as parseSource, Pt as readStructure, Q as isConceptDue, Qt as classifyLearnIntent, R as RETRIEVAL_INTENTS, Rt as vaultFromRoot, S as mentionedPaths, St as readLearnerMemory, Tt as writeLearnerMemory, U as planRetrieval, Ut as deriveStructure, V as keyPhrases, W as INITIAL_REVIEW_INTERVAL_DAYS, Wt as emitSource, X as dateKey, Xt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, Y as conceptRecordFromCard, Yt as LEARN_INTENT_MODEL_GUIDANCE, Z as hasFreshIndependentTransfer, Zt as LEARN_INTENT_RULES, _ as MAX_MAP_SECTIONS, _t as MAX_RENDERED_CONCEPTS, a as LEARNING_TEACHING_POLICY, at as reanchorConceptCards, b as registerMaterialTools, bt as memoryPathOf, c as buildLearningTeachingPolicy, ct as reviewIntervalDays, d as CONCEPT_TOOL_NAMES, dt as updateConceptCardSchedule, en as isLearningBoundary, et as nextReviewSchedule, f as registerConceptTools, ft as yamlString, g as MATERIAL_TOOL_NAMES, gt as LEARNER_MEMORY_PROTOCOL, h as validateStudyMapAgainstVault, ht as reanchorVaultMemory, i as LEARNING_REVIEW_POLICY, it as readLearnerMemoryWithCards, j as isSupportedSource, jt as isVaultRoot, k as ingestDirectory, kt as containedPath, l as routeLearningRequest, lt as saveConceptCard, m as formatStudyMapViolations, mt as reanchorAnchorLists, n as LEARNING_GRADED_POLICY, nt as readConceptCard, o as LEARNING_TEACHING_POLICY_CORE, ot as recallCardIdOf, pt as describeReanchor, q as conceptCardDraftFromState, qt as LEARNING_INTENT_POLICY, r as LEARNING_MATERIAL_POLICY, rt as readConceptCards, s as LEARNING_VISUAL_POLICY, st as renderConceptCard, t as LEARNING_CHINESE_TEMPLATES, tt as parseMarkdownFrontmatter, u as routeLearningTurn, ut as updateConceptCardAnchors, v as MAX_READ_CHARS, vt as MAX_STORED_CONCEPTS, w as syncMentionedMaterial, wt as upsertLearnerConcept, x as sectionAnchor, xt as parseLearnerConceptRecord, y as MAX_SEARCH_MATCHES, yt as conceptRecordFromState, z as excerptAround, zt as vaultRelative } from "./teaching-policy-DByAXFcu.js";
 import { E as CHECKPOINT_RESULT_PROTOCOL, b as parseLearningRecallFeedbackV1, d as RESPONSE_PROTOCOL, v as parseLearningCheckpointResultV1, y as parseLearningCheckpointV1 } from "./protocol-current-CVgOF60h.js";
 import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
 import { r as learningCheckpointQuestionId, t as encodeLearningCheckpointDetail } from "./host-transport-DG7rmn_s.js";
-import { _ as slugify, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as VAULT_MANIFEST_PROTOCOL, g as sectionIdOf, l as sameStringList, n as anchorPage, o as mentionSupported, r as anchorTargetsOf, s as parseAnchorText, t as ANCHOR_PATH_SEPARATOR, u as sectionMentions } from "./material-anchor-GE7zenuO.js";
+import { _ as slugify, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as VAULT_MANIFEST_PROTOCOL, g as sectionIdOf, h as quoteHashOf, l as sameStringList, n as anchorPage, o as mentionSupported, r as anchorTargetsOf, s as parseAnchorText, t as ANCHOR_PATH_SEPARATOR, u as sectionMentions } from "./material-anchor-GE7zenuO.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { basename, extname, join, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { tmpdir } from "node:os";
+import { promisify } from "node:util";
+import { BlockAssembler, createUserMessage } from "@deepseek-ai/dsh-llm";
+//#region lib/types/vault-concepts.js
+/**
+* The vault panel's concept and review face — the first writes the panel makes.
+*
+* Four operations, and the shape of each one is the rule it enforces:
+*
+* - `concepts/save` takes a BODY and nothing else. Every prose field a card has
+*   (`label`, `explanation`, `misconceptions`, `unverifiedTransfer`,
+*   `relatedConcepts`) is derived from that body by `parseCard`, and the typed
+*   frontmatter is carried across untouched. The endpoint therefore has no
+*   parameter that could change mastery, due, or anchors — the rule is in the
+*   signature, not in a validation branch someone can forget.
+* - `concepts/rate` runs the existing `nextReviewSchedule`. A rating is a
+*   scheduling signal, never mastery evidence: `'revealed'` deliberately
+*   produces no schedule at all, so failing to recall a card leaves it due.
+* - `concepts/defer` moves `due` and NOTHING else. Deferring is not a review,
+*   so it must not touch `intervalDays` or `lastReviewedAt` — otherwise pushing
+*   a card back a day would quietly corrupt its spacing.
+* - `concepts/correct` is the one manual mastery outlet, and it only goes DOWN.
+*   It writes `masteryBasis: 'user-correction'`, which is the single basis
+*   `mergeConcept` accepts a regression from.
+*
+* The correction has to write BOTH the card file and `.learning/memory.json`.
+* `readLearnerMemoryWithCards` overlays a card's schedule and anchors onto the
+* memory record but deliberately not its mastery — typed state is the domain
+* record's to own — so a card-only write would be silently reverted on the next
+* prompt assembly. That asymmetry is the whole reason this module exists rather
+* than the panel calling `concept-cards.ts` directly.
+* @module @dsh-portable/interactive-learning/src/vault-concepts
+*/
+/** Longest card body the panel may write; a card is a note, not a document. */
+const MAX_CARD_BODY_CHARS = 8e3;
+/** Mastery ladder, lowest first. Mirrors `learner-memory.ts`; only walked downward here. */
+const MASTERY_LADDER = [
+	"unseen",
+	"emerging",
+	"transfer"
+];
+function panelConcept(vault, card, now) {
+	return {
+		conceptSlug: card.conceptSlug,
+		label: card.label,
+		mastery: card.mastery,
+		masteryBasis: card.masteryBasis,
+		due: card.due,
+		intervalDays: card.intervalDays,
+		lastReviewedAt: card.lastReviewedAt,
+		createdAt: card.createdAt,
+		updatedAt: card.updatedAt,
+		anchors: card.anchors,
+		staleAnchors: card.staleAnchors,
+		explanation: card.explanation,
+		misconceptions: card.misconceptions,
+		unverifiedTransfer: card.unverifiedTransfer,
+		relatedConcepts: card.relatedConcepts,
+		path: vaultRelative(vault, card.path),
+		body: card.body,
+		due_now: isConceptDue(card.due, now)
+	};
+}
+/**
+* Every card, due ones first.
+*
+* Ordering is the panel's only editorial act here: a stale anchor outranks a due
+* date, because a card citing material that no longer exists is wrong in a way
+* no amount of reviewing fixes.
+*/
+async function listConcepts(vault, now = /* @__PURE__ */ new Date()) {
+	const concepts = (await readConceptCards(vault)).map((card) => panelConcept(vault, card, now)).sort((left, right) => {
+		const rank = (concept) => concept.staleAnchors.length > 0 ? 0 : concept.due_now ? 1 : 2;
+		const difference = rank(left) - rank(right);
+		if (difference !== 0) return difference;
+		return (left.due ?? "9999-12-31").localeCompare(right.due ?? "9999-12-31");
+	});
+	return {
+		status: "ok",
+		concepts,
+		due: concepts.filter((concept) => concept.due_now).length,
+		stale: concepts.filter((concept) => concept.staleAnchors.length > 0).length
+	};
+}
+/** The due queue, in the order the review deck should present it. */
+async function reviewQueue(vault, now = /* @__PURE__ */ new Date()) {
+	const all = await listConcepts(vault, now);
+	const concepts = all.concepts.filter((concept) => concept.due_now);
+	return {
+		status: "ok",
+		concepts,
+		due: concepts.length,
+		stale: all.stale
+	};
+}
+/**
+* Replace one card's prose, keeping every typed field exactly as it was.
+*
+* Rewritten through `renderConceptCard` rather than a text splice so the
+* frontmatter is re-serialized from the parsed card: a person who hand-edited
+* `mastery` into something invalid gets it normalized here rather than carried
+* forward, and the file keeps one canonical shape.
+* @param vault - The vault holding the card.
+* @param conceptSlug - The card's slug (its filename, and the memory key).
+* @param body - New Markdown body, frontmatter excluded.
+* @returns the reparsed card, or `undefined` when no such card exists.
+*/
+async function saveConceptBody(vault, conceptSlug, body, now = /* @__PURE__ */ new Date()) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const next = {
+		...card,
+		body: body.slice(0, MAX_CARD_BODY_CHARS).trimEnd(),
+		updatedAt: now.toISOString()
+	};
+	await writeFile(card.path, renderConceptCard(next, now), "utf8");
+	const saved = await readConceptCard(vault, conceptSlug);
+	return saved === void 0 ? void 0 : panelConcept(vault, saved, now);
+}
+/**
+* Record one review rating.
+*
+* No token is spent and no turn is created: the rating moves `due` in the
+* frontmatter and nothing else. It is still projected into learner memory so
+* the next teaching session knows the card was reviewed — but as SCHEDULE, not
+* as evidence, which is why mastery is carried across untouched.
+*/
+async function rateConcept(vault, conceptSlug, rating, now = /* @__PURE__ */ new Date()) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const schedule = nextReviewSchedule(card, rating, now);
+	if (schedule === void 0) return panelConcept(vault, card, now);
+	const updated = await updateConceptCardSchedule(vault, conceptSlug, schedule);
+	if (updated === void 0) return void 0;
+	await upsertLearnerConcept(vault, conceptRecordFromCard(updated));
+	return panelConcept(vault, updated, now);
+}
+function addDays(now, days) {
+	return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days)).toISOString().slice(0, 10);
+}
+/**
+* Push one card's next review back without calling it a review.
+*
+* `intervalDays` and `lastReviewedAt` are deliberately untouched. Deferring is
+* "not today", not "I got this right"; folding it into the spacing would let a
+* busy week silently inflate every interval in the vault.
+* @param days - Whole days from today, 1..{@link MAX_DEFER_DAYS}.
+*/
+async function deferConcept(vault, conceptSlug, days, now = /* @__PURE__ */ new Date()) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const bounded = Math.min(Math.max(Math.floor(days), 1), 365);
+	const next = {
+		...card,
+		due: addDays(now, bounded),
+		updatedAt: now.toISOString()
+	};
+	await writeFile(card.path, renderConceptCard(next, now), "utf8");
+	await upsertLearnerConcept(vault, conceptRecordFromCard(next));
+	return panelConcept(vault, next, now);
+}
+/** One step down the ladder; `unseen` is the floor. */
+function loweredMastery(mastery) {
+	const index = MASTERY_LADDER.indexOf(mastery);
+	return MASTERY_LADDER[Math.max(0, index - 1)] ?? "unseen";
+}
+/**
+* "I didn't actually understand this" — the only manual mastery outlet.
+*
+* One step DOWN only. Mastery is the conclusion of observed evidence, so the
+* panel offers no way to raise it: a person who wants a higher mastery has to
+* demonstrate it in a teaching session, which is the entire point of basing it
+* on evidence rather than self-report.
+*
+* The write lands in two places on purpose. The card file keeps the frontmatter
+* a person sees in Obsidian honest, and `memory.json` is what the next prompt
+* assembly actually reads — `readLearnerMemoryWithCards` does not overlay
+* mastery from the card, so writing only the file would be reverted.
+* `masteryBasis: 'user-correction'` is what makes `mergeConcept` accept the
+* regression instead of restoring the higher value.
+*
+* The schedule is reset alongside it: an interval that doubled on the strength
+* of a mastery the learner just disowned is not a spacing worth keeping.
+*/
+async function correctConcept(vault, conceptSlug, now = /* @__PURE__ */ new Date()) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	const mastery = loweredMastery(card.mastery);
+	const next = {
+		...card,
+		mastery,
+		masteryBasis: "user-correction",
+		due: dateKey(now),
+		intervalDays: reviewIntervalDays(mastery),
+		updatedAt: now.toISOString()
+	};
+	await writeFile(card.path, renderConceptCard(next, now), "utf8");
+	await upsertLearnerConcept(vault, {
+		...conceptRecordFromCard(next),
+		masteryBasis: "user-correction"
+	});
+	return panelConcept(vault, next, now);
+}
+/** Read one card's raw file, for the editor's "show me the whole file" affordance. */
+async function readConceptFile(vault, conceptSlug) {
+	const card = await readConceptCard(vault, conceptSlug);
+	if (card === void 0) return void 0;
+	try {
+		return {
+			path: vaultRelative(vault, card.path),
+			text: await readFile(card.path, "utf8")
+		};
+	} catch {
+		return;
+	}
+}
+//#endregion
+//#region lib/types/vault-notes.js
+/**
+* The vault panel's notes store — the fourth pain point's backend.
+*
+* `notes/` has existed since `ensureVaultLayout` first created it and nothing
+* in this repository has ever written to it. This module is that writer, and
+* it also holds the 待确认概念卡 inbox, because an inbox entry is not a
+* different kind of object from a note: both are prose a learner chose to keep,
+* and both belong in a file they can open in any editor. One `kind` field in
+* the frontmatter is the whole difference.
+*
+* Keeping the inbox in `notes/` rather than in a `.learning/*.json` ledger is
+* deliberate. A JSON staging area would be a second, invisible store whose
+* contents a person could neither read nor edit outside this panel — exactly
+* the failure the vault exists to fix. It also keeps the inbox out of
+* `concepts/`, which matters more: `readConceptCards` walks that directory, so
+* a draft parked there would enter the model's study map as a real card and
+* quietly defeat the evidence gate.
+*
+* That gate is the rule this module enforces, and it enforces it by NOT having
+* a way to break it. Nothing here creates a concept card. `promoteNote`
+* succeeds only when a card for that concept ALREADY exists — meaning the
+* learner demonstrated a correct, independent transfer in a teaching session
+* and `saveConceptCard` wrote it — and all promotion then does is attach the
+* kept prose to that card as one more observation. A note whose concept has no
+* card answers `gate-blocked`, forever if need be. Mastery comes from evidence;
+* the panel's job is to hold the draft until the evidence exists.
+* @module @dsh-portable/interactive-learning/src/vault-notes
+*/
+/** Longest note body the panel may write. Prose, not a corpus. */
+const MAX_NOTE_BODY_CHARS = 2e4;
+/** Excerpt length in a listing row. */
+const MAX_NOTE_EXCERPT_CHARS = 220;
+const NOTE_KINDS$1 = /* @__PURE__ */ new Set(["note", "pending-concept"]);
+function notePathOf(vault, noteSlug) {
+	return join(vault.notes, `${slugify(noteSlug, "note")}.md`);
+}
+function clean(value, limit) {
+	return value.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, " ").trim().slice(0, limit);
+}
+function kindOf(value) {
+	return NOTE_KINDS$1.has(value ?? "") ? value : "note";
+}
+/**
+* The first line of prose under the heading, collapsed.
+*
+* Deliberately skips the heading rather than slicing the raw body: a listing
+* row already shows the title, and an excerpt that repeats it tells a person
+* nothing about which note this is.
+*/
+function excerptOf(body) {
+	const prose = body.split("\n").filter((line) => !/^#{1,6}\s/u.test(line) && line.trim() !== "").join(" ").replace(/\s+/gu, " ").trim();
+	return prose.length > MAX_NOTE_EXCERPT_CHARS ? `${prose.slice(0, MAX_NOTE_EXCERPT_CHARS)}…` : prose;
+}
+/** Give a body a level-1 heading when it has none, so title and file agree. */
+function withHeading(body, title) {
+	const trimmed = body.trim();
+	if (labelFromBody(trimmed) !== "") return trimmed;
+	const heading = clean(title, 160);
+	if (heading === "") return trimmed;
+	return trimmed === "" ? `# ${heading}` : `# ${heading}\n\n${trimmed}`;
+}
+function frontmatter(note) {
+	return `${[
+		"---",
+		`id: ${yamlString(note.noteSlug)}`,
+		`kind: ${note.kind}`,
+		`concept: ${note.conceptSlug === null ? "null" : yamlString(note.conceptSlug)}`,
+		`promoted_to: ${note.promotedTo === null ? "null" : yamlString(note.promotedTo)}`,
+		`source_session: ${note.sourceSessionId === null ? "null" : yamlString(note.sourceSessionId)}`,
+		`source_message: ${note.sourceMessageId === null ? "null" : yamlString(note.sourceMessageId)}`,
+		`created_at: ${yamlString(note.createdAt)}`,
+		`updated_at: ${yamlString(note.updatedAt)}`,
+		"---"
+	].join("\n")}\n\n`;
+}
+/** Serialize one note back to its file. */
+function renderNote(note) {
+	return `${frontmatter(note)}${note.body.trim()}\n`;
+}
+/**
+* Read one note file.
+*
+* A file with no frontmatter is a note, not an error. `notes/` is a folder in
+* someone's own vault and they are entitled to drop a Markdown file into it by
+* hand; refusing to list what a person can plainly see would make the panel
+* less trustworthy than their file manager.
+*/
+function parseNote(raw, path, vault) {
+	const fileSlug = basename(path, ".md");
+	const parsed = parseMarkdownFrontmatter(raw);
+	const body = (parsed?.body ?? raw.replace(/\r\n/gu, "\n")).trim();
+	const epoch = (/* @__PURE__ */ new Date(0)).toISOString();
+	const conceptField = parsed?.fields.get("concept") ?? null;
+	const kind = kindOf(parsed?.fields.get("kind"));
+	return {
+		noteSlug: slugify(parsed?.fields.get("id") ?? fileSlug, fileSlug),
+		kind,
+		title: labelFromBody(body) || fileSlug,
+		body,
+		excerpt: excerptOf(body),
+		path: vaultRelative(vault, path),
+		conceptSlug: kind === "pending-concept" && conceptField !== null ? conceptField : null,
+		gate: null,
+		sourceSessionId: parsed?.fields.get("source_session") ?? null,
+		sourceMessageId: parsed?.fields.get("source_message") ?? null,
+		promotedTo: parsed?.fields.get("promoted_to") ?? null,
+		createdAt: parsed?.fields.get("created_at") ?? epoch,
+		updatedAt: parsed?.fields.get("updated_at") ?? epoch
+	};
+}
+/** Resolve the gate for one note by asking whether its card exists yet. */
+async function gated(vault, note) {
+	if (note.conceptSlug === null) return note;
+	const card = await readConceptCard(vault, note.conceptSlug);
+	return {
+		...note,
+		gate: card === void 0 ? "blocked" : "ready"
+	};
+}
+/** Read one note, gate resolved. */
+async function readNote(vault, noteSlug) {
+	const path = notePathOf(vault, noteSlug);
+	try {
+		return await gated(vault, parseNote(await readFile(path, "utf8"), path, vault));
+	} catch {
+		return;
+	}
+}
+async function noteFileNames(vault) {
+	try {
+		return (await readdir(vault.notes)).filter((name) => name.endsWith(".md")).sort();
+	} catch {
+		return [];
+	}
+}
+/**
+* Every note, blocked drafts first.
+*
+* Ordering mirrors the concept list's: the rows that need a decision outrank
+* the rows that only need reading. A blocked draft is the one thing in this
+* section a person may have forgotten about, so it leads; after that, most
+* recently touched first, because notes have no due date to sort by.
+*/
+async function listNotes(vault) {
+	const notes = [];
+	for (const name of (await noteFileNames(vault)).slice(0, 200)) {
+		const path = join(vault.notes, name);
+		try {
+			notes.push(await gated(vault, parseNote(await readFile(path, "utf8"), path, vault)));
+		} catch {}
+	}
+	notes.sort((left, right) => {
+		const rank = (note) => note.gate === "blocked" ? 0 : note.gate === "ready" ? 1 : 2;
+		const difference = rank(left) - rank(right);
+		if (difference !== 0) return difference;
+		return right.updatedAt.localeCompare(left.updatedAt);
+	});
+	return {
+		status: "ok",
+		notes,
+		pending: notes.filter((note) => note.kind === "pending-concept").length,
+		blocked: notes.filter((note) => note.gate === "blocked").length
+	};
+}
+/** A slug not already taken, so keeping two messages under one title cannot clobber. */
+async function freeSlug(vault, base) {
+	const taken = new Set((await noteFileNames(vault)).map((name) => basename(name, ".md")));
+	if (!taken.has(base)) return base;
+	for (let suffix = 2; suffix < 1e3; suffix += 1) {
+		const candidate = `${base}-${String(suffix)}`;
+		if (!taken.has(candidate)) return candidate;
+	}
+	return `${base}-${String(Date.now())}`;
+}
+/**
+* Create or overwrite one note.
+*
+* The signature is the rule, as it is for `concepts/save`: there is no mastery,
+* due, interval or anchor parameter, because a note has none of those. What a
+* note can carry beyond its prose is provenance — which session and message it
+* was kept from — and that is written once, at creation, and never editable.
+* @param vault - The vault holding the note.
+* @param input - Prose plus, on creation, kind and provenance.
+* @param now - Injected clock.
+* @returns the saved note, gate resolved.
+*/
+async function saveNote(vault, input, now = /* @__PURE__ */ new Date()) {
+	const existing = input.noteSlug === void 0 ? void 0 : await readNote(vault, input.noteSlug);
+	const title = clean(input.title ?? "", 160);
+	const body = withHeading(clean(input.body, MAX_NOTE_BODY_CHARS), title);
+	const noteSlug = existing?.noteSlug ?? await freeSlug(vault, slugify(title || labelFromBody(body) || "note", "note"));
+	const kind = input.kind ?? existing?.kind ?? "note";
+	const conceptSlug = kind === "pending-concept" ? input.conceptSlug === void 0 ? existing?.conceptSlug ?? slugify(title || labelFromBody(body) || noteSlug, "concept") : slugify(input.conceptSlug, "concept") : null;
+	const next = {
+		noteSlug,
+		kind,
+		title: labelFromBody(body) || noteSlug,
+		body,
+		excerpt: excerptOf(body),
+		path: vaultRelative(vault, notePathOf(vault, noteSlug)),
+		conceptSlug,
+		gate: null,
+		sourceSessionId: existing?.sourceSessionId ?? input.sourceSessionId ?? null,
+		sourceMessageId: existing?.sourceMessageId ?? input.sourceMessageId ?? null,
+		promotedTo: existing?.promotedTo ?? null,
+		createdAt: existing?.createdAt ?? now.toISOString(),
+		updatedAt: now.toISOString()
+	};
+	await mkdir(vault.notes, { recursive: true });
+	await writeFile(notePathOf(vault, noteSlug), renderNote(next), "utf8");
+	return await gated(vault, next);
+}
+/** Delete one note file. The only destructive action the panel offers. */
+async function deleteNote(vault, noteSlug) {
+	if (await readNote(vault, noteSlug) === void 0) return false;
+	await rm(notePathOf(vault, noteSlug), { force: true });
+	return true;
+}
+/**
+* Attach one pending note's prose to the concept card it was aimed at.
+*
+* This is NOT card creation and cannot become it. The card must already exist,
+* which means a teaching session already observed a correct, independent
+* transfer of that concept and `saveConceptCard` wrote the file. Promotion only
+* appends the kept prose to that card as a dated observation — the same shape
+* `appendObservation` uses — and flips the note to a plain note pointing at it.
+*
+* When no such card exists the answer is `gate-blocked` and NOTHING is written.
+* There is no force parameter, no override and no admin path: a promotion that
+* could conjure a card would make the mastery ladder a self-report, which is
+* the exact failure the gate exists to prevent.
+*/
+async function promoteNote(vault, noteSlug, now = /* @__PURE__ */ new Date()) {
+	const note = await readNote(vault, noteSlug);
+	if (note === void 0) return { status: "unknown-note" };
+	if (note.kind !== "pending-concept" || note.conceptSlug === null) return {
+		status: "not-pending",
+		note
+	};
+	const card = await readConceptCard(vault, note.conceptSlug);
+	if (card === void 0) return {
+		status: "gate-blocked",
+		note
+	};
+	const prose = note.body.split("\n").filter((line) => !/^#\s/u.test(line)).join("\n").trim();
+	const merged = `${card.body.trimEnd()}\n\n## 从笔记并入（${dateKey(now)}）\n${prose}\n`;
+	const concept = await saveConceptBody(vault, note.conceptSlug, merged, now);
+	if (concept === void 0) return {
+		status: "gate-blocked",
+		note
+	};
+	const promoted = {
+		...note,
+		kind: "note",
+		conceptSlug: null,
+		gate: null,
+		promotedTo: card.conceptSlug,
+		updatedAt: now.toISOString()
+	};
+	await writeFile(notePathOf(vault, note.noteSlug), renderNote(promoted), "utf8");
+	return {
+		status: "ok",
+		note: promoted,
+		concept
+	};
+}
+//#endregion
+//#region lib/types/material-vision.js
+/**
+* Re-reading image-only PDF pages with a model — the panel's only paid action.
+*
+* Every other endpoint in this app's panel surface reads or writes local files.
+* This one spends tokens, and the whole module is shaped around making that
+* fact checkable BEFORE anyone commits to it: {@link materialRouteInfo} answers
+* "what would happen and who would read it" without generating model output
+* (it may query the provider/model catalog), and
+* {@link reparsePages} is the only function here that reaches a provider.
+*
+* Route selection restates the rule the Vision Bridge uses rather than
+* importing it. A multimodal active model reads the page ITSELF — there is no
+* bridge hop, no second model, and no separate bill. Only a model that has
+* explicitly declared it does not accept images is refused, and it is refused
+* rather than silently rerouted: this pack cannot see or configure another
+* pack's fallback model, so quietly spending money on a model the person did
+* not choose would be worse than saying "switch your model".
+*
+* The duplication is deliberate. `vision-bridge` is a separately installable
+* experience pack; importing it here would make each pack require the other's
+* install to type-check. What is duplicated is small and stable: the
+* three-state modality reading, and the two Poppler binaries.
+*
+* Writes go back through the ORDINARY ingest pipeline. The recovered text is
+* spliced into the parse as blocks, and `emitSource` re-derives the markdown
+* and the structure from scratch — so section ids, quote hashes and line
+* numbers stay exactly what a normal import would have produced, and
+* re-anchoring runs on the result the same way `ingestSource` runs it. Nothing
+* here hand-edits `extracted/`.
+* @module @dsh-portable/interactive-learning/src/material-vision
+*/
+const execFileAsync = promisify(execFile);
+/** Rasterizers this module knows how to drive; the first one present wins. */
+const PDF_RENDERERS = ["pdftoppm", "pdftocairo"];
+/** Render resolution. Matches the Vision Bridge so a page reads the same either way. */
+const PDF_RENDER_DPI = 144;
+const PDF_RENDER_TIMEOUT_MS = 3e4;
+/** Longest recovered text kept per page. */
+const MAX_PAGE_TEXT_CHARS = 12e3;
+const MODEL_TIMEOUT_MS = 12e4;
+/** Marker appended to a recovered page's heading, so a citation carries it too. */
+const REPARSE_HEADING_SUFFIX = "（视觉重读）";
+function isRecord$1(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function routeFrom(value) {
+	if (!isRecord$1(value) || typeof value.provider !== "string" || typeof value.model !== "string") return void 0;
+	if (value.provider.trim() === "" || value.model.trim() === "") return void 0;
+	return {
+		provider: value.provider,
+		model: value.model
+	};
+}
+function contextMember(ctx, name) {
+	try {
+		const service = ctx.get(name);
+		if (service !== void 0) return service;
+	} catch {}
+	try {
+		return ctx[name];
+	} catch {
+		return;
+	}
+}
+function routeFromSession(session) {
+	if (session === void 0) return void 0;
+	try {
+		const headerRoute = routeFrom(session.requestHeader?.()?.config);
+		if (headerRoute !== void 0) return headerRoute;
+	} catch {}
+	try {
+		const contextRoute = routeFrom(session.requestContext?.());
+		if (contextRoute !== void 0) return contextRoute;
+	} catch {}
+	return routeFrom(session.modelSelection) ?? routeFrom(session.selectedModel);
+}
+function routeFromAgent(agent) {
+	if (agent === void 0) return void 0;
+	return routeFromSession(agent.session) ?? routeFrom(agent.options);
+}
+function identityOf(value) {
+	const id = value.id ?? ("header" in value ? value.header?.id : void 0);
+	return typeof id === "string" && id !== "" ? id : void 0;
+}
+function sameCwd(value, cwd) {
+	if (cwd === void 0) return true;
+	if (value === void 0) return false;
+	try {
+		return resolve(value) === resolve(cwd);
+	} catch {
+		return value === cwd;
+	}
+}
+function sessionCwd(session) {
+	const cwd = session?.header?.cwd;
+	return typeof cwd === "string" && cwd !== "" ? cwd : void 0;
+}
+/** Find the route belonging to the session behind a panel request. */
+function sessionModelRoute(ctx, selector) {
+	const requestedId = selector.sessionId?.trim();
+	const cwd = selector.cwd;
+	const agents = contextMember(ctx, "agents");
+	const sessions = contextMember(ctx, "sessions");
+	if (requestedId !== void 0 && requestedId !== "") {
+		const explicitAgent = agents?.get?.(requestedId);
+		if (explicitAgent !== void 0) return {
+			route: routeFromAgent(explicitAgent),
+			matched: true
+		};
+		const explicitSession = sessions?.get?.(requestedId);
+		if (explicitSession !== void 0) return {
+			route: routeFromSession(explicitSession),
+			matched: true
+		};
+	}
+	const candidates = [];
+	const contextualAgent = contextMember(ctx, "agent");
+	if (contextualAgent !== void 0) candidates.push(contextualAgent);
+	try {
+		const initiator = agents?.currentInitiator?.();
+		if (initiator !== void 0 && !candidates.includes(initiator)) candidates.push(initiator);
+	} catch {}
+	try {
+		for (const agent of [...agents?.list?.() ?? []].reverse()) if (!candidates.includes(agent)) candidates.push(agent);
+	} catch {}
+	for (const [index, agent] of candidates.entries()) {
+		const id = identityOf(agent);
+		const agentCwd = sessionCwd(agent.session);
+		if (requestedId !== void 0 && requestedId !== "" && id !== requestedId) continue;
+		if (!(index === 0 && contextualAgent === agent) && !sameCwd(agentCwd, cwd)) continue;
+		return {
+			route: routeFromAgent(agent),
+			matched: true
+		};
+	}
+	try {
+		const sessionCandidates = [...sessions?.list?.() ?? []].reverse();
+		for (const session of sessionCandidates) {
+			const id = identityOf(session);
+			if (requestedId !== void 0 && requestedId !== "" && id !== requestedId) continue;
+			if (!sameCwd(sessionCwd(session), cwd)) continue;
+			return {
+				route: routeFromSession(session),
+				matched: true
+			};
+		}
+	} catch {}
+	return { matched: false };
+}
+/**
+* The route the panel would use.
+*
+* Prefer the live session route used by the conversation. The global default is
+* only a compatibility fallback for a direct, agentless call with no session
+* registry; it must not override a session's logged or selected model.
+*/
+function panelModelRoute(ctx, selector = {}) {
+	const session = sessionModelRoute(ctx, selector);
+	if (session.matched) return session.route;
+	const defaultModel = ctx.get("agentDefaultModel");
+	return defaultModel?.currentSelection === void 0 ? void 0 : routeFrom(defaultModel.currentSelection());
+}
+/** Every model the configured providers report; a provider that cannot list is skipped. */
+async function modelCatalog(llm) {
+	const catalog = [];
+	for (const provider of llm.listProviders()) try {
+		catalog.push(...await llm.listModels(provider.id));
+	} catch {
+		continue;
+	}
+	return catalog;
+}
+/**
+* Three-state image capability, matching the kernel's own convention.
+*
+* An ABSENT `inputModalities` means unknown; a present list without `image`
+* means the model actively declares it does not accept one. Treating absence as
+* a denial would lock out every provider that has not filled the field in.
+*/
+function imageCapability(route, catalog) {
+	const entry = catalog.find((model) => model.provider === route.provider && model.id === route.model);
+	if (entry?.inputModalities === void 0) return "unknown";
+	return entry.inputModalities.includes("image") ? "supported" : "unsupported";
+}
+/** The first rasterizer on PATH, or `undefined` when neither is installed. */
+async function findPdfRenderer() {
+	for (const renderer of PDF_RENDERERS) try {
+		await execFileAsync(renderer, ["-v"], {
+			windowsHide: true,
+			timeout: 5e3,
+			maxBuffer: 65536
+		});
+		return renderer;
+	} catch (cause) {
+		if (isRecord$1(cause) && cause.code === "ENOENT") continue;
+		return renderer;
+	}
+}
+/** Rasterize one page to PNG in a fresh temp directory the caller must remove. */
+async function renderPdfPage(renderer, filePath, page, signal) {
+	const directory = await mkdtemp(join(tmpdir(), "dsh-learning-page-"));
+	const outputBase = join(directory, "page");
+	try {
+		await execFileAsync(renderer, [
+			"-png",
+			"-singlefile",
+			"-f",
+			String(page),
+			"-l",
+			String(page),
+			"-r",
+			String(PDF_RENDER_DPI),
+			filePath,
+			outputBase
+		], {
+			windowsHide: true,
+			timeout: PDF_RENDER_TIMEOUT_MS,
+			signal,
+			maxBuffer: 1048576
+		});
+		const imagePath = `${outputBase}.png`;
+		if (!(await stat(imagePath)).isFile()) throw new Error(`${renderer} produced no image for page ${String(page)}`);
+		return {
+			directory,
+			imagePath
+		};
+	} catch (cause) {
+		await rm(directory, {
+			recursive: true,
+			force: true
+		});
+		throw cause;
+	}
+}
+/** Pages one degradation set reports as image-only. */
+function imageOnlyPages(degradation) {
+	const pages = /* @__PURE__ */ new Set();
+	for (const item of degradation) if (item.kind === "image-only-pages") for (const page of item.pages) pages.add(page);
+	return [...pages].sort((left, right) => left - right);
+}
+/**
+* Report the route without generating anything.
+*
+* Every branch here is answered from local state — the manifest, the file
+* system, and a provider catalog lookup. `listModels` may refresh/query that
+* catalog, but this function never calls `stream` and therefore spends no
+* generation tokens. That distinction is what makes it safe for the panel to
+* call before the person confirms a paid re-read.
+*/
+async function materialRouteInfo(ctx, vault, sourceId, deps = {}) {
+	const entry = (await readManifest(vault)).sources.find((source) => source.sourceId === sourceId);
+	const blank = {
+		status: "ok",
+		route: "no-route",
+		model: null,
+		pages: [],
+		reparsed: [],
+		spendsTokens: false,
+		renderer: null
+	};
+	if (entry === void 0) return {
+		...blank,
+		status: "unknown-source"
+	};
+	const already = entry.reparsed?.pages ?? [];
+	const pending = imageOnlyPages(entry.degradation).filter((page) => !already.includes(page));
+	const shaped = {
+		...blank,
+		pages: pending,
+		reparsed: already
+	};
+	if (extname(entry.originalName).toLowerCase() !== ".pdf") return {
+		...shaped,
+		status: "not-pdf"
+	};
+	if (pending.length === 0) return {
+		...shaped,
+		status: "nothing-to-reparse"
+	};
+	try {
+		if (!(await stat(join(vault.root, entry.sourcePath))).isFile()) return {
+			...shaped,
+			status: "source-file-missing"
+		};
+	} catch {
+		return {
+			...shaped,
+			status: "source-file-missing"
+		};
+	}
+	const renderer = await (deps.findRenderer ?? findPdfRenderer)();
+	if (renderer === void 0) return {
+		...shaped,
+		route: "renderer-missing"
+	};
+	const llm = ctx.get("llm");
+	const route = panelModelRoute(ctx, {
+		sessionId: deps.sessionId,
+		cwd: deps.cwd ?? vault.root
+	});
+	if (llm === void 0 || route === void 0) return {
+		...shaped,
+		renderer,
+		route: "no-route"
+	};
+	const capability = imageCapability(route, await modelCatalog(llm));
+	const kind = capability === "supported" ? "native-image" : capability === "unsupported" ? "text-only-model" : "unknown-capability";
+	return {
+		...shaped,
+		renderer,
+		route: kind,
+		model: `${route.provider}/${route.model}`,
+		spendsTokens: kind !== "text-only-model"
+	};
+}
+/** Instruction for the page read. Extraction, not description, and no invention. */
+const PAGE_EXTRACTION_INSTRUCTION = [
+	"This image is one page of a document whose text layer could not be extracted.",
+	"Transcribe the page as Markdown: headings as headings, paragraphs as paragraphs,",
+	"tables as Markdown tables, formulas as LaTeX between $ delimiters.",
+	"Transcribe only what is legible. Do not summarize, do not explain,",
+	"and do not supply anything the page does not show — write [无法辨认] where text is unreadable."
+].join(" ");
+async function readOnePage(llm, attachments, route, imagePath, signal) {
+	let attachment;
+	try {
+		const [saved] = await attachments.saveImages([{
+			data: await readFile(imagePath),
+			mediaType: "image/png",
+			name: basename(imagePath)
+		}]);
+		if (saved === void 0) return {
+			ok: false,
+			message: "the attachment store committed no reference"
+		};
+		attachment = saved;
+	} catch (cause) {
+		return {
+			ok: false,
+			message: cause instanceof Error ? cause.message : String(cause)
+		};
+	}
+	const controller = new AbortController();
+	const timer = setTimeout(() => {
+		controller.abort();
+	}, MODEL_TIMEOUT_MS);
+	const onAbort = () => {
+		controller.abort();
+	};
+	signal?.addEventListener("abort", onAbort, { once: true });
+	try {
+		const options = {
+			provider: route.provider,
+			model: route.model,
+			messages: [createUserMessage({
+				content: [{
+					type: "text",
+					text: PAGE_EXTRACTION_INSTRUCTION
+				}, {
+					type: "image",
+					attachment
+				}],
+				source: {
+					kind: "plugin",
+					plugin: "interactive-learning-material-vision"
+				}
+			})],
+			temperature: 0,
+			signal: controller.signal
+		};
+		const assembler = new BlockAssembler();
+		for await (const chunk of llm.stream(options)) assembler.push(chunk);
+		if (assembler.finish.kind !== "stop") return {
+			ok: false,
+			message: `the model stopped with ${assembler.finish.kind}`
+		};
+		return {
+			ok: true,
+			text: assembler.blocks().filter((block) => block.type === "text").map((block) => block.text).join("").trim().slice(0, MAX_PAGE_TEXT_CHARS)
+		};
+	} catch (cause) {
+		return {
+			ok: false,
+			message: cause instanceof Error ? cause.message : String(cause)
+		};
+	} finally {
+		clearTimeout(timer);
+		signal?.removeEventListener("abort", onAbort);
+	}
+}
+/** Turn one page's recovered Markdown into blocks the emitter understands. */
+function blocksForPage(sourceId, title, page, markdown) {
+	const label = `第 ${String(page)} 页${REPARSE_HEADING_SUFFIX}`;
+	const headingPath = [title, label];
+	const blocks = [{
+		kind: "heading",
+		level: 2,
+		text: label,
+		anchor: {
+			sourceId,
+			headingPath: [...headingPath],
+			page,
+			quoteHash: quoteHashOf(label)
+		}
+	}];
+	for (const chunk of markdown.split(/\n{2,}/u)) {
+		const text = chunk.trim();
+		if (text === "") continue;
+		const heading = /^(#{1,6})\s+(.+)$/u.exec(text);
+		if (heading !== null) {
+			const inner = heading[2].trim();
+			if (isPageHeading(inner, page)) continue;
+			blocks.push({
+				kind: "heading",
+				level: Math.min(6, Math.max(3, heading[1].length)),
+				text: inner,
+				anchor: {
+					sourceId,
+					headingPath: [...headingPath, inner],
+					page,
+					quoteHash: quoteHashOf(inner)
+				}
+			});
+			continue;
+		}
+		blocks.push({
+			kind: text.startsWith("|") ? "table" : "paragraph",
+			text,
+			anchor: {
+				sourceId,
+				headingPath: [...headingPath],
+				page,
+				quoteHash: quoteHashOf(text)
+			}
+		});
+	}
+	return blocks;
+}
+/** Whether a heading is the synthetic or canonical title for one page. */
+function isPageHeading(text, page) {
+	const normalized = text.trim().replace(/\s+/gu, "");
+	return normalized === `第${String(page)}页` || normalized === `第${String(page)}页（视觉重读）`;
+}
+/** Read the emitted extraction so a later batch starts with earlier recovery. */
+async function currentExtraction(vault, entry) {
+	if ((entry.reparsed?.pages.length ?? 0) === 0) return void 0;
+	const structure = await readStructure(vault, entry.sourceId);
+	if (structure === void 0) return void 0;
+	try {
+		const content = (await readFile(join(vault.root, entry.extractedPath), "utf8")).split(/\r?\n/u).filter((line) => {
+			const trimmed = line.trim();
+			return !trimmed.startsWith(`<!-- dsh-learning:source`) && !PAGE_MARKER.test(trimmed);
+		}).join("\n");
+		const parsed = parseMarkdownBlocks(content, entry.sourceId, entry.title);
+		const sections = structure.sections;
+		const blocks = parsed.map((block) => {
+			const section = sections.find((candidate) => candidate.headingPath.join("\0") === block.anchor.headingPath.join("\0"));
+			if (section?.page === void 0) return block;
+			return {
+				...block,
+				anchor: {
+					...block.anchor,
+					page: section.page
+				}
+			};
+		});
+		return {
+			sourceId: entry.sourceId,
+			title: entry.title,
+			parser: entry.parser,
+			blocks,
+			degradation: entry.degradation
+		};
+	} catch {
+		return;
+	}
+}
+/**
+* Splice recovered pages into a parse, in document order.
+*
+* Each page's blocks land after the last existing block whose page is at or
+* below it, which is where the page's own content would have been had the
+* parser been able to read it. Blocks with no page (formats without them) never
+* match, so this is a no-op for anything but a paged source.
+*/
+function spliceRecoveredPages(parsed, recovered) {
+	if (recovered.size === 0) return parsed;
+	const recoveredPages = new Set(recovered.keys());
+	const blocks = parsed.blocks.filter((block) => block.kind !== "heading" || block.anchor.page === void 0 || !recoveredPages.has(block.anchor.page) || !isPageHeading(block.text, block.anchor.page));
+	for (const page of [...recovered.keys()].sort((left, right) => right - left)) {
+		const additions = recovered.get(page) ?? [];
+		let at = blocks.length;
+		for (let index = blocks.length - 1; index >= 0; index -= 1) {
+			const at_page = blocks[index]?.anchor.page;
+			if (at_page !== void 0 && at_page <= page) {
+				at = index + 1;
+				break;
+			}
+			if (index === 0) at = 0;
+		}
+		blocks.splice(at, 0, ...additions);
+	}
+	const pages = new Set(recovered.keys());
+	const degradation = [];
+	for (const item of parsed.degradation) {
+		if (item.kind !== "image-only-pages") {
+			degradation.push(item);
+			continue;
+		}
+		const remaining = item.pages.filter((page) => !pages.has(page));
+		if (remaining.length > 0) degradation.push({
+			kind: "image-only-pages",
+			pages: remaining
+		});
+	}
+	return {
+		...parsed,
+		blocks,
+		degradation
+	};
+}
+/**
+* Re-read image-only pages with the active model and write the result back.
+*
+* The ONLY function in this app's panel surface that calls a provider. It
+* refuses before spending anything when the route says it should: a text-only
+* model, a missing rasterizer, or a source that is not a PDF all return without
+* a single request.
+*
+* A page that fails is reported and skipped, not fatal. Recovering four pages
+* out of six and saying so is strictly better than discarding four pages of
+* paid-for text because the fifth timed out.
+* @param ctx - Host context, for `llm`, `attachments` and the model selection.
+* @param vault - The vault holding the source.
+* @param sourceId - Manifest id of the source to re-read.
+* @param requested - Pages to re-read; defaults to every pending image-only page.
+* @param now - Injected clock.
+* @returns per-page outcomes and the re-anchoring summary.
+*/
+async function reparsePages(ctx, vault, sourceId, requested, now = /* @__PURE__ */ new Date(), signal, deps = {}) {
+	const info = await materialRouteInfo(ctx, vault, sourceId, deps);
+	const head = {
+		route: info.route,
+		model: info.model,
+		pages: [],
+		recovered: []
+	};
+	if (info.status !== "ok") return {
+		...head,
+		status: info.status
+	};
+	if (info.route === "renderer-missing" || info.route === "no-route" || info.route === "text-only-model") return {
+		...head,
+		status: info.route
+	};
+	const entry = (await readManifest(vault)).sources.find((source) => source.sourceId === sourceId);
+	const wanted = (requested === void 0 || requested.length === 0 ? info.pages : info.pages.filter((page) => requested.includes(page))).slice(0, 8);
+	if (wanted.length === 0) return {
+		...head,
+		status: "nothing-to-reparse"
+	};
+	const llm = ctx.get("llm");
+	const attachments = ctx.get("attachments");
+	const route = panelModelRoute(ctx, {
+		sessionId: deps.sessionId,
+		cwd: deps.cwd ?? vault.root
+	});
+	if (llm === void 0 || attachments === void 0 || route === void 0) return {
+		...head,
+		status: "no-route",
+		route: "no-route"
+	};
+	const sourceFile = join(vault.root, entry.sourcePath);
+	const outcomes = [];
+	const recovered = /* @__PURE__ */ new Map();
+	for (const page of wanted) {
+		let rendered;
+		try {
+			rendered = await (deps.renderPage ?? renderPdfPage)(info.renderer, sourceFile, page, signal);
+		} catch (cause) {
+			outcomes.push({
+				page,
+				status: "render-failed",
+				chars: 0,
+				message: cause instanceof Error ? cause.message : String(cause)
+			});
+			continue;
+		}
+		try {
+			const answer = await readOnePage(llm, attachments, route, rendered.imagePath, signal);
+			if (!answer.ok) {
+				outcomes.push({
+					page,
+					status: "model-failed",
+					chars: 0,
+					message: answer.message
+				});
+				continue;
+			}
+			if (answer.text === "") {
+				outcomes.push({
+					page,
+					status: "empty",
+					chars: 0
+				});
+				continue;
+			}
+			recovered.set(page, blocksForPage(sourceId, entry.title, page, answer.text));
+			outcomes.push({
+				page,
+				status: "ok",
+				chars: answer.text.length
+			});
+		} finally {
+			await rm(rendered.directory, {
+				recursive: true,
+				force: true
+			});
+		}
+	}
+	if (recovered.size === 0) return {
+		...head,
+		status: "ok",
+		pages: outcomes,
+		recovered: []
+	};
+	const merged = spliceRecoveredPages({
+		...await currentExtraction(vault, entry) ?? await (async () => {
+			const bytes = await readFile(sourceFile);
+			return await parseSource(bytes, entry.originalName, sourceId);
+		})(),
+		degradation: entry.degradation
+	}, recovered);
+	const extractedAbsolute = join(vault.root, entry.extractedPath);
+	const { markdown, structure } = emitSource(merged, entry.extractedPath);
+	const superseded = await readStructure(vault, sourceId);
+	await writeFile(extractedAbsolute, markdown, "utf8");
+	await writeFile(structurePathOf(vault, sourceId), `${JSON.stringify(structure, void 0, 2)}\n`, "utf8");
+	const pages = [.../* @__PURE__ */ new Set([...entry.reparsed?.pages ?? [], ...recovered.keys()])].sort((left, right) => left - right);
+	await upsertManifestEntry(vault, {
+		...entry,
+		degradation: merged.degradation,
+		structurePath: vaultRelative(vault, structurePathOf(vault, sourceId)),
+		reparsed: {
+			pages,
+			via: `${route.provider}/${route.model}`,
+			at: now.toISOString()
+		}
+	});
+	const memory = await reanchorVaultMemory(vault, superseded, structure);
+	const cards = await reanchorConceptCards(vault, superseded, structure);
+	return {
+		...head,
+		status: "ok",
+		pages: outcomes,
+		recovered: [...recovered.keys()].sort((left, right) => left - right),
+		reanchored: {
+			moved: memory.moved + cards.moved,
+			stale: memory.stale + cards.stale,
+			recovered: memory.recovered + cards.recovered
+		}
+	};
+}
+//#endregion
+//#region lib/types/vault-rpc.js
+/**
+* The vault panel's host face: read-only queries over one topic vault.
+*
+* Every endpoint here is a thin wrapper over machinery that already exists —
+* `readManifest`, `readAllStructures`, `readConceptCards`, the retrieval
+* scorer. Nothing in this module calls a model, and nothing in it writes: the
+* panel's S1 surface is a window onto the folder, so a bug here can lose a
+* query result but never a learner's file.
+*
+* Containment is enforced the same way the model-facing tools enforce it —
+* every path is resolved through {@link containedPath} — even though the caller
+* is the app's own UI rather than the model. The panel passes a `cwd` that came
+* from the session list, and a session's cwd is not something this module gets
+* to trust blindly.
+* @module @dsh-portable/interactive-learning/src/vault-rpc
+*/
+/** Wire protocol tag; bumped only on a breaking panel-payload change. */
+const VAULT_RPC_PROTOCOL = "dsh-learning/vault@1";
+/**
+* Endpoints this router owns.
+*
+* `vault/*` reads the folder; `concepts/*` is the only group that writes, and
+* every one of its writes is a direct consequence of a button a person pressed.
+*/
+const VAULT_RPC_ENDPOINTS = [
+	"vault/probe",
+	"vault/summary",
+	"vault/sources",
+	"vault/read",
+	"vault/search",
+	"concepts/list",
+	"concepts/review",
+	"concepts/rate",
+	"concepts/defer",
+	"concepts/correct",
+	"concepts/save",
+	"concepts/file",
+	"notes/list",
+	"notes/read",
+	"notes/save",
+	"notes/promote",
+	"notes/delete",
+	"vault/roster",
+	"material/route-info",
+	"material/reparse-pages"
+];
+/** Longest body one `vault/read` returns; the panel drills down for more. */
+const MAX_PANEL_READ_CHARS = 12e3;
+/** Note kinds the panel may write; the closed set `saveNote` accepts. */
+const NOTE_KINDS = ["note", "pending-concept"];
+function isNoteKind(value) {
+	return value !== void 0 && NOTE_KINDS.includes(value);
+}
+/** A note write answers with the note, or says which note was missing. */
+function answerNote(note) {
+	return note === void 0 ? {
+		ok: true,
+		value: {
+			status: "unknown-note",
+			protocol: VAULT_RPC_PROTOCOL
+		}
+	} : {
+		ok: true,
+		value: {
+			status: "ok",
+			protocol: VAULT_RPC_PROTOCOL,
+			note
+		}
+	};
+}
+/** Ratings the review deck may send; the closed set `nextReviewSchedule` accepts. */
+const CONCEPT_RATINGS = [
+	"revealed",
+	"review",
+	"mastered"
+];
+function isRating(value) {
+	return value !== void 0 && CONCEPT_RATINGS.includes(value);
+}
+/** A concept write answers with the card, or says which card was missing. */
+function answerConcept(concept) {
+	return concept === void 0 ? {
+		ok: true,
+		value: {
+			status: "unknown-concept",
+			protocol: VAULT_RPC_PROTOCOL
+		}
+	} : {
+		ok: true,
+		value: {
+			status: "ok",
+			protocol: VAULT_RPC_PROTOCOL,
+			concept
+		}
+	};
+}
+function fail(code, message) {
+	return {
+		ok: false,
+		error: {
+			code,
+			message,
+			details: { issues: [] }
+		}
+	};
+}
+function record(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function text(value) {
+	return typeof value === "string" && value.trim() !== "" ? value.trim() : void 0;
+}
+/**
+* Pages a source's degradation entries name, as a flat set.
+*
+* `formula-dropped` carries no page, so a source can be degraded without any
+* section being marked — which is correct: the panel still shows the chip.
+*/
+function degradedPages(degradation) {
+	const pages = /* @__PURE__ */ new Set();
+	for (const item of degradation) if (item.kind === "image-only-pages" || item.kind === "multi-column-guess") for (const page of item.pages) pages.add(page);
+	return pages;
+}
+/**
+* Whether a degraded page falls inside one section's page span.
+*
+* The span runs from this section's page up to (not including) the page of the
+* next section that declares one. A source with no page numbers never marks a
+* section, which is right: there is nothing to point at.
+*/
+function sectionSpanDegraded(sections, index, pages) {
+	const from = sections[index]?.page;
+	if (from === void 0 || pages.size === 0) return false;
+	let until = Number.POSITIVE_INFINITY;
+	for (let next = index + 1; next < sections.length; next += 1) {
+		const page = sections[next]?.page;
+		if (page !== void 0 && page > from) {
+			until = page;
+			break;
+		}
+	}
+	for (const page of pages) if (page >= from && page < until) return true;
+	return false;
+}
+function panelSections(structure) {
+	const pages = degradedPages(structure.degradation);
+	return structure.sections.map((section, index) => ({
+		id: section.id,
+		label: section.label,
+		level: section.level,
+		...section.page === void 0 ? {} : { page: section.page },
+		charCount: section.charCount,
+		degraded: sectionSpanDegraded(structure.sections, index, pages)
+	}));
+}
+function lastPageOf(structure) {
+	let last = 0;
+	for (const section of structure.sections) if (section.page !== void 0 && section.page > last) last = section.page;
+	for (const item of structure.degradation) {
+		if (item.kind === "image-only-pages" || item.kind === "multi-column-guess") {
+			for (const page of item.pages) if (page > last) last = page;
+		}
+		if (item.kind === "truncated" && item.afterPage > last) last = item.afterPage;
+	}
+	return last;
+}
+/** Body lines of one section, excluding descendants (the `[line, endLine)` span). */
+function sectionBody(lines, section) {
+	return lines.slice(section.line, Math.max(section.line, section.endLine - 1)).join("\n").replace(/^<!--\s*p\.\d+\s*-->$/gmu, "").trim();
+}
+async function extractedLines(vault, structure) {
+	const path = await containedPath(vault, structure.extractedPath);
+	return (await readFile(path, "utf8")).split("\n");
+}
+/**
+* Vault stats for a set of candidate folders.
+*
+* The CLIENT supplies the folders, deduped from its own session list, rather
+* than the Host enumerating workspaces. Every path therefore already came from
+* a session the app is showing, and each one is still resolved through
+* {@link resolveTopicVault} — so this endpoint opens no directory the panel's
+* other reads could not already open. A folder that is not a vault is omitted
+* rather than reported: the sidebar lists learning topics, and a roster full of
+* "not a vault" rows would be a list of the person's unrelated code projects.
+*/
+async function vaultRoster(ctx, cwds) {
+	const seen = /* @__PURE__ */ new Set();
+	const vaults = [];
+	for (const cwd of cwds.slice(0, 24)) {
+		if (seen.has(cwd)) continue;
+		seen.add(cwd);
+		let vault;
+		try {
+			vault = await resolveTopicVault(ctx, cwd);
+		} catch {
+			continue;
+		}
+		if (vault === void 0) continue;
+		const [summary, notes] = await Promise.all([vaultSummary(vault), listNotes(vault)]);
+		vaults.push({
+			cwd,
+			title: vault.title,
+			root: vault.root,
+			sources: summary.sources,
+			concepts: summary.concepts,
+			notes: notes.notes.length,
+			due: summary.due,
+			blocked: notes.blocked
+		});
+	}
+	vaults.sort((left, right) => right.due - left.due || left.title.localeCompare(right.title));
+	return {
+		status: "ok",
+		protocol: VAULT_RPC_PROTOCOL,
+		vaults,
+		due: vaults.reduce((total, vault) => total + vault.due, 0)
+	};
+}
+/** Vault resolution shared by every endpoint; `undefined` means "not a vault". */
+async function vaultAt(ctx, payload) {
+	const cwd = text(record(payload)?.cwd);
+	return cwd === void 0 ? void 0 : await resolveTopicVault(ctx, cwd);
+}
+/** Counts for the panel header. */
+async function vaultSummary(vault) {
+	const [manifest, cards, notes] = await Promise.all([
+		readManifest(vault),
+		readConceptCards(vault),
+		listNotes(vault)
+	]);
+	return {
+		status: manifest.sources.length === 0 && cards.length === 0 && notes.notes.length === 0 ? "empty" : "ok",
+		protocol: VAULT_RPC_PROTOCOL,
+		title: vault.title,
+		root: vault.root,
+		sources: manifest.sources.length,
+		concepts: cards.length,
+		notes: notes.notes.length,
+		pendingNotes: notes.blocked,
+		due: cards.filter((card) => isConceptDue(card.due)).length,
+		degradedSources: manifest.sources.filter((entry) => entry.degradation.length > 0).length
+	};
+}
+/**
+* Every source with its structure tree.
+*
+* Manifest and structure are joined here rather than in the client: the
+* manifest owns provenance (hash, parser, when) and the structure owns shape,
+* and a panel row needs both. A manifest entry whose structure file is missing
+* is still listed — with no sections — because hiding it would hide exactly the
+* case a person needs to see.
+*/
+async function vaultSources(vault) {
+	const [manifest, structures] = await Promise.all([readManifest(vault), readAllStructures(vault)]);
+	const byId = new Map(structures.map((structure) => [structure.sourceId, structure]));
+	const sources = manifest.sources.map((entry) => {
+		const structure = byId.get(entry.sourceId);
+		return {
+			sourceId: entry.sourceId,
+			title: entry.title,
+			originalName: entry.originalName,
+			parser: entry.parser,
+			bytes: entry.bytes,
+			ingestedAt: entry.ingestedAt,
+			sourcePath: entry.sourcePath,
+			extractedPath: entry.extractedPath,
+			totalChars: structure?.totalChars ?? 0,
+			sectionCount: structure?.sections.length ?? 0,
+			lastPage: structure === void 0 ? 0 : lastPageOf(structure),
+			degradation: entry.degradation,
+			sections: structure === void 0 ? [] : panelSections(structure)
+		};
+	});
+	return {
+		status: sources.length === 0 ? "empty" : "ok",
+		protocol: VAULT_RPC_PROTOCOL,
+		sources
+	};
+}
+/** One section's own body plus its immediate children. */
+async function vaultRead(vault, sourceId, sectionId) {
+	const structure = (await readAllStructures(vault)).find((candidate) => candidate.sourceId === sourceId);
+	if (structure === void 0) return {
+		status: "unknown-source",
+		protocol: VAULT_RPC_PROTOCOL
+	};
+	const index = structure.sections.findIndex((section) => section.id === sectionId);
+	const section = structure.sections[index];
+	if (section === void 0) return {
+		status: "unknown-section",
+		protocol: VAULT_RPC_PROTOCOL
+	};
+	const raw = sectionBody(await extractedLines(vault, structure), section);
+	const pages = degradedPages(structure.degradation);
+	const children = [];
+	for (let next = index + 1; next < structure.sections.length; next += 1) {
+		const candidate = structure.sections[next];
+		if (candidate === void 0 || candidate.level <= section.level) break;
+		if (candidate.level !== section.level + 1) continue;
+		children.push({
+			id: candidate.id,
+			label: candidate.label,
+			level: candidate.level,
+			...candidate.page === void 0 ? {} : { page: candidate.page },
+			charCount: candidate.charCount,
+			degraded: sectionSpanDegraded(structure.sections, next, pages)
+		});
+	}
+	return {
+		status: "ok",
+		protocol: VAULT_RPC_PROTOCOL,
+		sourceId,
+		sectionId,
+		title: structure.title,
+		label: section.label,
+		headingPath: section.headingPath,
+		...section.page === void 0 ? {} : { page: section.page },
+		body: raw.slice(0, MAX_PANEL_READ_CHARS),
+		truncated: raw.length > MAX_PANEL_READ_CHARS,
+		children
+	};
+}
+/**
+* Free-text search over material, concept cards, and notes.
+*
+* Ranking is {@link matchedTerms} — the same distinct-term count the model's
+* retrieval uses — over {@link keyPhrases} of the query, so what a person finds
+* here is exactly what the model can reach. No model call, no index, no network.
+*/
+async function vaultSearch(vault, query) {
+	const terms = keyPhrases(query);
+	const empty = {
+		status: "ok",
+		protocol: VAULT_RPC_PROTOCOL,
+		terms,
+		material: [],
+		concepts: [],
+		notes: []
+	};
+	if (terms.length === 0) return empty;
+	const material = [];
+	for (const structure of await readAllStructures(vault)) {
+		let lines;
+		try {
+			lines = await extractedLines(vault, structure);
+		} catch {
+			continue;
+		}
+		for (const section of structure.sections) {
+			const body = sectionBody(lines, section);
+			const matched = matchedTerms(`${section.label}\n${body}`, terms);
+			if (matched.length === 0) continue;
+			material.push({
+				path: structure.extractedPath,
+				title: structure.title,
+				section: section.label,
+				sourceId: structure.sourceId,
+				sectionId: section.id,
+				...section.page === void 0 ? {} : { page: section.page },
+				excerpt: excerptAround(body, matched, 220),
+				matched,
+				score: matched.length
+			});
+		}
+	}
+	const concepts = [];
+	for (const card of await readConceptCards(vault)) {
+		const haystack = [
+			card.label,
+			card.explanation,
+			...card.misconceptions,
+			card.unverifiedTransfer
+		].join("\n");
+		const matched = matchedTerms(haystack, terms);
+		if (matched.length === 0) continue;
+		concepts.push({
+			path: vaultRelative(vault, card.path),
+			title: card.label,
+			excerpt: excerptAround(card.explanation === "" ? haystack : card.explanation, matched, 220),
+			matched,
+			score: matched.length
+		});
+	}
+	const notes = [];
+	for (const note of (await listNotes(vault)).notes) {
+		const matched = matchedTerms(`${note.title}
+${note.body}`, terms);
+		if (matched.length === 0) continue;
+		notes.push({
+			path: note.path,
+			title: note.title,
+			excerpt: excerptAround(note.body, matched, 220),
+			matched,
+			score: matched.length
+		});
+	}
+	const rank = (hits) => hits.sort((left, right) => right.score - left.score).slice(0, 20);
+	return {
+		...empty,
+		material: rank(material).map(({ score: _score, ...hit }) => hit),
+		concepts: rank(concepts).map(({ score: _score, ...hit }) => hit),
+		notes: rank(notes).map(({ score: _score, ...hit }) => hit)
+	};
+}
+/** Whether an endpoint name belongs to this router. */
+function isVaultEndpoint(endpoint) {
+	return VAULT_RPC_ENDPOINTS.includes(endpoint);
+}
+/**
+* Dispatch one panel query.
+*
+* Returns the Connection RPC envelope directly so the broker can forward it
+* unchanged. A folder that is not a vault answers `{ status: 'no-vault' }` with
+* `ok: true` — it is a legitimate answer to a legitimate question (the gate asks
+* it on every session switch), not a transport failure.
+* @param ctx - Host context, used only to resolve the workspace registry title.
+* @param endpoint - One of {@link VAULT_RPC_ENDPOINTS}.
+* @param payload - `{ cwd }` plus per-endpoint fields.
+* @returns the RPC envelope.
+*/
+async function handleVaultEndpoint(ctx, endpoint, payload) {
+	const fields = record(payload);
+	if (fields === void 0) return fail("bad-request", "vault RPC requires an object payload");
+	try {
+		if (endpoint === "vault/roster") {
+			const listed = Array.isArray(fields.cwds) ? fields.cwds.filter((value) => typeof value === "string" && value.trim() !== "") : [];
+			const own = text(fields.cwd);
+			return {
+				ok: true,
+				value: await vaultRoster(ctx, own === void 0 ? listed : [own, ...listed])
+			};
+		}
+		if (text(fields.cwd) === void 0) return fail("bad-request", "vault RPC requires a non-empty cwd");
+		const vault = await vaultAt(ctx, payload);
+		if (endpoint === "vault/probe") return {
+			ok: true,
+			value: {
+				protocol: VAULT_RPC_PROTOCOL,
+				vault: vault !== void 0
+			}
+		};
+		if (vault === void 0) return {
+			ok: true,
+			value: {
+				status: "no-vault",
+				protocol: VAULT_RPC_PROTOCOL
+			}
+		};
+		switch (endpoint) {
+			case "vault/summary": return {
+				ok: true,
+				value: await vaultSummary(vault)
+			};
+			case "vault/sources": return {
+				ok: true,
+				value: await vaultSources(vault)
+			};
+			case "vault/read": {
+				const sourceId = text(fields.sourceId);
+				const sectionId = text(fields.sectionId);
+				if (sourceId === void 0 || sectionId === void 0) return fail("bad-request", "vault/read requires sourceId and sectionId");
+				return {
+					ok: true,
+					value: await vaultRead(vault, sourceId, sectionId)
+				};
+			}
+			case "vault/search": return {
+				ok: true,
+				value: await vaultSearch(vault, text(fields.query) ?? "")
+			};
+			case "concepts/list": return {
+				ok: true,
+				value: await listConcepts(vault)
+			};
+			case "concepts/review": return {
+				ok: true,
+				value: await reviewQueue(vault)
+			};
+			case "concepts/rate": {
+				const slug = text(fields.conceptSlug);
+				const rating = text(fields.rating);
+				if (slug === void 0 || !isRating(rating)) return fail("bad-request", `concepts/rate requires conceptSlug and one of ${CONCEPT_RATINGS.join(", ")}`);
+				return answerConcept(await rateConcept(vault, slug, rating));
+			}
+			case "concepts/defer": {
+				const slug = text(fields.conceptSlug);
+				const days = Number(fields.days);
+				if (slug === void 0 || !Number.isFinite(days) || days < 1) return fail("bad-request", "concepts/defer requires conceptSlug and a positive day count");
+				return answerConcept(await deferConcept(vault, slug, days));
+			}
+			case "concepts/correct": {
+				const slug = text(fields.conceptSlug);
+				if (slug === void 0) return fail("bad-request", "concepts/correct requires conceptSlug");
+				return answerConcept(await correctConcept(vault, slug));
+			}
+			case "concepts/save": {
+				const slug = text(fields.conceptSlug);
+				const body = typeof fields.body === "string" ? fields.body : void 0;
+				if (slug === void 0 || body === void 0) return fail("bad-request", "concepts/save requires conceptSlug and body");
+				return answerConcept(await saveConceptBody(vault, slug, body));
+			}
+			case "concepts/file": {
+				const slug = text(fields.conceptSlug);
+				if (slug === void 0) return fail("bad-request", "concepts/file requires conceptSlug");
+				const file = await readConceptFile(vault, slug);
+				return file === void 0 ? {
+					ok: true,
+					value: {
+						status: "unknown-concept",
+						protocol: VAULT_RPC_PROTOCOL
+					}
+				} : {
+					ok: true,
+					value: {
+						status: "ok",
+						protocol: VAULT_RPC_PROTOCOL,
+						...file
+					}
+				};
+			}
+			case "notes/list": return {
+				ok: true,
+				value: {
+					protocol: VAULT_RPC_PROTOCOL,
+					...await listNotes(vault)
+				}
+			};
+			case "notes/read": {
+				const slug = text(fields.noteSlug);
+				if (slug === void 0) return fail("bad-request", "notes/read requires noteSlug");
+				return answerNote(await readNote(vault, slug));
+			}
+			case "notes/save": {
+				const body = typeof fields.body === "string" ? fields.body : void 0;
+				if (body === void 0) return fail("bad-request", "notes/save requires body");
+				let kind;
+				const kindText = text(fields.kind);
+				if (kindText !== void 0) {
+					if (!isNoteKind(kindText)) return fail("bad-request", `notes/save kind must be one of ${NOTE_KINDS.join(", ")}`);
+					kind = kindText;
+				}
+				const noteSlug = text(fields.noteSlug);
+				const title = text(fields.title);
+				const conceptSlug = text(fields.conceptSlug);
+				const sessionId = text(fields.sessionId);
+				const messageId = text(fields.messageId);
+				return answerNote(await saveNote(vault, {
+					...noteSlug === void 0 ? {} : { noteSlug },
+					...title === void 0 ? {} : { title },
+					...kind === void 0 ? {} : { kind },
+					...conceptSlug === void 0 ? {} : { conceptSlug },
+					...sessionId === void 0 ? {} : { sourceSessionId: sessionId },
+					...messageId === void 0 ? {} : { sourceMessageId: messageId },
+					body
+				}));
+			}
+			case "notes/promote": {
+				const slug = text(fields.noteSlug);
+				if (slug === void 0) return fail("bad-request", "notes/promote requires noteSlug");
+				const promotion = await promoteNote(vault, slug);
+				return {
+					ok: true,
+					value: {
+						protocol: VAULT_RPC_PROTOCOL,
+						...promotion
+					}
+				};
+			}
+			case "material/route-info": {
+				const sourceId = text(fields.sourceId);
+				if (sourceId === void 0) return fail("bad-request", "material/route-info requires sourceId");
+				const info = await materialRouteInfo(ctx, vault, sourceId, {
+					cwd: text(fields.cwd),
+					sessionId: text(fields.sessionId)
+				});
+				return {
+					ok: true,
+					value: {
+						protocol: VAULT_RPC_PROTOCOL,
+						...info
+					}
+				};
+			}
+			case "material/reparse-pages": {
+				const sourceId = text(fields.sourceId);
+				if (sourceId === void 0) return fail("bad-request", "material/reparse-pages requires sourceId");
+				const result = await reparsePages(ctx, vault, sourceId, Array.isArray(fields.pages) ? fields.pages.filter((value) => typeof value === "number" && Number.isSafeInteger(value) && value > 0).slice(0, 8) : void 0, void 0, void 0, {
+					cwd: text(fields.cwd),
+					sessionId: text(fields.sessionId)
+				});
+				return {
+					ok: true,
+					value: {
+						protocol: VAULT_RPC_PROTOCOL,
+						...result
+					}
+				};
+			}
+			case "notes/delete": {
+				const slug = text(fields.noteSlug);
+				if (slug === void 0) return fail("bad-request", "notes/delete requires noteSlug");
+				return {
+					ok: true,
+					value: {
+						protocol: VAULT_RPC_PROTOCOL,
+						status: await deleteNote(vault, slug) ? "ok" : "unknown-note",
+						noteSlug: slug
+					}
+				};
+			}
+		}
+	} catch (cause) {
+		if (cause instanceof VaultContainmentError) return fail("forbidden", cause.message);
+		return fail("internal", cause instanceof Error ? cause.message : String(cause));
+	}
+}
+//#endregion
 //#region lib/types/broker.js
 registerInteractiveLearningSessionCompatibility();
 const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
@@ -259,6 +2030,7 @@ var LearningActivityBroker = class extends Service {
 			const connection = connectionCtx.get("connection");
 			if (connection === void 0) return;
 			connectionCtx.effect(() => connection.rpc.handle("/interactive-learning", async (endpoint, payload) => {
+				if (isVaultEndpoint(endpoint)) return handleVaultEndpoint(this.ctx, endpoint, payload);
 				if (endpoint !== "recall/feedback") return {
 					ok: false,
 					error: {

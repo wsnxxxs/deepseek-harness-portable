@@ -77,6 +77,14 @@ describe('RecallDeck Host feedback', () => {
     expect(result).toMatchObject({ ok: true, value: { status: 'recorded' } })
     expect(result.value?.observationId).toContain('recall:')
     expect(ctx.learningActivities.learnerState(agent).evidence.at(-1)?.summary).toContain('card_rpc')
+
+    const probe = await handler!('vault/probe', { cwd: 'C:\\missing-learning-vault' }, new AbortController().signal) as {
+      ok: boolean
+      value?: { vault?: boolean }
+      error?: { message?: string }
+    }
+    expect(probe).toMatchObject({ ok: true, value: { vault: false } })
+    expect(probe.error).toBeUndefined()
   })
 
   it('records self-ratings as unverified evidence and makes retries idempotent', async () => {
