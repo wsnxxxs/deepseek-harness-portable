@@ -79,6 +79,20 @@ describe('LearnerState reducer', () => {
     expect(state).not.toHaveProperty('persistentProfile')
   })
 
+  it('does not let a later goal observation replace the active learning goal', () => {
+    const state = reduceLearnerState(createInitialLearnerState('session-goal-fence'), {
+      type: 'goal_observed',
+      goal: 'Understand queue ordering.',
+      observation: observation('goal-first'),
+    })
+
+    expect(() => reduceLearnerState(state, {
+      type: 'goal_observed',
+      goal: 'Which item leaves first?',
+      observation: observation('goal-checkpoint'),
+    })).toThrow(/cannot replace an active learning goal/)
+  })
+
   it('remembers the last teaching move and routes repair without repeating its fingerprint', () => {
     const explained = reduceLearnerState(createInitialLearnerState('session-memory'), {
       type: 'assistant_move_observed',

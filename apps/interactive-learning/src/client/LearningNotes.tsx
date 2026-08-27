@@ -45,6 +45,8 @@ export interface LearningNotesProjection {
   plan: PlanProjection | null
   /** Used as a light fallback when no explicit plan has been recorded. */
   learningMoves: number
+  /** True only when the session contains evaluated, independent fresh transfer. */
+  verifiedTransfer: boolean
 }
 
 interface UnknownRecord {
@@ -103,6 +105,14 @@ function userNodeText(node: unknown): string | undefined {
   return text === '' ? undefined : text
 }
 
+function precedingUserGoal(nodes: readonly unknown[], order: number): string | undefined {
+  for (let index = Math.min(order, nodes.length) - 1; index >= 0; index -= 1) {
+    const text = textOf(userNodeText(nodes[index]))
+    if (text !== undefined) return text
+  }
+  return undefined
+}
+
 function answerText(value: unknown): string | undefined {
   const record = recordOf(value)
   if (record === undefined) return textOf(value)
@@ -120,6 +130,15 @@ function addEvidence(evidence: string[], value: unknown): void {
   // learner-facing points visible and avoid rendering arbitrary tool payloads.
   evidence.push(text)
   if (evidence.length > 5) evidence.splice(0, evidence.length - 5)
+}
+
+function isVerifiedTransfer(value: unknown): boolean {
+  const item = recordOf(value)
+  return item?.kind === 'transfer'
+    && item.transferContext === 'fresh'
+    && item.correctness === 'correct'
+    && item.independence === 'independent'
+    && (item.confidence === 'medium' || item.confidence === 'high')
 }
 
 function contentNodes(session: ConversationSnapshot): readonly unknown[] {
@@ -179,6 +198,7 @@ function resultAnswer(content: unknown): string | undefined {
  * learner-state internals such as mastery, confidence, or assessment labels.
  */
 export function projectLearningNotes(session: ConversationSnapshot): LearningNotesProjection {
+  const nodes = contentNodes(session)
   const calls = allLearningCalls(session)
   const evidence: string[] = []
   let goal: string | null = null
@@ -187,10 +207,17 @@ export function projectLearningNotes(session: ConversationSnapshot): LearningNot
   let latestTitle: string | null = null
   let closed = false
   let learningMoves = 0
+  let verifiedTransfer = false
 
-  for (const { call } of calls) {
+  for (const { call, order } of calls) {
     const args = parseJson(call.argsRaw)
     if (args === undefined) continue
+
+    // The learner's request is the most stable source for a session goal. It
+    // prevents a checkpoint question from becoming the headline when an old
+    // session lacks an early goal_observed event; explicit corrections still
+    // remain authoritative below.
+    if (goal === null) goal = precedingUserGoal(nodes, order) ?? null
 
     if (call.name === 'learning_state_update') {
       const action = textOf(args.action, 30)
@@ -202,23 +229,31 @@ export function projectLearningNotes(session: ConversationSnapshot): LearningNot
         evidence.length = 0
         latestTitle = null
         learningMoves = 0
+        verifiedTransfer = false
       }
       const event = recordOf(args.event)
       const correction = recordOf(args.correction)
       const eventType = textOf(event?.type, 60)
       const eventGoal = textOf(event?.goal)
       const correctionGoal = typeof correction?.goal === 'string' ? textOf(correction.goal) : undefined
-      if (eventGoal !== undefined) goal = eventGoal
+      // A checkpoint prompt or a later plan is not a new learning goal. The
+      // durable state contract requires reset before starting another topic;
+      // preserve the first active goal in the learner-facing projection too.
+      if (eventGoal !== undefined && (goal === null || goal === eventGoal)) goal = eventGoal
       if (correctionGoal !== undefined) goal = correctionGoal
       if (correction?.goal === null) goal = null
       if (eventType === 'learner_evidence_observed') {
         addEvidence(evidence, recordOf(event?.evidence)?.summary)
+        if (isVerifiedTransfer(event?.evidence)) verifiedTransfer = true
       } else if (eventType === 'failed_move_observed') {
         const failedMove = recordOf(event?.failedMove)
         addEvidence(evidence, failedMove?.summary ?? failedMove?.failureReason)
       }
       if (Array.isArray(correction?.evidence)) {
-        for (const item of correction.evidence) addEvidence(evidence, recordOf(item)?.summary)
+        for (const item of correction.evidence) {
+          addEvidence(evidence, recordOf(item)?.summary)
+          if (isVerifiedTransfer(item)) verifiedTransfer = true
+        }
       }
       const objective = textOf(event?.objective)
       const steps = stepsOf(event?.steps)
@@ -270,7 +305,7 @@ export function projectLearningNotes(session: ConversationSnapshot): LearningNot
   // boundaries from visible user nodes makes that intent survive refresh even
   // if the model has not also written a completion/reset state update.
   const latestLearningOrder = calls.at(-1)?.order ?? -1
-  if (contentNodes(session).some((node, index) => {
+  if (nodes.some((node, index) => {
     const text = index > latestLearningOrder ? userNodeText(node) : undefined
     return text !== undefined && isExplicitLearningBoundary(text)
   })) closed = true
@@ -284,6 +319,7 @@ export function projectLearningNotes(session: ConversationSnapshot): LearningNot
     phase,
     plan,
     learningMoves,
+    verifiedTransfer,
   }
 }
 
@@ -346,6 +382,14 @@ export function LearningSessionNotes({ session, input, inputActions, t }: Learni
           <p>{routeProgress(notes, t)}</p>
           {notes.plan?.objective === undefined ? null : <p className={css.objective}>{notes.plan.objective}</p>}
         </section>
+        {!notes.active && (
+          <section className={css.result} data-learning-result>
+            <h3>{t('learningResultTitle')}</h3>
+            <p>{notes.phase === 'complete' ? t('learningResultComplete') : t('learningResultEnded')}</p>
+            <p>{notes.verifiedTransfer ? t('learningResultTransfer') : t('learningResultTransferPending')}</p>
+            <p className={css.resultNote}>{t('learningResultEvidenceNote')}</p>
+          </section>
+        )}
         {notes.active && (
           <div className={css.actions} aria-label={t('learningNotesActions')}>
             <button
@@ -367,6 +411,31 @@ export function LearningSessionNotes({ session, input, inputActions, t }: Learni
               data-learning-segment-action="end"
               onClick={() => sendIntent(inputActions, input, t('learningNotesEndPrompt'))}
             >{t('learningNotesEnd')}</button>
+          </div>
+        )}
+        {!notes.active && (
+          <div className={css.actions} aria-label={t('learningResultActions')}>
+            <button
+              type="button"
+              disabled={disabled}
+              data-learning-result-action="practice"
+              onClick={() => sendIntent(inputActions, input, t('learningResultPracticePrompt'))}
+            >{t('learningResultPractice')}</button>
+            {notes.verifiedTransfer && (
+              <button
+                type="button"
+                disabled={disabled}
+                data-learning-result-action="card"
+                onClick={() => sendIntent(inputActions, input, t('learningResultCardPrompt'))}
+              >{t('learningResultCard')}</button>
+            )}
+            <button
+              type="button"
+              className={css.endAction}
+              disabled={disabled}
+              data-learning-result-action="new-topic"
+              onClick={() => sendIntent(inputActions, input, t('learningResultNewTopicPrompt'))}
+            >{t('learningResultNewTopic')}</button>
           </div>
         )}
       </div>

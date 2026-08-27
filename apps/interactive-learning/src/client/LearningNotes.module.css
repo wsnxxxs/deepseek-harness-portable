@@ -56,6 +56,32 @@
   font-size: var(--lx-text-xs);
 }
 
+.result {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--lx-space-2xs);
+  border-inline-start: 2px solid var(--lx-accent);
+  padding-inline-start: var(--lx-space-md);
+}
+
+.result h3 {
+  margin: 0 0 var(--lx-space-2xs);
+  color: var(--lx-accent);
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-medium);
+  letter-spacing: var(--lx-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.result p {
+  margin: 0;
+}
+
+.resultNote {
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-xs);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

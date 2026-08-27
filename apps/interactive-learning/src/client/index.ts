@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { LearningComposer, selectLearningActivity } from './LearningComposer.tsx'
 import { LearningToolView } from './LearningToolView.tsx'
 import { LearningSessionNotes } from './LearningNotes.tsx'
+import { LearningSurface } from './LearningSurface.tsx'
 import { VaultView, type VaultViewInjected } from './VaultView.tsx'
 import { VaultKeepAction, type VaultKeepInjected } from './VaultKeep.tsx'
 import {
@@ -112,6 +113,13 @@ export function apply(ctx: ClientContext): void {
     priority: -100,
     locale: NS,
   }, LearningComposer))
+
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'learning-surface',
+    order: -100,
+    locale: NS,
+  }, LearningSurface))
 
   for (const key of LEARNING_TOOL_VIEW_KEYS) {
     if (key === 'learning_state_update') {

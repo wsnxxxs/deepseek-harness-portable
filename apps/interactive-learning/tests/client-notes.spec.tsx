@@ -5,6 +5,7 @@ import type { ComponentType } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { LearningSessionNotes, projectLearningNotes } from '../src/client/LearningNotes.tsx'
+import { LearningSurface } from '../src/client/LearningSurface.tsx'
 import { en } from '../src/client/locales.ts'
 
 const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
@@ -16,6 +17,7 @@ const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
 }) as TranslateNS<'interactive-learning'>
 
 const Notes = LearningSessionNotes as unknown as ComponentType<Record<string, unknown>>
+const Surface = LearningSurface as unknown as ComponentType<Record<string, unknown>>
 
 function resultNode(name: string, args: Record<string, unknown>, result?: unknown) {
   return {
@@ -127,5 +129,109 @@ describe('session learning notes', () => {
     )
     expect(screen.getByText(en.learningNotesTitle)).toBeTruthy()
     expect(screen.queryByRole('button', { name: en.learningNotesDeepen })).toBeNull()
+  })
+
+  it('keeps the original goal when a checkpoint-shaped goal arrives and shows the result', () => {
+    const source = sessionWithLearningNotes()
+    const session = {
+      ...source,
+      nodes: [
+        ...source.nodes,
+        resultNode('learning_state_update', {
+          action: 'update',
+          event: { type: 'goal_observed', goal: 'Which item leaves first?' },
+        }),
+        resultNode('learning_state_update', {
+          action: 'update',
+          event: {
+            type: 'learner_evidence_observed',
+            evidence: {
+              kind: 'transfer',
+              transferContext: 'fresh',
+              summary: 'Applied the rule to a fresh queue.',
+              confidence: 'high',
+              correctness: 'correct',
+              independence: 'independent',
+            },
+          },
+        }),
+        resultNode('learning_state_update', {
+          action: 'update',
+          event: { type: 'progress_observed', nextMove: 'complete', phase: 'complete' },
+        }),
+      ],
+    } as ConversationSnapshot
+
+    const notes = projectLearningNotes(session)
+    expect(notes.goal).toBe('Understand queue ordering.')
+    expect(notes.active).toBe(false)
+    expect(notes.verifiedTransfer).toBe(true)
+
+    const setDraft = vi.fn()
+    const submit = vi.fn()
+    render(
+      <Notes
+        session={session}
+        input={{ phase: 'plain' }}
+        inputActions={{ setDraft, submit }}
+        t={t}
+      />,
+    )
+    expect(screen.getByText(en.learningResultTitle)).toBeTruthy()
+    expect(screen.getByText(en.learningResultTransfer)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.learningResultCard }))
+    expect(setDraft).toHaveBeenCalledWith(en.learningResultCardPrompt)
+    expect(submit).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the learner request when a legacy session only recorded the checkpoint as its goal', () => {
+    const session = {
+      nodes: [
+        {
+          kind: 'user',
+          seq: 1,
+          time: 1,
+          source: { kind: 'user' },
+          content: [{ type: 'text', text: '我想理解二叉搜索树为什么查找快。' }],
+        },
+        resultNode('learning_state_update', {
+          action: 'update',
+          event: { type: 'goal_observed', goal: '如果插入 8，它会放在哪里？' },
+        }),
+      ],
+      runningCalls: [],
+      chat: { nodes: { values: () => [] } },
+    } as unknown as ConversationSnapshot
+
+    expect(projectLearningNotes(session).goal).toBe('我想理解二叉搜索树为什么查找快。')
+  })
+
+  it('shows the localized start card only for a blank learning session', () => {
+    const setDraft = vi.fn()
+    const useSessions = (select: (state: { byId: Record<string, { agentPreset?: string }> }) => boolean): boolean =>
+      select({ byId: { 'session-learning': { agentPreset: 'learning' } } })
+    const session = {
+      ...sessionWithLearningNotes(),
+      nodes: [],
+      blank: true,
+      running: false,
+      removed: false,
+    } as ConversationSnapshot
+
+    render(
+      <Surface
+        session={session}
+        input={{ phase: 'plain' }}
+        inputActions={{ setDraft, submit: vi.fn() }}
+        sessionId="session-learning"
+        useSessions={useSessions}
+        t={t}
+      />,
+    )
+
+    expect(screen.getByText(en.learningStartTitle)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.learningStartConcept }))
+    expect(setDraft).toHaveBeenCalledWith(en.learningStartConceptPrompt)
+    expect(document.documentElement.dataset.learningSurface).toBe('true')
   })
 })

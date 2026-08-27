@@ -321,7 +321,13 @@ export function isLearningBoundary(input: string): boolean {
 }
 
 /** Compact standing text; detailed diagnosis and moves stay in references. */
-export const LEARNING_INTENT_POLICY = [
-  'Classify the request before teaching: learn intent covers definitions (“what is X”), a bare concept name, ELI5/beginner requests, persistent confusion or rustiness (“I always mix these up / can’t remember / 没学会”), conceptual why/how questions, prerequisites, learning paths, and requested study artifacts such as “quiz me”, flashcards, or a study guide.',
+/** Shared route guidance used by both the standing policy and the semantic router. */
+export const LEARNING_INTENT_ROUTING_GUIDANCE = [
+  'Learn intent covers definitions (“what is X”), a bare concept name, ELI5/beginner requests, persistent confusion or rustiness (“I always mix these up / can’t remember / 没学会”), conceptual why/how questions, prerequisites, learning paths, and requested study artifacts such as “quiz me”, flashcards, or a study guide.',
   'Keep coding/implementation or debugging, direct calculation, personal troubleshooting, translation or rewriting, news/breaking updates, stable or current factual lookups, resource recommendations, and opinion or verdict requests on their ordinary task route. A current or contested topic is still learn intent when the user asks for structured understanding; a latest-news or current-value lookup is not.',
+].join(' ')
+
+export const LEARNING_INTENT_POLICY = [
+  'Classify the request before teaching:',
+  LEARNING_INTENT_ROUTING_GUIDANCE,
 ].join(' ')

@@ -1,0 +1,150 @@
+.root {
+  width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(250px, 0.85fr);
+  gap: var(--lx-space-2xl) var(--lx-space-3xl);
+  align-items: end;
+  margin-block: var(--lx-space-md) var(--lx-space-sm);
+  padding: var(--lx-space-2xl) clamp(16px, 3vw, 28px);
+  border: var(--lx-card-border);
+  border-radius: var(--lx-card-radius);
+  background: linear-gradient(135deg, var(--lx-surface-accent), var(--lx-surface-card) 48%);
+  box-shadow: var(--lx-shadow-sm);
+  color: var(--lx-label-primary);
+  container-type: inline-size;
+}
+
+.header {
+  min-width: 0;
+}
+
+.eyebrow,
+.quickLabel {
+  margin: 0 0 var(--lx-space-xs);
+  color: var(--lx-accent);
+  font-size: var(--lx-text-2xs);
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: var(--lx-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  max-width: 20ch;
+  font-size: var(--lx-text-xl);
+  font-weight: var(--lx-weight-strong);
+  line-height: var(--lx-leading-xl);
+}
+
+.subtitle {
+  max-width: 58ch;
+  margin: var(--lx-space-sm) 0 0;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-sm);
+  line-height: var(--lx-leading-sm);
+}
+
+.promises {
+  display: grid;
+  gap: var(--lx-space-xs);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
+}
+
+.promises li {
+  position: relative;
+  padding-inline-start: var(--lx-space-xl);
+}
+
+.promiseIcon {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 2px;
+  display: inline-flex;
+  color: var(--lx-success);
+}
+
+.quickStart {
+  grid-column: 1 / -1;
+  padding-top: var(--lx-space-md);
+  border-top: 1px solid var(--lx-border-subtle);
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lx-space-xs);
+}
+
+.choices button {
+  min-height: var(--lx-control-height-sm);
+  border: 1px solid var(--lx-border-strong);
+  border-radius: var(--lx-radius-pill);
+  padding: var(--lx-control-padding-sm);
+  background: var(--lx-surface-card);
+  color: var(--lx-label-secondary);
+  font: inherit;
+  font-size: var(--lx-text-xs);
+  cursor: pointer;
+  transition: border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing);
+}
+
+.choices button:hover:not(:disabled) {
+  border-color: var(--lx-accent);
+  background: var(--lx-surface-accent);
+  color: var(--lx-accent);
+}
+
+.choices button:disabled {
+  cursor: default;
+  opacity: var(--lx-control-disabled-opacity);
+}
+
+.example {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
+}
+
+/* Learning is a learner-facing surface. Host execution/context furniture and
+   engineering measurements remain available in trajectory/debug, but do not
+   compete with the lesson in the conversation. */
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='context']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind] [data-variant='think']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_state_update']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_map']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_read']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_search']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_material_recall']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_concept_recall']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_concept_propose']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_visual_select']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='learning_checkpoint_select']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-tool='view_image']),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call'] [data-chat-call-id]:not(:has(*))) {
+  display: none !important;
+}
+
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-slot='conversation.composer.dock'] > *:not([data-learning-notes='session']):not(:has([data-learning-notes='session']))) {
+  display: none !important;
+}
+
+@container (max-width: 640px) {
+  .root {
+    grid-template-columns: 1fr;
+    gap: var(--lx-space-xl);
+  }
+
+  .quickStart,
+  .example {
+    grid-column: auto;
+  }
+}

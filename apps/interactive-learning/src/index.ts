@@ -7,6 +7,7 @@ export { registerInteractiveLearningSessionCompatibility } from './bootstrap.ts'
 export {
   LEARN_INTENT,
   LEARNING_INTENT_POLICY,
+  LEARNING_INTENT_ROUTING_GUIDANCE,
   classifyLearnIntent,
   isLearnIntent,
   isLearningBoundary,

@@ -395,6 +395,9 @@ const learnerTranscriptStates = new WeakMap<object, LearnerTranscriptState>()
 type RichTeachingMove = 'visual' | 'checkpoint'
 const richTeachingMoves = new WeakMap<object, RichTeachingMove>()
 
+const RICH_VISUAL_ROUTING_GUIDANCE =
+  'When a tree, graph, process, causal chain, topology, spatial construction, formula derivation, sequence, or state change is the teaching relationship, use one matching native learning visual; do not substitute a Markdown/ASCII diagram or code block.'
+
 function textFromUserMessage(message: UserMessage): string {
   return message.content
     .filter(block => block.type === 'text')
@@ -430,6 +433,7 @@ function routeContextText(
   if (decision.confidence === 'low') {
     return [
       ...lowConfidenceRouteContext(decision),
+      ...(richClientAvailable ? [RICH_VISUAL_ROUTING_GUIDANCE] : []),
       ...(!richClientAvailable
         ? ['No rich learning client is available. Use a Markdown table or compact ASCII structure when one relationship needs a scaffold; keep teaching and the focused question in prose. Do not record a visual teaching move unless a native visual actually rendered.']
         : []),
@@ -454,6 +458,7 @@ function routeContextText(
     ...(materialAvailable
       ? ['Indexed learning material is available. Retrieve it internally when claims depend on it; do not make the learner orchestrate the retrieval sequence.']
       : []),
+    ...(richClientAvailable ? [RICH_VISUAL_ROUTING_GUIDANCE] : []),
     decision.route === 'calibrate'
       ? 'Give one tiny useful foothold, then ask exactly one route-changing question; do not dump an overview.'
       : decision.route === 'teach-minimum'
@@ -1258,7 +1263,7 @@ export function apply(ctx: Context): void {
       'Internal, immediate, non-rich session-state update from concrete observable evidence in the current learner message/action or supplied source, or from the exact assistant teaching move already prepared for this turn.',
       'Call only when the observation substantively changes the next teaching move; never call mechanically every turn and never infer a hidden trait, personality, emotion, or learning style.',
       'Use assistant_move_observed only to record the explanation, question, representation, and move fingerprint you are about to emit, so a later turn can avoid repeating it; never use it as learner evidence or mastery evidence.',
-      'Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset. Honor an explicit mastery correction. If the learner merely asks not to be quizzed further, correct phase=complete and nextMove=complete without inventing transfer.',
+      'Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset. A goal_observed event establishes a missing goal; never replace an active goal with a checkpoint prompt or plan objective—reset on a real topic switch or use correct for an explicit user correction. Honor an explicit mastery correction. If the learner merely asks not to be quizzed further, correct phase=complete and nextMove=complete without inventing transfer.',
       'plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer or a sufficiently confident complete explanation/attempt.',
       'The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata. If a retry races with another update, only an exact replay or a safe additive observation may be merged; corrections, resets, and replacement updates remain strict.',
       'Assistant visual and checkpoint moves are recorded automatically; do not duplicate them here. This tool performs no user wait and must not replace ordinary conversation.',
