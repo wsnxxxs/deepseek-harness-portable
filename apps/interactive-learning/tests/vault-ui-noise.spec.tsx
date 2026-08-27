@@ -64,6 +64,7 @@ describe('vault action copy and controls', () => {
     fireEvent.click(screen.getByRole('button', { name: en.vaultKeep }))
 
     const sheet = screen.getByRole('dialog', { name: en.vaultKeepTitle })
+    expect(screen.queryByText(en.vaultKeep)).toBeNull()
     expect(screen.getByRole('button', { name: en.vaultKeepAsNote })).toBeTruthy()
     expect(screen.getByRole('button', { name: en.vaultKeepAsPending })).toBeTruthy()
     expect(sheet.parentElement).toBe(document.body)

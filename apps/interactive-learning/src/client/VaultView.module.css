@@ -1000,21 +1000,23 @@
   box-shadow: var(--lx-shadow-md);
 }
 
-.keepButton {
-  border: 1px solid var(--lx-border-default);
-  border-radius: var(--lx-radius-sm);
+.keepAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  border-radius: 28px;
   background: transparent;
-  padding: var(--lx-space-2xs) var(--lx-space-md);
-  color: var(--lx-label-secondary);
-  font: inherit;
-  font-size: var(--lx-text-micro);
-  white-space: nowrap;
+  color: var(--lx-label-tertiary);
   cursor: pointer;
 }
 
-.keepButton:hover { background: var(--lx-surface-sunken); color: var(--lx-label-primary); }
+.keepAction:hover { background: var(--lx-surface-sunken); color: var(--lx-label-primary); }
 
-.keepButton:focus-visible {
+.keepAction:focus-visible {
   outline: var(--lx-focus-width) solid var(--lx-focus-color);
   outline-offset: var(--lx-focus-offset);
 }

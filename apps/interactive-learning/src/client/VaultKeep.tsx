@@ -22,7 +22,7 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconListPenOutline16, Tooltip, useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { learningScope } from './tokens.ts'
 import css from './VaultView.module.css'
@@ -157,17 +157,19 @@ export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={css.keepButton}
-        onClick={() => { if (open) setOpen(false); else start() }}
-        title={t('vaultKeepHint')}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        {t('vaultKeep')}
-      </button>
+      <Tooltip label={t('vaultKeepHint')} side="bottom">
+        <button
+          ref={triggerRef}
+          type="button"
+          className={css.keepAction}
+          onClick={() => { if (open) setOpen(false); else start() }}
+          aria-label={t('vaultKeep')}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <IconListPenOutline16 />
+        </button>
+      </Tooltip>
       {open && createPortal(
         <div
           {...learningScope}
