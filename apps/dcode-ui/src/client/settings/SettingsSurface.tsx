@@ -12,7 +12,7 @@
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14,
   IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16,
@@ -51,6 +51,10 @@ const RAIL: readonly { group: DcodeKey; items: readonly { id: SettingsSection; l
     items: [
       { id: 'plugins', label: 'settings.plugins' },
       { id: 'agentPresets', label: 'settings.agentPresets' },
+      { id: 'skills', label: 'settings.skills' },
+      { id: 'commands', label: 'settings.commands' },
+      { id: 'subagents', label: 'settings.subagents' },
+      { id: 'mcp', label: 'settings.mcp' },
     ],
   },
   {
@@ -433,34 +437,101 @@ function PluginsSection({ mcpOnly }: { mcpOnly: boolean }) {
   )
 }
 
+/** Persist the default preset through the same settings namespace as DSH. */
+async function saveDefaultPreset(
+  runtime: ReturnType<typeof useRuntime>,
+  id: string,
+): Promise<string | undefined> {
+  try {
+    const result = await runtime.remote.settings.update('agent-presets', { default: id }, undefined)
+    return result.ok ? undefined : result.error.message
+  } catch (cause: unknown) {
+    return cause instanceof Error ? cause.message : String(cause)
+  }
+}
+
 /** The Host's current Agent preset roster. */
 function AgentPresetsSection() {
   const runtime = useRuntime()
   const t = useT()
   const roster = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime])
+  const [selectedDefault, setSelectedDefault] = useState<string | undefined>()
+  const [savingDefault, setSavingDefault] = useState(false)
+  const [defaultError, setDefaultError] = useState<string | undefined>()
+  const presets = roster.value?.ok === true ? roster.value.value.presets : []
+  const hostDefault = presets.find(preset => preset.isDefault)?.id
+  const defaultId = selectedDefault ?? hostDefault ?? presets[0]?.id ?? ''
+
+  useEffect(() => {
+    if (hostDefault !== undefined) setSelectedDefault(hostDefault)
+  }, [hostDefault])
+
+  const saveDefault = useCallback((id: string) => {
+    if (id === defaultId || savingDefault) return
+    const previous = defaultId
+    setSelectedDefault(id)
+    setSavingDefault(true)
+    setDefaultError(undefined)
+    void saveDefaultPreset(runtime, id)
+      .then((failure) => {
+        if (failure === undefined) {
+          roster.reload()
+          return
+        }
+        setSelectedDefault(previous)
+        setDefaultError(failure)
+      })
+      .catch((cause: unknown) => {
+        setSelectedDefault(previous)
+        setDefaultError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => { setSavingDefault(false) })
+  }, [defaultId, roster, runtime.remote.settings, savingDefault])
 
   if (roster.loading) return <EmptyState><Spinner /></EmptyState>
   if (roster.error !== undefined) return <EmptyState>{roster.error}</EmptyState>
   if (roster.value?.ok === false) return <EmptyState>{roster.value.error.message}</EmptyState>
-  const presets = roster.value?.ok === true ? roster.value.value.presets : []
 
   return (
     <Section title={t('settings.agentPresets')} body={t('settings.agentPresetsBody')}>
       {presets.length === 0
         ? <EmptyState>{t('settings.empty')}</EmptyState>
         : (
-          <div className={css.card}>
-            {presets.map(preset => (
+          <>
+            <div className={css.card}>
               <Row
-                key={preset.id}
-                title={preset.name ?? preset.id}
-                body={[preset.description, preset.broken].filter(Boolean).join(' · ')}
-                control={preset.isDefault
-                  ? <span className={css.badge}>{t('settings.models.default')}</span>
-                  : undefined}
+                title={t('settings.agentPresetsDefault')}
+                body={t('settings.agentPresetsDefaultBody')}
+                control={(
+                  <SelectMenu
+                    value={defaultId}
+                    ariaLabel={t('settings.agentPresetsDefault')}
+                    options={presets.map(preset => ({
+                      id: preset.id,
+                      label: preset.name ?? preset.id,
+                      detail: preset.broken,
+                      disabled: preset.broken !== undefined,
+                    }))}
+                    disabled={savingDefault || presets.length < 2}
+                    onChange={saveDefault}
+                  />
+                )}
               />
-            ))}
-          </div>
+              {defaultError === undefined ? null : <div className={css.inlineError} role="alert">{defaultError}</div>}
+            </div>
+            <div className={css.card}>
+              {presets.map(preset => (
+                <Row
+                  key={preset.id}
+                  title={preset.name ?? preset.id}
+                  body={[preset.description, preset.broken].filter(Boolean).join(' · ')}
+                  control={preset.id === defaultId
+                    ? <span className={css.badge}>{t('settings.models.default')}</span>
+                    : undefined}
+                />
+              ))}
+            </div>
+          </>
         )}
     </Section>
   )

@@ -225,6 +225,12 @@
   line-height: var(--zx-leading-body);
 }
 
+.inlineError {
+  padding: 0 var(--zx-space-5) var(--zx-space-4);
+  color: var(--zx-error);
+  font-size: var(--zx-text-xs);
+}
+
 .rowMono {
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-xs);
