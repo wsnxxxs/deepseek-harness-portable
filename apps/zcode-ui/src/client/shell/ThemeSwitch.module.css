@@ -1,0 +1,60 @@
+/** Segmented light / dark / system control. */
+
+.group {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-panel);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-height: 26px;
+  padding: 0 var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.segment:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.segment:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The selected segment is a raised chip, not a filled accent: three of these
+   sit inside one card and an accent fill would outweigh everything near it. */
+.segmentActive {
+  background: var(--zx-bg-card);
+  color: var(--zx-label);
+  box-shadow: var(--zx-shadow-card);
+}
+
+.glyph {
+  font-size: var(--zx-text-xs);
+  line-height: 1;
+}
+
+.label {
+  font-size: var(--zx-text-xs);
+}

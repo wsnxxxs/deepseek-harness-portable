@@ -1,0 +1,108 @@
+/** Workbench frame: rail | center | aside, under one top bar. */
+
+.root {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: 1fr;
+  background: var(--zx-bg-app);
+  color: var(--zx-label);
+  font-family: var(--zx-font-ui);
+  font-size: var(--zx-text-sm);
+  line-height: var(--zx-leading-tight);
+  overflow: hidden;
+  /* The Windows shell reserves its own overlay strip at the top of the
+     renderer; the frame starts below whatever the host reserved. */
+  padding-top: var(--dsh-desktop-titlebar-height, 0px);
+  box-sizing: border-box;
+}
+
+.rail {
+  width: var(--zx-rail-width);
+  min-width: var(--zx-rail-width);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--zx-border-soft);
+  background: var(--zx-bg-panel);
+  overflow: hidden;
+  transition: width var(--zx-motion), min-width var(--zx-motion);
+}
+
+.railCollapsed {
+  width: 0;
+  min-width: 0;
+  border-right-color: transparent;
+}
+
+/* Top bar, transcript, composer, filler. A flex column rather than fixed
+   grid rows so the blank phase can hand the leftover height to the filler
+   below the composer. */
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The blank phase: the transcript above and this filler below both take an
+   equal share of the free height, which leaves the composer on the centre
+   line with the greeting resting directly above it. Once the first node
+   arrives the filler collapses and the composer settles into its dock.
+
+   The filler is always mounted, and always after the composer, so the phase
+   change is a style flip on a sibling and never remounts the textarea. */
+.filler {
+  flex: 0 0 0;
+}
+
+.centerBlank .filler {
+  flex: 1 1 0;
+}
+
+.aside {
+  width: var(--zx-aside-width);
+  min-width: var(--zx-aside-width);
+  border-left: 1px solid var(--zx-border-soft);
+  background: var(--zx-bg-panel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: width var(--zx-motion), min-width var(--zx-motion);
+}
+
+.asideCollapsed {
+  width: 0;
+  min-width: 0;
+  border-left-color: transparent;
+}
+
+/* One full-bleed surface (learning, settings) replacing rail + center + aside. */
+.surface {
+  grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.scroll {
+  overflow: hidden auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border: 3px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background-clip: padding-box;
+}
+
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

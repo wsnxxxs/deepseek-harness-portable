@@ -1,0 +1,88 @@
+/** Top bar: task title, workspace, branch, and the panel/command controls. */
+
+.bar {
+  display: flex;
+  /* Fixed row in the frame's flex column: never shrinks under a tall
+     transcript or a grown composer. */
+  flex: none;
+  align-items: center;
+  gap: var(--zx-space-2);
+  height: var(--zx-topbar-height);
+  padding: 0 var(--zx-space-3) 0 var(--zx-space-4);
+  border-bottom: 1px solid var(--zx-border-soft);
+  background: var(--zx-bg-app);
+  /* The frameless desktop window drags from the bar's empty space; the
+     controls opt back out individually. */
+  -webkit-app-region: drag;
+}
+
+.bar > * {
+  -webkit-app-region: no-drag;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--zx-text-sm);
+  font-weight: 500;
+  color: var(--zx-label);
+}
+
+.titleMuted {
+  color: var(--zx-label-muted);
+  font-weight: 400;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  max-width: 220px;
+  height: 26px;
+  padding: 0 var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.chip:disabled {
+  cursor: default;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--zx-space-1);
+  background: var(--zx-border-soft);
+}
+
+.dirty {
+  color: var(--zx-warn);
+}
+
+/* Keep the resolved theme control aligned in the same 16px slot as the other
+   primitive icon buttons. */
+.themeGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
