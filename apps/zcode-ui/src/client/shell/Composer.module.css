@@ -1,0 +1,141 @@
+/** Composer: prompt entry over the session controls row. */
+
+.dock {
+  /* Sized by its own content in the frame's flex column, never squeezed. */
+  flex: none;
+  padding: 0 var(--zx-space-5) var(--zx-space-5);
+}
+
+.shell {
+  width: min(var(--zx-reading-width), 100%);
+  margin: 0 auto;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-xl);
+  background: var(--zx-bg-card);
+  box-shadow: var(--zx-shadow-card);
+  transition: border-color var(--zx-motion);
+}
+
+.shellFocused {
+  border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
+}
+
+.input {
+  display: block;
+  width: 100%;
+  max-height: 40vh;
+  min-height: 52px;
+  padding: var(--zx-space-4) var(--zx-space-4) var(--zx-space-2);
+  border: 0;
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-sm);
+  line-height: var(--zx-leading-body);
+  resize: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--zx-label-faint);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  max-width: 180px;
+  height: 26px;
+  padding: 0 var(--zx-space-2);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+}
+
+.controlLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelMenu {
+  max-height: min(60vh, 420px);
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--zx-accent);
+  color: var(--zx-on-accent);
+  cursor: pointer;
+  transition: opacity var(--zx-motion-fast);
+}
+
+.send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.send:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.stop {
+  background: var(--zx-bg-active);
+  color: var(--zx-label);
+}
+
+.error {
+  padding: 0 var(--zx-space-4) var(--zx-space-1);
+  color: var(--zx-error);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-tight);
+}
+
+.headerRow {
+  width: min(var(--zx-reading-width), 100%);
+  margin: 0 auto var(--zx-space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+}
+
+.projectChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-1) var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.projectChip:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
