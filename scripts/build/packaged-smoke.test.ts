@@ -138,7 +138,7 @@ test('packaged smoke validates the live RPC response envelope and correlation id
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify({
       type: 'server-response',
-      rpcId: message.method === 'agentPreset/read' ? `${message.rpcId}-mismatch` : message.rpcId,
+      rpcId: message.method === 'agentPresets/read' ? `${message.rpcId}-mismatch` : message.rpcId,
       result: { ok: true, value: { ready: true } },
     }))
   })
@@ -147,9 +147,9 @@ test('packaged smoke validates the live RPC response envelope and correlation id
   try {
     const address = server.address() as AddressInfo
     const baseUrl = `http://127.0.0.1:${address.port}/`
-    assert.deepEqual(await runtimeRpc(baseUrl, 'agentPreset.list', {}, 2_000), { ready: true })
+    assert.deepEqual(await runtimeRpc(baseUrl, 'agentPresets.list', {}, 2_000), { ready: true })
     await assert.rejects(
-      runtimeRpc(baseUrl, 'agentPreset.read', { agentPreset: 'learning' }, 2_000),
+      runtimeRpc(baseUrl, 'agentPresets.read', { agentPreset: 'learning' }, 2_000),
       /invalid or mismatched RPC envelope/,
     )
   } finally {

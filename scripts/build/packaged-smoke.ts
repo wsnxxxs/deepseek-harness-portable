@@ -310,8 +310,8 @@ export async function runPackagedSmoke(options: PackagedSmokeOptions): Promise<P
     await assertMaterializedInteractiveLearningPreset(dshHome)
     if (runtimeUrl === undefined) throw new Error('packaged Learning smoke completed without a listening URL')
     const rpcTimeout = Math.min(10_000, Math.max(1_000, Math.floor(timeoutMs / 3)))
-    const listValue = await runtimeRpc(runtimeUrl, 'agentPreset.list', {}, rpcTimeout)
-    const readValue = await runtimeRpc(runtimeUrl, 'agentPreset.read', { agentPreset: 'learning' }, rpcTimeout)
+    const listValue = await runtimeRpc(runtimeUrl, 'agentPresets.list', {}, rpcTimeout)
+    const readValue = await runtimeRpc(runtimeUrl, 'agentPresets.read', { agentPreset: 'learning' }, rpcTimeout)
     validateInteractiveLearningPresetSurface(listValue, readValue, interactiveLearning)
     const evidencePath = join(dshHome, '.system-agent-presets', '.runtime-capabilities.json')
     return {
