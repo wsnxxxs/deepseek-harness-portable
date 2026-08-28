@@ -1,0 +1,314 @@
+/** Workbench atoms: the card, row, pill, icon button and popover shared by every panel. */
+
+.card {
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-card);
+  box-shadow: var(--zx-shadow-card);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-3) var(--zx-space-4);
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label-secondary);
+}
+
+.cardBody {
+  padding: var(--zx-space-4);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);
+  font-size: var(--zx-text-xs);
+  font-weight: 500;
+  color: var(--zx-label-secondary);
+  letter-spacing: 0.02em;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zx-space-2);
+  min-width: 26px;
+  height: 26px;
+  padding: 0 var(--zx-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.iconButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.iconButton:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.iconButtonActive {
+  background: var(--zx-bg-active);
+  color: var(--zx-label);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zx-space-2);
+  height: 28px;
+  padding: 0 var(--zx-space-4);
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-raised);
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.buttonPrimary {
+  border-color: transparent;
+  background: var(--zx-accent);
+  color: var(--zx-on-accent);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label));
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  height: 20px;
+  padding: 0 var(--zx-space-2);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-raised);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.added {
+  color: var(--zx-added);
+}
+
+.removed {
+  color: var(--zx-removed);
+}
+
+.muted {
+  color: var(--zx-label-muted);
+}
+
+.mono {
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-7) var(--zx-space-5);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+  text-align: center;
+}
+
+.popoverAnchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  z-index: 40;
+  min-width: 200px;
+  max-width: 340px;
+  max-height: 60vh;
+  overflow: hidden auto;
+  padding: var(--zx-space-1);
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-panel);
+}
+
+.popoverUp {
+  bottom: calc(100% + var(--zx-space-2));
+  left: 0;
+}
+
+.popoverDown {
+  top: calc(100% + var(--zx-space-2));
+  left: 0;
+}
+
+.popoverRight {
+  right: 0;
+  left: auto;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--zx-bg-hover);
+}
+
+.menuItem:disabled {
+  cursor: default;
+  color: var(--zx-label-secondary);
+}
+
+.menuItem:disabled:hover {
+  background: transparent;
+}
+
+.menuItem:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.menuItemActive {
+  background: var(--zx-bg-active);
+}
+
+.menuItemDanger {
+  color: var(--zx-error);
+}
+
+.menuIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--zx-label-secondary);
+}
+
+.menuContent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuLabel {
+  padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+}
+
+.menuDetail {
+  display: block;
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+  line-height: 1.4;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-border);
+  background-clip: padding-box;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--zx-border);
+  border-top-color: var(--zx-label-secondary);
+  border-radius: 50%;
+  animation: zx-spin 700ms linear infinite;
+}
+
+@keyframes zx-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+}
+
+/* Horizontal flip: one panel glyph serves both the left and the right toggle. */
+.mirrored {
+  transform: scaleX(-1);
+}

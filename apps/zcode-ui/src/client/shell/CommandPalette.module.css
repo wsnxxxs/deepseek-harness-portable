@@ -1,0 +1,144 @@
+/** Global command palette: actions, tasks and workspace files in one search. */
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: var(--zx-scrim);
+  backdrop-filter: blur(2px);
+}
+
+.panel {
+  width: min(560px, calc(100% - 2 * var(--zx-space-5)));
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-xl);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-panel);
+  overflow: hidden;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-4);
+  border-bottom: 1px solid var(--zx-border-soft);
+  color: var(--zx-label-muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-md);
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--zx-label-faint);
+}
+
+.filters {
+  display: flex;
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-4);
+  border-bottom: 1px solid var(--zx-border-soft);
+}
+
+.filter {
+  height: 24px;
+  padding: 0 var(--zx-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  cursor: pointer;
+}
+
+.filter:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label-secondary);
+}
+
+.filterActive {
+  background: var(--zx-bg-active);
+  color: var(--zx-label);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: var(--zx-space-2);
+}
+
+.group {
+  padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 32px;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowActive {
+  background: var(--zx-bg-active);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowDetail {
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+
+.shortcut {
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: var(--zx-space-6);
+  text-align: center;
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+}
