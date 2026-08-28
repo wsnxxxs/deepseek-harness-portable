@@ -740,16 +740,48 @@ function AgentPresetsSection() {
   const runtime = useRuntime()
   const t = useT()
   const roster = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime])
+  const opener = useAsync(async () => await runtime.remote.settings.canOpenAgentPresetDirectory(), [runtime])
   const [selectedDefault, setSelectedDefault] = useState<string | undefined>()
   const [savingDefault, setSavingDefault] = useState(false)
   const [defaultError, setDefaultError] = useState<string | undefined>()
+  const [dialog, setDialog] = useState<
+    | { kind: 'copy'; from: string }
+    | { kind: 'view'; id: string }
+    | { kind: 'delete'; id: string }
+    | undefined
+  >()
+  const [copyId, setCopyId] = useState('')
+  const [copyName, setCopyName] = useState('')
+  const [viewContent, setViewContent] = useState<string | undefined>()
+  const [revealedPaths, setRevealedPaths] = useState<Record<string, string>>({})
+  const [dialogBusy, setDialogBusy] = useState(false)
+  const [dialogError, setDialogError] = useState<string | undefined>()
   const presets = roster.value?.ok === true ? roster.value.value.presets : []
   const hostDefault = presets.find(preset => preset.isDefault)?.id
   const defaultId = selectedDefault ?? hostDefault ?? presets[0]?.id ?? ''
+  const authorable = roster.value?.ok === true && roster.value.value.authorable
+  const canOpenDirectory = opener.value?.ok === true && opener.value.value
 
   useEffect(() => {
-    if (hostDefault !== undefined) setSelectedDefault(hostDefault)
-  }, [hostDefault])
+    if (hostDefault !== undefined) {
+      setSelectedDefault(hostDefault)
+      return
+    }
+    if (selectedDefault !== undefined && !presets.some(preset => preset.id === selectedDefault)) {
+      setSelectedDefault(undefined)
+    }
+  }, [hostDefault, presets, selectedDefault])
+
+  useEffect(() => {
+    if (dialog === undefined) return undefined
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || dialogBusy) return
+      setDialog(undefined)
+      setDialogError(undefined)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [dialog, dialogBusy])
 
   const saveDefault = useCallback((id: string) => {
     if (id === defaultId || savingDefault) return
@@ -772,6 +804,98 @@ function AgentPresetsSection() {
       })
       .finally(() => { setSavingDefault(false) })
   }, [defaultId, roster, runtime.remote.settings, savingDefault])
+
+  const closeDialog = (force = false): void => {
+    if (dialogBusy && !force) return
+    setDialog(undefined)
+    setDialogError(undefined)
+    setViewContent(undefined)
+  }
+
+  const beginCopy = (from: string): void => {
+    setCopyId('')
+    setCopyName('')
+    setDialogError(undefined)
+    setDialog({ kind: 'copy', from })
+  }
+
+  const viewPreset = (id: string): void => {
+    setDialogError(undefined)
+    setViewContent(undefined)
+    setDialog({ kind: 'view', id })
+    setDialogBusy(true)
+    void runtime.remote.agentPresets.read(id)
+      .then((result) => {
+        if (!result.ok) {
+          setDialogError(result.error.message)
+          return
+        }
+        setViewContent(result.value.content)
+      })
+      .catch((cause: unknown) => { setDialogError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setDialogBusy(false) })
+  }
+
+  const openPresetLocation = (id: string): void => {
+    setDialogError(undefined)
+    void runtime.remote.settings.openAgentPresetDirectory(id)
+      .then((result) => {
+        if (!result.ok) {
+          setDialogError(result.error.message)
+          return
+        }
+        const value = result.value as { readonly opened?: boolean; readonly path?: string }
+        if (typeof value.path === 'string') {
+          setRevealedPaths(previous => ({ ...previous, [id]: value.path as string }))
+        }
+      })
+      .catch((cause: unknown) => { setDialogError(cause instanceof Error ? cause.message : String(cause)) })
+  }
+
+  const confirmCopy = (): void => {
+    if (dialog?.kind !== 'copy' || dialogBusy) return
+    const id = copyId.trim()
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+      setDialogError(t('settings.agentPresets.idInvalid'))
+      return
+    }
+    if (presets.some(preset => preset.id === id)) {
+      setDialogError(t('settings.agentPresets.idTaken'))
+      return
+    }
+    setDialogBusy(true)
+    setDialogError(undefined)
+    void runtime.remote.agentPresets.copy(dialog.from, id, copyName.trim() === '' ? undefined : copyName.trim())
+      .then((result) => {
+        if (!result.ok) {
+          setDialogError(result.error.message)
+          return
+        }
+        closeDialog(true)
+        roster.reload()
+        openPresetLocation(id)
+      })
+      .catch((cause: unknown) => { setDialogError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setDialogBusy(false) })
+  }
+
+  const confirmDelete = (): void => {
+    if (dialog?.kind !== 'delete' || dialogBusy) return
+    setDialogBusy(true)
+    setDialogError(undefined)
+    void runtime.remote.agentPresets.deletePreset(dialog.id)
+      .then((result) => {
+        if (!result.ok) {
+          setDialogError(result.error.message)
+          return
+        }
+        closeDialog(true)
+        setSelectedDefault(undefined)
+        roster.reload()
+      })
+      .catch((cause: unknown) => { setDialogError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setDialogBusy(false) })
+  }
 
   if (roster.loading) return <EmptyState><Spinner /></EmptyState>
   if (roster.error !== undefined) return <EmptyState>{roster.error}</EmptyState>
@@ -810,14 +934,90 @@ function AgentPresetsSection() {
                   key={preset.id}
                   title={preset.name ?? preset.id}
                   body={[preset.description, preset.broken].filter(Boolean).join(' · ')}
-                  control={preset.id === defaultId
-                    ? <span className={css.badge}>{t('settings.models.default')}</span>
-                    : undefined}
+                  control={(
+                    <div className={css.presetActions}>
+                      {preset.id === defaultId ? <span className={css.badge}>{t('settings.models.default')}</span> : null}
+                      {preset.trust === 'system' && preset.broken === undefined
+                        ? <Button onClick={() => { viewPreset(preset.id) }}>{t('settings.agentPresets.view')}</Button>
+                        : null}
+                      {authorable && preset.broken === undefined
+                        ? <Button onClick={() => { beginCopy(preset.id) }}>{t('settings.agentPresets.copy')}</Button>
+                        : null}
+                      {preset.trust === 'user'
+                        ? (
+                          <>
+                            <Button onClick={() => { openPresetLocation(preset.id) }}>{canOpenDirectory ? t('settings.agentPresets.openLocation') : t('settings.agentPresets.showLocation')}</Button>
+                            <Button onClick={() => { setDialogError(undefined); setDialog({ kind: 'delete', id: preset.id }) }}>{t('settings.agentPresets.delete')}</Button>
+                          </>
+                        )
+                        : null}
+                    </div>
+                  )}
                 />
               ))}
             </div>
           </>
         )}
+      {dialog === undefined
+        ? null
+        : (
+          <div className={css.dialogBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog() }}>
+            <div className={css.dialog} role="dialog" aria-modal="true" aria-labelledby="dcode-settings-dialog-title">
+              {dialog.kind === 'copy'
+                ? (
+                  <>
+                    <div className={css.dialogHeader}>
+                      <div id="dcode-settings-dialog-title" className={css.dialogTitle}>{t('settings.agentPresets.copyTitle')}</div>
+                      <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.close')}</Button>
+                    </div>
+                    <p className={css.dialogBody}>{t('settings.agentPresets.copyBody')}</p>
+                    <label className={css.field}>
+                      <span className={css.fieldLabel}>{t('settings.agentPresets.id')}</span>
+                      <input className={css.fieldInput} autoFocus value={copyId} placeholder="my-agent" disabled={dialogBusy} onChange={event => { setCopyId(event.target.value) }} />
+                    </label>
+                    <label className={css.field}>
+                      <span className={css.fieldLabel}>{t('settings.agentPresets.name')}</span>
+                      <input className={css.fieldInput} value={copyName} placeholder={t('settings.agentPresets.namePlaceholder')} disabled={dialogBusy} onChange={event => { setCopyName(event.target.value) }} />
+                    </label>
+                    {dialogError === undefined ? null : <div className={css.inlineError} role="alert">{dialogError}</div>}
+                    <div className={css.dialogActions}>
+                      <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.cancel')}</Button>
+                      <Button primary onClick={confirmCopy} disabled={dialogBusy}>{dialogBusy ? t('common.saving') : t('settings.agentPresets.copy')}</Button>
+                    </div>
+                  </>
+                )
+                : dialog.kind === 'view'
+                  ? (
+                    <>
+                      <div className={css.dialogHeader}>
+                        <div id="dcode-settings-dialog-title" className={css.dialogTitle}>{t('settings.agentPresets.view')}</div>
+                        <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.close')}</Button>
+                      </div>
+                      {dialogBusy ? <EmptyState><Spinner /></EmptyState> : viewContent === undefined ? <div className={css.inlineError} role="alert">{dialogError ?? t('common.error')}</div> : <pre className={css.viewerCode}>{viewContent}</pre>}
+                    </>
+                  )
+                  : (
+                    <>
+                      <div className={css.dialogHeader}>
+                        <div id="dcode-settings-dialog-title" className={css.dialogTitle}>{t('settings.agentPresets.deleteTitle')}</div>
+                        <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.close')}</Button>
+                      </div>
+                      <p className={css.dialogBody}>{t('settings.agentPresets.deleteBody')}</p>
+                      {dialogError === undefined ? null : <div className={css.inlineError} role="alert">{dialogError}</div>}
+                      <div className={css.dialogActions}>
+                        <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.cancel')}</Button>
+                        <Button primary onClick={confirmDelete} disabled={dialogBusy}>{dialogBusy ? t('common.saving') : t('settings.agentPresets.delete')}</Button>
+                      </div>
+                    </>
+                  )}
+            </div>
+          </div>
+        )}
+      {Object.entries(revealedPaths).map(([id, path]) => (
+        <div className={css.revealedPath} key={id}>
+          <span>{`${id}: `}</span><code>{path}</code>
+        </div>
+      ))}
     </Section>
   )
 }

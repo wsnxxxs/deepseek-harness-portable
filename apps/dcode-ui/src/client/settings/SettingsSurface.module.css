@@ -459,6 +459,100 @@
   padding-top: var(--zx-space-1);
 }
 
+.presetActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+}
+
+.dialogBackdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--zx-space-6);
+  background: rgb(0 0 0 / 42%);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-4);
+  width: min(520px, 100%);
+  max-height: min(680px, 90vh);
+  box-sizing: border-box;
+  padding: var(--zx-space-5);
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-card), 0 18px 48px rgb(0 0 0 / 28%);
+  overflow: hidden auto;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-4);
+}
+
+.dialogTitle {
+  color: var(--zx-label);
+  font-size: var(--zx-text-lg);
+  font-weight: 500;
+}
+
+.dialogBody {
+  margin: 0;
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--zx-space-2);
+  padding-top: var(--zx-space-1);
+}
+
+.viewerCode {
+  max-height: 52vh;
+  margin: 0;
+  padding: var(--zx-space-4);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-panel);
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  line-height: 1.6;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.revealedPath {
+  margin: 0;
+  padding: var(--zx-space-3) var(--zx-space-4);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-panel);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.revealedPath code {
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+}
+
 .notice {
   padding: var(--zx-space-3) var(--zx-space-4);
   border: 1px solid color-mix(in srgb, var(--zx-warning, #d9a441) 35%, var(--zx-border-soft));
@@ -476,5 +570,10 @@
 
   .providerHead > button {
     flex: 0 0 auto;
+  }
+
+  .presetActions {
+    align-items: flex-end;
+    flex-direction: column;
   }
 }
