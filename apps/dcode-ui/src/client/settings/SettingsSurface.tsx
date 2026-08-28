@@ -19,6 +19,7 @@ import {
   IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16,
   IconSkillOutline16, IconSparkle16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync, useSessionList } from '../state/hooks.ts'
@@ -49,6 +50,12 @@ const RAIL: readonly { group: DcodeKey; items: readonly { id: SettingsSection; l
     items: [
       { id: 'plugins', label: 'settings.plugins' },
       { id: 'agentPresets', label: 'settings.agentPresets' },
+    ],
+  },
+  {
+    group: 'settings.group.data',
+    items: [
+      { id: 'usage', label: 'settings.usage' },
     ],
   },
 ]
@@ -546,52 +553,164 @@ interface UsageProjection {
 
 interface SessionStatsProjection {
   readonly turns?: number
+  readonly steps?: number
+}
+
+interface UsageTotals {
+  readonly sessions: number
+  readonly usageSessions: number
+  readonly turns: number
+  readonly steps: number
+  readonly uncachedInputTokens: number
+  readonly outputTokens: number
+  readonly cacheReadTokens: number
+  readonly cacheWriteTokens: number
+  readonly hasUsage: boolean
+  readonly hasStats: boolean
+}
+
+const INTEGER_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+
+function formatTokenCount(value: number): string {
+  return INTEGER_FORMATTER.format(value)
+}
+
+function formatPercent(value: number): string {
+  const percent = Math.round(value * 1_000) / 10
+  return `${percent}%`
 }
 
 /** Token accounting aggregated from the Session list's durable projections. */
+function aggregateUsage(list: SessionListState): UsageTotals {
+  let sessions = 0
+  let usageSessions = 0
+  let turns = 0
+  let steps = 0
+  let uncachedInputTokens = 0
+  let outputTokens = 0
+  let cacheReadTokens = 0
+  let cacheWriteTokens = 0
+  let hasStats = false
+
+  for (const id of list.ids) {
+    const row = list.byId[id]
+    if (row === undefined) continue
+    sessions += 1
+    const projections = row.projectionValues as {
+      tokenUsage?: UsageProjection
+      sessionStats?: SessionStatsProjection
+    } | undefined
+    const stats = projections?.sessionStats
+    if (stats !== undefined) {
+      hasStats = true
+      turns += stats.turns ?? 0
+      steps += stats.steps ?? 0
+    }
+    const usage = projections?.tokenUsage
+    if (usage === undefined) continue
+    uncachedInputTokens += usage.uncachedInputTokens ?? 0
+    outputTokens += usage.outputTokens ?? 0
+    cacheReadTokens += usage.cacheReadTokens ?? 0
+    cacheWriteTokens += usage.cacheWriteTokens ?? 0
+    if ((usage.uncachedInputTokens ?? 0)
+      + (usage.outputTokens ?? 0)
+      + (usage.cacheReadTokens ?? 0)
+      + (usage.cacheWriteTokens ?? 0) > 0) {
+      usageSessions += 1
+    }
+  }
+
+  return {
+    sessions,
+    usageSessions,
+    turns,
+    steps,
+    uncachedInputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    hasUsage: uncachedInputTokens + outputTokens + cacheReadTokens + cacheWriteTokens > 0,
+    hasStats,
+  }
+}
+
+function UsageMetric(props: { title: string; value: string }) {
+  return (
+    <div className={css.usageMetric}>
+      <span className={css.usageMetricTitle}>{props.title}</span>
+      <strong className={css.usageMetricValue}>{props.value}</strong>
+    </div>
+  )
+}
+
 function UsageSection() {
   const t = useT()
   const list = useSessionList()
 
-  const totals = useMemo(() => {
-    let turns = 0
-    let tokens = 0
-    let hasStats = false
-    let hasUsage = false
-    for (const id of list.ids) {
-      const projections = list.byId[id]?.projectionValues as {
-        tokenUsage?: UsageProjection
-        sessionStats?: SessionStatsProjection
-      } | undefined
-      const stats = projections?.sessionStats
-      if (stats !== undefined) {
-        hasStats = true
-        turns += stats.turns ?? 0
-      }
-      const usage = projections?.tokenUsage
-      if (usage !== undefined) {
-        hasUsage = true
-        tokens += (usage.uncachedInputTokens ?? 0)
-          + (usage.outputTokens ?? 0)
-          + (usage.cacheReadTokens ?? 0)
-          + (usage.cacheWriteTokens ?? 0)
-      }
-    }
-    return { turns, tokens, hasStats, hasUsage }
-  }, [list])
+  const totals = useMemo(() => aggregateUsage(list), [list])
+  const promptTokens = totals.uncachedInputTokens + totals.cacheReadTokens + totals.cacheWriteTokens
+  const totalTokens = promptTokens + totals.outputTokens
+  const cacheHit = promptTokens === 0 ? null : totals.cacheReadTokens / promptTokens
+
+  if (list.phase === 'pending') {
+    return (
+      <Section title={t('settings.usage')} body={t('settings.usageBody')}>
+        <div className={css.card}>
+          <div className={css.usageStatus}>{t('settings.usageLoading')}</div>
+        </div>
+      </Section>
+    )
+  }
 
   return (
     <Section title={t('settings.usage')} body={t('settings.usageBody')}>
-      <div className={css.card}>
-        <Row
-          title={t('settings.usageTurns')}
-          control={<span className={css.rowMono}>{totals.hasStats ? totals.turns : '—'}</span>}
+      <div className={css.usageTotal}>
+        <span className={css.usageTotalTitle}>{t('settings.usageTotal')}</span>
+        <strong className={css.usageTotalValue}>{formatTokenCount(totalTokens)}</strong>
+        <span className={css.usageTotalScope}>
+          {t('settings.usageScope', {
+            sessions: formatTokenCount(totals.sessions),
+            usageSessions: formatTokenCount(totals.usageSessions),
+          })}
+        </span>
+      </div>
+      <div className={css.usageGrid}>
+        <UsageMetric
+          title={t('settings.usageInput')}
+          value={formatTokenCount(promptTokens)}
         />
-        <Row
-          title={t('settings.usageTokens')}
-          control={<span className={css.rowMono}>{totals.hasUsage ? totals.tokens : '—'}</span>}
+        <UsageMetric
+          title={t('settings.usageOutput')}
+          value={formatTokenCount(totals.outputTokens)}
+        />
+        <UsageMetric
+          title={t('settings.usageCacheRead')}
+          value={formatTokenCount(totals.cacheReadTokens)}
+        />
+        <UsageMetric
+          title={t('settings.usageCacheWrite')}
+          value={formatTokenCount(totals.cacheWriteTokens)}
         />
       </div>
+      <div className={css.card}>
+        <Row
+          title={t('settings.usageSessions')}
+          control={<span className={css.rowMono}>{formatTokenCount(totals.sessions)}</span>}
+        />
+        <Row
+          title={t('settings.usageTurns')}
+          control={<span className={css.rowMono}>{totals.hasStats ? formatTokenCount(totals.turns) : '—'}</span>}
+        />
+        <Row
+          title={t('settings.usageSteps')}
+          control={<span className={css.rowMono}>{totals.hasStats ? formatTokenCount(totals.steps) : '—'}</span>}
+        />
+        <Row
+          title={t('settings.usageCacheHit')}
+          control={<span className={css.rowMono}>{cacheHit === null ? '—' : formatPercent(cacheHit)}</span>}
+        />
+      </div>
+      {!totals.hasUsage ? <div className={css.usageEmpty}>{t('settings.usageEmpty')}</div> : null}
     </Section>
   )
 }
