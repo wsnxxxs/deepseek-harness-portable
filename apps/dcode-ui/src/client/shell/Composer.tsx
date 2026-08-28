@@ -411,7 +411,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   return (
     <>
       <div className={css.dock}>
-      {blank
+      {blank && sessionId !== undefined
         ? (
           <div className={css.headerRow}>
             <button
