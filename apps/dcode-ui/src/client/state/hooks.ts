@@ -16,8 +16,11 @@ import type {
 import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
-import { useRuntime, type DcodePendingInteraction, type Observable } from './runtime.ts'
+import {
+  EMPTY_TRAJECTORY_SNAPSHOT, useRuntime, type DcodePendingInteraction, type Observable,
+} from './runtime.ts'
 
 /**
  * Subscribe to one DSH observable.
@@ -157,6 +160,24 @@ export function useChatSnapshot(sessionId: SessionId | undefined): ChatSnapshot 
     [runtime, sessionId],
   )
   const snapshot = useObservable(source, undefined as ChatSnapshot | undefined)
+  return source === undefined ? undefined : snapshot
+}
+
+/**
+ * One session's assembled DSH Trajectory ledger.
+ *
+ * This is the same target consumed by the official Trajectory view. DCode only
+ * selects a compact subset for its summary and leaves the full records to the
+ * existing details and diff surfaces.
+ * @param sessionId - session to observe.
+ */
+export function useTrajectorySnapshot(sessionId: SessionId | undefined): TrajectorySnapshot | undefined {
+  const runtime = useRuntime()
+  const source = useMemo(
+    () => (sessionId === undefined ? undefined : runtime.trajectoryFeed(sessionId)),
+    [runtime, sessionId],
+  )
+  const snapshot = useObservable(source, EMPTY_TRAJECTORY_SNAPSHOT)
   return source === undefined ? undefined : snapshot
 }
 

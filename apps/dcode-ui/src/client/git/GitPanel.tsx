@@ -9,10 +9,14 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { IconBranchOutline16, IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconBranchOutline16, IconChevronDownOutline14, IconFolderOpenOutline16,
+  IconRefreshOutline14,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useT } from '../state/i18n.ts'
 import { useRuntime } from '../state/runtime.ts'
+import { useWorkspaceGroups } from '../state/hooks.ts'
 import { Button, DiffCount, EmptyState, IconButton, Popover, Spinner, ui } from '../shell/ui.tsx'
 import { useGitStatus } from './useGit.ts'
 import type { GitFileChange } from '../rpc.ts'
@@ -51,6 +55,7 @@ function codeMark(file: GitFileChange): string {
 export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps) {
   const runtime = useRuntime()
   const t = useT()
+  const { groups } = useWorkspaceGroups()
   const git = useGitStatus(cwd, sessionId)
   const [message, setMessage] = useState('')
   const [committing, setCommitting] = useState(false)
@@ -102,6 +107,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   if (!git.status.repository) return <EmptyState>{t('git.notRepository')}</EmptyState>
 
   const status = git.status
+  const workspace = groups.find(group => group.path === cwd)
 
   return (
     <div className={css.panel}>
@@ -116,6 +122,27 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         <span className={css.summaryLabel}>{t('git.changes')}</span>
         <DiffCount insertions={status.insertions} deletions={status.deletions} />
       </div>
+
+      <Popover
+        label={t('workspace.select')}
+        placement="down"
+        trigger={
+          <>
+            <IconFolderOpenOutline16 />
+            <span>{workspace?.title ?? cwd.split(/[\\/\\]/).filter(Boolean).pop() ?? cwd}</span>
+            <IconChevronDownOutline14 />
+          </>
+        }
+        rows={groups.map(group => ({
+          id: String(group.workspaceId),
+          label: group.title,
+          detail: group.path,
+          icon: <IconFolderOpenOutline16 />,
+          active: group.workspaceId === workspace?.workspaceId,
+          onSelect: () => { runtime.navigation?.startSession(group.workspaceId) },
+        }))}
+        triggerClassName={css.workspaceRow}
+      />
 
       <div className={css.branchRow}>
         <Popover
@@ -133,6 +160,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
             label: branch.name,
             detail: branch.current ? t('git.currentBranch') : undefined,
             disabled: true,
+            active: branch.current,
           }))}
           triggerClassName={css.branchRow}
         />

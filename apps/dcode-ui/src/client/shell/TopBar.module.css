@@ -1,4 +1,4 @@
-/** Top bar: task title, workspace, branch, and the panel/command controls. */
+/** Top bar: task context, Session sharing, and compact layout controls. */
 
 .bar {
   display: flex;
@@ -8,7 +8,7 @@
   align-items: center;
   gap: var(--zx-space-2);
   height: var(--zx-topbar-height);
-  padding: 0 var(--zx-space-3) 0 var(--zx-space-4);
+  padding: 0 var(--zx-space-4);
   border-bottom: 1px solid var(--zx-border-soft);
   background: var(--zx-bg-app);
   /* The frameless desktop window drags from the bar's empty space; the
@@ -57,6 +57,26 @@
   color: var(--zx-label);
 }
 
+/* Popover's trigger is the same compact chip, with the active workspace
+   shown in the menu so selecting another project is visibly confirmed. */
+.workspaceTrigger {
+  justify-content: flex-start;
+  min-width: 0;
+  max-width: 220px;
+  height: 26px;
+  padding: 0 var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  white-space: nowrap;
+}
+
+.workspaceTrigger:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
 .chip:disabled {
   cursor: default;
 }
@@ -78,11 +98,67 @@
   color: var(--zx-warn);
 }
 
-/* Keep the resolved theme control aligned in the same 16px slot as the other
-   primitive icon buttons. */
-.themeGlyph {
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  flex: none;
+}
+
+.shareButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
+  gap: var(--zx-space-2);
+  height: 28px;
+  padding: 0 var(--zx-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.shareButton:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.shareButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.shareButton:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.shareSuccess {
+  color: var(--zx-success);
+}
+
+.shareError {
+  color: var(--zx-error);
+}
+
+.layoutGroup {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.layoutGroup > button {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }

@@ -45,6 +45,29 @@
   white-space: nowrap;
 }
 
+.workspaceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--zx-space-1) 0;
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  white-space: nowrap;
+}
+
+.workspaceRow:hover:not(:disabled) {
+  color: var(--zx-label);
+}
+
+.workspaceRow > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .branchRow > span {
   min-width: 0;
   overflow: hidden;

@@ -1,5 +1,5 @@
 /**
- * The right column: Git changes, Goal and Progress, and the details of
+ * The floating right card: Git changes, Goal and Progress, and the details of
  * whatever the operator last clicked.
  *
  * Goal is the host-computed `goal` projection — the same value the official
@@ -15,28 +15,23 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { useAsync, useChatSnapshot, useProjectionValue } from '../state/hooks.ts'
+import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type AsideTab, type DiffTarget, type NavigationStore } from '../state/navigation.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
 import { DiffViewer } from '../git/DiffViewer.tsx'
 import { EmptyState, Pill, Spinner, ui } from './ui.tsx'
-import { parseArgs, resultText, summarizeTool } from '../chat/tools.ts'
+import { latestTodos, resultText, summarizeTool } from '../chat/tools.ts'
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import css from './Aside.module.css'
 
-/** Props of the right column. */
+/** Props of the floating right card. */
 export interface AsideProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
   readonly cwd: string | undefined
-}
-
-/** One todo row, as the `todo_write` tool records it. */
-interface TodoRow {
-  readonly content: string
-  readonly status: 'pending' | 'in_progress' | 'completed'
 }
 
 /** The goal projection's shape, read structurally to avoid a package edge. */
@@ -59,30 +54,14 @@ function* walkCalls(block: ToolCallBlock): Generator<ToolCallBlock> {
  * records the whole list on every write, so the last call is the whole plan
  * even when earlier ones fell outside the loaded history window.
  */
-function latestTodos(nodes: readonly ConversationNode[]): readonly TodoRow[] {
-  for (let index = nodes.length - 1; index >= 0; index -= 1) {
-    const node = nodes[index]
-    if (node?.kind !== 'tool-result') continue
-    for (const block of walkCalls(node as ToolCallBlock)) {
-      const name = 'isError' in block ? block.call?.name : block.name
-      if (name !== 'todo_write') continue
-      const argsRaw = 'isError' in block ? block.call?.argsRaw : block.argsRaw
-      const todos = parseArgs(argsRaw).todos
-      if (!Array.isArray(todos)) continue
-      return todos.filter((row): row is TodoRow =>
-        typeof row === 'object' && row !== null
-        && typeof (row as TodoRow).content === 'string')
-    }
-  }
-  return []
-}
-
 /** Goal and Progress. */
 function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
   const t = useT()
   const goal = useProjectionValue<GoalProjectionView | null>(sessionId, 'goal')
+  const projectedTodos = useProjectionValue<readonly TodoItem[] | null>(sessionId, 'todos')
   const chat = useChatSnapshot(sessionId)
-  const todos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat])
+  const fallbackTodos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat])
+  const todos = projectedTodos === undefined ? fallbackTodos : projectedTodos ?? []
   const done = todos.filter(todo => todo.status === 'completed').length
 
   return (
@@ -129,7 +108,11 @@ function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
               className={`${css.step} ${todo.status === 'completed' ? css.stepDone : ''} ${todo.status === 'in_progress' ? css.stepActive : ''}`}
             >
               <span className={`${css.stepMark} ${todo.status === 'completed' ? css.stepMarkDone : ''}`} aria-hidden>
-                {todo.status === 'completed' ? <IconCheckOutline14 /> : todo.status === 'in_progress' ? '◐' : '○'}
+                {todo.status === 'completed'
+                  ? <IconCheckOutline14 />
+                  : todo.status === 'in_progress'
+                    ? <span className={css.stepProgress} aria-hidden />
+                    : <span className={css.stepPending} aria-hidden />}
               </span>
               <span>{todo.content}</span>
             </div>
@@ -154,23 +137,30 @@ function DetailsPanel({
   const runtime = useRuntime()
   const t = useT()
   const chat = useChatSnapshot(sessionId)
+  const trajectory = useTrajectorySnapshot(sessionId)
   const [wrap, setWrap] = useState(true)
 
   const block = useMemo(() => {
     if (callId === undefined) return undefined
-    for (const node of chat?.legacy.nodes ?? []) {
+    const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
+      ? chat?.legacy.nodes ?? []
+      : trajectory.eventNodes
+    for (const node of nodes) {
       if (node.kind !== 'tool-result') continue
       for (const candidate of walkCalls(node as ToolCallBlock)) {
         if (candidate.callId === callId) return candidate
       }
     }
-    for (const running of chat?.legacy.runningCalls ?? []) {
+    const runningCalls = trajectory === undefined || trajectory.runningCalls.length === 0
+      ? chat?.legacy.runningCalls ?? []
+      : trajectory.runningCalls
+    for (const running of runningCalls) {
       for (const candidate of walkCalls(running)) {
         if (candidate.callId === callId) return candidate
       }
     }
     return undefined
-  }, [chat, callId])
+  }, [chat, trajectory, callId])
 
   const filePath = block === undefined ? diff?.path : undefined
   const fileRead = useAsync(
@@ -248,7 +238,7 @@ function DetailsPanel({
   )
 }
 
-/** The right column with its three tabs. */
+/** The floating workbench card with its three content views. */
 export function Aside({ navigation, sessionId, cwd }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
@@ -261,11 +251,16 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
 
   return (
     <aside className={css.aside} aria-label={t('details.title')}>
-      <div className={css.tabs}>
+      <header className={css.header}>
+        <span className={css.headerTitle}>{t('aside.title')}</span>
+      </header>
+      <div className={css.tabs} role="tablist" aria-label={t('aside.title')}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={state.aside === tab.id}
             className={`${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`}
             onClick={() => { navigation.openAside(tab.id) }}
           >

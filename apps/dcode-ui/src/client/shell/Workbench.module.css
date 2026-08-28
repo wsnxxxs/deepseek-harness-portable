@@ -1,10 +1,10 @@
-/** Workbench frame: rail | center | aside, under one top bar. */
+/** Workbench frame: rail | center, with a floating inspector card. */
 
 .root {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: 1fr;
   background: var(--zx-bg-app);
   color: var(--zx-label);
@@ -12,6 +12,7 @@
   font-size: var(--zx-text-sm);
   line-height: var(--zx-leading-tight);
   overflow: hidden;
+  isolation: isolate;
   /* The Windows shell reserves its own overlay strip at the top of the
      renderer; the frame starts below whatever the host reserved. */
   padding-top: var(--dsh-desktop-titlebar-height, 0px);
@@ -61,20 +62,31 @@
 }
 
 .aside {
-  width: var(--zx-aside-width);
-  min-width: var(--zx-aside-width);
-  border-left: 1px solid var(--zx-border-soft);
-  background: var(--zx-bg-panel);
+  position: absolute;
+  z-index: 10;
+  top: calc(var(--dsh-desktop-titlebar-height, 0px) + var(--zx-topbar-height) + var(--zx-space-4));
+  right: var(--zx-space-4);
+  width: min(300px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: min(522px, calc(100vh - var(--dsh-desktop-titlebar-height, 0px) - var(--zx-topbar-height) - 28px));
+  min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: width var(--zx-motion), min-width var(--zx-motion);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-xl);
+  background: var(--zx-bg-card);
+  box-shadow: var(--zx-shadow-panel);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
+  transition: opacity var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);
 }
 
 .asideCollapsed {
-  width: 0;
-  min-width: 0;
-  border-left-color: transparent;
+  opacity: 0;
+  transform: translateY(-8px);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* One full-bleed surface (learning, settings) replacing rail + center + aside. */
@@ -105,4 +117,14 @@
 
 .scroll::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@media (max-width: 640px) {
+  .aside {
+    top: calc(var(--dsh-desktop-titlebar-height, 0px) + var(--zx-topbar-height) + var(--zx-space-2));
+    right: var(--zx-space-3);
+    width: min(300px, calc(100vw - 32px));
+    height: fit-content;
+    max-height: min(522px, calc(100vh - var(--dsh-desktop-titlebar-height, 0px) - var(--zx-topbar-height) - 20px));
+  }
 }

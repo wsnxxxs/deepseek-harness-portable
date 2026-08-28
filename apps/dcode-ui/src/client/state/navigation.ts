@@ -48,6 +48,8 @@ export interface NavigationState {
   readonly view: WorkbenchView
   readonly aside: AsideTab
   readonly asideOpen: boolean
+  /** Whether the compact, pinned summary above the composer is visible. */
+  readonly summaryOpen: boolean
   readonly railOpen: boolean
   readonly paletteOpen: boolean
   readonly settingsSection: SettingsSection
@@ -60,6 +62,7 @@ const INITIAL: NavigationState = {
   view: 'session',
   aside: 'changes',
   asideOpen: true,
+  summaryOpen: true,
   railOpen: true,
   paletteOpen: false,
   settingsSection: 'general',
@@ -88,6 +91,7 @@ export interface NavigationStore {
   togglePalette(open?: boolean): void
   toggleRail(): void
   toggleAside(): void
+  toggleSummary(): void
 }
 
 /**
@@ -120,6 +124,7 @@ export function createNavigationStore(): NavigationStore {
     togglePalette: open => { patch({ paletteOpen: open ?? !state.paletteOpen }) },
     toggleRail: () => { patch({ railOpen: !state.railOpen }) },
     toggleAside: () => { patch({ asideOpen: !state.asideOpen }) },
+    toggleSummary: () => { patch({ summaryOpen: !state.summaryOpen }) },
   }
 }
 

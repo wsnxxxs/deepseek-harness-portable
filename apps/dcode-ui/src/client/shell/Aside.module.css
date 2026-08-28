@@ -1,32 +1,45 @@
-/** Right column: git changes, goal and progress, tool/file details. */
+/** Floating Codex-style card: git changes, goal/progress, and tool/file details. */
 
 .aside {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-width: var(--zx-aside-width);
+  height: auto;
+  max-height: 100%;
+  min-width: 0;
   overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 42px;
+  padding: 0 var(--zx-space-4);
+}
+
+.headerTitle {
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-sm);
+  font-weight: 600;
 }
 
 .tabs {
   display: flex;
   align-items: center;
-  gap: var(--zx-space-1);
-  padding: 0 var(--zx-space-3);
-  height: var(--zx-topbar-height);
+  gap: var(--zx-space-4);
+  flex: none;
+  margin: 0 var(--zx-space-3);
+  padding: 0 var(--zx-space-1);
   border-bottom: 1px solid var(--zx-border-soft);
-  -webkit-app-region: drag;
-}
-
-.tabs > * {
-  -webkit-app-region: no-drag;
 }
 
 .tab {
-  height: 26px;
-  padding: 0 var(--zx-space-3);
+  flex: none;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--zx-space-1);
   border: 0;
-  border-radius: var(--zx-radius-md);
+  border-radius: var(--zx-radius-sm) var(--zx-radius-sm) 0 0;
   background: transparent;
   color: var(--zx-label-muted);
   font: inherit;
@@ -40,18 +53,18 @@
 }
 
 .tabActive {
-  background: var(--zx-bg-active);
   color: var(--zx-label);
+  box-shadow: inset 0 -1px 0 var(--zx-label-secondary);
 }
 
 .body {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   overflow: hidden auto;
-  padding: var(--zx-space-4) var(--zx-space-4) var(--zx-space-6);
+  padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-5);
+  gap: var(--zx-space-6);
   scrollbar-width: thin;
   scrollbar-color: var(--zx-border) transparent;
 }
@@ -135,6 +148,29 @@
 
 .stepMarkDone {
   color: var(--zx-success);
+}
+
+.stepProgress,
+.stepPending {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 2px;
+  border-radius: 50%;
+}
+
+.stepProgress {
+  border: 1.5px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);
+  border-top-color: var(--zx-accent);
+  animation: zx-step-spin 700ms linear infinite;
+}
+
+.stepPending {
+  border: 1px solid var(--zx-label-faint);
+}
+
+@keyframes zx-step-spin {
+  to { transform: rotate(360deg); }
 }
 
 .detailBlock {
