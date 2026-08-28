@@ -30,6 +30,11 @@ import type { DcodeKey } from '../locales.ts'
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
 import { SelectMenu } from './SelectMenu.tsx'
 import css from './SettingsSurface.module.css'
+import type {
+  CredentialInfo, JsonValue, LlmConfigurableProvider, LlmProviderInfo,
+  ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
+} from '@deepseek-ai/dsh-api-remotes/client'
+import type { DcodeRuntime } from '../state/runtime.ts'
 
 /** Props of the settings surface. */
 export interface SettingsSurfaceProps {
@@ -250,65 +255,345 @@ function GeneralSection() {
   )
 }
 
-/** Provider routes and the model catalogue the composer selects from. */
+function objectAt(source: unknown, path: readonly string[]): Record<string, unknown> | undefined {
+  let current: unknown = source
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined
+    current = (current as Record<string, unknown>)[key]
+  }
+  return typeof current === 'object' && current !== null && !Array.isArray(current)
+    ? current as Record<string, unknown>
+    : undefined
+}
+
+function valueAt(source: unknown, path: readonly string[]): unknown {
+  let current: unknown = source
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current
+}
+
+function stringAt(source: unknown, path: readonly string[]): string | undefined {
+  const value = valueAt(source, path)
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+function modelCredentialRef(provider: string, profile: Record<string, unknown> | undefined): string {
+  const named = stringAt(profile, ['apiKeyEnv'])
+  return named ?? `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+}
+
+interface ModelProviderRow {
+  readonly id: string
+  readonly name: string
+  readonly active: boolean
+  readonly settingsNs: string
+  readonly settingsPath: readonly string[]
+  readonly namespace: SettingsNamespaceView | undefined
+  readonly profile: Record<string, unknown> | undefined
+  readonly userProfile: Record<string, unknown> | undefined
+  readonly credentialRef: string
+  readonly credential: CredentialInfo | undefined
+  readonly declared?: boolean
+}
+
+interface ModelSettingsData {
+  readonly catalog: ModelCatalog
+  readonly providers: readonly ModelProviderRow[]
+  readonly writable: boolean
+  readonly hasDocument: boolean
+  readonly credentialError?: string
+}
+
+function modelProviderRows(
+  registered: readonly LlmProviderInfo[],
+  configurable: readonly LlmConfigurableProvider[],
+  namespaces: readonly SettingsNamespaceView[],
+  credentials: Readonly<Record<string, CredentialInfo>>,
+): ModelProviderRow[] {
+  const active = new Set(registered.map(provider => provider.id))
+  const declared = new Set(configurable.map(provider => provider.provider))
+  const rows = configurable.map((provider) => {
+    const namespace = namespaces.find(view => view.ns === provider.settingsNs)
+    const profile = objectAt(namespace?.value, provider.settingsPath)
+    const userProfile = objectAt(namespace?.user, provider.settingsPath)
+    const credentialRef = modelCredentialRef(provider.provider, profile)
+    return {
+      id: provider.provider,
+      name: provider.displayName,
+      active: active.has(provider.provider),
+      settingsNs: provider.settingsNs,
+      settingsPath: provider.settingsPath,
+      namespace,
+      profile,
+      userProfile,
+      credentialRef,
+      credential: credentials[credentialRef],
+      ...provider.declared === undefined ? {} : { declared: provider.declared },
+    }
+  })
+  for (const provider of registered) {
+    if (declared.has(provider.id)) continue
+    rows.push({
+      id: provider.id,
+      name: provider.name,
+      active: true,
+      settingsNs: '',
+      settingsPath: [],
+      namespace: undefined,
+      profile: undefined,
+      userProfile: undefined,
+      credentialRef: modelCredentialRef(provider.id, undefined),
+      credential: credentials[modelCredentialRef(provider.id, undefined)],
+    })
+  }
+  return rows
+}
+
+async function loadModelSettings(runtime: DcodeRuntime): Promise<ModelSettingsData> {
+  const [catalog, registered, configurable, described] = await Promise.all([
+    runtime.remote.session.modelCatalog(),
+    runtime.remote.llm.listProviders(),
+    runtime.remote.llm.listConfigurableProviders(),
+    runtime.remote.settings.describe(),
+  ])
+  if (!catalog.ok) throw new Error(catalog.error.message)
+  if (!registered.ok) throw new Error(registered.error.message)
+  if (!configurable.ok) throw new Error(configurable.error.message)
+  if (!described.ok) throw new Error(described.error.message)
+  const refs = [...new Set([
+    ...configurable.value.map(provider => {
+      const namespace = described.value.namespaces.find(view => view.ns === provider.settingsNs)
+      return modelCredentialRef(provider.provider, objectAt(namespace?.value, provider.settingsPath))
+    }),
+    ...registered.value
+      .filter(provider => !configurable.value.some(candidate => candidate.provider === provider.id))
+      .map(provider => modelCredentialRef(provider.id, undefined)),
+  ])]
+  let credentials: Readonly<Record<string, CredentialInfo>> = {}
+  let credentialError: string | undefined
+  if (refs.length > 0) {
+    try {
+      const response = await runtime.remote.credentials.describe(refs)
+      if (response.ok) credentials = response.value
+      else credentialError = response.error.message
+    } catch (cause: unknown) {
+      credentialError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+  return {
+    catalog: catalog.value,
+    providers: modelProviderRows(
+      registered.value,
+      configurable.value,
+      described.value.namespaces,
+      credentials,
+    ),
+    writable: described.value.writable,
+    hasDocument: described.value.hasDocument,
+    ...credentialError === undefined ? {} : { credentialError },
+  }
+}
+
+function ModelProviderCard(props: {
+  row: ModelProviderRow
+  writable: boolean
+  onReload: () => void
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const [baseURL, setBaseURL] = useState(() => stringAt(props.row.profile, ['baseURL']) ?? '')
+  const [apiKey, setApiKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | undefined>()
+  const profileEditable = props.writable && props.row.namespace !== undefined && props.row.settingsNs !== ''
+  const keyEditable = props.row.credential?.writable !== false
+  const editable = profileEditable || keyEditable
+
+  useEffect(() => {
+    if (open) return
+    setBaseURL(stringAt(props.row.profile, ['baseURL']) ?? '')
+    setApiKey('')
+    setFailure(undefined)
+  }, [open, props.row.profile])
+
+  const save = async (): Promise<void> => {
+    if (busy || !editable) return
+    setBusy(true)
+    setFailure(undefined)
+    try {
+      const namespace = props.row.namespace
+      const ops: SettingsPathOpView[] = []
+      if (profileEditable && namespace !== undefined) {
+        const storedBaseURL = stringAt(valueAt(namespace.user, [...props.row.settingsPath, 'baseURL']), [])
+        const effectiveBaseURL = stringAt(props.row.profile, ['baseURL'])
+        const nextBaseURL = baseURL.trim()
+        if (nextBaseURL.length === 0) {
+          if (storedBaseURL !== undefined) ops.push({ op: 'unset', path: [...props.row.settingsPath, 'baseURL'] })
+        } else if (nextBaseURL !== storedBaseURL && !(storedBaseURL === undefined && nextBaseURL === effectiveBaseURL)) {
+          ops.push({
+            op: 'set',
+            path: [...props.row.settingsPath, 'baseURL'],
+            value: nextBaseURL as JsonValue,
+          })
+        }
+        if (props.row.settingsNs === 'llm-pi-ai'
+          && stringAt(props.row.profile, ['apiKeyEnv']) === undefined
+          && apiKey.trim().length > 0) {
+          ops.push({
+            op: 'set',
+            path: [...props.row.settingsPath, 'apiKeyEnv'],
+            value: props.row.credentialRef as JsonValue,
+          })
+        }
+        if (ops.length > 0) {
+          const response = await runtime.remote.settings.mutate(
+            props.row.settingsNs,
+            ops,
+            namespace.revision,
+          )
+          if (!response.ok) throw new Error(response.error.message)
+        }
+      }
+      if (apiKey.trim().length > 0) {
+        const response = await runtime.remote.credentials.set(props.row.credentialRef, apiKey.trim())
+        if (!response.ok) throw new Error(response.error.message)
+      }
+      if (ops.length === 0 && apiKey.trim().length === 0) {
+        setOpen(false)
+        return
+      }
+      setOpen(false)
+      props.onReload()
+    } catch (cause: unknown) {
+      setFailure(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusLabel = props.row.credential?.configured === true
+    ? t('settings.models.keyConfigured')
+    : t('settings.models.keyMissing')
+
+  return (
+    <div className={css.providerCard}>
+      <div className={css.providerHead}>
+        <span className={`${css.statusDot} ${props.row.credential?.configured === true ? css.statusDotGood : css.statusDotMissing}`} aria-label={statusLabel} title={statusLabel} />
+        <div className={css.rowText}>
+          <div className={css.rowTitle}>{props.row.name}</div>
+          <div className={css.rowBody}>{props.row.id}{props.row.active ? '' : ` · ${t('settings.models.inactive')}`}</div>
+        </div>
+        {editable
+          ? <Button onClick={() => { setOpen(value => !value); setFailure(undefined) }}>{open ? t('common.close') : t('common.edit')}</Button>
+          : <span className={css.badge}>{t('common.readOnly')}</span>}
+      </div>
+      {open
+        ? (
+          <div className={css.providerEditor}>
+            <label className={css.field}>
+              <span className={css.fieldLabel}>{t('settings.models.apiKey')}</span>
+              <input
+                className={css.fieldInput}
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                placeholder={props.row.credential?.configured === true ? t('settings.models.keyConfiguredHint') : t('settings.models.keyPlaceholder')}
+                disabled={busy || !keyEditable}
+                onChange={event => { setApiKey(event.target.value) }}
+              />
+            </label>
+            {profileEditable
+              ? (
+                <label className={css.field}>
+                  <span className={css.fieldLabel}>{t('settings.models.baseURL')}</span>
+                  <input
+                    className={css.fieldInput}
+                    type="url"
+                    value={baseURL}
+                    placeholder={t('settings.models.baseURLPlaceholder')}
+                    disabled={busy}
+                    onChange={event => { setBaseURL(event.target.value) }}
+                  />
+                </label>
+              )
+              : null}
+            {failure === undefined ? null : <div className={css.inlineError} role="alert">{failure}</div>}
+            <div className={css.editorActions}>
+              <Button onClick={() => { setOpen(false) }} disabled={busy}>{t('common.cancel')}</Button>
+              <Button primary onClick={() => { void save() }} disabled={busy}>{busy ? t('common.saving') : t('common.save')}</Button>
+            </div>
+          </div>
+        )
+        : null}
+    </div>
+  )
+}
+
+/** Provider routes, catalog, and the editable credential/profile controls. */
 function ModelsSection() {
   const runtime = useRuntime()
   const t = useT()
-  const catalog = useAsync(async () => await runtime.remote.session.modelCatalog(), [runtime])
+  const models = useAsync(async () => await loadModelSettings(runtime), [runtime])
 
-  if (catalog.loading) return <EmptyState><Spinner /></EmptyState>
-  if (catalog.value?.ok !== true) {
-    return <EmptyState>{catalog.error ?? (catalog.value?.ok === false ? catalog.value.error.message : t('common.error'))}</EmptyState>
-  }
-  const value = catalog.value.value
+  if (models.loading && models.value === undefined) return <EmptyState><Spinner /></EmptyState>
+  if (models.error !== undefined && models.value === undefined) return <EmptyState>{models.error}</EmptyState>
+  if (models.value === undefined) return <EmptyState>{t('common.error')}</EmptyState>
+  const value = models.value
   const providerName = (providerId: string): string =>
-    value.groups.find(group => group.id === providerId)?.name
-      ?? value.failures.find(failure => failure.id === providerId)?.name
+    value.catalog.groups.find(group => group.id === providerId)?.name
+      ?? value.catalog.failures.find(failure => failure.id === providerId)?.name
       ?? providerId
-  const defaultGroup = value.groups.find(group =>
-    group.id === value.default.provider
-    && group.models.some(model => model.id === value.default.model))
-  const defaultModel = defaultGroup?.models.find(model => model.id === value.default.model)
+  const defaultGroup = value.catalog.groups.find(group =>
+    group.id === value.catalog.default.provider
+    && group.models.some(model => model.id === value.catalog.default.model))
+  const defaultModel = defaultGroup?.models.find(model => model.id === value.catalog.default.model)
 
   return (
-    <Section title={t('settings.models')}>
+    <Section title={t('settings.models')} body={t('settings.modelsBody')}>
       <div className={css.card}>
         <Row
           title={t('settings.models.default')}
-          body={defaultGroup?.name ?? providerName(value.default.provider)}
+          body={defaultGroup?.name ?? providerName(value.catalog.default.provider)}
           control={<span>{defaultModel?.name ?? t('common.none')}</span>}
         />
         <Row
           title={t('settings.models.routable')}
           control={(
             <span className={css.rowMono}>
-              {value.routableProviders.map(providerName).join(', ') || t('common.none')}
+              {value.catalog.routableProviders.map(providerName).join(', ') || t('common.none')}
             </span>
           )}
         />
       </div>
-      {value.groups.map(group => (
+      {value.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.models.credentialWarning')}: ${value.credentialError}`}</div>}
+      <div className={css.providerList}>
+        {value.providers.map(row => <ModelProviderCard key={row.id} row={row} writable={value.writable} onReload={models.reload} />)}
+      </div>
+      {value.catalog.groups.map(group => (
         <div className={css.card} key={group.id}>
           <Row title={group.name} control={<span className={css.badge}>{group.models.length}</span>} />
           {group.models.map(model => (
-            <Row
-              key={model.id}
-              title={model.name}
-              body={model.description}
-            />
+            <Row key={model.id} title={model.name} body={model.description} />
           ))}
         </div>
       ))}
-      {value.failures.length === 0
+      {value.catalog.failures.length === 0
         ? null
         : (
           <div className={css.card}>
             <Row title={t('settings.models.failures')} />
-            {value.failures.map(failure => (
+            {value.catalog.failures.map(failure => (
               <Row key={failure.id} title={failure.name} body={failure.message} />
             ))}
           </div>
         )}
+      {value.hasDocument
+        ? <Button onClick={() => { void runtime.remote.settings.openSettingsDocument() }}>{t('settings.openOfficialSettings')}</Button>
+        : null}
     </Section>
   )
 }
