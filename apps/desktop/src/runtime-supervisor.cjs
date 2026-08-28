@@ -100,6 +100,7 @@ class RuntimeSupervisor {
       let portIssueShown = false
       let timeout
       let slowTimer
+      let terminationRequested = false
 
       const cleanupStartup = () => {
         clearTimeout(timeout)
@@ -116,6 +117,8 @@ class RuntimeSupervisor {
         reject(runtimeStartupError(message, this.output, code))
       })
       const failAfterTermination = (message, code) => {
+        if (terminationRequested) return
+        terminationRequested = true
         void this.stop({ timeoutMs: options.stopTimeoutMs }).then(
           () => fail(message, code),
           error => fail(`${message} Runtime termination also failed: ${error.message}`, code),
@@ -196,9 +199,15 @@ class RuntimeSupervisor {
       child.stdout.on('data', onProtocolOutput)
       child.stderr.on('data', onOutput)
       child.once('error', error => fail(`Harness failed to start: ${error.message}`, error.code || 'SPAWN_ERROR'))
-      child.once('exit', code => {
+      // Wait for close rather than exit so stdout/stderr have flushed before
+      // the startup log is attached to the error. When the supervisor itself
+      // requested termination, the close event is only a consequence of that
+      // request; failAfterTermination() reports the original timeout/protocol
+      // reason after shutdown completes.
+      child.once('close', code => {
         try { decoder.end() } catch {}
         if (this.child === child) this.child = undefined
+        if (terminationRequested) return
         if (!ready) {
           fail(`Harness exited before it was ready (code ${code}).`, `EXIT_${code ?? 'UNKNOWN'}`)
         } else {

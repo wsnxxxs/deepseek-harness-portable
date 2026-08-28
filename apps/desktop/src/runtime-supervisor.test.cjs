@@ -108,6 +108,24 @@ test('supervisor delegates process-tree shutdown and retains failed ownership', 
   const started = supervisor.start({ executable: process.execPath, entry: resolve(__filename), cwd: process.cwd() })
   assert.equal(await supervisor.stop(), false)
   assert.equal(supervisor.pid, 99)
-  child.emit('exit', 1)
+  child.emit('close', 1)
   await assert.rejects(started, /exited before it was ready/)
+})
+
+test('supervisor preserves the requested timeout when termination emits close first', async () => {
+  const child = fakeChild(100)
+  const supervisor = new RuntimeSupervisor({
+    spawnProcess: () => child,
+    terminate: async () => {
+      child.emit('close', 1)
+      return true
+    },
+  })
+  const started = supervisor.start({
+    executable: process.execPath,
+    entry: resolve(__filename),
+    cwd: process.cwd(),
+    startupTimeoutMs: 10,
+  })
+  await assert.rejects(started, error => error.code === 'TIMEOUT' && /startup timed out/.test(error.message))
 })

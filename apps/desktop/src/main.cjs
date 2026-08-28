@@ -65,7 +65,10 @@ const DARK_WINDOW_SURFACE = '#0c1220'
 // panel behind the normal first-run window so a healthy startup is not shown
 // as an error just before it becomes ready.
 const SLOW_STARTUP_MS = 20_000
-const STARTUP_TIMEOUT_MS = 60_000
+// A cold packaged launch can rebuild the profile and reconcile the embedded
+// marketplace before the runtime publishes its listening event. Keep enough
+// budget for that first-run work while still surfacing a genuinely stuck boot.
+const STARTUP_TIMEOUT_MS = 180_000
 const RENDERER_FIRST_PAINT_TIMEOUT_MS = 5_000
 const SPLASH_FADE_MS = 420
 const STOP_TIMEOUT_MS = 5_000
