@@ -203,9 +203,12 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   useEffect(() => { pinnedRef.current = true }, [sessionId])
 
   if (sessionId === undefined) {
-    // Keep the composer vertically centred without rendering the welcome
-    // message and shortcut button when no task is selected.
-    return <div className={css.blankSpace} aria-hidden />
+    // Keep the greeting, but remove the extra prompt and shortcut button.
+    return (
+      <div className={`${css.hero} ${css.heroBlank}`}>
+        <span className={css.heroGreeting}>{t(dynamicGreetingKey())}</span>
+      </div>
+    )
   }
 
   return (

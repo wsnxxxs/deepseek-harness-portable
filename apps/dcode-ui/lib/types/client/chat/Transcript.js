@@ -126,9 +126,8 @@ export function Transcript({ navigation, sessionId, cwd, blank }) {
     // A session switch starts pinned to the newest message again.
     useEffect(() => { pinnedRef.current = true; }, [sessionId]);
     if (sessionId === undefined) {
-        // Keep the composer vertically centred without rendering the welcome
-        // message and shortcut button when no task is selected.
-        return _jsx("div", { className: css.blankSpace, "aria-hidden": true });
+        // Keep the greeting, but remove the extra prompt and shortcut button.
+        return (_jsx("div", { className: `${css.hero} ${css.heroBlank}`, children: _jsx("span", { className: css.heroGreeting, children: t(dynamicGreetingKey()) }) }));
     }
     return (_jsxs("div", { className: css.scroller, ref: scrollerRef, children: [blank
                 ? (
