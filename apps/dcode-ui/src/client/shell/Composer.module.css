@@ -22,6 +22,10 @@
   box-shadow: var(--zx-shadow-panel), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
 }
 
+.inputArea {
+  min-width: 0;
+}
+
 .input {
   display: block;
   width: 100%;
@@ -47,6 +51,97 @@
   color: var(--zx-label-faint);
 }
 
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.attachmentRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+  padding: 0 15px 10px;
+}
+
+.attachment {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  max-width: 230px;
+  min-height: 34px;
+  padding: 4px 26px 4px 5px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: color-mix(in srgb, var(--zx-bg-panel) 78%, var(--zx-bg-card));
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+}
+
+.attachmentPreview {
+  width: 38px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--zx-radius-sm);
+  object-fit: cover;
+  background: var(--zx-bg-hover);
+}
+
+.attachmentFile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-width: 0;
+}
+
+.attachmentFile > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentMeta {
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  white-space: nowrap;
+}
+
+.attachmentRemove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-muted);
+  cursor: pointer;
+}
+
+.attachmentRemove:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.attachmentRemove:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.attachmentRemove:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
 .controls {
   display: flex;
   align-items: center;
@@ -62,6 +157,35 @@
   align-items: center;
   min-width: 0;
   gap: 2px;
+}
+
+.attachButton {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-muted);
+  cursor: pointer;
+}
+
+.attachButton:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.attachButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.attachButton:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
 }
 
 .leadingControls {

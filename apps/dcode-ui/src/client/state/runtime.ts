@@ -26,6 +26,10 @@ import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import type {
+  ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
 import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client'
 import type {
@@ -105,6 +109,21 @@ export interface DcodeSettingsServices {
   readonly describe: SettingsDescribeFace | undefined
 }
 
+/** Attachment intake and input state exposed to the DCode composer. */
+export interface DcodeConversationFace {
+  readonly input: ConversationController['input']
+  createDraftAttachments(files: readonly File[]): readonly ComposerAttachment[]
+  draftAttachmentsFor(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[]
+  releaseDraftImage(id: DraftAttachmentId): void
+}
+
+/** Session-authorized durable media helpers used by the transcript. */
+export interface ConversationMediaFace {
+  imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>
+  peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined
+  downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>
+}
+
 /** The navigation face of `ctx.uiWorkspace`, used for New Task and Open Workspace. */
 export interface WorkspaceNavigation {
   startSession(workspaceId?: string): void
@@ -130,6 +149,12 @@ export interface DcodeRuntime {
   readonly remote: ClientRemote
   /** Official settings scope/schema/mirror services used by settings sections. */
   readonly settings: DcodeSettingsServices
+  /** Shared Conversation service: draft attachments and the per-session input machine. */
+  readonly conversation: ConversationController | undefined
+  /** Resolve the Conversation input machine for one session. */
+  input(sessionId: SessionId): SessionInput | undefined
+  /** Session-authorized image/file display helpers from the Conversation assembly. */
+  readonly media: ConversationMediaFace | undefined
   /** Theme service, when `ui-theme` is part of this assembly. */
   readonly theme: ThemeFace | undefined
   /** Resolved colour scheme, the theme preference, and the window backdrop. */
@@ -203,6 +228,9 @@ interface UiConversationFace {
   binding(binding: SessionBinding): {
     target(name: string): { getSnapshot(): unknown; subscribe(listener: () => void): () => void }
   }
+  imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>
+  peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined
+  downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>
 }
 
 /** The one ui-session face read by the workbench runtime. */
@@ -224,6 +252,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
   const sessions = ctx.get('sessions') as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
   const uiConversation = ctx.get('uiConversation') as UiConversationFace | undefined
+  const conversation = ctx.get('conversation') as ConversationController | undefined
   const carrier = ctx.get('connection') as RpcCarrier | undefined
   const navigation = ctx.get('uiWorkspace') as WorkspaceNavigation | undefined
   const theme = ctx.get('theme') as ThemeFace | undefined
@@ -250,6 +279,19 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
       schema: settingsSchema,
       describe: settingsScope?.describe?.() as SettingsDescribeFace | undefined,
     },
+    conversation,
+    input: sessionId => {
+      const actx = sessions.scope(sessionId)
+      if (actx === undefined || conversation === undefined) return undefined
+      return conversation.input.for(actx)
+    },
+    media: uiConversation === undefined
+      ? undefined
+      : {
+        imageUrl: (sessionId, attachment) => uiConversation.imageUrl(sessionId, attachment),
+        peekImageUrl: (sessionId, attachment) => uiConversation.peekImageUrl(sessionId, attachment),
+        downloadFile: (sessionId, attachment) => uiConversation.downloadFile(sessionId, attachment),
+      },
     theme,
     appearance: createAppearanceStore(ctx as unknown as { on(name: 'theme/change', listener: () => void): () => void }, theme),
     busyEnter: {

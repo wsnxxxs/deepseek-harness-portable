@@ -86,7 +86,7 @@ export const name = 'dcode-ui-client'
  * frameless.
  */
 export const inject = [
-  'slots', 'locale', 'settingsScope', 'settingsSchema', 'sessions', 'workspaces', 'uiConversation',
+  'slots', 'locale', 'settingsScope', 'settingsSchema', 'sessions', 'workspaces', 'conversation', 'uiConversation',
   'uiSession', 'connection', 'commandUi',
   'remote',
   'remote.session',

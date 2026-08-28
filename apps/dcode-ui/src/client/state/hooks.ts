@@ -18,6 +18,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { InputState, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
   EMPTY_TRAJECTORY_SNAPSHOT, useRuntime, type DcodePendingInteraction, type Observable,
 } from './runtime.ts'
@@ -83,6 +84,29 @@ const EMPTY_SESSION_LIST: SessionListState = {
 }
 
 const EMPTY_PENDING_INTERACTIONS = new Map<SessionId, SessionPendingInteractionBase>()
+
+const EMPTY_INPUT_STATE: InputState = {
+  draft: '',
+  imageIds: [],
+  draftRev: 0,
+  phase: 'plain',
+  occurrences: [],
+  queue: [],
+}
+
+/** The shared Conversation input machine plus its current draft state. */
+export function useSessionInput(sessionId: SessionId | undefined): {
+  input: SessionInput | undefined
+  state: InputState
+} {
+  const runtime = useRuntime()
+  const input = useMemo(
+    () => (sessionId === undefined ? undefined : runtime.input(sessionId)),
+    [runtime, sessionId],
+  )
+  const state = useObservable(input?.state, EMPTY_INPUT_STATE)
+  return { input, state }
+}
 
 /** Narrow the shared pending-interaction roster to the ask-user-question face. */
 function questionInteraction(
