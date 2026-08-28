@@ -14,7 +14,7 @@
  * @module @dsh-portable/zcode-ui/ui-mode
  */
 
-import contract from '../ui-mode-contract.cjs'
+import contract from '@dsh-portable/zcode-ui/ui-mode-contract'
 
 /** One selectable front end. */
 export type UiMode = 'zcode' | 'official'

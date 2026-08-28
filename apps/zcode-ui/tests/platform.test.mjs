@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { isApplePlatform } from '../lib/client.js'
+import { isApplePlatform } from '../lib/types/client/platform.js'
 
 test('platform detection prefers userAgentData and falls back to userAgent', () => {
   assert.equal(isApplePlatform({ userAgentData: { platform: 'macOS' }, userAgent: 'Windows NT' }), true)
