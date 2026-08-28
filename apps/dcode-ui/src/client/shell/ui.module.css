@@ -176,10 +176,16 @@
   max-height: 60vh;
   overflow: hidden auto;
   padding: var(--zx-space-1);
-  border: 1px solid var(--zx-border);
+  border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
   border-radius: var(--zx-radius-lg);
   background: var(--zx-bg-overlay);
-  box-shadow: var(--zx-shadow-panel);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 82%, transparent);
+  box-shadow:
+    0 16px 38px rgb(0 0 0 / 30%),
+    0 3px 9px rgb(0 0 0 / 18%),
+    inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
 }
 
 .popoverUp {
@@ -241,8 +247,17 @@
 
 .menuIcon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
   color: var(--zx-label-secondary);
+}
+
+.menuIcon :global(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .menuContent {

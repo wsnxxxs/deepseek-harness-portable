@@ -8,13 +8,12 @@
  * @module @dsh-portable/dcode-ui/client/shell/LeftRail
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import {
   Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
-  IconChevronDownOutline14, IconChevronRightOutline14, IconDataOutline16,
+  IconChevronDownOutline14, IconChevronRightOutline14,
   IconEllipsisOutline16, IconNewChatOutline16,
-  IconRightUpOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16,
-  IconUserOutline16, Modal, relativeTime,
+  IconSparkle16, IconTrashOutline16, Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { commandShortcut } from '../platform.ts'
@@ -34,6 +33,77 @@ export interface LeftRailProps {
 /** Suffix per relative-time bucket; `now` shows the bare word. */
 const AGE_SUFFIX: Record<string, string> = {
   minutes: 'm', hours: 'h', days: 'd', months: 'mo', years: 'y',
+}
+
+/** The compact outline language used by the account menu. */
+function AccountGlyph({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.55"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  )
+}
+
+function AccountUserGlyph() {
+  return (
+    <AccountGlyph>
+      <circle cx="10" cy="7.1" r="2.55" />
+      <path d="M4.9 16.2c.55-2.35 2.35-3.6 5.1-3.6s4.55 1.25 5.1 3.6" />
+    </AccountGlyph>
+  )
+}
+
+function AccountSettingsGlyph() {
+  return (
+    <AccountGlyph>
+      <circle cx="10" cy="10" r="2.45" />
+      <path d="M10 2.9v1.55M10 15.55v1.55M2.9 10h1.55M15.55 10h1.55M4.98 4.98l1.1 1.1M13.92 13.92l1.1 1.1M15.02 4.98l-1.1 1.1M6.08 13.92l-1.1 1.1" />
+      <path d="M12.2 3.45l.55 1.55 1.5.65 1.5-.5 1.1 1.1-.5 1.5.65 1.5 1.55.55v1.55l-1.55.55-.65 1.5.5 1.5-1.1 1.1-1.5-.5-1.5.65-.55 1.55H10" />
+    </AccountGlyph>
+  )
+}
+
+function AccountUsageGlyph() {
+  return (
+    <AccountGlyph>
+      <ellipse cx="8.2" cy="4.6" rx="4.55" ry="2" />
+      <path d="M3.65 4.6v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V4.6" />
+      <path d="M3.65 8.85v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V8.85" />
+      <path d="M15.2 11.1v4.2M13.1 13.2h4.2" />
+    </AccountGlyph>
+  )
+}
+
+function AccountPluginsGlyph() {
+  return (
+    <AccountGlyph>
+      <circle cx="10" cy="3.8" r="1" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="16.2" r="1" fill="currentColor" stroke="none" />
+      <circle cx="3.8" cy="10" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16.2" cy="10" r="1" fill="currentColor" stroke="none" />
+      <path d="M6.2 6.2l1.55 1.55M12.25 12.25l1.55 1.55M13.8 6.2l-1.55 1.55M7.75 12.25L6.2 13.8" />
+      <circle cx="10" cy="10" r="2.1" />
+    </AccountGlyph>
+  )
+}
+
+function AccountExternalGlyph() {
+  return (
+    <AccountGlyph>
+      <path d="M5.2 14.8L15.9 4.1M10.1 4.1h5.8v5.8" />
+      <path d="M14.5 12.6v2.7c0 .55-.45 1-1 1H5.1c-.55 0-1-.45-1-1V6.9c0-.55.45-1 1-1h2.7" />
+    </AccountGlyph>
+  )
 }
 
 /** Compact relative age of a session's last update. */
@@ -221,7 +291,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           triggerClassName={css.accountTrigger}
           trigger={(
             <>
-              <span className={css.avatar} aria-hidden><IconUserOutline16 /></span>
+              <span className={css.avatar} aria-hidden><AccountUserGlyph /></span>
               <span className={css.footName}>{t('app.title')}</span>
             </>
           )}
@@ -229,25 +299,25 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
             {
               id: 'settings',
               label: t('nav.settings'),
-              icon: <IconSettingsOutline16 />,
+              icon: <AccountSettingsGlyph />,
               onSelect: () => { navigation.openSettings('general') },
             },
             {
               id: 'usage',
               label: t('account.usage'),
-              icon: <IconDataOutline16 />,
+              icon: <AccountUsageGlyph />,
               onSelect: () => { navigation.openSettings('usage') },
             },
             {
               id: 'plugins',
               label: t('nav.plugins'),
-              icon: <IconCordisPluginOutline14 size={16} />,
+              icon: <AccountPluginsGlyph />,
               onSelect: () => { navigation.openSettings('plugins') },
             },
             {
               id: 'official',
               label: t('top.officialUi'),
-              icon: <IconRightUpOutline16 />,
+              icon: <AccountExternalGlyph />,
               onSelect: () => { runtime.mode.set('official') },
             },
           ]}

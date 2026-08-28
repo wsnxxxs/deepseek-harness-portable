@@ -1583,7 +1583,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ui.module.css.mjs
-		const css$16 = ".rmlmSW_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card);overflow:hidden}.rmlmSW_cardHeader{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-3) var(--zx-space-4);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);display:flex}.rmlmSW_cardBody{padding:var(--zx-space-4)}.rmlmSW_sectionTitle{justify-content:space-between;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);letter-spacing:.02em;font-weight:500;display:flex}.rmlmSW_iconButton{justify-content:center;align-items:center;gap:var(--zx-space-2);min-width:26px;height:26px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.rmlmSW_iconButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.rmlmSW_iconButton:disabled{opacity:.45;cursor:default}.rmlmSW_iconButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_iconButtonActive{background:var(--zx-bg-active);color:var(--zx-label)}.rmlmSW_button{justify-content:center;align-items:center;gap:var(--zx-space-2);height:28px;padding:0 var(--zx-space-4);border:1px solid var(--zx-border);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), border-color var(--zx-motion-fast);display:inline-flex}.rmlmSW_button:hover:not(:disabled){background:var(--zx-bg-hover)}.rmlmSW_button:disabled{opacity:.45;cursor:default}.rmlmSW_button:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_buttonPrimary{background:var(--zx-accent);color:var(--zx-on-accent);border-color:#0000}.rmlmSW_buttonPrimary:hover:not(:disabled){background:color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label))}.rmlmSW_pill{align-items:center;gap:var(--zx-space-1);height:20px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;display:inline-flex}.rmlmSW_added{color:var(--zx-added)}.rmlmSW_removed{color:var(--zx-removed)}.rmlmSW_muted{color:var(--zx-label-muted)}.rmlmSW_mono{font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.rmlmSW_truncate{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.rmlmSW_empty{justify-content:center;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-7) var(--zx-space-5);color:var(--zx-label-muted);font-size:var(--zx-text-xs);text-align:center;flex-direction:column;display:flex}.rmlmSW_popoverAnchor{display:inline-flex;position:relative}.rmlmSW_popover{z-index:40;min-width:200px;max-width:340px;max-height:60vh;padding:var(--zx-space-1);border:1px solid var(--zx-border);border-radius:var(--zx-radius-lg);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-panel);position:absolute;overflow:hidden auto}.rmlmSW_popoverUp{bottom:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverDown{top:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverRight{left:auto;right:0}.rmlmSW_menuItem{align-items:center;gap:var(--zx-space-3);width:100%;padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.rmlmSW_menuItem:hover{background:var(--zx-bg-hover)}.rmlmSW_menuItem:disabled{cursor:default;color:var(--zx-label-secondary)}.rmlmSW_menuItem:disabled:hover{background:0 0}.rmlmSW_menuItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_menuItemActive{background:var(--zx-bg-active)}.rmlmSW_menuItemDanger{color:var(--zx-error)}.rmlmSW_menuIcon{color:var(--zx-label-secondary);flex:none;display:inline-flex}.rmlmSW_menuContent{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.rmlmSW_menuLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-faint);font-size:var(--zx-text-micro)}.rmlmSW_menuDetail{color:var(--zx-label-muted);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;margin-top:2px;line-height:1.4;display:block;overflow:hidden}.rmlmSW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent}.rmlmSW_scroll::-webkit-scrollbar{width:8px;height:8px}.rmlmSW_scroll::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}.rmlmSW_grow{flex:1;min-width:0}.rmlmSW_spinner{border:1.5px solid var(--zx-border);border-top-color:var(--zx-label-secondary);border-radius:50%;width:12px;height:12px;animation:.7s linear infinite rmlmSW_zx-spin;display:inline-block}@keyframes rmlmSW_zx-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.rmlmSW_spinner{animation-duration:2s}}.rmlmSW_mirrored{transform:scaleX(-1)}";
+		const css$16 = ".rmlmSW_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card);overflow:hidden}.rmlmSW_cardHeader{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-3) var(--zx-space-4);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);display:flex}.rmlmSW_cardBody{padding:var(--zx-space-4)}.rmlmSW_sectionTitle{justify-content:space-between;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);letter-spacing:.02em;font-weight:500;display:flex}.rmlmSW_iconButton{justify-content:center;align-items:center;gap:var(--zx-space-2);min-width:26px;height:26px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.rmlmSW_iconButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.rmlmSW_iconButton:disabled{opacity:.45;cursor:default}.rmlmSW_iconButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_iconButtonActive{background:var(--zx-bg-active);color:var(--zx-label)}.rmlmSW_button{justify-content:center;align-items:center;gap:var(--zx-space-2);height:28px;padding:0 var(--zx-space-4);border:1px solid var(--zx-border);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), border-color var(--zx-motion-fast);display:inline-flex}.rmlmSW_button:hover:not(:disabled){background:var(--zx-bg-hover)}.rmlmSW_button:disabled{opacity:.45;cursor:default}.rmlmSW_button:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_buttonPrimary{background:var(--zx-accent);color:var(--zx-on-accent);border-color:#0000}.rmlmSW_buttonPrimary:hover:not(:disabled){background:color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label))}.rmlmSW_pill{align-items:center;gap:var(--zx-space-1);height:20px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;display:inline-flex}.rmlmSW_added{color:var(--zx-added)}.rmlmSW_removed{color:var(--zx-removed)}.rmlmSW_muted{color:var(--zx-label-muted)}.rmlmSW_mono{font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.rmlmSW_truncate{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.rmlmSW_empty{justify-content:center;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-7) var(--zx-space-5);color:var(--zx-label-muted);font-size:var(--zx-text-xs);text-align:center;flex-direction:column;display:flex}.rmlmSW_popoverAnchor{display:inline-flex;position:relative}.rmlmSW_popover{z-index:40;min-width:200px;max-width:340px;max-height:60vh;padding:var(--zx-space-1);border:1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);border-radius:var(--zx-radius-lg);background:var(--zx-bg-overlay);background:color-mix(in srgb, var(--zx-bg-overlay) 82%, transparent);box-shadow:0 16px 38px #0000004d, 0 3px 9px #0000002e, inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);backdrop-filter:blur(20px)saturate(130%);position:absolute;overflow:hidden auto}.rmlmSW_popoverUp{bottom:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverDown{top:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverRight{left:auto;right:0}.rmlmSW_menuItem{align-items:center;gap:var(--zx-space-3);width:100%;padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.rmlmSW_menuItem:hover{background:var(--zx-bg-hover)}.rmlmSW_menuItem:disabled{cursor:default;color:var(--zx-label-secondary)}.rmlmSW_menuItem:disabled:hover{background:0 0}.rmlmSW_menuItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_menuItemActive{background:var(--zx-bg-active)}.rmlmSW_menuItemDanger{color:var(--zx-error)}.rmlmSW_menuIcon{width:18px;height:18px;color:var(--zx-label-secondary);flex:none;justify-content:center;align-items:center;display:inline-flex}.rmlmSW_menuIcon svg{width:18px;height:18px}.rmlmSW_menuContent{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.rmlmSW_menuLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-faint);font-size:var(--zx-text-micro)}.rmlmSW_menuDetail{color:var(--zx-label-muted);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;margin-top:2px;line-height:1.4;display:block;overflow:hidden}.rmlmSW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent}.rmlmSW_scroll::-webkit-scrollbar{width:8px;height:8px}.rmlmSW_scroll::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}.rmlmSW_grow{flex:1;min-width:0}.rmlmSW_spinner{border:1.5px solid var(--zx-border);border-top-color:var(--zx-label-secondary);border-radius:50%;width:12px;height:12px;animation:.7s linear infinite rmlmSW_zx-spin;display:inline-block}@keyframes rmlmSW_zx-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.rmlmSW_spinner{animation-duration:2s}}.rmlmSW_mirrored{transform:scaleX(-1)}";
 		const tagId$16 = "@dsh-portable/dcode-ui/ui.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$16) + "]") === null) {
 			const tag = document.createElement("style");
@@ -2012,6 +2012,93 @@ window.__ModuleLoader__.load({
 			months: "mo",
 			years: "y"
 		};
+		/** The compact outline language used by the account menu. */
+		function AccountGlyph({ children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+				"aria-hidden": "true",
+				viewBox: "0 0 20 20",
+				width: "18",
+				height: "18",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: "1.55",
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				children
+			});
+		}
+		function AccountUserGlyph() {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(AccountGlyph, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+				cx: "10",
+				cy: "7.1",
+				r: "2.55"
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M4.9 16.2c.55-2.35 2.35-3.6 5.1-3.6s4.55 1.25 5.1 3.6" })] });
+		}
+		function AccountSettingsGlyph() {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(AccountGlyph, { children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "10",
+					cy: "10",
+					r: "2.45"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 2.9v1.55M10 15.55v1.55M2.9 10h1.55M15.55 10h1.55M4.98 4.98l1.1 1.1M13.92 13.92l1.1 1.1M15.02 4.98l-1.1 1.1M6.08 13.92l-1.1 1.1" }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12.2 3.45l.55 1.55 1.5.65 1.5-.5 1.1 1.1-.5 1.5.65 1.5 1.55.55v1.55l-1.55.55-.65 1.5.5 1.5-1.1 1.1-1.5-.5-1.5.65-.55 1.55H10" })
+			] });
+		}
+		function AccountUsageGlyph() {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(AccountGlyph, { children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ellipse", {
+					cx: "8.2",
+					cy: "4.6",
+					rx: "4.55",
+					ry: "2"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3.65 4.6v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V4.6" }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3.65 8.85v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V8.85" }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15.2 11.1v4.2M13.1 13.2h4.2" })
+			] });
+		}
+		function AccountPluginsGlyph() {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(AccountGlyph, { children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "10",
+					cy: "3.8",
+					r: "1",
+					fill: "currentColor",
+					stroke: "none"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "10",
+					cy: "16.2",
+					r: "1",
+					fill: "currentColor",
+					stroke: "none"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "3.8",
+					cy: "10",
+					r: "1",
+					fill: "currentColor",
+					stroke: "none"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "16.2",
+					cy: "10",
+					r: "1",
+					fill: "currentColor",
+					stroke: "none"
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M6.2 6.2l1.55 1.55M12.25 12.25l1.55 1.55M13.8 6.2l-1.55 1.55M7.75 12.25L6.2 13.8" }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+					cx: "10",
+					cy: "10",
+					r: "2.1"
+				})
+			] });
+		}
+		function AccountExternalGlyph() {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(AccountGlyph, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5.2 14.8L15.9 4.1M10.1 4.1h5.8v5.8" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14.5 12.6v2.7c0 .55-.45 1-1 1H5.1c-.55 0-1-.45-1-1V6.9c0-.55.45-1 1-1h2.7" })] });
+		}
 		/** Compact relative age of a session's last update. */
 		function useAge() {
 			return (0, react.useCallback)((updatedAt) => {
@@ -2203,7 +2290,7 @@ window.__ModuleLoader__.load({
 							trigger: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: LeftRail_module_css_default.avatar,
 								"aria-hidden": true,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconUserOutline16, {})
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AccountUserGlyph, {})
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: LeftRail_module_css_default.footName,
 								children: t("app.title")
@@ -2212,7 +2299,7 @@ window.__ModuleLoader__.load({
 								{
 									id: "settings",
 									label: t("nav.settings"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSettingsOutline16, {}),
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AccountSettingsGlyph, {}),
 									onSelect: () => {
 										navigation.openSettings("general");
 									}
@@ -2220,7 +2307,7 @@ window.__ModuleLoader__.load({
 								{
 									id: "usage",
 									label: t("account.usage"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDataOutline16, {}),
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AccountUsageGlyph, {}),
 									onSelect: () => {
 										navigation.openSettings("usage");
 									}
@@ -2228,7 +2315,7 @@ window.__ModuleLoader__.load({
 								{
 									id: "plugins",
 									label: t("nav.plugins"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCordisPluginOutline14, { size: 16 }),
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AccountPluginsGlyph, {}),
 									onSelect: () => {
 										navigation.openSettings("plugins");
 									}
@@ -2236,7 +2323,7 @@ window.__ModuleLoader__.load({
 								{
 									id: "official",
 									label: t("top.officialUi"),
-									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRightUpOutline16, {}),
+									icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AccountExternalGlyph, {}),
 									onSelect: () => {
 										runtime.mode.set("official");
 									}
