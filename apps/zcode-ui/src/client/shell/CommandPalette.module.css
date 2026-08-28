@@ -66,6 +66,7 @@
   color: var(--zx-label-muted);
   font: inherit;
   font-size: var(--zx-text-micro);
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -122,6 +123,7 @@
 }
 
 .rowDetail {
+  min-width: 0;
   color: var(--zx-label-faint);
   font-size: var(--zx-text-micro);
   overflow: hidden;
@@ -131,9 +133,11 @@
 }
 
 .shortcut {
+  flex: none;
   color: var(--zx-label-faint);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .empty {

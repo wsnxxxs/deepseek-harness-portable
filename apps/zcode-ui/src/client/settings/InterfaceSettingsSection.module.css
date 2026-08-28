@@ -1,0 +1,75 @@
+/**
+ * The switch as it appears inside the CLASSIC settings surface.
+ *
+ * This is the one stylesheet in the package that does not opt into the
+ * workbench token scope: it renders inside the official settings shell and
+ * must read as one of its rows, so it uses the Host's own theme aliases
+ * directly and keeps the surrounding spacing scale.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.title {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 14px;
+}
+
+.lead {
+  color: var(--dsw-alias-label-secondary, #7a7f8a);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.choice {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.option {
+  flex: 1 1 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2, rgb(128 128 128 / 24%));
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover {
+  border-color: var(--dsw-alias-border-l1, rgb(128 128 128 / 40%));
+}
+
+.optionActive {
+  border-color: var(--dsw-alias-brand-primary, #4c8dff);
+}
+
+.optionTitle {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 14px;
+}
+
+.optionBody {
+  color: var(--dsw-alias-label-secondary, #7a7f8a);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 18%, transparent);
+  color: var(--dsw-alias-brand-primary, #4c8dff);
+  font-size: 11px;
+}

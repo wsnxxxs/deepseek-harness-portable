@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconFolderOpenOutline16, IconNewChatOutline16, IconPanelLeftOutline16,
-  IconSearchOutline16, IconSettingsOutline16, IconSkillOutline16, IconSparkle16,
+  IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16,
+  IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useCurrentSessionId, useSessionList } from '../state/hooks.ts'
@@ -174,25 +174,11 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       run: () => { navigation.show('learning') },
     },
     {
-      id: 'skills',
-      kind: 'action',
-      group: t('palette.configuration'),
-      label: t('settings.skills'),
-      icon: <IconSkillOutline16 />,
-      run: () => { navigation.openSettings('skills') },
-    },
-    {
-      id: 'mcp',
-      kind: 'action',
-      group: t('palette.configuration'),
-      label: t('settings.mcp'),
-      run: () => { navigation.openSettings('mcp') },
-    },
-    {
       id: 'plugins',
       kind: 'action',
       group: t('palette.configuration'),
       label: t('settings.plugins'),
+      icon: <IconCordisPluginOutline14 size={16} />,
       run: () => { navigation.openSettings('plugins') },
     },
     {
@@ -201,13 +187,6 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       group: t('palette.configuration'),
       label: t('settings.models'),
       run: () => { navigation.openSettings('models') },
-    },
-    {
-      id: 'appearance',
-      kind: 'action',
-      group: t('palette.configuration'),
-      label: t('settings.appearance'),
-      run: () => { navigation.openSettings('appearance') },
     },
     {
       id: 'usage',
