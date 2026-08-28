@@ -27,6 +27,7 @@ test('Setup uses collision-free transaction paths and no global image-name taskk
   assert.doesNotMatch(source, /\/IM\s+"DeepSeek Harness\.exe"/i)
   assert.match(source, /setup-runtime-lock-report\.json/)
   assert.match(source, /\.setup-orphan-runtime-' \+ RunId/)
+  assert.match(source, /CleanupOrphanRuntimes\(AppDir\)/)
 })
 
 test('lock diagnostics report but never terminate an unowned process', {

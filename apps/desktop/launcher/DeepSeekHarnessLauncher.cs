@@ -29,6 +29,7 @@ internal static class DeepSeekHarnessLauncher
     private const string WorkerArgumentCountVariable = "DSH_GUI_WORKER_ARG_COUNT";
     private const string WorkerArgumentPrefix = "DSH_GUI_WORKER_ARG_";
     private const string GuiLauncherVariable = "DSH_GUI_LAUNCHER";
+    private const string NodeOptionsVariable = "NODE_OPTIONS";
 
     private const int ErrorMissingFile = 2;
     private const int ErrorDispatchWorker = 3;
@@ -649,6 +650,10 @@ internal static class DeepSeekHarnessLauncher
 
     private static void RemoveWorkerMetadata(StringDictionary environment)
     {
+        // The packaged runtime must not inherit caller-controlled Node preload
+        // hooks. Development shells commonly use NODE_OPTIONS for helpers
+        // that are incompatible with the bundled Electron process.
+        environment.Remove(NodeOptionsVariable);
         environment.Remove(WorkerModeVariable);
         environment.Remove(WorkerTokenVariable);
         environment.Remove(WorkerDirectoryVariable);

@@ -91,6 +91,7 @@ internal static class RuntimeProbe
         result["launcherDeleted"] = launcherDeleted;
         result["recoveryMarkerPresent"] = File.Exists(Path.Combine(root, "recovery-ran.txt"));
         result["workerVariables"] = leakedWorkerVariables.ToArray();
+        result["nodeOptionsPresent"] = !String.IsNullOrEmpty(Environment.GetEnvironmentVariable("NODE_OPTIONS"));
         result["consoleAttached"] = GetConsoleWindow() != IntPtr.Zero;
         string json = new JavaScriptSerializer().Serialize(result);
         File.WriteAllText(Path.Combine(root, "runtime-result.json"), json, new UTF8Encoding(false));
@@ -118,8 +119,18 @@ async function waitFor(path: string, timeoutMs = 10_000): Promise<void> {
   }
 }
 
-async function runRootLauncher(launcher: string, appRoot: string, arguments_: string[]): Promise<void> {
-  const processHandle = spawn(launcher, arguments_, { cwd: appRoot, stdio: 'ignore', windowsHide: true })
+async function runRootLauncher(
+  launcher: string,
+  appRoot: string,
+  arguments_: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const processHandle = spawn(launcher, arguments_, {
+    cwd: appRoot,
+    env,
+    stdio: 'ignore',
+    windowsHide: true,
+  })
   const rootExit = await new Promise<number | null>((resolveExit, reject) => {
     processHandle.once('error', reject)
     processHandle.once('exit', resolveExit)
@@ -153,18 +164,23 @@ test('Windows launcher is a GUI PE, preserves argv, and releases its root image'
     assert.ok([0x10b, 0x20b].includes(image.readUInt16LE(optionalHeader)))
     assert.equal(image.readUInt16LE(optionalHeader + 68), 2, 'launcher must use IMAGE_SUBSYSTEM_WINDOWS_GUI')
 
-    await runRootLauncher(launcher, appRoot, arguments_)
+    await runRootLauncher(launcher, appRoot, arguments_, {
+      ...process.env,
+      NODE_OPTIONS: '--require=C:\\workbuddy\\genie-safe-delete.cjs',
+    })
     await waitFor(resultPath)
     const result = JSON.parse(readFileSync(resultPath, 'utf8')) as {
       arguments: string[]
       launcherDeleted: boolean
       recoveryMarkerPresent: boolean
       workerVariables: string[]
+      nodeOptionsPresent: boolean
       consoleAttached: boolean
     }
     assert.deepEqual(result.arguments, arguments_)
     assert.equal(result.launcherDeleted, true, 'TEMP worker must not lock the root launcher image')
     assert.deepEqual(result.workerVariables, [], 'worker-only environment metadata must not reach Electron')
+    assert.equal(result.nodeOptionsPresent, false, 'launcher must not pass inherited Node preload hooks to Electron')
     assert.equal(result.consoleAttached, false)
     assert.equal(result.recoveryMarkerPresent, false)
     await new Promise(resolveDelay => setTimeout(resolveDelay, 1_000))

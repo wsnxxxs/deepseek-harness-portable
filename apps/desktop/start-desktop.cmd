@@ -4,6 +4,9 @@ chcp 65001 >nul
 title DeepSeek Harness Desktop Launcher
 cd /d "%~dp0"
 
+rem Do not pass terminal-injected Node preload hooks into the packaged runtime.
+set "NODE_OPTIONS="
+
 set "DSH_TRANSACTION_PATH=%~dp0.update-transaction.json"
 if exist "%DSH_TRANSACTION_PATH%" (
     powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $state = Get-Content -LiteralPath $env:DSH_TRANSACTION_PATH -Raw -Encoding UTF8 | ConvertFrom-Json; $phase = [string]$state.phase; if ($phase -cne 'committed' -and $phase -cne 'rolled-back') { exit 1 }" >nul 2>&1

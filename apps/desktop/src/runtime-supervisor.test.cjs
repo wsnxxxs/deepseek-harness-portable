@@ -18,12 +18,16 @@ test('supervisor launches through protocol and waits for Harness readiness', asy
   const child = fakeChild()
   let spawnCall
   let readinessUrl
+  let readinessOptions
   const supervisor = new RuntimeSupervisor({
     spawnProcess(executable, args, options) {
       spawnCall = { executable, args, options }
       return child
     },
-    waitUntilReady: async url => { readinessUrl = url },
+    waitUntilReady: async (url, options) => {
+      readinessUrl = url
+      readinessOptions = options
+    },
   })
   const entry = resolve(__filename)
   const started = supervisor.start({
@@ -31,6 +35,7 @@ test('supervisor launches through protocol and waits for Harness readiness', asy
     entry,
     cwd: process.cwd(),
     env: { SAMPLE: 'yes' },
+    startupTimeoutMs: 12_345,
   })
   const hello = encodeRuntimeEvent({ protocolVersion: 1, type: 'hello', pid: child.pid })
   const listening = encodeRuntimeEvent({ protocolVersion: 1, type: 'listening', url: 'http://127.0.0.1:4567/' })
@@ -38,6 +43,7 @@ test('supervisor launches through protocol and waits for Harness readiness', asy
   child.stdout.write(`${listening.slice(15)}\n`)
   assert.equal(await started, 'http://127.0.0.1:4567/')
   assert.equal(readinessUrl, 'http://127.0.0.1:4567/')
+  assert.deepEqual(readinessOptions, { timeoutMs: 12_345 })
   assert.deepEqual(spawnCall.args.slice(1), ['--host', '127.0.0.1', '--port', '0', '--no-open'])
   assert.equal(spawnCall.options.env.DSH_RUNTIME_PROTOCOL_VERSION, '1')
   assert.equal(spawnCall.options.windowsHide, true)
@@ -128,4 +134,25 @@ test('supervisor preserves the requested timeout when termination emits close fi
     startupTimeoutMs: 10,
   })
   await assert.rejects(started, error => error.code === 'TIMEOUT' && /startup timed out/.test(error.message))
+})
+
+test('supervisor reports a readiness timeout after listening has arrived', async () => {
+  const child = fakeChild(101)
+  const supervisor = new RuntimeSupervisor({
+    spawnProcess: () => child,
+    terminate: async () => {
+      child.emit('close', 1)
+      return true
+    },
+    waitUntilReady: async () => new Promise(() => {}),
+  })
+  const started = supervisor.start({
+    executable: process.execPath,
+    entry: resolve(__filename),
+    cwd: process.cwd(),
+    startupTimeoutMs: 10,
+  })
+  child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'hello', pid: child.pid })}\n`)
+  child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'listening', url: 'http://127.0.0.1:9878/' })}\n`)
+  await assert.rejects(started, error => error.code === 'NOT_READY' && /host readiness/.test(error.message))
 })

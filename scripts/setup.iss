@@ -185,6 +185,30 @@ begin
   end;
 end;
 
+procedure CleanupOrphanRuntimes(const AppDir: String);
+var
+  FindData: TFindData;
+  SearchPath, OrphanPath: String;
+begin
+  SearchPath := AddBackslash(AppDir) + '.setup-orphan-runtime-*';
+  if not FindFirst(SearchPath, FindData) then
+    Exit;
+  try
+    repeat
+      OrphanPath := AddBackslash(AppDir) + FindData.Name;
+      if DirExists(OrphanPath) then
+      begin
+        Log('DSH_SETUP_TRACE orphan-cleanup-' + OrphanPath);
+        DelTree(OrphanPath, True, True, True);
+        if DirExists(OrphanPath) then
+          Log('DSH_SETUP_TRACE orphan-retained-' + OrphanPath);
+      end;
+    until not FindNext(FindData);
+  finally
+    FindClose(FindData);
+  end;
+end;
+
 function RenameDirectoryWithRetry(const Source, Destination: String): Boolean;
 var
   Attempt: Integer;
@@ -262,6 +286,7 @@ begin
     // attempt may have a partially deleted fixed backup or stage; those paths
     // are retained as evidence and can never collide with this swap.
     StopRunningApp;
+    CleanupOrphanRuntimes(AppDir);
     // Keep the staging tree on the target volume. The runtime activation below
     // uses RenameFile, which is an atomic same-volume move and cannot cross
     // from the system TEMP drive to a user-selected D: or E: installation.
@@ -381,6 +406,10 @@ begin
           Log('Unable to delete or isolate the unique previous runtime: ' + BackupRuntime);
       end;
     end;
+    // A previous upgrade may have retained a locked runtime after the app was
+    // stopped. Try those isolated trees again on the next upgrade while no
+    // product process owns them.
+    CleanupOrphanRuntimes(AppDir);
     // Setup has just committed a fully validated runtime. Do not let an old,
     // abandoned portable-updater journal roll this installation backward on
     // the first shortcut launch.

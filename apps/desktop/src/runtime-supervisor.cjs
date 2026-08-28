@@ -78,6 +78,8 @@ class RuntimeSupervisor {
       throw new Error(`The packaged Harness entry is missing: ${options.entry}. Run the runtime build first.`)
     }
 
+    const startupTimeoutMs = options.startupTimeoutMs ?? 60_000
+
     this.output = ''
     this.runtimeDiagnostics = []
     const child = this.spawnProcess(options.executable, [
@@ -154,7 +156,10 @@ class RuntimeSupervisor {
         if (listening) return
         listening = true
         options.onListening?.(event.url)
-        void this.waitUntilReady(event.url).then(
+        // The web server can announce its port before the cold-start profile
+        // and client graph are complete. Use the same budget as the outer
+        // startup watchdog instead of waitForOnboardingReady's short default.
+        void this.waitUntilReady(event.url, { timeoutMs: startupTimeoutMs }).then(
           () => {
             ready = true
             finish(() => resolve(event.url))
@@ -185,9 +190,13 @@ class RuntimeSupervisor {
       const onAbort = () => failAfterTermination(options.cancelledMessage || 'Harness startup was cancelled.', 'ABORTED')
 
       timeout = setTimeout(() => {
+        if (listening) {
+          failAfterTermination('Harness startup timed out while waiting for host readiness.', 'NOT_READY')
+          return
+        }
         const stage = hello ? 'listening event' : 'protocol handshake'
         failAfterTermination(`Harness startup timed out while waiting for its ${stage}.`, 'TIMEOUT')
-      }, options.startupTimeoutMs ?? 60_000)
+      }, startupTimeoutMs)
       timeout.unref?.()
       slowTimer = setTimeout(() => options.onSlow?.(this.output), options.slowStartupMs ?? 10_000)
       slowTimer.unref?.()
