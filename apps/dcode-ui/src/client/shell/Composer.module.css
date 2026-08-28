@@ -50,16 +50,30 @@
   align-items: center;
   gap: var(--zx-space-2);
   padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);
+  min-width: 0;
+}
+
+/* Popover triggers otherwise keep their min-content width. At the narrowest
+   center-column size that width pushes the trailing send action past the
+   card's right inset instead of letting the labels ellipsize. */
+.controls > * {
+  min-width: 0;
+}
+
+.controls > * > button {
+  min-width: 0;
 }
 
 .spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .control {
   display: inline-flex;
   align-items: center;
   gap: var(--zx-space-2);
+  min-width: 0;
   max-width: 180px;
   height: 26px;
   padding: 0 var(--zx-space-2);
@@ -68,6 +82,7 @@
 }
 
 .controlLabel {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -80,8 +95,10 @@
 .send {
   display: grid;
   place-items: center;
+  flex: 0 0 28px;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: var(--zx-accent);
