@@ -243,6 +243,7 @@
     "@deepseek-ai/node-addon-landlock-run-linux-arm64": "workspace:^",
     "@deepseek-ai/node-addon-landlock-run-linux-x64": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
+    "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",

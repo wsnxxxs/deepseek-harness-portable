@@ -25,6 +25,7 @@ const STATIC_WORKSPACE_ROOTS = [
   '@dsh-portable/desktop-protocol',
   '@dsh-portable/interactive-learning',
   '@dsh-portable/vision-bridge',
+  '@dsh-portable/dcode-ui',
   '@deepseek-ai/cordis',
   '@deepseek-ai/cordis-plugin-include',
   '@deepseek-ai/cordis-plugin-loader',

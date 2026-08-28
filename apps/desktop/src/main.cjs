@@ -24,7 +24,7 @@ const { ensureUnifiedDshHome } = require('./workspace-service.cjs')
 const { readConfigStore, updateConfigStore } = require('./config-store.cjs')
 const {
   DEFAULT_UI_MODE, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
-} = require('@dsh-portable/zcode-ui/ui-mode-contract')
+} = require('@dsh-portable/dcode-ui/ui-mode-contract')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
 const { readSessionCookie, settingsDescribeUrl } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
@@ -1768,8 +1768,8 @@ function menuItems() {
         {
           label: desktopText('menu.interfaceWorkbench'),
           type: 'radio',
-          checked: uiMode === 'zcode',
-          click: () => { applyUiMode('zcode') },
+          checked: uiMode === 'dcode',
+          click: () => { applyUiMode('dcode') },
         },
       ],
     },

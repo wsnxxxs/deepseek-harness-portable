@@ -1,0 +1,239 @@
+/**
+ * Workbench design tokens.
+ *
+ * Every stylesheet in this package compiles to its own CSS Module, so shared
+ * values cannot travel through class composition. They travel here instead:
+ * declared on the unhashed `[data-dcode-scope]` attribute selector and
+ * inherited by every descendant, whichever module styled it.
+ *
+ * The scale layers on the Host's `--dsw-alias-*` theme aliases, so the
+ * workbench follows the same light/dark theme the official UI follows and a
+ * user theme's overrides reach it unchanged. Every alias read carries an
+ * inline fallback: an alias a Host has not declared, read bare, resolves to
+ * the guaranteed-invalid value and would silently drop the whole declaration
+ * — including inside `color-mix()`.
+ *
+ * The visual target is a compact desktop workbench: near-black ground, one
+ * step of raised surface, hairline borders, 10px card radii, and a muted
+ * label ramp so the conversation is the only high-contrast thing on screen.
+ */
+
+[data-dcode-scope] {
+  /* Type ramp. 11px is the floor and is reserved for numeric furniture;
+     anything read as language starts at 12px. */
+  --zx-text-micro: 11px;
+  --zx-text-xs: 12px;
+  --zx-text-sm: 13px;
+  --zx-text-md: 14px;
+  --zx-text-lg: 16px;
+  --zx-text-xl: 20px;
+  --zx-text-2xl: 26px;
+  --zx-leading-tight: 1.35;
+  --zx-leading-body: 1.65;
+
+  /* Spacing. A 4px base with named steps so panels stay on one rhythm. */
+  --zx-space-1: 4px;
+  --zx-space-2: 6px;
+  --zx-space-3: 8px;
+  --zx-space-4: 12px;
+  --zx-space-5: 16px;
+  --zx-space-6: 20px;
+  --zx-space-7: 28px;
+
+  /* Radii. Cards are 10px, controls 8px, pills fully round. */
+  --zx-radius-sm: 6px;
+  --zx-radius-md: 8px;
+  --zx-radius-lg: 10px;
+  --zx-radius-xl: 14px;
+  --zx-radius-pill: 999px;
+
+  /* Ground and surfaces. */
+  --zx-bg-app: var(--dsw-alias-bg-base, #0d0d0f);
+  --zx-bg-panel: var(--dsw-alias-bg-layer-1, #141416);
+  --zx-bg-card: var(--dsw-alias-bg-layer-2, #191a1d);
+  --zx-bg-overlay: var(--dsw-alias-bg-overlay, #1c1d20);
+  --zx-bg-raised: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 6%, transparent);
+  --zx-bg-hover: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 8%, transparent);
+  --zx-bg-active: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 12%, transparent);
+
+  /* Hairlines. Two weights only: a structural divider and a card edge. */
+  --zx-border: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 11%, transparent);
+  --zx-border-soft: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 7%, transparent);
+
+  /* Label ramp. */
+  --zx-label: var(--dsw-alias-label-primary, #ececee);
+  --zx-label-secondary: var(--dsw-alias-label-secondary, #a9aab0);
+  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 72%, transparent);
+  --zx-label-faint: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 48%, transparent);
+
+  /* Accents.
+
+     The accent follows the Host's brand alias, which some themes set to their
+     label colour rather than a hue. `--zx-on-accent` is therefore the app
+     ground, not white: it stays readable whichever end of the ramp the theme
+     puts the accent on, where a hardcoded white would vanish on a light
+     accent. */
+  --zx-accent: var(--dsw-alias-brand-primary, #4c8dff);
+  --zx-on-accent: var(--dsw-alias-bg-base, #0d0d0f);
+  --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 18%, transparent);
+  --zx-success: var(--dsw-alias-state-success-primary, #3fb950);
+  --zx-warn: var(--dsw-alias-state-warn-primary, #d29922);
+  --zx-error: var(--dsw-alias-state-error-primary, #f85149);
+  --zx-added: var(--dsw-alias-state-success-primary, #3fb950);
+  --zx-removed: var(--dsw-alias-state-error-primary, #f85149);
+
+  /* Terminal palette. The 16 SGR colours are variables rather than literals
+     so a tool's coloured output re-tints with the theme; 256-colour and
+     truecolour codes carry their own value and never reach these. Tuned for a
+     near-black ground: the first eight are lifted off pure hues so they stay
+     legible, and index 0 is a visible grey rather than the background. */
+  --zx-ansi-0: #4b5263;
+  --zx-ansi-1: #e06c75;
+  --zx-ansi-2: #98c379;
+  --zx-ansi-3: #e5c07b;
+  --zx-ansi-4: #61afef;
+  --zx-ansi-5: #c678dd;
+  --zx-ansi-6: #56b6c2;
+  --zx-ansi-7: #cbd0d8;
+  --zx-ansi-8: #6b7280;
+  --zx-ansi-9: #ff7b86;
+  --zx-ansi-10: #b3e08e;
+  --zx-ansi-11: #f2d08a;
+  --zx-ansi-12: #82c4ff;
+  --zx-ansi-13: #d99ae8;
+  --zx-ansi-14: #74d0dc;
+  --zx-ansi-15: #f5f7fa;
+  --zx-ansi-fg: var(--zx-label);
+  --zx-ansi-bg: var(--zx-bg-card);
+
+  --zx-scrim: rgb(0 0 0 / 46%);
+
+  --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 55%, transparent);
+  --zx-shadow-panel: 0 12px 32px rgb(0 0 0 / 34%), 0 2px 6px rgb(0 0 0 / 22%);
+  --zx-shadow-card: 0 1px 2px rgb(0 0 0 / 18%);
+
+  --zx-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --zx-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  --zx-motion-fast: 120ms cubic-bezier(0.2, 0, 0.2, 1);
+  --zx-motion: 180ms cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* Column geometry. Panels are resizable within these bounds. */
+  --zx-rail-width: 240px;
+  --zx-aside-width: 320px;
+  --zx-topbar-height: 44px;
+  --zx-reading-width: 760px;
+}
+
+/**
+ * Light palette.
+ *
+ * The `--dsw-alias-*` values already flip with the Host theme, so what this
+ * block restates is everything *derived*: the label ramp and every surface
+ * built by mixing the label colour into the ground. On a near-black ground a
+ * 12% white wash is a gentle raise; on a near-white one a 12% black wash is a
+ * bruise. The percentages, the shadow weights and the ground fallbacks all
+ * change; the token names do not, so no component has a light branch.
+ *
+ * The scheme comes from the same resolved ThemeSnapshot the presenter uses,
+ * stamped on the workbench root, so this block and the alias values below it
+ * can never disagree about which palette is in force.
+ */
+[data-dcode-scope][data-dcode-scheme='light'] {
+  /* The shipped light theme resolves bg-base, layer-1 and layer-2 all to pure
+     white, which flattens rail, canvas and card into one sheet with nothing
+     but hairlines between them. So the ramp is built here rather than read:
+     ink washed over the base in the same direction the dark palette runs —
+     canvas lowest, rail raised, cards highest. */
+  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 4%, var(--dsw-alias-bg-base, #fff));
+  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 2%, var(--dsw-alias-bg-base, #fff));
+  --zx-bg-card: var(--dsw-alias-bg-base, #fff);
+  --zx-bg-overlay: var(--dsw-alias-bg-base, #fff);
+  --zx-bg-raised: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 4%, transparent);
+  --zx-bg-hover: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 6%, transparent);
+  --zx-bg-active: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 10%, transparent);
+
+  /* Hairlines stay hairlines: a 10%/6% black edge reads at the same weight on
+     white as an 11%/7% white edge does on black. */
+  --zx-border: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 10%, transparent);
+  --zx-border-soft: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 6%, transparent);
+
+  --zx-label: var(--dsw-alias-label-primary, #1c2024);
+  --zx-label-secondary: var(--dsw-alias-label-secondary, #59606b);
+  /* Held higher than the dark ramp: fading toward white loses contrast faster
+     than fading toward black. */
+  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 82%, transparent);
+  --zx-label-faint: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 60%, transparent);
+
+  --zx-accent: var(--dsw-alias-brand-primary, #2563eb);
+  --zx-on-accent: var(--dsw-alias-bg-base, #fff);
+  --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #2563eb) 12%, transparent);
+  --zx-success: var(--dsw-alias-state-success-primary, #1a7f37);
+  --zx-warn: var(--dsw-alias-state-warn-primary, #9a6700);
+  --zx-error: var(--dsw-alias-state-error-primary, #cf222e);
+  --zx-added: var(--dsw-alias-state-success-primary, #1a7f37);
+  --zx-removed: var(--dsw-alias-state-error-primary, #cf222e);
+
+  /* Ink-toned rather than black: a neutral-black shadow on a white ground
+     reads as dirt, a blue-grey one as depth. */
+  --zx-shadow-panel: 0 12px 32px rgb(15 23 42 / 12%), 0 2px 6px rgb(15 23 42 / 6%);
+  --zx-shadow-card: 0 1px 2px rgb(15 23 42 / 6%);
+
+  /* Terminal palette, darkened so coloured output survives a white ground —
+     bright cyan and yellow are unreadable on white at their dark values. */
+  --zx-ansi-0: #24292f;
+  --zx-ansi-1: #cf222e;
+  --zx-ansi-2: #116329;
+  --zx-ansi-3: #7d4e00;
+  --zx-ansi-4: #0550ae;
+  --zx-ansi-5: #8250df;
+  --zx-ansi-6: #0b6b73;
+  --zx-ansi-7: #57606a;
+  --zx-ansi-8: #6e7781;
+  --zx-ansi-9: #a40e26;
+  --zx-ansi-10: #0d5620;
+  --zx-ansi-11: #6b4600;
+  --zx-ansi-12: #0a4a9e;
+  --zx-ansi-13: #6f42c1;
+  --zx-ansi-14: #0a5c63;
+  --zx-ansi-15: #8c959f;
+  --zx-ansi-fg: var(--zx-label);
+  --zx-ansi-bg: var(--zx-bg-card);
+  --zx-scrim: rgb(15 23 42 / 24%);
+}
+
+/**
+ * Windows 11 backdrop.
+ *
+ * The native material composites behind the *window*, so it is only visible
+ * where the document is transparent. The shell has already made the window
+ * background transparent; these rules clear the page ground the desktop
+ * preload paints over it, and thin the workbench's own surfaces so the
+ * material shows through them.
+ *
+ * Element-qualified on purpose: the workbench root carries the same attribute
+ * (it needs the token overrides below) and must keep painting its ground.
+ */
+html[data-dcode-acrylic],
+body[data-dcode-acrylic] {
+  background: transparent !important;
+}
+
+/* Opacity climbs with the surface: the app ground is the most transparent,
+   popovers the least, because a menu over a busy wallpaper has to stay
+   readable at a glance. */
+[data-dcode-scope][data-dcode-acrylic] {
+  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-bg-base, #0d0d0f) 62%, transparent);
+  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #141416) 72%, transparent);
+  --zx-bg-card: color-mix(in srgb, var(--dsw-alias-bg-layer-2, #191a1d) 80%, transparent);
+  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-overlay, #1c1d20) 92%, transparent);
+}
+
+[data-dcode-scope][data-dcode-scheme='light'][data-dcode-acrylic] {
+  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-bg-base, #f7f8fa) 62%, transparent);
+  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 74%, transparent);
+  --zx-bg-card: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 82%, transparent);
+  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 94%, transparent);
+}

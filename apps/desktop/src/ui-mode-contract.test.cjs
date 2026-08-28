@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
-const contract = require('@dsh-portable/zcode-ui/ui-mode-contract')
+const contract = require('@dsh-portable/dcode-ui/ui-mode-contract')
 const config = require('./config-store.cjs')
 
 test('desktop config consumes the shared UI-mode contract', () => {
@@ -14,6 +14,6 @@ test('desktop URL rewriting comes from the shared contract', () => {
     contract.withUiModeParam('http://127.0.0.1:7000/?token=x', 'official'),
     'http://127.0.0.1:7000/?token=x&view=official',
   )
-  assert.equal(contract.normalizeUiMode('zcode'), 'zcode')
+  assert.equal(contract.normalizeUiMode('dcode'), 'dcode')
   assert.equal(contract.normalizeUiMode('unknown'), undefined)
 })

@@ -1,0 +1,123 @@
+/** Compact tool-execution card: one line closed, full output expanded. */
+
+.card {
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 30px;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.head:hover {
+  background: var(--zx-bg-hover);
+}
+
+.head:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--zx-label-muted);
+}
+
+.verb {
+  color: var(--zx-label-secondary);
+  flex: none;
+}
+
+.detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label);
+}
+
+.error {
+  color: var(--zx-error);
+}
+
+.chevron {
+  flex: none;
+  color: var(--zx-label-faint);
+  transition: transform var(--zx-motion-fast);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.body {
+  border-top: 1px solid var(--zx-border-soft);
+  padding: var(--zx-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-3);
+}
+
+/* Section label with its controls pushed to the far edge. */
+.bodyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+}
+
+.bodyLabel {
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.output {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--zx-space-3);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-panel);
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+  padding-left: var(--zx-space-4);
+  border-left: 1px solid var(--zx-border-soft);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+}

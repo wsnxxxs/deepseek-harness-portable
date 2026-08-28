@@ -1,0 +1,301 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+/**
+ * The composer: prompt entry plus the four session controls the operator
+ * changes most — agent mode, model, reasoning depth, and permission mode.
+ *
+ * Every control writes through the Host's own path, never a local mirror:
+ * the model and reasoning effort go through `session/selectModel`, the
+ * permission mode executes the `/permission` command the official chip
+ * executes. The result is that both surfaces read the same projections
+ * afterwards.
+ * @module @dsh-portable/dcode-ui/client/shell/Composer
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { IconAgentPresetOutline16, IconCheckOutline16, IconChevronDownOutline14, IconEditOutline16, IconFolderOpenOutline16, IconSendOutline16, IconStopFill16, IconThinkOutline16, IconWarningOutline16, RiskConfirmation, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useRuntime } from "../state/runtime.js";
+import { useAsync, useObservable, useProjectionValue, useSessionSnapshot, useWorkspaceGroups } from "../state/hooks.js";
+import { useT } from "../state/i18n.js";
+import { Popover } from "./ui.js";
+import css from './Composer.module.css';
+/** Permission value that requires an explicit user acknowledgement. */
+const FULL_ACCESS_PERMISSION = 'danger-full-access';
+/** Built-in preset labels are translated; user-authored rows use their roster metadata. */
+function modeLabel(id, fallback, t) {
+    switch (id) {
+        case 'standard': return t('composer.mode.standard');
+        case 'ptc': return t('composer.mode.ptc');
+        case 'minimal': return t('composer.mode.minimal');
+        case 'cordis': return t('composer.mode.cordis');
+        default: return fallback;
+    }
+}
+/** Known permission values have product copy; unfamiliar host values keep their published name. */
+function permissionLabel(value, name, t) {
+    switch (value) {
+        case 'read-only': return t('composer.permission.readOnly');
+        case 'workspace-write': return t('composer.permission.workspaceWrite');
+        case FULL_ACCESS_PERMISSION: return t('composer.permission.fullAccess');
+        default: return name;
+    }
+}
+/** Use the primitive glyphs already shared by the client UI for permission rows. */
+function permissionIcon(value) {
+    switch (value) {
+        case 'read-only': return _jsx(IconCheckOutline16, {});
+        case 'workspace-write': return _jsx(IconEditOutline16, {});
+        case FULL_ACCESS_PERMISSION: return _jsx(IconWarningOutline16, {});
+        default: return undefined;
+    }
+}
+/** Cmd/Ctrl+Enter flips the configured busy behavior. */
+function oppositeBusyEnter(value) {
+    return value === 'queue' ? 'steer' : 'queue';
+}
+/** Draft text per session, so switching tasks does not lose an unsent prompt. */
+const drafts = new Map();
+/** Prompt entry and the session controls. */
+export function Composer({ sessionId, blank, cwd, onOpenWorkspace }) {
+    const runtime = useRuntime();
+    const t = useT();
+    const session = useSessionSnapshot(sessionId);
+    const permissions = useProjectionValue(sessionId, 'permissions');
+    const selection = useProjectionValue(sessionId, 'modelSelection');
+    const agentPreset = useProjectionValue(sessionId, 'agentPreset');
+    const busyEnter = useObservable(runtime.busyEnter, 'queue');
+    const [draft, setDraft] = useState('');
+    const [focused, setFocused] = useState(false);
+    const [error, setError] = useState(undefined);
+    const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
+    const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false);
+    const inputRef = useRef(null);
+    const shellRef = useRef(null);
+    // Restore this session's draft on a task switch, and persist the outgoing one.
+    const previousSession = useRef(undefined);
+    useEffect(() => {
+        const outgoing = previousSession.current;
+        if (outgoing !== undefined)
+            drafts.set(outgoing, draft);
+        setDraft(sessionId === undefined ? '' : drafts.get(sessionId) ?? '');
+        setError(undefined);
+        previousSession.current = sessionId;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the draft is captured, not observed
+    }, [sessionId]);
+    // Grow with content up to the stylesheet's cap. The card's width decides how
+    // many lines the draft wraps to, so observe the card itself rather than only
+    // the viewport — the center column can resize when either side rail changes.
+    useEffect(() => {
+        const input = inputRef.current;
+        const shell = shellRef.current;
+        if (input === null || shell === null)
+            return undefined;
+        const fit = () => {
+            input.style.height = 'auto';
+            input.style.height = `${String(input.scrollHeight)}px`;
+        };
+        fit();
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', fit);
+            return () => { window.removeEventListener('resize', fit); };
+        }
+        const observer = new ResizeObserver(fit);
+        observer.observe(shell);
+        return () => { observer.disconnect(); };
+    }, [draft]);
+    const catalog = useAsync(async () => await runtime.remote.session.modelCatalog(), [runtime]);
+    const presets = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime]);
+    const running = session?.running === true;
+    const current = selection?.next ?? selection?.lastUsed ?? undefined;
+    const roster = presets.value?.ok === true ? presets.value.value.presets : [];
+    const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id;
+    const blankSession = (blank ?? session?.blank ?? false) && !running;
+    const currentModel = useMemo(() => {
+        if (catalog.value?.ok !== true)
+            return undefined;
+        for (const group of catalog.value.value.groups) {
+            const model = group.models.find(row => row.id === current?.model && group.id === current.provider);
+            if (model !== undefined)
+                return { group, model };
+        }
+        return undefined;
+    }, [catalog.value, current]);
+    const selectModel = useCallback((provider, model, reasoningEffort) => {
+        if (sessionId === undefined)
+            return;
+        void runtime.remote.session.selectModel({
+            sessionId,
+            provider,
+            model,
+            ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+        });
+    }, [runtime, sessionId]);
+    const modelRows = useMemo(() => {
+        if (catalog.value?.ok !== true)
+            return [];
+        return catalog.value.value.groups.flatMap(group => group.models.map(model => ({
+            id: `${group.id}/${model.id}`,
+            label: model.name,
+            detail: group.name,
+            group: group.name,
+            active: group.id === current?.provider && model.id === current.model,
+            onSelect: () => { selectModel(group.id, model.id); },
+        })));
+    }, [catalog.value, current, selectModel]);
+    const reasoningRows = useMemo(() => {
+        const efforts = currentModel?.model.reasoning?.efforts ?? [];
+        if (efforts.length === 0 || current === undefined)
+            return [];
+        return efforts.map(effort => ({
+            id: effort.id,
+            label: effort.name,
+            detail: effort.description,
+            active: effort.id === current.reasoningEffort,
+            onSelect: () => { selectModel(current.provider, current.model, effort.id); },
+        }));
+    }, [currentModel, current, selectModel]);
+    const selectPermission = useCallback((value) => {
+        if (sessionId === undefined)
+            return;
+        void runtime.remote.commands.execute(sessionId, `/permission ${value}`, [])
+            .then((result) => {
+            if (!result.ok)
+                setError(result.error.message);
+        })
+            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); });
+    }, [runtime, sessionId]);
+    const selectPreset = useCallback((id) => {
+        if (sessionId === undefined || !blankSession)
+            return;
+        void runtime.remote.agentPresets.select(sessionId, id)
+            .then((result) => {
+            if (!result.ok)
+                setError(result.error.message);
+        })
+            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); });
+    }, [blankSession, runtime, sessionId]);
+    const permissionRows = useMemo(() => {
+        if (permissions === undefined || sessionId === undefined)
+            return [];
+        return permissions.options.filter(option => option.value !== 'custom').map(option => {
+            const icon = permissionIcon(option.value);
+            return {
+                id: option.value,
+                label: permissionLabel(option.value, option.name, t),
+                detail: option.description,
+                ...(icon === undefined ? {} : { icon }),
+                active: option.value === permissions.currentValue,
+                danger: option.value === FULL_ACCESS_PERMISSION,
+                onSelect: () => {
+                    if (option.value === permissions.currentValue)
+                        return;
+                    if (option.value === FULL_ACCESS_PERMISSION) {
+                        setAcknowledgedFullAccess(false);
+                        setConfirmingFullAccess(true);
+                        return;
+                    }
+                    selectPermission(option.value);
+                },
+            };
+        });
+    }, [permissions, selectPermission, sessionId, t]);
+    const modeRows = useMemo(() => roster.map(preset => ({
+        id: preset.id,
+        label: modeLabel(preset.id, preset.name ?? preset.id, t),
+        detail: preset.broken ?? preset.description,
+        active: preset.id === currentPreset,
+        disabled: preset.broken !== undefined,
+        icon: _jsx(IconAgentPresetOutline16, {}),
+        onSelect: () => {
+            if (preset.id !== currentPreset)
+                selectPreset(preset.id);
+        },
+    })), [currentPreset, roster, selectPreset, t]);
+    const send = useCallback((mode) => {
+        if (sessionId === undefined)
+            return;
+        const text = draft.trim();
+        if (text === '')
+            return;
+        const face = runtime.binding(sessionId)?.session;
+        if (face === undefined)
+            return;
+        setDraft('');
+        drafts.delete(sessionId);
+        setError(undefined);
+        // A leading slash is a command line, not a prompt: routing it through the
+        // commands Remote keeps the host's command lifecycle and catalog intact.
+        if (text.startsWith('/')) {
+            void face.command(text).then((result) => {
+                if (!result.ok)
+                    setError(result.error.message);
+                else if (!result.value.matched)
+                    setError(`unknown command: ${text.split(' ')[0] ?? text}`);
+            });
+            return;
+        }
+        const handle = face.beginSubmission({ text, images: [] });
+        void face.prompt([{ type: 'text', text }], mode, undefined, handle.requestId)
+            .then((result) => {
+            if (!result.ok)
+                setError(result.error.message);
+        })
+            .catch((cause) => {
+            handle.abandon();
+            setError(cause instanceof Error ? cause.message : String(cause));
+        });
+    }, [runtime, sessionId, draft]);
+    const stop = useCallback(() => {
+        if (sessionId === undefined)
+            return;
+        void runtime.binding(sessionId)?.session.cancel();
+    }, [runtime, sessionId]);
+    const onKeyDown = useCallback((event) => {
+        if (event.key !== 'Enter' || event.shiftKey)
+            return;
+        if (event.nativeEvent.isComposing)
+            return;
+        event.preventDefault();
+        const accelerated = event.metaKey || event.ctrlKey;
+        const mode = !running
+            ? 'queue'
+            : accelerated ? oppositeBusyEnter(busyEnter) : busyEnter;
+        send(mode);
+    }, [busyEnter, running, send]);
+    const { groups } = useWorkspaceGroups();
+    const workspaceTitle = useMemo(() => {
+        if (cwd !== undefined) {
+            const match = groups.find(group => group.path === cwd);
+            if (match)
+                return match.title;
+            return cwd.split(/[\\/]/).filter(Boolean).pop() || cwd;
+        }
+        return undefined;
+    }, [groups, cwd]);
+    const disabled = sessionId === undefined;
+    const currentPermission = permissions?.options.find(option => option.value === permissions.currentValue);
+    const currentPermissionLabel = currentPermission === undefined
+        ? t('composer.permission')
+        : permissionLabel(currentPermission.value, currentPermission.name, t);
+    const currentPresetRow = roster.find(preset => preset.id === currentPreset);
+    const currentPresetLabel = currentPreset === undefined
+        ? t('composer.mode')
+        : modeLabel(currentPreset, currentPresetRow?.name ?? t('composer.mode'), t);
+    return (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dock, children: [blank
+                        ? (_jsx("div", { className: css.headerRow, children: _jsxs("button", { type: "button", className: css.projectChip, onClick: onOpenWorkspace, title: cwd, children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { children: workspaceTitle ?? t('nav.openWorkspace') }), _jsx(IconChevronDownOutline14, {})] }) }))
+                        : null, _jsxs("div", { ref: shellRef, className: `${css.shell} ${focused ? css.shellFocused : ''}`, children: [_jsx("textarea", { ref: inputRef, className: css.input, rows: 1, value: draft, disabled: disabled, placeholder: disabled
+                                    ? t('composer.needsSession')
+                                    : running ? t('composer.placeholderRunning') : t('composer.placeholder'), onChange: event => { setDraft(event.target.value); }, onKeyDown: onKeyDown, onFocus: () => { setFocused(true); }, onBlur: () => { setFocused(false); } }), error === undefined ? null : _jsx("div", { className: css.error, children: error }), _jsxs("div", { className: css.controls, children: [_jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel })] }), rows: permissionRows }), _jsx(Popover, { label: blankSession ? t('composer.mode') : t('composer.modeLocked'), disabled: !blankSession || sessionId === undefined || modeRows.length === 0, trigger: _jsxs("span", { className: css.control, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { className: css.controlLabel, children: currentPresetLabel })] }), rows: modeRows }), _jsx("span", { className: css.spacer }), _jsx(Popover, { label: t('composer.model'), disabled: modelRows.length === 0, align: "end", popoverClassName: css.modelMenu, trigger: _jsx("span", { className: css.control, children: _jsx("span", { className: css.controlLabel, children: currentModel === undefined
+                                                    ? t('composer.model')
+                                                    : `${currentModel.model.name} · ${currentModel.group.name}` }) }), rows: modelRows }), _jsx(Popover, { label: t('composer.reasoning'), disabled: reasoningRows.length === 0, align: "end", trigger: _jsxs("span", { className: css.control, children: [_jsx(IconThinkOutline16, {}), _jsx("span", { className: css.controlLabel, children: reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault') })] }), rows: reasoningRows }), running
+                                        ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
+                                        : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || draft.trim() === '', "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
+                    setAcknowledgedFullAccess(false);
+                    setConfirmingFullAccess(false);
+                }, onConfirm: () => {
+                    if (!acknowledgedFullAccess)
+                        return;
+                    setAcknowledgedFullAccess(false);
+                    setConfirmingFullAccess(false);
+                    selectPermission(FULL_ACCESS_PERMISSION);
+                } })] }));
+}
+//# sourceMappingURL=Composer.js.map

@@ -24,7 +24,7 @@
     "make:linux": "pnpm run package:linux"
   },
   "dependencies": {
-    "@dsh-portable/zcode-ui": "workspace:^",
+    "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "js-yaml": "^4.2.0"
   },

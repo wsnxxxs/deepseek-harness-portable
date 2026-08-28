@@ -342,6 +342,19 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
             ],
         });
     }
+    // The modern workbench ships beside the official UI, never instead of it:
+    // its client half shadows the `root` slot only while the operator has
+    // selected it, and its host half serves the `/dcode` git channel.
+    if (!rows.has('dcode-ui')) {
+        overlays.push({
+            insert: [
+                {
+                    id: 'dcode-ui',
+                    name: '@dsh-portable/dcode-ui',
+                },
+            ],
+        });
+    }
     const telemetryPatch = resolveTelemetryPatch(process.env.DSH_TELEMETRY_DISABLED, rows.has(TELEMETRY_ROW_ID));
     if (telemetryPatch !== undefined)
         overlays.push(telemetryPatch);
@@ -363,6 +376,7 @@ const REQUIRED_CLIENT_ENTRIES = [
     '@deepseek-ai/dsh-client-ui-layout',
     '@dsh-portable/interactive-learning',
     '@dsh-portable/vision-bridge',
+    '@dsh-portable/dcode-ui',
 ];
 /**
  * Check the boot graph embedded in the exact index document that the browser

@@ -1,0 +1,172 @@
+/** Unified-diff viewer for one file. */
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label-secondary);
+}
+
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--zx-font-mono);
+  color: var(--zx-label);
+}
+
+.body {
+  position: relative;
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+
+.body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border: 3px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background-clip: padding-box;
+}
+
+/* A row is as wide as its content, so a long line extends the scroll width
+   instead of wrapping — column alignment is the whole point of a diff. */
+.line {
+  display: flex;
+  align-items: baseline;
+  min-width: max-content;
+  white-space: pre;
+}
+
+/* The gutter rides the left edge through a horizontal scroll, the way an
+   editor's number margin does, so a wide line never loses its address. */
+.gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  gap: var(--zx-space-3);
+  padding: 0 var(--zx-space-3);
+  /* Opaque rather than tinted: it must hide the text sliding under it, and a
+     translucent tint over moving text reads as a rendering fault. */
+  background: var(--zx-bg-card);
+  border-right: 1px solid var(--zx-border-soft);
+}
+
+.lineNo {
+  min-width: 3.5ch;
+  text-align: right;
+  color: var(--zx-label-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Its own column, so the first character of every line starts at one x. */
+.sign {
+  flex: none;
+  width: 2ch;
+  padding-left: var(--zx-space-2);
+  color: var(--zx-label-faint);
+  user-select: none;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  padding-right: var(--zx-space-3);
+}
+
+/* A wash carries the row and a saturated rule marks its edge: the wash alone
+   is too weak to scan at a glance, a saturated fill too loud to read on. */
+.added {
+  background: color-mix(in srgb, var(--zx-added) 12%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--zx-added) 70%, transparent);
+}
+
+.added .sign,
+.added .text {
+  color: var(--zx-label);
+}
+
+.added .sign {
+  color: var(--zx-added);
+}
+
+.removed {
+  background: color-mix(in srgb, var(--zx-removed) 12%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--zx-removed) 70%, transparent);
+}
+
+.removed .sign,
+.removed .text {
+  color: var(--zx-label);
+}
+
+.removed .sign {
+  color: var(--zx-removed);
+}
+
+/* Hunk headers stay put while their hunk scrolls, so the range on screen is
+   always the range being read. */
+.hunk {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  gap: var(--zx-space-3);
+  padding: 2px var(--zx-space-3);
+  background: var(--zx-bg-panel);
+  border-top: 1px solid var(--zx-border-soft);
+  border-bottom: 1px solid var(--zx-border-soft);
+}
+
+.line.hunk:first-child {
+  border-top: 0;
+}
+
+.range {
+  flex: none;
+  color: var(--zx-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--zx-label-muted);
+}
+
+.meta {
+  color: var(--zx-label-faint);
+  font-style: italic;
+}
+
+.note {
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+}

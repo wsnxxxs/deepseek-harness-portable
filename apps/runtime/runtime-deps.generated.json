@@ -42,11 +42,12 @@
     "@deepseek-ai/dsh-tool-workflow",
     "@deepseek-ai/dsh-web-app",
     "@deepseek-ai/dsh-workflow-worker-thread",
+    "@dsh-portable/dcode-ui",
     "@dsh-portable/desktop-protocol",
     "@dsh-portable/interactive-learning",
     "@dsh-portable/vision-bridge"
   ],
-  "closureHash": "sha256:eecf49fb060386c5897628e0aaef60bb4d4435a2eccaad66391c36cc202b9148",
+  "closureHash": "sha256:e2ae7e5a02e02b1ba66087d646a12ff51dd6e0d28c894642d73eacf31ef60d00",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -1174,6 +1175,11 @@
       "path": "vendor/deepseek-harness/vendor/schemastery"
     },
     {
+      "name": "@dsh-portable/dcode-ui",
+      "version": "0.1.0",
+      "path": "apps/dcode-ui"
+    },
+    {
       "name": "@dsh-portable/desktop-protocol",
       "version": "1.0.0",
       "path": "packages/desktop-protocol"
@@ -1415,6 +1421,7 @@
     "@deepseek-ai/node-addon-landlock-run-linux-arm64": "workspace:^",
     "@deepseek-ai/node-addon-landlock-run-linux-x64": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
+    "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",

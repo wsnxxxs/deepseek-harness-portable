@@ -6,8 +6,8 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
 const approvedReleaseVersion = '1.6.0'
-const dependencyManifestSnapshot = 'd7f1f3f2430cc5d00db36bc8e856b2604b71db777e0e54e8037cd04af98c927e'
-const lockfileSnapshot = '3102d5d2ba756c9aaa22f67b222a653c9b4ec788dbe5955592212df586daf859'
+const dependencyManifestSnapshot = 'fc5e482ef15b248050709dd2f1b8b4635fa458bdf364bc803ca559bb952dddea'
+const lockfileSnapshot = 'ee9f7c6bc987d8fff0724750b52b5495c15ccc9aeedb1d30ad94022ddbd99f06'
 
 const packageVersions = {
   'package.json': '0.1.0',
@@ -15,6 +15,7 @@ const packageVersions = {
   'apps/runtime/package.json': '0.1.0',
   'apps/interactive-learning/package.json': '0.1.0',
   'apps/vision-bridge/package.json': '0.1.0',
+  'apps/dcode-ui/package.json': '0.1.0',
   'packages/platform-contract/package.json': '0.1.0',
   'packages/release-manifest/package.json': '0.1.0',
   'packages/desktop-protocol/package.json': '1.0.0',

@@ -1,0 +1,81 @@
+/** Terminal output block and its copy/wrap controls. */
+
+.output {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--zx-space-3);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-panel);
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  line-height: 1.55;
+  /* Programs assume 8, but 8 in a side column wastes half the width. */
+  tab-size: 4;
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+
+.output::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.output::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border: 3px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background-clip: padding-box;
+}
+
+.wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Unwrapped is the terminal-faithful mode: aligned columns survive, and the
+   block scrolls sideways instead of reflowing a table into nonsense. */
+.nowrap {
+  white-space: pre;
+}
+
+.truncated {
+  color: var(--zx-label-faint);
+  font-style: italic;
+}
+
+.toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  margin-left: auto;
+}
+
+.action {
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  padding: 2px var(--zx-space-2);
+  background: transparent;
+  color: var(--zx-label-faint);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label-secondary);
+}
+
+.action:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.actionOn {
+  background: var(--zx-bg-active);
+  color: var(--zx-label-secondary);
+}

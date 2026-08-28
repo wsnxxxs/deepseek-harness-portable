@@ -22,7 +22,7 @@ test('only packages delegating to the kernel preset are bridged', () => {
 
 test('every out-of-tree client plugin in this repository is discovered', () => {
   const names = discoverBridgedPackages(root).map(item => item.name)
-  assert.deepEqual(names, ['@dsh-portable/interactive-learning', '@dsh-portable/vision-bridge'])
+  assert.deepEqual(names, ['@dsh-portable/dcode-ui', '@dsh-portable/interactive-learning', '@dsh-portable/vision-bridge'])
 })
 
 test('the bridge lands where the kernel preset scans and mirrors the resolved contract fields', () => {

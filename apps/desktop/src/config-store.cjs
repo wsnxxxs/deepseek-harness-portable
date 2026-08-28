@@ -12,7 +12,7 @@ const {
   closeSync,
 } = require('node:fs')
 const { join, resolve } = require('node:path')
-const { DEFAULT_UI_MODE, UI_MODES } = require('@dsh-portable/zcode-ui/ui-mode-contract')
+const { DEFAULT_UI_MODE, UI_MODES } = require('@dsh-portable/dcode-ui/ui-mode-contract')
 
 const CURRENT_SCHEMA_VERSION = 1
 

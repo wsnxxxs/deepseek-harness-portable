@@ -4,7 +4,7 @@ This distribution ships two browser front ends over a single DeepSeek Harness
 Runtime:
 
 - **Official** — the upstream DeepSeek Harness interface, unmodified.
-- **Workbench** (`@dsh-portable/zcode-ui`) — a compact desktop workbench.
+- **Workbench** (`@dsh-portable/dcode-ui`) — a compact desktop workbench.
   Default.
 
 Neither is a fork of the other, and neither can be removed by selecting the
@@ -17,7 +17,7 @@ DSH's browser shell renders exactly one ctx-level slot, `root`. The upstream
 slot, a second registration shadows the first, and the entry with the lowest
 `priority` renders.
 
-That is the entire switch. `@dsh-portable/zcode-ui` registers into `root` at
+That is the entire switch. `@dsh-portable/dcode-ui` registers into `root` at
 `priority: -1000` while the modern surface is selected and disposes the
 registration otherwise.
 
@@ -40,11 +40,11 @@ Remote namespaces, so:
 | Tray menu | the same submenu |
 | Workbench settings | Settings ▸ Appearance ▸ Interface, and Settings ▸ General |
 | Official settings | 设置 ▸ 界面设置 |
-| URL | `?view=zcode` / `?view=official` |
+| URL | `?view=dcode` / `?view=official` |
 | Command palette | "Switch to the official interface" |
 
 Resolution at boot, highest first: URL parameter → browser `localStorage` →
-the desktop config's `uiMode` field → `zcode`.
+the desktop config's `uiMode` field → `dcode`.
 
 The desktop shell stamps `?view=<mode>` onto the harness URL it loads, records
 the selection in `config.json`, and keeps its menus ticked. A switch made
@@ -55,7 +55,7 @@ next cold launch opens the same surface.
 
 The workbench reuses DSH capabilities wherever they exist. It adds host-side
 code for exactly one thing DSH does not own — version control — as a
-`/zcode` Connection RPC channel (`git/status`, `git/diff`, `git/branches`,
+`/dcode` Connection RPC channel (`git/status`, `git/diff`, `git/branches`,
 `git/commit`, `git/undo`, `file/read`). That is a host plugin, not a desktop
 feature, so the web surface has the same Git panel as the packaged app.
 
@@ -69,10 +69,10 @@ own learning entries unchanged.
 
 | Concern | Location |
 | --- | --- |
-| Shared switch constants | `apps/zcode-ui/ui-mode-contract.cjs` |
-| Typed browser helpers | `apps/zcode-ui/src/ui-mode.ts` |
-| Browser switch + workbench | `apps/zcode-ui/src/client/` |
-| Git/diff/undo host channel | `apps/zcode-ui/src/host/` |
+| Shared switch constants | `apps/dcode-ui/ui-mode-contract.cjs` |
+| Typed browser helpers | `apps/dcode-ui/src/ui-mode.ts` |
+| Browser switch + workbench | `apps/dcode-ui/src/client/` |
+| Git/diff/undo host channel | `apps/dcode-ui/src/host/` |
 | Plugin-graph insertion | `apps/runtime/src/packaged-bin.ts` |
 | Desktop config field | `apps/desktop/src/config-store.cjs` (`uiMode`) |
 | Menu, tray, IPC, URL stamp | `apps/desktop/src/main.cjs` |
@@ -83,7 +83,7 @@ own learning entries unchanged.
 ## 中文摘要
 
 本发行版在同一个 DSH Runtime 之上提供两套前端：**官方版**（保持原样的上游
-DeepSeek Harness 界面）与默认的**工作台**（`@dsh-portable/zcode-ui`）。二者不是
+DeepSeek Harness 界面）与默认的**工作台**（`@dsh-portable/dcode-ui`）。二者不是
 彼此的分支，选择其一也不会移除另一个。
 
 切换机制只有一句话：DSH 浏览器外壳只渲染一个 ctx 级插槽 `root`，官方 `ui-layout`
@@ -96,12 +96,12 @@ DeepSeek Harness 界面）与默认的**工作台**（`@dsh-portable/zcode-ui`�
 在一侧新建的任务在另一侧已经存在，流式回合可跨切换继续。
 
 切换入口：应用菜单、托盘菜单、两套界面各自的设置面板、URL 参数 `?view=`、命令面板。
-启动解析顺序为 URL 参数 → `localStorage` → 桌面配置 `uiMode` → `zcode`。
+启动解析顺序为 URL 参数 → `localStorage` → 桌面配置 `uiMode` → `dcode`。
 
 能力边界上，工作台尽量复用 DSH 既有能力；只有 DSH 当前不具备的版本控制能力，
-以 `/zcode` Connection RPC 通道在 Host 侧补齐（状态、差异、分支、提交、撤销、文件读取），
+以 `/dcode` Connection RPC 通道在 Host 侧补齐（状态、差异、分支、提交、撤销、文件读取），
 因此网页端与桌面端拥有同一个 Git 面板。撤销是非破坏性的：已跟踪文件从 HEAD 还原，
-未跟踪文件移动到 `.dsh/zcode-undo/<时间戳>/`，绝不直接删除。
+未跟踪文件移动到 `.dsh/dcode-undo/<时间戳>/`，绝不直接删除。
 
 学习模式是工作台左侧导航的一级入口，但驱动的是既有的 Interactive Learning 能力包：
 同一个 `learning` 预设、同一条 `/interactive-learning` 通道、以及该包自己的

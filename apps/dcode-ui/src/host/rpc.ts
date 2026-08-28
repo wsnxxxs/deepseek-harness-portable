@@ -1,0 +1,163 @@
+/**
+ * The `/dcode` RPC surface: the capabilities the modern workbench needs that
+ * DSH itself does not own — working-tree status, file diffs, a narrow commit
+ * path, per-turn undo, and bounded file reads for the details pane.
+ *
+ * Endpoint answers use the same `{ ok, value } | { ok, error }` envelope the
+ * rest of this distribution's Connection RPC uses, so a client never has to
+ * distinguish a business refusal from a transport failure by exception type.
+ * @module @dsh-portable/dcode-ui/host/rpc
+ */
+
+import { readFile, stat } from 'node:fs/promises'
+import { isAbsolute, resolve } from 'node:path'
+import {
+  commit, containedRelativePath, readBranches, readDiff, readStatus, undoPaths,
+} from './git.ts'
+
+/** Every endpoint this channel answers. */
+export const DCODE_ENDPOINTS = [
+  'git/status',
+  'git/diff',
+  'git/branches',
+  'git/commit',
+  'git/undo',
+  'file/read',
+] as const
+
+/** One endpoint name. */
+export type DcodeEndpoint = (typeof DCODE_ENDPOINTS)[number]
+
+/** RPC channel this plugin answers on. */
+export const DCODE_CHANNEL = '/dcode'
+
+/** Stable business failure codes. */
+export type DcodeErrorCode = 'bad-request' | 'not-a-repository' | 'git-failed' | 'too-large' | 'unavailable'
+
+/** Success or refusal, mirroring the Connection RPC envelope. */
+export type DcodeResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: { readonly code: DcodeErrorCode; readonly message: string; readonly details: Record<string, unknown> } }
+
+/** Byte ceiling on one `file/read` answer; a larger file comes back truncated. */
+const FILE_READ_LIMIT = 512 * 1024
+
+/**
+ * Whether a value names an endpoint this channel answers.
+ * @param value - endpoint string from the wire.
+ */
+export function isDcodeEndpoint(value: unknown): value is DcodeEndpoint {
+  return typeof value === 'string' && (DCODE_ENDPOINTS as readonly string[]).includes(value)
+}
+
+function failure(code: DcodeErrorCode, message: string, details: Record<string, unknown> = {}): DcodeResult<never> {
+  return { ok: false, error: { code, message, details } }
+}
+
+/** Read a required absolute workspace directory out of an untrusted payload. */
+function requireCwd(payload: Record<string, unknown>): string {
+  const cwd = payload.cwd
+  if (typeof cwd !== 'string' || cwd.trim() === '') throw new Error('cwd must be a non-empty absolute path')
+  if (!isAbsolute(cwd)) throw new Error('cwd must be absolute')
+  return resolve(cwd)
+}
+
+/** Read a required string field out of an untrusted payload. */
+function requireString(payload: Record<string, unknown>, field: string, maxLength: number): string {
+  const value = payload[field]
+  if (typeof value !== 'string' || value.trim() === '') throw new Error(`${field} must be a non-empty string`)
+  if (value.length > maxLength) throw new Error(`${field} must be at most ${String(maxLength)} characters`)
+  return value
+}
+
+/** Read an optional bounded string-array field out of an untrusted payload. */
+function optionalPaths(payload: Record<string, unknown>, field: string): readonly string[] | undefined {
+  const value = payload[field]
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array of paths`)
+  if (value.length > 500) throw new Error(`${field} must contain at most 500 paths`)
+  return value.map((entry, index) => {
+    if (typeof entry !== 'string' || entry.trim() === '') throw new Error(`${field}[${String(index)}] must be a non-empty string`)
+    return entry
+  })
+}
+
+/**
+ * Answer one `/dcode` endpoint.
+ *
+ * Payload shape failures are `bad-request`; a directory outside a repository
+ * is `not-a-repository`; anything git itself refused is `git-failed` with
+ * git's own trimmed message.
+ * @param endpoint - endpoint name, already known to be one of {@link DCODE_ENDPOINTS}.
+ * @param payload - untrusted wire payload.
+ * @returns the endpoint's envelope.
+ */
+export async function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unknown): Promise<DcodeResult<unknown>> {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return failure('bad-request', 'payload must be an object')
+  }
+  const body = payload as Record<string, unknown>
+  try {
+    switch (endpoint) {
+      case 'git/status': {
+        return { ok: true, value: await readStatus(requireCwd(body)) }
+      }
+      case 'git/diff': {
+        const cwd = requireCwd(body)
+        const path = requireString(body, 'path', 4096)
+        return { ok: true, value: await readDiff(cwd, path, body.staged === true) }
+      }
+      case 'git/branches': {
+        return { ok: true, value: { branches: await readBranches(requireCwd(body)) } }
+      }
+      case 'git/commit': {
+        const cwd = requireCwd(body)
+        const message = requireString(body, 'message', 8000)
+        return { ok: true, value: await commit(cwd, message, optionalPaths(body, 'paths')) }
+      }
+      case 'git/undo': {
+        const cwd = requireCwd(body)
+        const paths = optionalPaths(body, 'paths')
+        if (paths === undefined || paths.length === 0) return failure('bad-request', 'paths must list at least one file')
+        return { ok: true, value: { outcomes: await undoPaths(cwd, paths) } }
+      }
+      case 'file/read': {
+        const cwd = requireCwd(body)
+        const path = requireString(body, 'path', 4096)
+        const contained = containedRelativePath(cwd, path)
+        const absolute = resolve(cwd, contained)
+        const info = await stat(absolute)
+        if (!info.isFile()) return failure('bad-request', 'path is not a regular file', { path: contained })
+        const bytes = await readFile(absolute)
+        const truncated = bytes.byteLength > FILE_READ_LIMIT
+        const slice = truncated ? bytes.subarray(0, FILE_READ_LIMIT) : bytes
+        // A NUL in the first block is the conventional binary sniff; binary
+        // content is reported rather than decoded into replacement characters.
+        const binary = slice.subarray(0, 8000).includes(0)
+        return {
+          ok: true,
+          value: {
+            path: contained,
+            size: info.size,
+            truncated,
+            binary,
+            text: binary ? '' : slice.toString('utf8'),
+          },
+        }
+      }
+      default: {
+        return failure('bad-request', `unknown /dcode endpoint`, { endpoint })
+      }
+    }
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause)
+    if (message === 'not a git work tree') return failure('not-a-repository', message)
+    if (/^(cwd|path|message|paths)\b/.test(message) || message.startsWith('payload')) {
+      return failure('bad-request', message)
+    }
+    if ((cause as { code?: unknown } | null)?.code === 'ENOENT') {
+      return failure('bad-request', message)
+    }
+    return failure('git-failed', message)
+  }
+}
