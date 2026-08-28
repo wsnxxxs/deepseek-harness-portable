@@ -1,8 +1,8 @@
-# DeepSeek Harness Desktop v1.5.6
+# DeepSeek Harness Desktop v1.6.0
 
-Windows x64、Linux x64 与 macOS Apple Silicon 桌面版 · 2026-08-27
+Windows x64 桌面版 · 2026-08-28
 
-v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
+v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 
 ## 重大功能
 
@@ -23,7 +23,7 @@ v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
 
 ## 组件版本
 
-- 分发：1.5.6
+- 分发：1.6.0
 - 桌面外壳：0.1.0-shell.2
 - 运行时内核：0.1.2-alpha.1（`dsh-v0.1.2-alpha.1`）
 
@@ -31,9 +31,9 @@ v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
 
 ## English Release Notes
 
-Windows x64, Linux x64, and macOS Apple Silicon desktop release · 2026-08-27
+Windows x64 desktop release · 2026-08-28
 
-v1.5.6 is a feature and bug-fix release following v1.5.5.
+v1.6.0 is a feature and bug-fix release following v1.5.6.
 
 ### Major Features
 
@@ -54,7 +54,7 @@ v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 ### Component Versions
 
-- Distribution: 1.5.6
+- Distribution: 1.6.0
 - Desktop Shell: 0.1.0-shell.2
 - Runtime Kernel: 0.1.2-alpha.1 (`dsh-v0.1.2-alpha.1`)
 
@@ -62,10 +62,10 @@ v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 ## 校验和与安全 / Checksums and security
 
-最终 Windows 便携 ZIP、Setup 安装包以及 Linux AppImage/deb 的 SHA-256 值记录在 `SHA256SUMS.txt`。
+最终 Windows 便携 ZIP 和 Setup 安装包的 SHA-256 值记录在 `SHA256SUMS.txt`。
 
-产物：`DeepSeek-Harness-1.5.6-win32-x64.zip`、`DeepSeek-Harness-Setup-1.5.6-win32-x64.exe`，以及对应的 Linux x64 产物。
+产物：`DeepSeek-Harness-1.6.0-win32-x64.zip`、`DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`。
 
-The final Windows portable ZIP, Setup installer, and Linux AppImage/deb SHA-256 values are recorded in `SHA256SUMS.txt`.
+The final Windows portable ZIP and Setup installer SHA-256 values are recorded in `SHA256SUMS.txt`.
 
-Artifacts: `DeepSeek-Harness-1.5.6-win32-x64.zip`, `DeepSeek-Harness-Setup-1.5.6-win32-x64.exe`, plus the corresponding Linux x64 packages.
+Artifacts: `DeepSeek-Harness-1.6.0-win32-x64.zip`, `DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`.

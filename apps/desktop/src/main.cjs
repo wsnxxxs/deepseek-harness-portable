@@ -23,7 +23,7 @@ const { evaluateUpdateLaunch } = require('./update-transaction.cjs')
 const { ensureUnifiedDshHome } = require('./workspace-service.cjs')
 const { readConfigStore, updateConfigStore } = require('./config-store.cjs')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
-const { settingsDescribeUrl } = require('./ready-url.cjs')
+const { readSessionCookie, settingsDescribeUrl } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
 const {
   iconPath: platformIconPath,
@@ -968,14 +968,22 @@ function reloadRenderer() {
 }
 
 async function probeHarnessHealth(url) {
+  const loginUrl = new URL(url)
+  loginUrl.pathname = '/'
+  loginUrl.hash = ''
+  const login = await fetch(loginUrl, { redirect: 'manual' })
+  const cookie = readSessionCookie(login)
+  if (cookie === undefined && !login.ok) throw new Error(`HTTP ${login.status}`)
+  const headers = { 'content-type': 'application/json' }
+  if (cookie !== undefined) headers.cookie = cookie
   const response = await fetch(settingsDescribeUrl(url), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({
       type: 'client-request',
       rpcId: `desktop-health-${Date.now()}`,
-      method: 'settings.describe',
-      payload: {},
+      method: 'settings/describe',
+      payload: { args: {} },
     }),
     signal: AbortSignal.timeout(HARNESS_HEALTH_TIMEOUT_MS),
   })

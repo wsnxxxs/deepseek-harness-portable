@@ -431,6 +431,15 @@ function refreshClientModuleGraph(ctx, profileDir) {
     registry.composed = registry.compose.call(registry);
     registry.notifyGraphChanged?.call(registry);
 }
+/** Read the browser-session cookie issued by the launch-token exchange. */
+function readSessionCookie(response) {
+    const cookies = typeof response.headers.getSetCookie === 'function'
+        ? response.headers.getSetCookie()
+        : [response.headers.get('set-cookie')].filter((cookie) => cookie !== null);
+    return cookies
+        .map(cookie => cookie.split(';', 1)[0])
+        .find(cookie => cookie.length > 0);
+}
 /**
  * Poll the local web URL until the server answers, then open it in the
  * default browser. Bounded, non-fatal: a server that never answers only
@@ -441,12 +450,29 @@ async function openBrowserWhenReady(ctx) {
     const startup = ctx.get('webStartup');
     const host = startup?.host ?? '127.0.0.1';
     const port = startup?.port ?? 3080;
-    const url = `http://${host}:${port}/`;
+    const connection = ctx.get('connection');
+    const url = connection?.authenticatedUrl(`http://${host}:${port}/`) ?? `http://${host}:${port}/`;
+    const cleanUrl = new URL(url);
+    cleanUrl.search = '';
+    cleanUrl.hash = '';
+    let sessionCookie;
     const deadline = Date.now() + 20_000;
     let lastReason = 'settings.describe has not completed';
     while (Date.now() < deadline) {
         try {
-            const response = await fetch(url);
+            if (sessionCookie === undefined) {
+                const login = await fetch(url, { redirect: 'manual' });
+                sessionCookie = readSessionCookie(login);
+                if (sessionCookie === undefined && !login.ok) {
+                    lastReason = `web authentication HTTP ${login.status}`;
+                    continue;
+                }
+            }
+            const requestUrl = sessionCookie === undefined ? url : cleanUrl.href;
+            const indexHeaders = new Headers({ 'cache-control': 'no-cache' });
+            if (sessionCookie !== undefined)
+                indexHeaders.set('cookie', sessionCookie);
+            const response = await fetch(requestUrl, { headers: indexHeaders });
             if (!response.ok) {
                 lastReason = `web index HTTP ${response.status}`;
             }
@@ -454,14 +480,19 @@ async function openBrowserWhenReady(ctx) {
                 lastReason = 'client plugin graph is not populated';
             }
             else {
-                const apiResponse = await fetch(`${url}api/settings.describe`, {
+                const apiUrl = new URL(requestUrl);
+                apiUrl.pathname = '/api/settings/describe';
+                const apiHeaders = new Headers({ 'content-type': 'application/json' });
+                if (sessionCookie !== undefined)
+                    apiHeaders.set('cookie', sessionCookie);
+                const apiResponse = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    headers: apiHeaders,
                     body: JSON.stringify({
                         type: 'client-request',
                         rpcId: `web-readiness-${Date.now()}`,
-                        method: 'settings.describe',
-                        payload: {},
+                        method: 'settings/describe',
+                        payload: { args: {} },
                     }),
                     signal: AbortSignal.timeout(Math.min(1500, Math.max(1, deadline - Date.now()))),
                 });
@@ -666,10 +697,12 @@ async function main() {
             if (!Number.isSafeInteger(port) || port <= 0) {
                 throw new Error(`${NAME}: runtime protocol cannot publish an invalid Web server port`);
             }
+            const connection = ctx.get('connection');
+            const bareUrl = `http://127.0.0.1:${String(port)}/`;
             console.log(encodeRuntimeEvent({
                 protocolVersion: RUNTIME_PROTOCOL_VERSION,
                 type: 'listening',
-                url: `http://127.0.0.1:${String(port)}/`,
+                url: connection?.authenticatedUrl(bareUrl) ?? bareUrl,
             }));
         }
     }

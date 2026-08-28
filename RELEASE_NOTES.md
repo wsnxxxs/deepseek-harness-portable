@@ -1,10 +1,10 @@
-# DeepSeek Harness Desktop v1.5.6
+# DeepSeek Harness Desktop v1.6.0
 
 [中文](RELEASE_NOTES.zh.md)
 
-Windows x64, macOS Apple Silicon, and Linux x64 desktop release · 2026-08-27
+Windows x64 desktop release · 2026-08-28
 
-v1.5.6 is a feature and bug-fix release following v1.5.5.
+v1.6.0 is a feature and bug-fix release following v1.5.6.
 
 ## Major Features
 
@@ -25,14 +25,14 @@ v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 ## Components
 
-- Distribution: 1.5.6
+- Distribution: 1.6.0
 - Desktop shell: 0.1.0-shell.2
 - Kernel: 0.1.2-alpha.1 (@deepseek-ai/dsh-web-app, `dsh-v0.1.2-alpha.1`)
-- Tag: v1.5.6
+- Tag: v1.6.0
 
 ## Checksums and security
 
-- The final Windows portable ZIP, Setup installer, and Linux AppImage/deb SHA-256 values are recorded in `SHA256SUMS.txt`; the macOS DMG is recorded in `SHA256SUMS-darwin-arm64.txt`.
+- The final Windows portable ZIP and Setup installer SHA-256 values are recorded in `SHA256SUMS.txt`.
 - Verify the matching checksum file before launching downloaded files.
 - Marketplace packages are third-party code; review their source and permissions before enabling additional plugins.
 - The Windows executable and macOS DMG are unsigned; Windows SmartScreen/Smart App Control and macOS Gatekeeper may warn or block them.

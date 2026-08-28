@@ -16,11 +16,15 @@ test('extracts only the loopback readiness URL', () => {
 test('normalizes a trailing listening slash to the exact settings RPC route', () => {
   assert.equal(
     settingsDescribeUrl('http://127.0.0.1:43127/'),
-    'http://127.0.0.1:43127/api/settings.describe',
+    'http://127.0.0.1:43127/api/settings/describe',
   )
   assert.equal(
     settingsDescribeUrl('http://127.0.0.1:43127'),
-    'http://127.0.0.1:43127/api/settings.describe',
+    'http://127.0.0.1:43127/api/settings/describe',
+  )
+  assert.equal(
+    settingsDescribeUrl('http://127.0.0.1:43127/?token=test-token'),
+    'http://127.0.0.1:43127/api/settings/describe?token=test-token',
   )
 })
 
@@ -57,7 +61,7 @@ test('waits for onboarding and the complete client graph instead of trusting the
   let settingsAttempts = 0
   let indexAttempts = 0
   const server = createServer((request, response) => {
-    if (request.url !== '/api/settings.describe') {
+    if (request.url !== '/api/settings/describe') {
       indexAttempts += 1
       const entries = indexAttempts < 3
         ? []

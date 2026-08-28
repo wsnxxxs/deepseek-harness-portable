@@ -138,7 +138,7 @@ test('packaged smoke validates the live RPC response envelope and correlation id
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify({
       type: 'server-response',
-      rpcId: message.method === 'agentPreset.read' ? `${message.rpcId}-mismatch` : message.rpcId,
+      rpcId: message.method === 'agentPreset/read' ? `${message.rpcId}-mismatch` : message.rpcId,
       result: { ok: true, value: { ready: true } },
     }))
   })

@@ -1,10 +1,10 @@
-# DeepSeek Harness Desktop v1.5.6
+# DeepSeek Harness Desktop v1.6.0
 
 [English](RELEASE_NOTES.md)
 
-Windows x64、macOS Apple Silicon 与 Linux x64 桌面版 · 2026-08-27
+Windows x64 桌面版 · 2026-08-28
 
-v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
+v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 
 ## 重大功能
 
@@ -25,14 +25,14 @@ v1.5.6 是继 v1.5.5 之后的功能与问题修复版本。
 
 ## 组件版本
 
-- 分发：1.5.6
+- 分发：1.6.0
 - 桌面外壳：0.1.0-shell.2
 - 运行时内核：0.1.2-alpha.1（@deepseek-ai/dsh-web-app，`dsh-v0.1.2-alpha.1`）
-- 标签：v1.5.6
+- 标签：v1.6.0
 
 ## 校验和与安全
 
-- Windows 便携 ZIP、Setup 安装包以及 Linux AppImage/deb 的 SHA-256 值记录在 `SHA256SUMS.txt`；macOS DMG 的校验值记录在 `SHA256SUMS-darwin-arm64.txt`。
+- Windows 便携 ZIP 和 Setup 安装包的 SHA-256 值记录在 `SHA256SUMS.txt`。
 - 运行下载文件前请核对对应的校验文件。
 - 市场中的插件属于第三方代码，启用额外插件前请审查其来源和权限。
 - Windows 可执行文件和 macOS DMG 均未签名，Windows SmartScreen/Smart App Control 及 macOS Gatekeeper 可能发出警告或阻止运行。

@@ -20,8 +20,25 @@ const REQUIRED_CLIENT_ENTRIES = [
 ]
 
 /** Build the settings RPC endpoint without producing a double-slash path. */
+function urlWithPathPreservingSearch(baseUrl, pathname) {
+  const url = new URL(baseUrl)
+  url.pathname = pathname
+  url.hash = ''
+  return url.href
+}
+
+/** Read the browser-session cookie issued by the launch-token exchange. */
+function readSessionCookie(response) {
+  const cookies = typeof response?.headers?.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response?.headers?.get('set-cookie')].filter(Boolean)
+  return cookies
+    .map(cookie => cookie.split(';', 1)[0])
+    .find(cookie => cookie.length > 0)
+}
+
 function settingsDescribeUrl(baseUrl) {
-  return new URL('/api/settings.describe', baseUrl).href
+  return urlWithPathPreservingSearch(baseUrl, '/api/settings/describe')
 }
 
 /**
@@ -88,24 +105,60 @@ function hasRequiredClientGraph(manifest) {
 async function waitForOnboardingReady(baseUrl, options = {}) {
   const timeoutMs = options.timeoutMs ?? 20_000
   const intervalMs = options.intervalMs ?? 120
-  const settingsUrl = settingsDescribeUrl(baseUrl)
-  const indexUrl = new URL('/', baseUrl).href
+  const launchUrl = urlWithPathPreservingSearch(baseUrl, '/')
+  const cleanBaseUrl = new URL(baseUrl)
+  cleanBaseUrl.search = ''
+  cleanBaseUrl.hash = ''
+  const hasLaunchToken = new URL(baseUrl).searchParams.has('token')
+  let requestBaseUrl = baseUrl
+  let sessionCookie
+  let sessionEstablished = !hasLaunchToken
   const deadline = Date.now() + timeoutMs
   let lastReason = 'settings.describe has not completed'
   let settingsReady = false
   let clientGraphReady = false
   while (Date.now() < deadline) {
     const remainingMs = () => Math.min(1500, Math.max(1, deadline - Date.now()))
+    if (!sessionEstablished) {
+      try {
+        const response = await fetch(launchUrl, {
+          redirect: 'manual',
+          headers: { 'cache-control': 'no-cache' },
+          signal: AbortSignal.timeout(remainingMs()),
+        })
+        const cookie = readSessionCookie(response)
+        if (cookie !== undefined) {
+          sessionCookie = cookie
+          requestBaseUrl = cleanBaseUrl.href
+          sessionEstablished = true
+        } else if (response.ok) {
+          sessionEstablished = true
+        } else {
+          throw new Error(`web authentication HTTP ${response.status}`)
+        }
+      } catch (error) {
+        lastReason = error instanceof Error ? error.message : String(error)
+        await new Promise(resolve => setTimeout(resolve, intervalMs))
+        continue
+      }
+    }
+    const requestHeaders = (initial) => {
+      const headers = new Headers(initial)
+      if (sessionCookie !== undefined) headers.set('cookie', sessionCookie)
+      return headers
+    }
+    const settingsUrl = urlWithPathPreservingSearch(requestBaseUrl, '/api/settings/describe')
+    const indexUrl = urlWithPathPreservingSearch(requestBaseUrl, '/')
     if (!settingsReady) {
       try {
         const response = await fetch(settingsUrl, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: requestHeaders({ 'content-type': 'application/json' }),
           body: JSON.stringify({
             type: 'client-request',
             rpcId: `desktop-readiness-${Date.now()}`,
-            method: 'settings.describe',
-            payload: {},
+            method: 'settings/describe',
+            payload: { args: {} },
           }),
           signal: AbortSignal.timeout(remainingMs()),
         })
@@ -127,7 +180,7 @@ async function waitForOnboardingReady(baseUrl, options = {}) {
     if (!clientGraphReady) {
       try {
         const response = await fetch(indexUrl, {
-          headers: { 'cache-control': 'no-cache' },
+          headers: requestHeaders({ 'cache-control': 'no-cache' }),
           signal: AbortSignal.timeout(remainingMs()),
         })
         if (!response.ok) {
@@ -151,6 +204,7 @@ module.exports = {
   hasRequiredClientGraph,
   parseBootManifest,
   readyUrl,
+  readSessionCookie,
   settingsDescribeUrl,
   waitForOnboardingReady,
 }

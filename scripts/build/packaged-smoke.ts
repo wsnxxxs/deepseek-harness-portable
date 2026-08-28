@@ -12,7 +12,8 @@ import {
 } from './interactive-learning-contract.js'
 
 const require = createRequire(import.meta.url)
-const { waitForOnboardingReady } = require('../../apps/desktop/src/ready-url.cjs') as {
+const { readSessionCookie, waitForOnboardingReady } = require('../../apps/desktop/src/ready-url.cjs') as {
+  readSessionCookie(response: Response): string | undefined
   waitForOnboardingReady(baseUrl: string, options?: { timeoutMs?: number; intervalMs?: number }): Promise<void>
 }
 const {
@@ -171,14 +172,37 @@ export function validateInteractiveLearningPresetSurface(
 
 export async function runtimeRpc(baseUrl: string, method: string, payload: Record<string, unknown>, timeoutMs: number): Promise<unknown> {
   const rpcId = `packaged-smoke-${method}-${Date.now()}`
-  const response = await fetch(new URL(`/api/${method}`, baseUrl), {
+  const endpoint = method.replaceAll('.', '/')
+  const launchUrl = new URL(baseUrl)
+  const hasLaunchToken = launchUrl.searchParams.has('token')
+  let sessionCookie: string | undefined
+  if (hasLaunchToken) {
+    launchUrl.pathname = '/'
+    launchUrl.hash = ''
+    const login = await fetch(launchUrl, {
+      redirect: 'manual',
+      headers: { 'cache-control': 'no-cache' },
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    sessionCookie = readSessionCookie(login)
+    if (sessionCookie === undefined && !login.ok) {
+      throw new Error(`packaged Harness authentication returned HTTP ${login.status}`)
+    }
+  }
+  const url = new URL(baseUrl)
+  url.pathname = `/api/${endpoint}`
+  url.hash = ''
+  if (sessionCookie !== undefined) url.search = ''
+  const headers = new Headers({ 'content-type': 'application/json' })
+  if (sessionCookie !== undefined) headers.set('cookie', sessionCookie)
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({
       type: 'client-request',
       rpcId,
-      method,
-      payload,
+      method: endpoint,
+      payload: { args: payload },
     }),
     signal: AbortSignal.timeout(timeoutMs),
   })

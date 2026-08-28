@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
-const approvedReleaseVersion = '1.5.6'
+const approvedReleaseVersion = '1.6.0'
 const dependencyManifestSnapshot = 'd7f1f3f2430cc5d00db36bc8e856b2604b71db777e0e54e8037cd04af98c927e'
 const lockfileSnapshot = '3102d5d2ba756c9aaa22f67b222a653c9b4ec788dbe5955592212df586daf859'
 
@@ -49,8 +49,6 @@ test('the approved product version is synchronized across release metadata and d
   assert.equal(notes.name, `DeepSeek Harness Desktop v${approvedReleaseVersion}`)
 
   const expectedReleaseArtifacts = [
-    `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.AppImage`,
-    `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.deb`,
     `DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`,
     `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`,
   ].sort()

@@ -31,7 +31,7 @@ window.__ModuleLoader__.load({
 			routePinned: "已指定",
 			routeDisabled: "已停用",
 			sharedProviderTitle: "复用「设置 → 模型」的配置",
-			sharedProviderHint: "图片轮次直接走内核附件与 LLM 通道，Vision Bridge 不另存密钥、接口、提示词或超时参数。",
+			sharedProviderHint: "图片轮次直接走内核附件与 LLM 通道，Vision Bridge 不另存密钥和接口，也不另存提示词或超时参数。",
 			routeAutoTitle: "Hybrid / view_image：自动选择图像模型",
 			routeAutoHint: "文本模型的图片轮次和 view_image 会从模型目录中选择第一个明确支持图片输入的模型；当前官方内核包含 DeepSeek-V4-Flash-Vision-Exp。",
 			routePinnedTitle: "Hybrid / view_image：使用指定模型",
