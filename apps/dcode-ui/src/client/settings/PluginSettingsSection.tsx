@@ -1,0 +1,413 @@
+/** DCode-owned plugin settings over the existing settings and inventory remotes. */
+
+import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import type {
+  CredentialInfo, JsonValue, ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
+  PluginInventorySnapshot,
+} from '@deepseek-ai/dsh-api-remotes/client'
+import type { DcodeRuntime } from '../state/runtime.ts'
+import { useAsync } from '../state/hooks.ts'
+import { useRuntime } from '../state/runtime.ts'
+import { useT } from '../state/i18n.ts'
+import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
+import css from './SettingsSurface.module.css'
+
+type PluginFieldType = 'number' | 'text'
+
+interface PluginField {
+  readonly key: string
+  readonly label: string
+  readonly hint: string
+  readonly type: PluginFieldType
+}
+
+interface PluginSettingsData {
+  readonly settings: {
+    readonly writable: boolean
+    readonly namespaces: readonly SettingsNamespaceView[]
+  } | undefined
+  readonly inventory: PluginInventorySnapshot
+  readonly catalog: ModelCatalog | undefined
+  readonly credential: CredentialInfo | undefined
+  readonly credentialError?: string
+}
+
+function objectValue(source: unknown): Record<string, unknown> {
+  return typeof source === 'object' && source !== null && !Array.isArray(source)
+    ? source as Record<string, unknown>
+    : {}
+}
+
+function hasField(source: unknown, key: string): boolean {
+  return Object.hasOwn(objectValue(source), key)
+}
+
+function fieldValue(source: unknown, key: string): unknown {
+  return objectValue(source)[key]
+}
+
+function fieldText(source: unknown, key: string): string {
+  const value = fieldValue(source, key)
+  return typeof value === 'number' || typeof value === 'string' ? String(value) : ''
+}
+
+function modelKey(provider: string, model: string): string {
+  return `${provider}\0${model}`
+}
+
+async function loadPluginSettings(
+  runtime: DcodeRuntime,
+  includeSettings: boolean,
+): Promise<PluginSettingsData> {
+  const inventoryPromise = runtime.remote.pluginInventory.list()
+  if (!includeSettings) {
+    const inventory = await inventoryPromise
+    if (!inventory.ok) throw new Error(inventory.error.message)
+    return { settings: undefined, inventory: inventory.value, catalog: undefined, credential: undefined }
+  }
+  const [inventory, settings, catalog] = await Promise.all([
+    inventoryPromise,
+    runtime.remote.settings.describe(),
+    runtime.remote.session.modelCatalog(),
+  ])
+  if (!inventory.ok) throw new Error(inventory.error.message)
+  if (!settings.ok) throw new Error(settings.error.message)
+  const webSearch = settings.value.namespaces.find(namespace => namespace.ns === 'web-search-deepseek')
+  const credentialRef = typeof fieldValue(webSearch?.value, 'apiKeyEnv') === 'string'
+    && String(fieldValue(webSearch?.value, 'apiKeyEnv')).length > 0
+    ? String(fieldValue(webSearch?.value, 'apiKeyEnv'))
+    : 'DEEPSEEK_API_KEY'
+  let credential: CredentialInfo | undefined
+  let credentialError: string | undefined
+  try {
+    const described = await runtime.remote.credentials.describe([credentialRef])
+    if (described.ok) credential = described.value[credentialRef]
+    else credentialError = described.error.message
+  } catch (cause: unknown) {
+    credentialError = cause instanceof Error ? cause.message : String(cause)
+  }
+  return {
+    settings: { writable: settings.value.writable, namespaces: settings.value.namespaces },
+    inventory: inventory.value,
+    catalog: catalog.ok ? catalog.value : undefined,
+    credential,
+    ...credentialError === undefined ? {} : { credentialError },
+  }
+}
+
+function PluginSettingsCard(props: {
+  namespace: SettingsNamespaceView
+  writable: boolean
+  title: string
+  description: string
+  fields: readonly PluginField[]
+  credential?: CredentialInfo
+  credentialLabel?: string
+  credentialHint?: string
+  onReload: () => void
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const user = objectValue(props.namespace.user)
+  const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(
+    props.fields.map(field => [field.key, fieldText(props.namespace.value, field.key)]),
+  ))
+  const [resetFields, setResetFields] = useState<ReadonlySet<string>>(() => new Set())
+  const [credentialDraft, setCredentialDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+  const credentialWritable = props.credential?.writable !== false
+  const canSave = props.writable || credentialWritable
+
+  const dirty = props.fields.some(field => {
+    if (resetFields.has(field.key)) return hasField(user, field.key)
+    const text = draft[field.key] ?? ''
+    const stored = fieldValue(user, field.key)
+    const effective = fieldValue(props.namespace.value, field.key)
+    if (text.trim() === '') return hasField(user, field.key)
+    const parsed = field.type === 'number' ? Number(text) : text.trim()
+    const valid = field.type === 'number' ? Number.isFinite(parsed) : true
+    return valid && JSON.stringify(parsed) !== JSON.stringify(stored)
+      && !(stored === undefined && JSON.stringify(parsed) === JSON.stringify(effective))
+  }) || credentialDraft.trim().length > 0
+
+  const save = async (): Promise<void> => {
+    if (!canSave || saving || !dirty) return
+    setSaving(true)
+    setError(undefined)
+    try {
+      const ops: SettingsPathOpView[] = []
+      for (const field of props.fields) {
+        const text = draft[field.key]?.trim() ?? ''
+        if (resetFields.has(field.key)) {
+          if (hasField(user, field.key)) ops.push({ op: 'unset', path: [field.key] })
+          continue
+        }
+        if (text === '') {
+          if (hasField(user, field.key)) ops.push({ op: 'unset', path: [field.key] })
+          continue
+        }
+        const next: unknown = field.type === 'number' ? Number(text) : text
+        if (field.type === 'number' && !Number.isFinite(next)) {
+          throw new Error(t('settings.plugins.invalidNumber'))
+        }
+        const stored = fieldValue(user, field.key)
+        const effective = fieldValue(props.namespace.value, field.key)
+        if (JSON.stringify(next) === JSON.stringify(stored)) continue
+        if (stored === undefined && JSON.stringify(next) === JSON.stringify(effective)) continue
+        ops.push({ op: 'set', path: [field.key], value: next as JsonValue })
+      }
+      if (ops.length > 0) {
+        const response = await runtime.remote.settings.mutate(props.namespace.ns, ops, props.namespace.revision)
+        if (!response.ok) throw new Error(response.error.message)
+      }
+      if (credentialDraft.trim() !== '') {
+        const ref = typeof fieldValue(props.namespace.value, 'apiKeyEnv') === 'string'
+          && String(fieldValue(props.namespace.value, 'apiKeyEnv')).length > 0
+          ? String(fieldValue(props.namespace.value, 'apiKeyEnv'))
+          : 'DEEPSEEK_API_KEY'
+        const response = await runtime.remote.credentials.set(ref, credentialDraft.trim())
+        if (!response.ok) throw new Error(response.error.message)
+      }
+      props.onReload()
+      setCredentialDraft('')
+      setResetFields(new Set())
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className={css.pluginCard}>
+      <header className={css.pluginCardHeader}>
+        <div className={css.rowText}>
+          <div className={css.rowTitle}>{props.title}</div>
+          <div className={css.rowBody}>{props.description}</div>
+        </div>
+        {props.writable ? <span className={css.badge}>{props.namespace.applies}</span> : <span className={css.badge}>{t('common.readOnly')}</span>}
+      </header>
+      <div className={css.pluginCardBody}>
+        {props.credentialLabel === undefined ? null : (
+          <label className={css.field}>
+            <span className={css.fieldLabel}>{props.credentialLabel}</span>
+            <input
+              className={css.fieldInput}
+              type="password"
+              autoComplete="off"
+              value={credentialDraft}
+              placeholder={props.credential?.configured === true ? t('settings.plugins.keyConfiguredHint') : t('settings.plugins.keyPlaceholder')}
+              disabled={saving || !credentialWritable}
+              onChange={event => { setCredentialDraft(event.target.value) }}
+            />
+            <span className={css.fieldHint}>{props.credential?.configured === true ? t('settings.plugins.keyConfigured') : props.credentialHint}</span>
+          </label>
+        )}
+        {props.fields.map(field => (
+          <label className={css.field} key={field.key}>
+            <span className={css.fieldMeta}>
+              <span className={css.fieldLabel}>{field.label}</span>
+              {hasField(user, field.key) && !resetFields.has(field.key)
+                ? <Button className={css.resetButton} onClick={() => { setResetFields(previous => new Set([...previous, field.key])); setDraft(previous => ({ ...previous, [field.key]: fieldText(props.namespace.base, field.key) })) }} disabled={saving}>{t('settings.plugins.reset')}</Button>
+                : null}
+            </span>
+            <input
+              className={css.fieldInput}
+              type={field.type === 'number' ? 'number' : 'text'}
+              value={draft[field.key] ?? ''}
+              placeholder={fieldText(props.namespace.base, field.key) || t('settings.plugins.defaultValue')}
+              disabled={saving || !props.writable}
+              onChange={event => {
+                setResetFields(previous => {
+                  const next = new Set(previous)
+                  next.delete(field.key)
+                  return next
+                })
+                setDraft(previous => ({ ...previous, [field.key]: event.target.value }))
+              }}
+            />
+            <span className={css.fieldHint}>{field.hint}</span>
+          </label>
+        ))}
+        {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
+        <div className={css.editorActions}>
+          <Button onClick={() => { setDraft(Object.fromEntries(props.fields.map(field => [field.key, fieldText(props.namespace.value, field.key)]))); setResetFields(new Set()); setCredentialDraft(''); setError(undefined) }} disabled={saving || !dirty}>{t('settings.plugins.discard')}</Button>
+          <Button primary onClick={() => { void save() }} disabled={saving || !canSave || !dirty}>{saving ? t('settings.plugins.saving') : t('settings.plugins.save')}</Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SubagentModelCard(props: {
+  namespace: SettingsNamespaceView
+  writable: boolean
+  catalog: ModelCatalog | undefined
+  onReload: () => void
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const initialRoutes = Array.isArray(fieldValue(props.namespace.value, 'allowedModels'))
+    ? fieldValue(props.namespace.value, 'allowedModels') as { provider?: unknown; model?: unknown }[]
+    : []
+  const [enabled, setEnabled] = useState(() => fieldValue(props.namespace.value, 'enabled') === true)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialRoutes.flatMap(route => typeof route.provider === 'string' && typeof route.model === 'string' ? [modelKey(route.provider, route.model)] : [])))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+  const candidates = useMemo(() => {
+    const rows = props.catalog?.groups.flatMap(group => group.models.map(model => ({
+      key: modelKey(group.id, model.id), provider: group.id, providerName: group.name, model: model.id, name: model.name,
+    }))) ?? []
+    const known = new Set(rows.map(row => row.key))
+    return [...rows, ...initialRoutes.flatMap(route => {
+      if (typeof route.provider !== 'string' || typeof route.model !== 'string') return []
+      const key = modelKey(route.provider, route.model)
+      return known.has(key) ? [] : [{ key, provider: route.provider, providerName: route.provider, model: route.model, name: route.model }]
+    })]
+  }, [initialRoutes, props.catalog])
+  const dirty = enabled !== (fieldValue(props.namespace.value, 'enabled') === true)
+    || candidates.some(candidate => selected.has(candidate.key) !== initialRoutes.some(route => route.provider === candidate.provider && route.model === candidate.model))
+  const save = (): void => {
+    if (!props.writable || saving || !dirty) return
+    if (enabled && selected.size === 0) {
+      setError(t('settings.plugins.subagentModelSelectionRequired'))
+      return
+    }
+    setSaving(true)
+    setError(undefined)
+    const allowedModels = candidates
+      .filter(candidate => selected.has(candidate.key))
+      .map(candidate => ({ provider: candidate.provider, model: candidate.model }))
+    void runtime.remote.settings.mutate(props.namespace.ns, [
+      { op: 'set', path: ['enabled'], value: enabled },
+      { op: 'set', path: ['allowedModels'], value: allowedModels as JsonValue },
+    ], props.namespace.revision)
+      .then((result) => {
+        if (!result.ok) throw new Error(result.error.message)
+        props.onReload()
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setSaving(false) })
+  }
+
+  return (
+    <section className={css.pluginCard}>
+      <header className={css.pluginCardHeader}>
+        <div className={css.rowText}>
+          <div className={css.rowTitle}>{t('settings.plugins.subagentModelSelectionTitle')}</div>
+          <div className={css.rowBody}>{t('settings.plugins.subagentModelSelectionDescription')}</div>
+        </div>
+        {!props.writable ? <span className={css.badge}>{t('common.readOnly')}</span> : null}
+      </header>
+      <div className={css.pluginCardBody}>
+        <div className={css.switchRow}>
+          <span className={css.fieldLabel}>{t('settings.plugins.subagentModelSelectionToggle')}</span>
+          <button type="button" role="switch" aria-checked={enabled} className={`${css.switch} ${enabled ? css.switchOn : ''}`} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
+            <span className={css.switchThumb} />
+          </button>
+        </div>
+        <p className={css.fieldHint}>{t(enabled ? 'settings.plugins.subagentModelSelectionChoose' : 'settings.plugins.subagentModelSelectionOff')}</p>
+        {enabled
+          ? (
+            <fieldset className={css.modelList}>
+              <legend className={css.fieldLabel}>{t('settings.plugins.subagentModelSelectionAllowed')}</legend>
+              {candidates.length === 0
+                ? <span className={css.fieldHint}>{t('settings.plugins.subagentModelSelectionEmpty')}</span>
+                : candidates.map(candidate => (
+                  <label className={css.modelOption} key={candidate.key}>
+                    <input type="checkbox" checked={selected.has(candidate.key)} disabled={saving || !props.writable} onChange={() => { setSelected(previous => { const next = new Set(previous); if (next.has(candidate.key)) next.delete(candidate.key); else next.add(candidate.key); return next }) }} />
+                    <span className={css.rowText}><span className={css.rowTitle}>{candidate.name}</span><span className={css.modelRoute}>{`${candidate.providerName} · ${candidate.provider}/${candidate.model}`}</span></span>
+                  </label>
+                ))}
+            </fieldset>
+          )
+          : null}
+        {props.catalog === undefined && enabled ? <div className={css.notice}>{t('settings.plugins.subagentModelSelectionLoadFailed')}</div> : null}
+        {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
+        <div className={css.editorActions}>
+          <Button onClick={() => { setEnabled(fieldValue(props.namespace.value, 'enabled') === true); setSelected(new Set(initialRoutes.flatMap(route => typeof route.provider === 'string' && typeof route.model === 'string' ? [modelKey(route.provider, route.model)] : []))); setError(undefined) }} disabled={saving || !dirty}>{t('settings.plugins.discard')}</Button>
+          <Button primary onClick={save} disabled={saving || !props.writable || !dirty}>{saving ? t('settings.plugins.saving') : t('settings.plugins.save')}</Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PluginConfigSection(props: { data: PluginSettingsData; onReload: () => void }): ReactNode {
+  const t = useT()
+  const namespaces = props.data.settings?.namespaces ?? []
+  const find = (ns: string): SettingsNamespaceView | undefined => namespaces.find(namespace => namespace.ns === ns)
+  const cards: ReactNode[] = []
+  const shell = find('shell')
+  if (shell !== undefined) cards.push(<PluginSettingsCard key={shell.ns} namespace={shell} writable={props.data.settings?.writable === true} title={t('settings.plugins.shellTitle')} description={t('settings.plugins.shellDescription')} fields={[{ key: 'timeoutMs', label: t('settings.plugins.shellTimeout'), hint: t('settings.plugins.shellTimeoutHint'), type: 'number' }, { key: 'maxOutputBytes', label: t('settings.plugins.shellOutput'), hint: t('settings.plugins.shellOutputHint'), type: 'number' }]} onReload={props.onReload} />)
+  const agentLoop = find('agent-loop')
+  if (agentLoop !== undefined) cards.push(<PluginSettingsCard key={agentLoop.ns} namespace={agentLoop} writable={props.data.settings?.writable === true} title={t('settings.plugins.agentLoopTitle')} description={t('settings.plugins.agentLoopDescription')} fields={[{ key: 'maxParallelToolCalls', label: t('settings.plugins.agentLoopParallel'), hint: t('settings.plugins.agentLoopParallelHint'), type: 'number' }]} onReload={props.onReload} />)
+  const webSearch = find('web-search-deepseek')
+  if (webSearch !== undefined) cards.push(<PluginSettingsCard key={webSearch.ns} namespace={webSearch} writable={props.data.settings?.writable === true} title={t('settings.plugins.webSearchTitle')} description={t('settings.plugins.webSearchDescription')} credential={props.data.credential} credentialLabel={t('settings.plugins.webSearchApiKey')} credentialHint={t('settings.plugins.webSearchApiKeyHint')} fields={[{ key: 'baseURL', label: t('settings.plugins.webSearchBaseUrl'), hint: t('settings.plugins.webSearchBaseUrlHint'), type: 'text' }, { key: 'maxUses', label: t('settings.plugins.webSearchMaxUses'), hint: t('settings.plugins.webSearchMaxUsesHint'), type: 'number' }]} onReload={props.onReload} />)
+  const subagent = find('subagent-model-selection')
+  if (subagent !== undefined) cards.push(<SubagentModelCard key={subagent.ns} namespace={subagent} writable={props.data.settings?.writable === true} catalog={props.data.catalog} onReload={props.onReload} />)
+  return (
+    <div className={css.pluginConfigList}>
+      {props.data.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.plugins.credentialWarning')}: ${props.data.credentialError}`}</div>}
+      {cards.length === 0 ? <EmptyState>{t('settings.plugins.emptyConfig')}</EmptyState> : cards}
+    </div>
+  )
+}
+
+function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean }): ReactNode {
+  const t = useT()
+  const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState<string | undefined>()
+  const entries = props.data.inventory.entries.filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
+  const filtered = entries.filter(entry => `${entry.moduleName} ${entry.entryId}`.toLowerCase().includes(query.trim().toLowerCase()))
+  return (
+    <div className={css.pluginInventory}>
+      <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} onChange={event => { setQuery(event.target.value) }} />
+      <div className={css.inventoryHeading}><span className={css.sectionTitle}>{t('settings.plugins.inventoryTitle')}</span><span className={css.badge}>{filtered.length}</span></div>
+      {filtered.length === 0 ? <EmptyState>{t('settings.plugins.emptyInventory')}</EmptyState> : (
+        <div className={css.card}>
+          {filtered.map(entry => {
+            const open = expanded === entry.entryId
+            return (
+              <div className={css.inventoryRow} key={entry.entryId}>
+                <button type="button" className={css.inventoryButton} aria-expanded={open} onClick={() => { setExpanded(current => current === entry.entryId ? undefined : entry.entryId) }}>
+                  <span className={css.rowText}><span className={css.rowTitle}>{entry.moduleName}</span><span className={css.rowBody}>{entry.enabled ? entry.fiberPhase ?? t('settings.plugins.unobserved') : t('settings.plugins.disabled')}</span></span>
+                  <span className={css.badge}>{entry.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled')}</span>
+                </button>
+                {open ? <code className={css.inventoryDetails}>{entry.entryId}</code> : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Plugins page with DCode tabs, local token styling, and writable host settings. */
+export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }): ReactNode {
+  const runtime = useRuntime()
+  const t = useT()
+  const data = useAsync(async () => await loadPluginSettings(runtime, !mcpOnly), [runtime, mcpOnly])
+  const [tab, setTab] = useState<'config' | 'inventory'>(mcpOnly ? 'inventory' : 'config')
+
+  if (data.loading && data.value === undefined) return <EmptyState><Spinner /></EmptyState>
+  if (data.error !== undefined && data.value === undefined) return <EmptyState>{data.error}</EmptyState>
+  if (data.value === undefined) return <EmptyState>{t('common.error')}</EmptyState>
+  const value = data.value
+  return (
+    <section className={css.section}>
+      <span className={css.sectionTitle}>{mcpOnly ? t('settings.mcp') : t('settings.plugins')}</span>
+      <p className={css.sectionBody}>{mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody')}</p>
+      {!mcpOnly ? (
+        <div className={css.pluginTabs} role="tablist" aria-label={t('settings.plugins.tabs')}>
+          <button type="button" role="tab" aria-selected={tab === 'config'} className={`${css.pluginTab} ${tab === 'config' ? css.pluginTabActive : ''}`} onClick={() => { setTab('config') }}>{t('settings.plugins.configTab')}</button>
+          <button type="button" role="tab" aria-selected={tab === 'inventory'} className={`${css.pluginTab} ${tab === 'inventory' ? css.pluginTabActive : ''}`} onClick={() => { setTab('inventory') }}>{t('settings.plugins.inventoryTab')}</button>
+        </div>
+      ) : null}
+      {!mcpOnly && tab === 'config' ? <PluginConfigSection data={value} onReload={data.reload} /> : <PluginInventory data={value} mcpOnly={mcpOnly} />}
+    </section>
+  )
+}

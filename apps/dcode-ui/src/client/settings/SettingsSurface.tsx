@@ -29,6 +29,7 @@ import { ThemeSwitch } from '../shell/ThemeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
 import { SelectMenu } from './SelectMenu.tsx'
+import { PluginSettingsSection } from './PluginSettingsSection.tsx'
 import css from './SettingsSurface.module.css'
 import type {
   CredentialInfo, JsonValue, LlmConfigurableProvider, LlmProviderInfo,
@@ -1209,8 +1210,8 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'models': return <ModelsSection />
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
-      case 'plugins': return <PluginsSection mcpOnly={false} />
-      case 'mcp': return <PluginsSection mcpOnly />
+      case 'plugins': return <PluginSettingsSection />
+      case 'mcp': return <PluginSettingsSection mcpOnly />
       case 'agentPresets': return <AgentPresetsSection />
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
