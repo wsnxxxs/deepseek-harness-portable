@@ -308,7 +308,7 @@ function VisionBridgeCard(props: {
             <div className={css.rowTitle}>{t('settings.plugins.visionEnabled')}</div>
             <div className={css.rowBody}>{t('settings.plugins.visionEnabledHint')}</div>
           </div>
-          <button type="button" role="switch" aria-checked={enabled} className={css.switch + ' ' + (enabled ? css.switchOn : '')} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
+          <button type="button" role="switch" aria-label={t('settings.plugins.visionEnabled')} aria-checked={enabled} className={css.switch + ' ' + (enabled ? css.switchOn : '')} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
             <span className={css.switchThumb} />
           </button>
         </div>
@@ -391,7 +391,7 @@ function SubagentModelCard(props: {
       <div className={css.pluginCardBody}>
         <div className={css.switchRow}>
           <span className={css.fieldLabel}>{t('settings.plugins.subagentModelSelectionToggle')}</span>
-          <button type="button" role="switch" aria-checked={enabled} className={`${css.switch} ${enabled ? css.switchOn : ''}`} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
+          <button type="button" role="switch" aria-label={t('settings.plugins.subagentModelSelectionToggle')} aria-checked={enabled} className={`${css.switch} ${enabled ? css.switchOn : ''}`} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
             <span className={css.switchThumb} />
           </button>
         </div>
