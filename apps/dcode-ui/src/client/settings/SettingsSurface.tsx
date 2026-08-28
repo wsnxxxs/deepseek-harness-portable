@@ -19,8 +19,8 @@ import {
   IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16,
   IconSkillOutline16, IconSparkle16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync, useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
@@ -28,12 +28,16 @@ import { useNavigation, type NavigationStore, type SettingsSection } from '../st
 import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
 import { ThemeSwitch } from '../shell/ThemeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
+import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
+import { SelectMenu } from './SelectMenu.tsx'
 import css from './SettingsSurface.module.css'
 
 /** Props of the settings surface. */
 export interface SettingsSurfaceProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
+  /** Official DSH settings section renderer supplied by the root slot. */
+  readonly renderSection?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /** Rail layout: the four DSH settings pages visible in the workbench. */
@@ -160,17 +164,13 @@ function GeneralSection() {
           <Row
             title={t('settings.language')}
             control={(
-              <select
-                className={css.select}
-                aria-label={t('settings.language')}
+              <SelectMenu
                 value={locale.active}
+                ariaLabel={t('settings.language')}
+                options={localeOptions.map(option => ({ id: option.id, label: option.label }))}
                 disabled={localeOptions.length <= 1}
-                onChange={(event) => { runtime.locale.set(event.target.value) }}
-              >
-                {localeOptions.map(option => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
+                onChange={(value) => { runtime.locale.set(value) }}
+              />
             )}
           />
         </div>
@@ -187,16 +187,15 @@ function GeneralSection() {
               <Row
                 title={t('settings.themeCustom')}
                 control={(
-                  <select
-                    className={css.select}
+                  <SelectMenu
                     value={snapshot?.preference ?? snapshot?.active.id ?? 'system'}
-                    onChange={(event) => { theme?.setTheme?.(event.target.value) }}
-                  >
-                    <option value="system">{t('theme.system')}</option>
-                    {(snapshot?.themes ?? []).map(entry => (
-                      <option key={entry.id} value={entry.id}>{entry.id}</option>
-                    ))}
-                  </select>
+                    ariaLabel={t('settings.themeCustom')}
+                    options={[
+                      { id: 'system', label: t('theme.system') },
+                      ...(snapshot?.themes ?? []).map(entry => ({ id: entry.id, label: entry.id })),
+                    ]}
+                    onChange={(value) => { theme?.setTheme?.(value) }}
+                  />
                 )}
               />
             )}
@@ -205,15 +204,23 @@ function GeneralSection() {
             control={theme?.setFontSize === undefined
               ? <span className={css.badge}>{snapshot?.fontSize ?? '—'}</span>
               : (
-                <input
-                  className={css.number}
-                  type="number"
-                  min={11}
-                  max={22}
-                  value={snapshot?.fontSize ?? 14}
-                  disabled={theme?.setFontSize === undefined}
-                  onChange={(event) => { theme.setFontSize?.(Number(event.target.value)) }}
-                />
+                <span className={css.stepper}>
+                  <button
+                    type="button"
+                    className={css.stepperButton}
+                    aria-label={`${t('settings.fontSize')} −`}
+                    disabled={(snapshot?.fontSize ?? 14) <= 11}
+                    onClick={() => { theme.setFontSize?.(Math.max(11, (snapshot?.fontSize ?? 14) - 1)) }}
+                  >−</button>
+                  <span className={css.stepperValue}>{snapshot?.fontSize ?? 14}</span>
+                  <button
+                    type="button"
+                    className={css.stepperButton}
+                    aria-label={`${t('settings.fontSize')} +`}
+                    disabled={(snapshot?.fontSize ?? 14) >= 22}
+                    onClick={() => { theme.setFontSize?.(Math.min(22, (snapshot?.fontSize ?? 14) + 1)) }}
+                  >+</button>
+                </span>
               )}
           />
         </div>
@@ -223,16 +230,16 @@ function GeneralSection() {
           <Row
             title={t('settings.busyEnter')}
             control={(
-              <select
-                className={css.select}
-                aria-label={t('settings.busyEnter')}
+              <SelectMenu
                 value={busyEnter}
+                ariaLabel={t('settings.busyEnter')}
+                options={[
+                  { id: 'queue', label: t('settings.busyEnter.queue') },
+                  { id: 'steer', label: t('settings.busyEnter.steer') },
+                ]}
                 disabled={!runtime.busyEnter.writable}
-                onChange={(event) => { runtime.busyEnter.set(event.target.value as 'queue' | 'steer') }}
-              >
-                <option value="queue">{t('settings.busyEnter.queue')}</option>
-                <option value="steer">{t('settings.busyEnter.steer')}</option>
-              </select>
+                onChange={(value) => { runtime.busyEnter.set(value as 'queue' | 'steer') }}
+              />
             )}
           />
         </div>
@@ -544,96 +551,6 @@ function NamespaceSection({ title, body, match }: { title: string; body: string;
   )
 }
 
-interface UsageProjection {
-  readonly uncachedInputTokens?: number
-  readonly outputTokens?: number
-  readonly cacheReadTokens?: number
-  readonly cacheWriteTokens?: number
-}
-
-interface SessionStatsProjection {
-  readonly turns?: number
-  readonly steps?: number
-}
-
-interface UsageTotals {
-  readonly sessions: number
-  readonly usageSessions: number
-  readonly turns: number
-  readonly steps: number
-  readonly uncachedInputTokens: number
-  readonly outputTokens: number
-  readonly cacheReadTokens: number
-  readonly cacheWriteTokens: number
-  readonly hasUsage: boolean
-  readonly hasStats: boolean
-}
-
-const INTEGER_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
-
-function formatTokenCount(value: number): string {
-  return INTEGER_FORMATTER.format(value)
-}
-
-function formatPercent(value: number): string {
-  const percent = Math.round(value * 1_000) / 10
-  return `${percent}%`
-}
-
-/** Token accounting aggregated from the Session list's durable projections. */
-function aggregateUsage(list: SessionListState): UsageTotals {
-  let sessions = 0
-  let usageSessions = 0
-  let turns = 0
-  let steps = 0
-  let uncachedInputTokens = 0
-  let outputTokens = 0
-  let cacheReadTokens = 0
-  let cacheWriteTokens = 0
-  let hasStats = false
-
-  for (const id of list.ids) {
-    const row = list.byId[id]
-    if (row === undefined) continue
-    sessions += 1
-    const projections = row.projectionValues as {
-      tokenUsage?: UsageProjection
-      sessionStats?: SessionStatsProjection
-    } | undefined
-    const stats = projections?.sessionStats
-    if (stats !== undefined) {
-      hasStats = true
-      turns += stats.turns ?? 0
-      steps += stats.steps ?? 0
-    }
-    const usage = projections?.tokenUsage
-    if (usage === undefined) continue
-    uncachedInputTokens += usage.uncachedInputTokens ?? 0
-    outputTokens += usage.outputTokens ?? 0
-    cacheReadTokens += usage.cacheReadTokens ?? 0
-    cacheWriteTokens += usage.cacheWriteTokens ?? 0
-    if ((usage.uncachedInputTokens ?? 0)
-      + (usage.outputTokens ?? 0)
-      + (usage.cacheReadTokens ?? 0)
-      + (usage.cacheWriteTokens ?? 0) > 0) {
-      usageSessions += 1
-    }
-  }
-
-  return {
-    sessions,
-    usageSessions,
-    turns,
-    steps,
-    uncachedInputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-    hasUsage: uncachedInputTokens + outputTokens + cacheReadTokens + cacheWriteTokens > 0,
-    hasStats,
-  }
-}
-
 function UsageMetric(props: { title: string; value: string }) {
   return (
     <div className={css.usageMetric}>
@@ -647,10 +564,7 @@ function UsageSection() {
   const t = useT()
   const list = useSessionList()
 
-  const totals = useMemo(() => aggregateUsage(list), [list])
-  const promptTokens = totals.uncachedInputTokens + totals.cacheReadTokens + totals.cacheWriteTokens
-  const totalTokens = promptTokens + totals.outputTokens
-  const cacheHit = promptTokens === 0 ? null : totals.cacheReadTokens / promptTokens
+  const totals = useMemo(() => summarizeUsage(aggregateUsage(list)), [list])
 
   if (list.phase === 'pending') {
     return (
@@ -666,7 +580,7 @@ function UsageSection() {
     <Section title={t('settings.usage')} body={t('settings.usageBody')}>
       <div className={css.usageTotal}>
         <span className={css.usageTotalTitle}>{t('settings.usageTotal')}</span>
-        <strong className={css.usageTotalValue}>{formatTokenCount(totalTokens)}</strong>
+        <strong className={css.usageTotalValue}>{formatTokenCount(totals.totalTokens)}</strong>
         <span className={css.usageTotalScope}>
           {t('settings.usageScope', {
             sessions: formatTokenCount(totals.sessions),
@@ -677,7 +591,7 @@ function UsageSection() {
       <div className={css.usageGrid}>
         <UsageMetric
           title={t('settings.usageInput')}
-          value={formatTokenCount(promptTokens)}
+          value={formatTokenCount(totals.promptTokens)}
         />
         <UsageMetric
           title={t('settings.usageOutput')}
@@ -707,7 +621,7 @@ function UsageSection() {
         />
         <Row
           title={t('settings.usageCacheHit')}
-          control={<span className={css.rowMono}>{cacheHit === null ? '—' : formatPercent(cacheHit)}</span>}
+          control={<span className={css.rowMono}>{totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit)}</span>}
         />
       </div>
       {!totals.hasUsage ? <div className={css.usageEmpty}>{t('settings.usageEmpty')}</div> : null}
@@ -716,7 +630,7 @@ function UsageSection() {
 }
 
 /** The settings rail and the selected section. */
-export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps) {
+export function SettingsSurface({ navigation, sessionId, renderSection }: SettingsSurfaceProps) {
   const t = useT()
   const state = useNavigation(navigation)
 
@@ -735,16 +649,24 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     usage: <IconDataOutline16 />,
   }
 
+  const official = (id: string, fallback: React.ReactNode): React.ReactNode => renderSection === undefined
+    ? fallback
+    : (
+      <div className={css.officialSection} data-dcode-settings-section={id}>
+        {renderSection('settings.section', { close: () => { navigation.show('session') } }, { only: id })}
+      </div>
+    )
+
   const body = (): React.ReactNode => {
     switch (state.settingsSection) {
       case 'general':
-      case 'appearance': return <GeneralSection />
-      case 'models': return <ModelsSection />
+      case 'appearance': return official('general', <GeneralSection />)
+      case 'models': return official('models', <ModelsSection />)
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
-      case 'plugins': return <PluginsSection mcpOnly={false} />
+      case 'plugins': return official('plugins', <PluginsSection mcpOnly={false} />)
       case 'mcp': return <PluginsSection mcpOnly />
-      case 'agentPresets': return <AgentPresetsSection />
+      case 'agentPresets': return official('agent-presets', <AgentPresetsSection />)
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'memory':

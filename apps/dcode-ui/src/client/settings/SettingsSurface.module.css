@@ -88,6 +88,14 @@
   gap: var(--zx-space-6);
 }
 
+/* DSH feature sections keep their own business UI and slot-owned states. This
+   wrapper supplies the workbench reading width without reparenting or
+   clipping their controls and portaled menus. */
+.officialSection {
+  min-width: 0;
+  color: var(--zx-label);
+}
+
 .title {
   font-size: var(--zx-text-2xl);
   font-weight: 500;
@@ -285,6 +293,51 @@
   font: inherit;
   font-size: var(--zx-text-xs);
   text-align: right;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  overflow: hidden;
+}
+
+.stepperButton {
+  width: 30px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepperButton:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.stepperButton:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.stepperButton:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.stepperValue {
+  min-width: 34px;
+  color: var(--zx-label);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  text-align: center;
 }
 
 .search {

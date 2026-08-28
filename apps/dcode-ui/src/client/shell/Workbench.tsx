@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { dcodeScope } from '../tokens.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import {
@@ -35,6 +36,8 @@ import css from './Workbench.module.css'
 export interface WorkbenchProps {
   /** The view-state store shared with the keyboard layer and the palette. */
   readonly navigation: NavigationStore
+  /** Official settings sections rendered inside the DCode settings shell. */
+  readonly renderSettingsSlot?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /**
@@ -57,7 +60,7 @@ function useCurrentCwd(sessionId: SessionId | undefined): string | undefined {
 }
 
 /** The whole modern surface. */
-export function Workbench({ navigation }: WorkbenchProps) {
+export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
   const runtime = useRuntime()
   const state = useNavigation(navigation)
   const sessionId = useCurrentSessionId()
@@ -79,6 +82,19 @@ export function Workbench({ navigation }: WorkbenchProps) {
     for (const node of roots) node.setAttribute(ACRYLIC_ATTRIBUTE, '')
     return () => { for (const node of roots) node.removeAttribute(ACRYLIC_ATTRIBUTE) }
   }, [acrylic])
+
+  // Portaled DSH menus render under body. Give that portal the same DCode
+  // token scope while the workbench owns the page so official setting rows
+  // keep the glass treatment instead of falling back to a separate surface.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+    document.body.setAttribute('data-dcode-scope', '')
+    document.body.setAttribute('data-dcode-scheme', scheme)
+    return () => {
+      document.body.removeAttribute('data-dcode-scope')
+      document.body.removeAttribute('data-dcode-scheme')
+    }
+  }, [scheme])
 
   const newTask = useCallback((workspaceId?: string) => {
     navigation.show('session')
@@ -128,6 +144,11 @@ export function Workbench({ navigation }: WorkbenchProps) {
         openWorkspace()
         return
       }
+      if (meta && event.altKey && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        navigation.toggleAside()
+        return
+      }
       if (meta && event.key.toLowerCase() === 'b') {
         event.preventDefault()
         navigation.toggleRail()
@@ -156,7 +177,13 @@ export function Workbench({ navigation }: WorkbenchProps) {
           <div className={css.surface}>
             {state.view === 'learning'
               ? <LearningHome navigation={navigation} cwd={cwd} sessionId={sessionId} />
-              : <SettingsSurface navigation={navigation} sessionId={sessionId} />}
+              : (
+                <SettingsSurface
+                  navigation={navigation}
+                  sessionId={sessionId}
+                  renderSection={renderSettingsSlot}
+                />
+              )}
           </div>
         )
         : (
@@ -176,7 +203,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 cwd={cwd}
                 blank={blank}
               />
-              <PlanCard key={sessionId} sessionId={sessionId} />
+              <PlanCard key={sessionId} sessionId={sessionId} open={state.summaryOpen} navigation={navigation} />
               {pendingQuestion === undefined
                 ? (
                   <Composer

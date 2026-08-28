@@ -125,6 +125,16 @@
   --zx-aside-width: 320px;
   --zx-topbar-height: 44px;
   --zx-reading-width: 760px;
+
+  /* Official setting controls render their portal under body. Rebind the
+     surface-level DSH tokens there so those menus and editors use the same
+     workbench glass treatment while DCode owns the page. */
+  --dsw-specific-menu: var(--zx-bg-overlay);
+  --dsw-alias-border-inverted: var(--zx-border);
+  --dsw-alias-interactive-bg-hover: var(--zx-bg-hover);
+  --dsw-alias-interactive-bg-hover-solid: var(--zx-bg-hover);
+  --dsw-alias-bg-module-platform: var(--zx-bg-card);
+  --dsw-shadow-lv3: var(--zx-shadow-panel);
 }
 
 /**

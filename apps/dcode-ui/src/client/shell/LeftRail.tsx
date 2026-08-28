@@ -10,7 +10,7 @@
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import {
-  Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
+  Button as PrimitiveButton, IconApiOutline14, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
@@ -430,10 +430,22 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
               onSelect: () => { navigation.openSettings('usage') },
             },
             {
+              id: 'models',
+              label: t('settings.models'),
+              icon: <IconApiOutline14 size={18} />,
+              onSelect: () => { navigation.openSettings('models') },
+            },
+            {
               id: 'plugins',
               label: t('nav.plugins'),
               icon: <AccountPluginsGlyph />,
               onSelect: () => { navigation.openSettings('plugins') },
+            },
+            {
+              id: 'agent-presets',
+              label: t('settings.agentPresets'),
+              icon: <IconSparkle16 />,
+              onSelect: () => { navigation.openSettings('agentPresets') },
             },
             {
               id: 'official',

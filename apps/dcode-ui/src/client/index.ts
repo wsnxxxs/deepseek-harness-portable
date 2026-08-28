@@ -32,10 +32,18 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {} from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-general/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-models/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugin-inventory/client'
+import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
+import type {} from '@deepseek-ai/dsh-client-ui-permission-presets/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-session-log-export/client'
 import { createUiModeStore, type UiModeStore } from './mode.ts'
 import { createNavigationStore } from './state/navigation.ts'
 import { createDcodeRuntime, DcodeRuntimeProvider } from './state/runtime.ts'
@@ -43,6 +51,7 @@ import { bindTranslate, TranslateProvider } from './state/i18n.ts'
 import { DCODE_NS, en, zh, type DcodeKey } from './locales.ts'
 import { Workbench } from './shell/Workbench.tsx'
 import { InterfaceSettingsSection } from './settings/InterfaceSettingsSection.tsx'
+import { ModelUsageSection } from './settings/ModelUsageSection.tsx'
 
 export { Workbench } from './shell/Workbench.tsx'
 export { createUiModeStore, readBridge, type UiModeBridge, type UiModeStore } from './mode.ts'
@@ -79,12 +88,15 @@ export const name = 'dcode-ui-client'
  * frameless.
  */
 export const inject = [
-  'slots', 'locale', 'settingsScope', 'sessions', 'workspaces', 'uiConversation',
+  'slots', 'locale', 'settingsScope', 'settingsSchema', 'sessions', 'workspaces', 'uiConversation',
+  'uiSession', 'connection', 'commandUi',
   'remote',
   'remote.session',
   'remote.commands',
   'remote.skills',
   'remote.settings',
+  'remote.credentials',
+  'remote.llm',
   'remote.pluginInventory',
   'remote.subagents',
   'remote.agentPresets',
@@ -116,11 +128,14 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
 
   // One element tree, created once: a mode flip mounts and unmounts it, and
   // the workbench's own view state survives in `navigation` across the flip.
-  const render = (): ReturnType<typeof createElement> =>
+  const render = ({ renderSlot }: PropsRenderSlots<'settings.section'>): ReturnType<typeof createElement> =>
     createElement(
       DcodeRuntimeProvider,
       { value: runtime },
-      createElement(TranslateProvider, { value: t }, createElement(Workbench, { navigation })),
+      createElement(TranslateProvider, { value: t }, createElement(Workbench, {
+        navigation,
+        renderSettingsSlot: renderSlot,
+      })),
     )
 
   let active: (() => void) | undefined
@@ -142,8 +157,7 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
         name: 'root',
         priority: ROOT_PRIORITY,
         locale: DCODE_NS,
-        // `settings.section` is already owned by the official `sidebar.settings`
-        // entry; the workbench keeps its own settings surface while active.
+        children: { 'settings.section': { kind: 'list', scope: 'root' } },
       },
       render,
     ))
@@ -179,4 +193,13 @@ export function apply(ctx: ClientContext): void {
     locale: DCODE_NS,
     inject: () => ({ mode }),
   }, InterfaceSettingsSection))
+
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'model-usage',
+    order: 25,
+    label: () => ctx.locale.bind(DCODE_NS)('settings.modelUsage'),
+    locale: DCODE_NS,
+  }, ModelUsageSection))
+
 }

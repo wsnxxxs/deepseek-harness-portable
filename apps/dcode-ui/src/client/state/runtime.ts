@@ -23,12 +23,44 @@ import type {
 import type { IWorkspaces, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
+import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client'
+import type {
+  SettingsDescribeFace, SettingsSchemaService,
+} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { UiModeStore } from '../mode.ts'
 import { createLearningCall, createDcodeApi, type RpcCarrier, type DcodeApi } from '../rpc.ts'
 import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../theme.ts'
 
 export type { SessionListState, SessionSummary, WorkspaceSnapshot }
+export type { SessionLogDownloadState }
+
+/** Stable empty value used before the optional Trajectory target is available. */
+export const EMPTY_TRAJECTORY_SNAPSHOT: TrajectorySnapshot = {
+  eventNodes: [],
+  eventLocations: new Map(),
+  requests: [],
+  callSchemas: new Map(),
+  partial: null,
+  runningCalls: [],
+}
+
+/** The structured answer carried by the Host's ask-user-question protocol. */
+export type DcodeQuestionAnswer = AskUserQuestionAnswer
+
+/** One question item exposed by a pending user interaction. */
+export type DcodeQuestionItem = AskUserQuestionItem
+
+/** The small domain face the dcode composer needs from a pending question. */
+export interface DcodePendingInteraction extends SessionPendingInteractionBase {
+  readonly questions: readonly DcodeQuestionItem[]
+  answer(answer: DcodeQuestionAnswer): Promise<void>
+  cancel(): Promise<void>
+}
 
 /** The minimal observable shape every DSH client store exposes. */
 export interface Observable<T> {
@@ -57,6 +89,22 @@ export interface LocaleStore extends Observable<LocaleSnapshot> {
   set(id: string): void
 }
 
+/** Existing DSH Session-log exporter exposed to the workbench chrome. */
+export interface SessionLogDownloadFace {
+  readonly store: Observable<SessionLogDownloadState>
+  download(sessionId: SessionId): Promise<void>
+}
+
+/** Official settings services shared by DCode and the registered DSH pages. */
+export interface DcodeSettingsServices {
+  /** Namespace scopes own writes and expose the shared settings snapshot. */
+  readonly scope: SettingsScopeBinderFace | undefined
+  /** Schema operations used by official settings controllers and editors. */
+  readonly schema: SettingsSchemaService | undefined
+  /** Shared describe mirror; all settings readers refresh through this face. */
+  readonly describe: SettingsDescribeFace | undefined
+}
+
 /** The navigation face of `ctx.uiWorkspace`, used for New Task and Open Workspace. */
 export interface WorkspaceNavigation {
   startSession(workspaceId?: string): void
@@ -80,6 +128,8 @@ export interface DcodeRuntime {
   readonly navigation: WorkspaceNavigation | undefined
   /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
   readonly remote: ClientRemote
+  /** Official settings scope/schema/mirror services used by settings sections. */
+  readonly settings: DcodeSettingsServices
   /** Theme service, when `ui-theme` is part of this assembly. */
   readonly theme: ThemeFace | undefined
   /** Resolved colour scheme, the theme preference, and the window backdrop. */
@@ -88,6 +138,10 @@ export interface DcodeRuntime {
   readonly busyEnter: BusyEnterStore
   /** Shared DSH locale registry and preference. */
   readonly locale: LocaleStore
+  /** Session-scoped pending interactions, when the UI session adapter is present. */
+  readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined
+  /** Session-log export controller, when the export client plugin is present. */
+  readonly sessionLogDownload: SessionLogDownloadFace | undefined
   /** Git, diff, undo and file reads over the `/dcode` channel. */
   readonly git: DcodeApi
   /** The Interactive Learning channel caller, shared with the official UI's learning views. */
@@ -106,6 +160,13 @@ export interface DcodeRuntime {
    * @returns an observable over the assembled Chat snapshot, or undefined when the session has no binding yet.
    */
   chatFeed(sessionId: SessionId): Observable<ChatSnapshot> | undefined
+  /**
+   * Resolve the DSH Trajectory feed for one session.
+   * @param sessionId - session to observe.
+   * @returns an observable over the real trace ledger, or undefined when the
+   *          session has no binding yet.
+   */
+  trajectoryFeed(sessionId: SessionId): Observable<TrajectorySnapshot> | undefined
   /**
    * Resolve a session's binding.
    * @param sessionId - session to resolve.
@@ -134,6 +195,7 @@ interface SettingsScopeFace<T> {
 
 interface SettingsScopeBinderFace {
   bind<T>(spec: { namespace: string }): SettingsScopeFace<T>
+  describe?(): SettingsDescribeFace
 }
 
 /** The Conversation assembly face this module needs off `ctx.uiConversation`. */
@@ -141,6 +203,11 @@ interface UiConversationFace {
   binding(binding: SessionBinding): {
     target(name: string): { getSnapshot(): unknown; subscribe(listener: () => void): () => void }
   }
+}
+
+/** The one ui-session face read by the workbench runtime. */
+interface UiSessionFace {
+  pendingInteractions?: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>>
 }
 
 /**
@@ -161,19 +228,28 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
   const navigation = ctx.get('uiWorkspace') as WorkspaceNavigation | undefined
   const theme = ctx.get('theme') as ThemeFace | undefined
   const locale = ctx.get('locale') as LocaleFace | undefined
+  const uiSession = ctx.get('uiSession') as UiSessionFace | undefined
   const settingsScope = ctx.get('settingsScope') as SettingsScopeBinderFace | undefined
+  const settingsSchema = ctx.get('settingsSchema') as SettingsSchemaService | undefined
+  const sessionLogDownload = ctx.get('sessionLogDownload') as SessionLogDownloadFace | undefined
   const conversationSettings = settingsScope?.bind<{ busyEnter?: BusyEnterBehavior }>({ namespace: 'ui-conversation' })
   const fallbackLocale: LocaleSnapshot = { active: 'en', locales: [], revision: 0 }
 
   // One cache per session id: the Chat target face is identity-stable for a
   // binding, and `useSyncExternalStore` needs a stable subscribe reference.
   const feeds = new Map<SessionId, Observable<ChatSnapshot>>()
+  const trajectoryFeeds = new Map<SessionId, Observable<TrajectorySnapshot>>()
 
   return {
     sessions,
     workspaces,
     navigation,
     remote: ctx.remote,
+    settings: {
+      scope: settingsScope,
+      schema: settingsSchema,
+      describe: settingsScope?.describe?.() as SettingsDescribeFace | undefined,
+    },
     theme,
     appearance: createAppearanceStore(ctx as unknown as { on(name: 'theme/change', listener: () => void): () => void }, theme),
     busyEnter: {
@@ -187,6 +263,8 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
       subscribe: listener => locale?.subscribe(listener) ?? (() => {}),
       set: id => { locale?.setLocale(id) },
     },
+    pendingInteractions: uiSession?.pendingInteractions,
+    sessionLogDownload,
     git: createDcodeApi(carrier),
     learningCall: createLearningCall(carrier),
     // The pack registers this namespace itself; an assembly without it falls
@@ -207,6 +285,20 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
         subscribe: listener => target.subscribe(listener),
       }
       feeds.set(sessionId, feed)
+      return feed
+    },
+    trajectoryFeed: (sessionId) => {
+      const cached = trajectoryFeeds.get(sessionId)
+      if (cached !== undefined) return cached
+      if (uiConversation === undefined) return undefined
+      const binding = sessions.binding(sessionId)
+      if (binding === undefined) return undefined
+      const target = uiConversation.binding(binding).target('trajectory')
+      const feed: Observable<TrajectorySnapshot> = {
+        getSnapshot: () => (target.getSnapshot() as TrajectorySnapshot | undefined) ?? EMPTY_TRAJECTORY_SNAPSHOT,
+        subscribe: listener => target.subscribe(listener),
+      }
+      trajectoryFeeds.set(sessionId, feed)
       return feed
     },
   }

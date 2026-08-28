@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16,
-  IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16,
+  IconListPenOutline16, IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useCurrentSessionId, useSessionList } from '../state/hooks.ts'
@@ -147,9 +147,18 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       id: 'toggle-aside',
       kind: 'action',
       group: t('palette.panels'),
-      label: t('top.toggleAside'),
+      label: t('top.togglePreview'),
       icon: <IconPanelLeftOutline16 />,
+      shortcut: commandShortcut('Alt+B'),
       run: () => { navigation.toggleAside() },
+    },
+    {
+      id: 'toggle-summary',
+      kind: 'action',
+      group: t('palette.panels'),
+      label: t('top.toggleSummary'),
+      icon: <IconListPenOutline16 />,
+      run: () => { navigation.toggleSummary() },
     },
     {
       id: 'changes',
@@ -194,6 +203,14 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       group: t('palette.configuration'),
       label: t('settings.usage'),
       run: () => { navigation.openSettings('usage') },
+    },
+    {
+      id: 'agent-presets',
+      kind: 'action',
+      group: t('palette.configuration'),
+      label: t('settings.agentPresets'),
+      icon: <IconSparkle16 />,
+      run: () => { navigation.openSettings('agentPresets') },
     },
     {
       id: 'official-ui',
