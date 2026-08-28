@@ -1,0 +1,101 @@
+/** Turn file-change summary: what the last answer wrote, and how to undo it. */
+
+.card {
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-card);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-3) var(--zx-space-4);
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.undo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  height: 22px;
+  padding: 0 var(--zx-space-2);
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.undo:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.undo:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 30px;
+  padding: var(--zx-space-1) var(--zx-space-4);
+  border: 0;
+  border-top: 1px solid var(--zx-border-soft);
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--zx-bg-hover);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--zx-font-mono);
+}
+
+.dir {
+  color: var(--zx-label-faint);
+}
+
+.note {
+  margin: 0;
+  padding: var(--zx-space-2) var(--zx-space-4) var(--zx-space-3);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+}

@@ -1,0 +1,161 @@
+/** Git tools: branch, changed files, and the commit entry. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  font-weight: 500;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label);
+}
+
+.summaryLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-width: 0;
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label-secondary);
+  white-space: nowrap;
+}
+
+.branchRow > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  overflow: hidden;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 28px;
+  padding: var(--zx-space-1) var(--zx-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.file + .file {
+  border-top: 1px solid var(--zx-border-soft);
+}
+
+.file:hover {
+  background: var(--zx-bg-hover);
+}
+
+.file:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.fileActive {
+  background: var(--zx-bg-active);
+}
+
+.code {
+  flex: none;
+  width: 16px;
+  color: var(--zx-label-faint);
+  font-family: var(--zx-font-mono);
+  text-align: center;
+}
+
+.codeAdded { color: var(--zx-added); }
+.codeRemoved { color: var(--zx-removed); }
+.codeUntracked { color: var(--zx-warn); }
+
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--zx-font-mono);
+}
+
+.commit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+}
+
+.input {
+  width: 100%;
+  min-height: 30px;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--zx-accent);
+  box-shadow: var(--zx-focus-ring);
+}
+
+.note {
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+  overflow-wrap: anywhere;
+}
+
+.noteError {
+  color: var(--zx-error);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+}
