@@ -12,22 +12,24 @@ import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import {
   Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
-  IconEllipsisOutline16, IconNewChatOutline16,
-  IconSparkle16, IconTrashOutline16, Modal, relativeTime,
+  IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
+  IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
+  IconPlusOutline16, IconSparkle16, IconTrashOutline16, Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { commandShortcut } from '../platform.ts'
 import { useRuntime } from '../state/runtime.ts'
-import { useSessionList, useWorkspaceGroups } from '../state/hooks.ts'
+import { useSessionList, useWorkspaceGroups, type WorkspaceGroup } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
-import { EmptyState, Popover, ui } from './ui.tsx'
+import { EmptyState, IconButton, Popover, ui } from './ui.tsx'
 import css from './LeftRail.module.css'
 
 /** Props of the left rail. */
 export interface LeftRailProps {
   readonly navigation: NavigationStore
-  readonly onNewTask: () => void
+  readonly onNewTask: (workspaceId?: string) => void
+  readonly onOpenWorkspace: () => void
 }
 
 /** Suffix per relative-time bucket; `now` shows the bare word. */
@@ -168,8 +170,66 @@ function SessionRow(props: {
   )
 }
 
+/** One project-folder header with collapse, create, rename and remove actions. */
+function WorkspaceRow(props: {
+  group: WorkspaceGroup
+  collapsed: boolean
+  onToggle: () => void
+  onNewTask: () => void
+  onRename: () => void
+  onRemove: () => void
+}) {
+  const { group, collapsed } = props
+  const t = useT()
+  return (
+    <div className={css.groupHeaderShell}>
+      <button
+        type="button"
+        className={css.groupHeader}
+        onClick={props.onToggle}
+        title={group.path}
+      >
+        {collapsed ? <IconChevronRightOutline14 /> : <IconChevronDownOutline14 />}
+        {collapsed ? <IconFolderClose16 /> : <IconFolderOpen16 />}
+        <span className={css.groupName}>{group.title}</span>
+      </button>
+      <div className={css.groupActions}>
+        <IconButton
+          label={t('workspace.newTask')}
+          className={css.groupAction}
+          onClick={props.onNewTask}
+        >
+          <IconPlusOutline16 />
+        </IconButton>
+        <Popover
+          label={t('workspace.actions')}
+          placement="down"
+          align="end"
+          triggerClassName={css.groupAction}
+          trigger={<IconEllipsisOutline16 />}
+          rows={[
+            {
+              id: 'rename',
+              label: t('workspace.rename'),
+              icon: <IconEditOutline16 />,
+              onSelect: props.onRename,
+            },
+            {
+              id: 'remove',
+              label: t('workspace.remove'),
+              icon: <IconTrashOutline16 />,
+              danger: true,
+              onSelect: props.onRemove,
+            },
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
 /** The task action, scrollable navigation/tree, and account foot. */
-export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
+export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
@@ -179,6 +239,13 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
   const [deleting, setDeleting] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<WorkspaceGroup | undefined>()
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [renameError, setRenameError] = useState<string | undefined>()
+  const [removeTarget, setRemoveTarget] = useState<WorkspaceGroup | undefined>()
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | undefined>()
 
   const toggleGroup = useCallback((id: string) => {
     setCollapsed((previous) => {
@@ -189,17 +256,72 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   }, [])
 
   const hasRows = useMemo(
-    () => ungrouped.length > 0 || groups.some(group => group.sessions.length > 0),
+    () => groups.length > 0 || ungrouped.length > 0,
     [groups, ungrouped],
   )
+
+  const openRename = useCallback((group: WorkspaceGroup) => {
+    setRenameTarget(group)
+    setRenameDraft(group.title)
+    setRenameError(undefined)
+  }, [])
+
+  const closeRename = useCallback(() => {
+    if (renaming) return
+    setRenameTarget(undefined)
+    setRenameError(undefined)
+  }, [renaming])
+
+  const confirmRename = useCallback(() => {
+    const target = renameTarget
+    const title = renameDraft.trim()
+    if (target === undefined || renaming || title === '' || title === target.title) return
+    setRenaming(true)
+    setRenameError(undefined)
+    void runtime.workspaces.rename(target.workspaceId, title)
+      .then(() => { setRenameTarget(undefined) })
+      .catch((cause: unknown) => {
+        setRenameError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => { setRenaming(false) })
+  }, [renameDraft, renameTarget, renaming, runtime])
+
+  const openRemove = useCallback((group: WorkspaceGroup) => {
+    setRemoveTarget(group)
+    setRemoveError(undefined)
+  }, [])
+
+  const closeRemove = useCallback(() => {
+    if (removing) return
+    setRemoveTarget(undefined)
+    setRemoveError(undefined)
+  }, [removing])
+
+  const confirmRemove = useCallback(() => {
+    const target = removeTarget
+    if (target === undefined || removing) return
+    setRemoving(true)
+    setRemoveError(undefined)
+    void runtime.workspaces.delete(target.workspaceId)
+      .then(() => { setRemoveTarget(undefined) })
+      .catch((cause: unknown) => {
+        setRemoveError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => { setRemoving(false) })
+  }, [removing, removeTarget, runtime])
 
   return (
     <nav className={css.rail} aria-label={t('app.title')}>
       <div className={css.top}>
-        <button type="button" className={css.action} onClick={onNewTask}>
+        <button type="button" className={css.action} onClick={() => { onNewTask() }}>
           <IconNewChatOutline16 />
           <span className={ui.grow}>{t('nav.newTask')}</span>
           <span className={css.shortcut}>{commandShortcut('N')}</span>
+        </button>
+        <button type="button" className={css.action} onClick={onOpenWorkspace}>
+          <IconFolderOpenOutline16 />
+          <span className={ui.grow}>{t('nav.openWorkspace')}</span>
+          <span className={css.shortcut}>{commandShortcut('O')}</span>
         </button>
       </div>
 
@@ -227,15 +349,14 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
             <>
               {groups.map(group => (
                 <div className={css.group} key={group.workspaceId}>
-                  <button
-                    type="button"
-                    className={css.groupHeader}
-                    onClick={() => { toggleGroup(group.workspaceId) }}
-                    title={group.path}
-                  >
-                    {collapsed.has(group.workspaceId) ? <IconChevronRightOutline14 /> : <IconChevronDownOutline14 />}
-                    <span className={css.groupName}>{group.title}</span>
-                  </button>
+                  <WorkspaceRow
+                    group={group}
+                    collapsed={collapsed.has(group.workspaceId)}
+                    onToggle={() => { toggleGroup(group.workspaceId) }}
+                    onNewTask={() => { onNewTask(group.workspaceId) }}
+                    onRename={() => { openRename(group) }}
+                    onRemove={() => { openRemove(group) }}
+                  />
                   {collapsed.has(group.workspaceId)
                     ? null
                     : group.sessions.map(session => (
@@ -358,6 +479,66 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           </>
         )}
       />
+      <Modal
+        open={renameTarget !== undefined}
+        onClose={closeRename}
+        title={t('workspace.renameTitle')}
+        closeLabel={t('common.close')}
+        footer={(
+          <>
+            <PrimitiveButton variant="outline" disabled={renaming} onClick={closeRename}>
+              {t('common.cancel')}
+            </PrimitiveButton>
+            <PrimitiveButton
+              variant="outline"
+              disabled={renaming || renameDraft.trim() === '' || renameTarget === undefined || renameDraft.trim() === renameTarget.title}
+              onClick={confirmRename}
+            >
+              {t('workspace.rename')}
+            </PrimitiveButton>
+          </>
+        )}
+      >
+        <input
+          className={css.workspaceInput}
+          value={renameDraft}
+          aria-label={t('workspace.name')}
+          autoFocus
+          disabled={renaming}
+          onChange={event => { setRenameDraft(event.target.value); setRenameError(undefined) }}
+          onKeyDown={event => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            confirmRename()
+          }}
+        />
+        {renameError === undefined ? null : <div className={css.workspaceError} role="alert">{renameError}</div>}
+      </Modal>
+      <Modal
+        open={removeTarget !== undefined}
+        onClose={closeRemove}
+        title={t('workspace.removeTitle')}
+        closeLabel={t('common.close')}
+        description={removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title })}
+        footer={(
+          <>
+            <PrimitiveButton variant="outline" disabled={removing} onClick={closeRemove}>
+              {t('common.cancel')}
+            </PrimitiveButton>
+            <PrimitiveButton
+              variant="outline"
+              className={css.deleteConfirm}
+              disabled={removing}
+              onClick={confirmRemove}
+            >
+              {t('workspace.remove')}
+            </PrimitiveButton>
+          </>
+        )}
+      >
+        {removing ? <div className={css.workspaceStatus} role="status">{t('workspace.removePending')}</div> : null}
+        {removeError === undefined ? null : <div className={css.workspaceError} role="alert">{removeError}</div>}
+      </Modal>
     </nav>
   )
 }

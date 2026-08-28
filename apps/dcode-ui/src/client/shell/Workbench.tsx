@@ -75,9 +75,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
     return () => { for (const node of roots) node.removeAttribute(ACRYLIC_ATTRIBUTE) }
   }, [acrylic])
 
-  const newTask = useCallback(() => {
+  const newTask = useCallback((workspaceId?: string) => {
     navigation.show('session')
-    runtime.navigation?.startSession()
+    runtime.navigation?.startSession(workspaceId)
   }, [navigation, runtime])
 
   const adoptWorkspace = useCallback(async (path: string) => {
@@ -160,6 +160,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
               <LeftRail
                 navigation={navigation}
                 onNewTask={newTask}
+                onOpenWorkspace={openWorkspace}
               />
             </div>
             <div className={`${css.center} ${blank ? css.centerBlank : ''}`}>

@@ -76,11 +76,20 @@
   margin-top: var(--zx-space-3);
 }
 
+.groupHeaderShell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--zx-radius-sm);
+}
+
 .groupHeader {
   display: flex;
   align-items: center;
   gap: var(--zx-space-2);
-  width: 100%;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   height: 26px;
   padding: 0 var(--zx-space-3);
   border: 0;
@@ -96,6 +105,30 @@
 .groupHeader:hover {
   background: var(--zx-bg-hover);
   color: var(--zx-label-secondary);
+}
+
+.groupHeaderShell:hover,
+.groupHeaderShell:focus-within {
+  background: var(--zx-bg-hover);
+}
+
+.groupActions {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-right: var(--zx-space-1);
+}
+
+.groupAction {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--zx-motion-fast);
+}
+
+.groupHeaderShell:hover .groupAction,
+.groupHeaderShell:focus-within .groupAction {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .groupName {
@@ -240,4 +273,34 @@
 
 .deleteConfirm {
   color: var(--zx-error);
+}
+
+.workspaceInput {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--zx-space-3);
+  box-sizing: border-box;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-raised);
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-sm);
+}
+
+.workspaceInput:focus {
+  outline: none;
+  border-color: var(--zx-accent);
+  box-shadow: var(--zx-focus-ring);
+}
+
+.workspaceError {
+  margin-top: var(--zx-space-3);
+  color: var(--zx-error);
+  font-size: var(--zx-text-xs);
+}
+
+.workspaceStatus {
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
 }

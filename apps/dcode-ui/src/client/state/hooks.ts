@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type {
   SessionListState, SessionSnapshot, SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { useRuntime, type Observable } from './runtime.ts'
@@ -182,7 +182,7 @@ export function useProjectionValue<T>(sessionId: SessionId | undefined, key: str
 
 /** Sessions grouped under the workspace that accounts for them, in registry order. */
 export interface WorkspaceGroup {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly title: string
   readonly path: string
   readonly sessions: readonly SessionSummary[]
