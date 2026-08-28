@@ -1,0 +1,191 @@
+/** Right column: git changes, goal and progress, tool/file details. */
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: var(--zx-aside-width);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  padding: 0 var(--zx-space-3);
+  height: var(--zx-topbar-height);
+  border-bottom: 1px solid var(--zx-border-soft);
+  -webkit-app-region: drag;
+}
+
+.tabs > * {
+  -webkit-app-region: no-drag;
+}
+
+.tab {
+  height: 26px;
+  padding: 0 var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label-secondary);
+}
+
+.tabActive {
+  background: var(--zx-bg-active);
+  color: var(--zx-label);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: var(--zx-space-4) var(--zx-space-4) var(--zx-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-5);
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+
+.body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border: 3px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background-clip: padding-box;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  font-weight: 500;
+}
+
+.goal {
+  display: flex;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+}
+
+.goalText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+  color: var(--zx-label);
+  overflow-wrap: anywhere;
+}
+
+.goalMeta {
+  margin-top: var(--zx-space-1);
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-1) 0;
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+  color: var(--zx-label-secondary);
+}
+
+.stepDone {
+  color: var(--zx-label-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--zx-border);
+}
+
+.stepActive {
+  color: var(--zx-label);
+}
+
+.stepMark {
+  flex: none;
+  margin-top: 2px;
+  color: var(--zx-label-faint);
+}
+
+.stepMarkDone {
+  color: var(--zx-success);
+}
+
+.detailBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+}
+
+/* Label with its output controls pushed to the far edge. */
+.detailRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+}
+
+.detailLabel {
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filePath {
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.fileMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+  color: var(--zx-label-faint);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.pre {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
