@@ -56,10 +56,148 @@
   overflow-wrap: anywhere;
 }
 
+.messageAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+  margin-top: var(--zx-space-2);
+}
+
+.messageImage {
+  display: block;
+  width: auto;
+  max-width: min(360px, 100%);
+  max-height: 260px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  object-fit: contain;
+  background: var(--zx-bg-panel);
+}
+
+.attachmentPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  min-height: 30px;
+  padding: 0 var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+}
+
+.fileAttachment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  max-width: 260px;
+  min-height: 30px;
+  padding: 0 var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-panel);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+}
+
+.fileAttachment > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileAttachment:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.fileAttachment:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.fileAttachment:focus-visible,
+.queueAction:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
 .steering {
   align-self: flex-end;
   max-width: 86%;
   border-color: color-mix(in srgb, var(--zx-warn) 40%, transparent);
+}
+
+.queueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zx-space-2) var(--zx-space-3);
+}
+
+.queuePreview {
+  min-width: 0;
+  flex: 1 1 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queueEditor {
+  min-width: 160px;
+  flex: 1 1 160px;
+  height: 28px;
+  padding: 0 var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-sm);
+  outline: none;
+  background: var(--zx-bg-panel);
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+}
+
+.queueEditor:focus {
+  border-color: var(--zx-accent);
+}
+
+.queueActions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.queueAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-muted);
+  cursor: pointer;
+}
+
+.queueAction:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.queueAction:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.queueError {
+  flex: 1 0 100%;
+  color: var(--zx-error);
+  font-size: var(--zx-text-micro);
 }
 
 .assistant {

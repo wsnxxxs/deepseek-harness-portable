@@ -10,14 +10,21 @@
  * @module @dsh-portable/dcode-ui/client/chat/Transcript
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  IconThinkOutline14, IconWarningOutline16, MarkdownText,
+  IconCheckOutline16, IconCloseFill14, IconCloseOutline16, IconDownloadOutline16,
+  IconEditOutline16, IconPaperclipOutline16, IconSendOutline14, IconThinkOutline14,
+  IconTrashOutline16, IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   AssistantBlock, AssistantMessageNode, ConversationNode, ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {
+  PendingSubmission, SessionFace, SessionSnapshot,
+} from '@deepseek-ai/dsh-api-session-controller/client'
+import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
 import { useChatSnapshot, useSessionSnapshot } from '../state/hooks.ts'
@@ -59,8 +66,113 @@ function Reasoning({ text }: { text: string }) {
   )
 }
 
+/** Session-authorized image display; the Conversation assembly owns its URL cache. */
+function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachmentRef }) {
+  const runtime = useRuntime()
+  const [src, setSrc] = useState(() => runtime.media?.peekImageUrl(props.sessionId, props.attachment))
+
+  useEffect(() => {
+    let live = true
+    const media = runtime.media
+    const cached = media?.peekImageUrl(props.sessionId, props.attachment)
+    if (cached !== undefined) {
+      setSrc(cached)
+      return () => { live = false }
+    }
+    if (media === undefined) return () => { live = false }
+    void media.imageUrl(props.sessionId, props.attachment).then(
+      value => { if (live) setSrc(value) },
+      () => undefined,
+    )
+    return () => { live = false }
+  }, [props.attachment, props.sessionId, runtime])
+
+  return src === undefined
+    ? <span className={css.attachmentPlaceholder}>{props.attachment.name ?? 'image'}</span>
+    : <img className={css.messageImage} src={src} alt={props.attachment.name ?? 'image'} />
+}
+
+/** One durable file reference which can be downloaded from the same session. */
+function DurableFile(props: { sessionId: SessionId; attachment: FileAttachmentRef }) {
+  const runtime = useRuntime()
+  const label = props.attachment.name ?? 'attachment'
+  return (
+    <button
+      type="button"
+      className={css.fileAttachment}
+      title={label}
+      onClick={() => { void runtime.media?.downloadFile(props.sessionId, props.attachment) }}
+      disabled={runtime.media === undefined}
+    >
+      <IconPaperclipOutline16 />
+      <span>{label}</span>
+      <IconDownloadOutline16 />
+    </button>
+  )
+}
+
+type PreviewImage = PendingSubmission['images'][number]
+
+/** Render message attachments without changing the DCode message layout. */
+function MessageAttachments(props: {
+  sessionId: SessionId
+  content?: readonly unknown[]
+  images?: readonly ImageAttachmentRef[]
+  previews?: readonly PreviewImage[]
+}) {
+  const images = [...(props.images ?? [])]
+  const files: FileAttachmentRef[] = []
+  for (const block of props.content ?? []) {
+    const candidate = block as { type?: unknown; attachment?: unknown }
+    if (candidate.type === 'image' && candidate.attachment !== undefined) {
+      images.push(candidate.attachment as ImageAttachmentRef)
+    } else if (candidate.type === 'file' && candidate.attachment !== undefined) {
+      files.push(candidate.attachment as FileAttachmentRef)
+    }
+  }
+  if (images.length === 0 && files.length === 0 && (props.previews?.length ?? 0) === 0) return null
+  return (
+    <div className={css.messageAttachments}>
+      {props.previews?.map((image, index) => (
+        <img
+          className={css.messageImage}
+          key={`${image.previewUrl}:${String(index)}`}
+          src={image.previewUrl}
+          alt={image.name ?? 'image'}
+        />
+      ))}
+      {images.map((attachment, index) => (
+        <DurableImage
+          key={`${attachment.attachmentId}:${String(index)}`}
+          sessionId={props.sessionId}
+          attachment={attachment}
+        />
+      ))}
+      {files.map((attachment, index) => (
+        <DurableFile
+          key={`${attachment.attachmentId}:${String(index)}`}
+          sessionId={props.sessionId}
+          attachment={attachment}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** A user bubble can carry text, images, files, or an image-only prompt. */
+function UserBubble(props: { sessionId: SessionId; content: readonly ContentBlock[]; className?: string }) {
+  const text = messageText(props.content)
+  return (
+    <div className={`${css.user} ${props.className ?? ''}`}>
+      {text === '' ? null : <div>{text}</div>}
+      <MessageAttachments sessionId={props.sessionId} content={props.content} />
+    </div>
+  )
+}
+
 /** One assistant message's visible blocks. Tool calls render as their own cards. */
 function AssistantBlocks(props: {
+  sessionId: SessionId
   blocks: readonly AssistantBlock[]
   streaming: boolean
   labels: MarkdownLabels
@@ -76,6 +188,15 @@ function AssistantBlocks(props: {
           )
         }
         if (block.kind === 'reasoning') return <Reasoning key={index} text={block.text} />
+        if (block.kind === 'image') {
+          return (
+            <MessageAttachments
+              key={index}
+              sessionId={props.sessionId}
+              images={[block.attachment]}
+            />
+          )
+        }
         // Tool calls are rendered from the paired result nodes, which carry the
         // output; an unpaired call is covered by `runningCalls` below.
         return null
@@ -102,6 +223,7 @@ function Stats({ node }: { node: AssistantMessageNode }) {
 
 /** Render one conversation node. */
 function Node(props: {
+  sessionId: SessionId
   node: ConversationNode
   labels: MarkdownLabels
   onInspect: (callId: string) => void
@@ -110,13 +232,13 @@ function Node(props: {
   const { node } = props
   switch (node.kind) {
     case 'user':
-      return <div className={css.user}>{messageText(node.content)}</div>
+      return <UserBubble sessionId={props.sessionId} content={node.content} />
     case 'steering':
-      return <div className={`${css.user} ${css.steering}`}>{messageText(node.content)}</div>
+      return <UserBubble sessionId={props.sessionId} content={node.content} className={css.steering} />
     case 'assistant':
       return (
         <div>
-          <AssistantBlocks blocks={node.blocks} streaming={false} labels={props.labels} />
+          <AssistantBlocks sessionId={props.sessionId} blocks={node.blocks} streaming={false} labels={props.labels} />
           <Stats node={node} />
         </div>
       )
@@ -151,6 +273,125 @@ function Node(props: {
     default:
       return null
   }
+}
+
+/** Queue controls mirror the host queue verbs instead of treating queued text as static output. */
+function QueuedMessageRow(props: {
+  sessionId: SessionId
+  item: SessionSnapshot['queue'][number]
+  running: boolean
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(props.item.text ?? props.item.preview)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+  const editable = props.item.text !== null
+
+  useEffect(() => {
+    if (!editing) setDraft(props.item.text ?? props.item.preview)
+    if (!editable) setEditing(false)
+  }, [editable, editing, props.item.preview, props.item.text])
+
+  const apply = useCallback(async (action: Parameters<SessionFace['updateQueue']>[1]): Promise<void> => {
+    const session = runtime.binding(props.sessionId)?.session
+    if (session === undefined || busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      const result = await session.updateQueue(props.item.id, action)
+      if (!result.ok) throw new Error(result.error.message)
+      if (action.kind === 'edit') setEditing(false)
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, props.item.id, props.sessionId, runtime])
+
+  return (
+    <div className={`${css.user} ${css.steering} ${css.queueRow}`}>
+      <span className={css.stats}>{t('chat.queued')}</span>
+      {editing
+        ? (
+          <input
+            className={css.queueEditor}
+            value={draft}
+            aria-label={t('chat.editQueued')}
+            autoFocus
+            onChange={event => { setDraft(event.target.value) }}
+            onKeyDown={event => {
+              if (event.key === 'Escape') setEditing(false)
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                if (draft.trim() !== '') void apply({ kind: 'edit', content: [{ type: 'text', text: draft.trim() }] })
+              }
+            }}
+          />
+        )
+        : <span className={css.queuePreview}>{props.item.text ?? props.item.preview}</span>}
+      <div className={css.queueActions}>
+        {editing
+          ? (
+            <>
+              <button
+                type="button"
+                className={css.queueAction}
+                aria-label={t('chat.saveQueued')}
+                disabled={busy || draft.trim() === ''}
+                onClick={() => { void apply({ kind: 'edit', content: [{ type: 'text', text: draft.trim() }] }) }}
+              ><IconCheckOutline16 /></button>
+              <button
+                type="button"
+                className={css.queueAction}
+                aria-label={t('chat.cancelQueuedEdit')}
+                disabled={busy}
+                onClick={() => { setEditing(false) }}
+              ><IconCloseOutline16 /></button>
+            </>
+          )
+          : (
+            <>
+              <button
+                type="button"
+                className={css.queueAction}
+                aria-label={t('chat.editQueued')}
+                title={editable ? undefined : t('chat.editQueuedUnsupported')}
+                disabled={busy || !editable}
+                onClick={() => { if (editable) setEditing(true) }}
+              ><IconEditOutline16 /></button>
+              <button
+                type="button"
+                className={css.queueAction}
+                aria-label={t('chat.removeQueued')}
+                disabled={busy}
+                onClick={() => { void apply({ kind: 'remove' }) }}
+              ><IconTrashOutline16 /></button>
+              <button
+                type="button"
+                className={css.queueAction}
+                aria-label={t('chat.steerQueued')}
+                title={props.running ? undefined : t('chat.steerQueuedUnavailable')}
+                disabled={busy || !props.running || props.item.placement !== 'queued'}
+                onClick={() => { void apply({ kind: 'steer' }) }}
+              ><IconSendOutline14 /></button>
+            </>
+          )}
+      </div>
+      {error === undefined ? null : <span className={css.queueError}>{error}</span>}
+    </div>
+  )
+}
+
+/** Local submission echo shown while attachment admission is still in flight. */
+function PendingSubmissionBubble(props: { sessionId: SessionId; submission: PendingSubmission }) {
+  return (
+    <div className={css.user}>
+      {props.submission.text === '' ? null : <div>{props.submission.text}</div>}
+      <MessageAttachments sessionId={props.sessionId} previews={props.submission.images} />
+    </div>
+  )
 }
 
 function dynamicGreetingKey(): DcodeKey {
@@ -246,6 +487,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
                 <div className={css.turn} key={turn[0]?.seq ?? turnIndex}>
                   {turn.map(node => (
                     <Node
+                      sessionId={sessionId}
                       key={`${node.kind}:${String(node.seq)}`}
                       node={node}
                       labels={labels}
@@ -281,7 +523,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               ? null
               : (
                 <div>
-                  <AssistantBlocks blocks={partial.blocks} streaming labels={labels} />
+                  <AssistantBlocks sessionId={sessionId} blocks={partial.blocks} streaming labels={labels} />
                   <span className={css.streamingDot} aria-label={t('chat.thinking')} />
                 </div>
               )}
@@ -290,13 +532,23 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               ? <div className={css.stats}>{t('chat.thinking')}<span className={css.streamingDot} /></div>
               : null}
 
+            {session?.pendingSubmissions.map(submission => (
+              <PendingSubmissionBubble
+                key={submission.requestId}
+                sessionId={sessionId}
+                submission={submission}
+              />
+            ))}
+
             {session?.queue.length === 0
               ? null
               : session?.queue.map(item => (
-                <div className={`${css.user} ${css.steering}`} key={item.id}>
-                  <span className={css.stats}>{t('chat.queued')}</span>
-                  {item.text ?? item.preview}
-                </div>
+                <QueuedMessageRow
+                  key={item.id}
+                  sessionId={sessionId}
+                  item={item}
+                  running={session.running}
+                />
               ))}
 
             {session?.lastAgentError === null || session?.lastAgentError === undefined
