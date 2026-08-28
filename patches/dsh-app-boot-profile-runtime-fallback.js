@@ -5,9 +5,22 @@ function replaceOnce(source, pattern, replacement, label) {
   return source.replace(pattern, replacement)
 }
 
+const STALE_LINK_REPAIR_MARKER = 'Stale installation-owned junctions'
+
+function patchStaleCanonicalLinkPath(source) {
+  if (source.includes(STALE_LINK_REPAIR_MARKER)) return source
+  return replaceOnce(
+    source,
+    /\t} catch \(error\) \{\n\t\t\/\* v8 ignore next 2 -- a non-ENOENT realpath failure requires a host filesystem fault \*\/\n\t\tif \(error\.code === "ENOENT"\) return void 0;\n\t\t\/\* v8 ignore next -- see the host-filesystem exception above \*\/\n\t\tthrow error;\n\t\}/,
+    '\t} catch {\n\t\t// Stale installation-owned junctions can report UNKNOWN on Windows.\n\t\treturn void 0;\n\t}',
+    'stale link canonicalization',
+  )
+}
+
 /** Add an installed-runtime fallback for bare packages without changing profile priority. */
 function patchAppBootProfileRuntimeFallback(source) {
-  if (source.includes('requireFromBareFallback') && source.includes('bareModuleFallbackBaseUrl')) return source
+  const hasFallbackPatch = source.includes('requireFromBareFallback') && source.includes('bareModuleFallbackBaseUrl')
+  if (hasFallbackPatch) return patchStaleCanonicalLinkPath(source)
 
   let output = source
   if (!output.includes('import { createRequire } from "node:module";')) {
@@ -75,7 +88,7 @@ function patchAppBootProfileRuntimeFallback(source) {
   if (!output.includes('requireFromBareFallback') || !output.includes('internal.resolveSync(bareModuleFallbackBaseUrl')) {
     throw new Error('app-boot fallback patch did not produce the reviewed dual-anchor resolver')
   }
-  return output
+  return patchStaleCanonicalLinkPath(output)
 }
 
 module.exports = { patchAppBootProfileRuntimeFallback }

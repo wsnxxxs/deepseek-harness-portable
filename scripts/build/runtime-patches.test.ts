@@ -52,6 +52,16 @@ test('directory-picker auto patch maps WSL to the Windows native backend', async
 test('app-boot patch resolves bare packages from profile then installed runtime', () => {
   const source = [
     'import { fileURLToPath, pathToFileURL } from "node:url";',
+    'function canonicalLinkPath(path) {',
+    '\ttry {',
+    '\t\treturn join(realpathSync.native(dirname(path)), basename(path));',
+    '\t} catch (error) {',
+    '\t\t/* v8 ignore next 2 -- a non-ENOENT realpath failure requires a host filesystem fault */',
+    '\t\tif (error.code === "ENOENT") return void 0;',
+    '\t\t/* v8 ignore next -- see the host-filesystem exception above */',
+    '\t\tthrow error;',
+    '\t}',
+    '}',
     'async function mountRootInclude(ctx, absoluteConfigPath, patches = [], bareModuleBaseUrl) {',
     '\tctx.loader.builtins.include = bareModuleBaseUrl === void 0 ? Include : class HostResolvedRootInclude extends Include {',
     '\t\timport(name, getOuterStack) {',
@@ -71,6 +81,7 @@ test('app-boot patch resolves bare packages from profile then installed runtime'
   assert.match(output, /createRequire/)
   assert.match(output, /requireFromBareFallback/)
   assert.match(output, /internal\.resolveSync\(bareModuleFallbackBaseUrl/)
+  assert.match(output, /Stale installation-owned junctions/)
   assert.equal(patchAppBootProfileRuntimeFallback(output), output)
 })
 
