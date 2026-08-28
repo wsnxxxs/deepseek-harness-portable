@@ -88,7 +88,7 @@ function dynamicGreetingKey() {
     return 'chat.empty.evening';
 }
 /** The scrolling conversation, its turn summaries and its streaming tail. */
-export function Transcript({ navigation, sessionId, cwd, blank, onNewTask }) {
+export function Transcript({ navigation, sessionId, cwd, blank }) {
     const runtime = useRuntime();
     const t = useT();
     const chat = useChatSnapshot(sessionId);
@@ -126,7 +126,9 @@ export function Transcript({ navigation, sessionId, cwd, blank, onNewTask }) {
     // A session switch starts pinned to the newest message again.
     useEffect(() => { pinnedRef.current = true; }, [sessionId]);
     if (sessionId === undefined) {
-        return (_jsxs("div", { className: `${css.hero} ${css.heroBlank}`, children: [_jsx("span", { className: css.heroGreeting, children: t(dynamicGreetingKey()) }), _jsx("p", { className: css.heroBody, children: t('chat.empty.noWorkspace') }), _jsx(Button, { primary: true, onClick: onNewTask, children: t('nav.newTask') })] }));
+        // Keep the composer vertically centred without rendering the welcome
+        // message and shortcut button when no task is selected.
+        return _jsx("div", { className: css.blankSpace, "aria-hidden": true });
     }
     return (_jsxs("div", { className: css.scroller, ref: scrollerRef, children: [blank
                 ? (

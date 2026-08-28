@@ -41,7 +41,6 @@ export interface TranscriptProps {
    * composer's centring below cannot disagree about which phase they are in.
    */
   readonly blank: boolean
-  readonly onNewTask: () => void
 }
 
 /** Reasoning text, folded by default. */
@@ -162,7 +161,7 @@ function dynamicGreetingKey(): DcodeKey {
 }
 
 /** The scrolling conversation, its turn summaries and its streaming tail. */
-export function Transcript({ navigation, sessionId, cwd, blank, onNewTask }: TranscriptProps) {
+export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProps) {
   const runtime = useRuntime()
   const t = useT()
   const chat = useChatSnapshot(sessionId)
@@ -204,13 +203,9 @@ export function Transcript({ navigation, sessionId, cwd, blank, onNewTask }: Tra
   useEffect(() => { pinnedRef.current = true }, [sessionId])
 
   if (sessionId === undefined) {
-    return (
-      <div className={`${css.hero} ${css.heroBlank}`}>
-        <span className={css.heroGreeting}>{t(dynamicGreetingKey())}</span>
-        <p className={css.heroBody}>{t('chat.empty.noWorkspace')}</p>
-        <Button primary onClick={onNewTask}>{t('nav.newTask')}</Button>
-      </div>
-    )
+    // Keep the composer vertically centred without rendering the welcome
+    // message and shortcut button when no task is selected.
+    return <div className={css.blankSpace} aria-hidden />
   }
 
   return (

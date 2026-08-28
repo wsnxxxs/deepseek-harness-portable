@@ -21,8 +21,7 @@ export interface TranscriptProps {
      * composer's centring below cannot disagree about which phase they are in.
      */
     readonly blank: boolean;
-    readonly onNewTask: () => void;
 }
 /** The scrolling conversation, its turn summaries and its streaming tail. */
-export declare function Transcript({ navigation, sessionId, cwd, blank, onNewTask }: TranscriptProps): import("react").JSX.Element;
+export declare function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProps): import("react").JSX.Element;
 //# sourceMappingURL=Transcript.d.ts.map

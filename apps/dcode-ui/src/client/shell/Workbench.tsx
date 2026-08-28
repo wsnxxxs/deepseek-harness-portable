@@ -169,7 +169,6 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 sessionId={sessionId}
                 cwd={cwd}
                 blank={blank}
-                onNewTask={newTask}
               />
               <Composer
                 sessionId={sessionId}
