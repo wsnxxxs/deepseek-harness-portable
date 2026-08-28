@@ -409,6 +409,10 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-warning, #d9a441) 14%, transparent);
 }
 
+.statusDotNeutral {
+  background: var(--zx-label-faint);
+}
+
 .providerEditor {
   display: flex;
   flex-direction: column;

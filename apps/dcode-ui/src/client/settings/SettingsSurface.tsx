@@ -476,14 +476,25 @@ function ModelProviderCard(props: {
     }
   }
 
-  const statusLabel = props.row.credential?.configured === true
+  const credentialConfigured = props.row.credential?.configured === true
+  const credentialDeclared = stringAt(props.row.profile, ['apiKeyEnv']) !== undefined
+  const statusLabel = credentialConfigured
     ? t('settings.models.keyConfigured')
-    : t('settings.models.keyMissing')
+    : credentialDeclared
+      ? t('settings.models.keyMissing')
+      : props.row.profile === undefined
+        ? t('settings.models.notConfigured')
+        : t('settings.models.keyNotRequired')
+  const statusClass = credentialConfigured
+    ? css.statusDotGood
+    : credentialDeclared
+      ? css.statusDotMissing
+      : css.statusDotNeutral
 
   return (
     <div className={css.providerCard}>
       <div className={css.providerHead}>
-        <span className={`${css.statusDot} ${props.row.credential?.configured === true ? css.statusDotGood : css.statusDotMissing}`} aria-label={statusLabel} title={statusLabel} />
+        <span className={`${css.statusDot} ${statusClass}`} aria-label={statusLabel} title={statusLabel} />
         <div className={css.rowText}>
           <div className={css.rowTitle}>{props.row.name}</div>
           <div className={css.rowBody}>{props.row.id}{props.row.active ? '' : ` · ${t('settings.models.inactive')}`}</div>

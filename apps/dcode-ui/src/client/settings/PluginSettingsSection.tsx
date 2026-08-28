@@ -118,7 +118,7 @@ function PluginSettingsCard(props: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const credentialWritable = props.credential?.writable !== false
-  const canSave = props.writable || credentialWritable
+  const canSave = props.writable || (props.credentialLabel !== undefined && credentialWritable)
 
   const dirty = props.fields.some(field => {
     if (resetFields.has(field.key)) return hasField(user, field.key)
@@ -158,7 +158,7 @@ function PluginSettingsCard(props: {
         if (stored === undefined && JSON.stringify(next) === JSON.stringify(effective)) continue
         ops.push({ op: 'set', path: [field.key], value: next as JsonValue })
       }
-      if (ops.length > 0) {
+      if (props.writable && ops.length > 0) {
         const response = await runtime.remote.settings.mutate(props.namespace.ns, ops, props.namespace.revision)
         if (!response.ok) throw new Error(response.error.message)
       }
@@ -210,7 +210,7 @@ function PluginSettingsCard(props: {
             <span className={css.fieldMeta}>
               <span className={css.fieldLabel}>{field.label}</span>
               {hasField(user, field.key) && !resetFields.has(field.key)
-                ? <Button className={css.resetButton} onClick={() => { setResetFields(previous => new Set([...previous, field.key])); setDraft(previous => ({ ...previous, [field.key]: fieldText(props.namespace.base, field.key) })) }} disabled={saving}>{t('settings.plugins.reset')}</Button>
+                ? <Button className={css.resetButton} onClick={() => { setResetFields(previous => new Set([...previous, field.key])); setDraft(previous => ({ ...previous, [field.key]: fieldText(props.namespace.base, field.key) })) }} disabled={saving || !props.writable}>{t('settings.plugins.reset')}</Button>
                 : null}
             </span>
             <input
