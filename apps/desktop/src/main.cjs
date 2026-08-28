@@ -22,6 +22,9 @@ const { findPortableRoot } = require('./update-path.cjs')
 const { evaluateUpdateLaunch } = require('./update-transaction.cjs')
 const { ensureUnifiedDshHome } = require('./workspace-service.cjs')
 const { readConfigStore, updateConfigStore } = require('./config-store.cjs')
+const {
+  DEFAULT_UI_MODE, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
+} = require('@dsh-portable/zcode-ui/ui-mode-contract')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
 const { readSessionCookie, settingsDescribeUrl } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
@@ -229,8 +232,39 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * The front end the renderer is showing.
+ *
+ * Two UIs ride one page over one Runtime: the modern workbench and the
+ * official DSH interface. Switching is a renderer-side slot swap — this
+ * process only records the choice, keeps its menus ticked, and appends the
+ * parameter that reproduces it on the next cold load. Nothing here restarts
+ * or reconfigures the Harness.
+ */
+let uiMode = DEFAULT_UI_MODE
+
 function configPath() {
   return join(app.getPath('userData'), 'config.json')
+}
+
+/**
+ * Record a front-end selection and tell the renderer to apply it.
+ *
+ * Idempotent: reselecting the active mode neither writes the config nor
+ * messages the renderer, so a menu retick cannot cause a remount.
+ */
+function applyUiMode(nextMode, { notifyRenderer = true } = {}) {
+  const normalized = normalizeUiMode(nextMode)
+  if (normalized === undefined || normalized === uiMode) return false
+  uiMode = normalized
+  try {
+    updateConfig({ uiMode: normalized })
+  } catch (error) {
+    console.warn('Failed to persist the interface preference:', error)
+  }
+  if (notifyRenderer) sendRenderer(UI_MODE_IPC_CHANNEL, { mode: normalized })
+  rebuildMenus()
+  return true
 }
 
 function readConfig() {
@@ -890,7 +924,7 @@ async function restartHarness() {
       writeUpdateProbeIfRequested()
       sendSplashStatus('interface')
       if (window !== undefined && !window.isDestroyed()) {
-        await window.loadURL(url)
+        await window.loadURL(withUiModeParam(url, uiMode))
         if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
         if (DISPLAY_DESKTOP_WINDOWS && !window.isVisible()) window.show()
         await waitForRendererFirstPaint()
@@ -1574,6 +1608,15 @@ function registerReleaseNotesIpc() {
     void probeShellAvailability().then(() => sendShellState(event.sender)).catch(() => {})
   })
 
+  // The renderer's own switch entries (either surface's settings panel, the
+  // command palette) report here so the desktop menus stay ticked and the next
+  // cold launch opens the same front end. The renderer has already applied it,
+  // so this must not echo the change back.
+  ipcMain.on(UI_MODE_IPC_CHANNEL, (event, payload = {}) => {
+    if (!isMainRenderer(event.sender) || !payload || typeof payload.mode !== 'string') return
+    applyUiMode(payload.mode, { notifyRenderer: false })
+  })
+
   ipcMain.on('desktop:zoom', (event, action = {}) => {
     if (!isMainRenderer(event.sender) || !action || typeof action.type !== 'string') return
     if (action.type === 'reset' || action.type === 'in' || action.type === 'out') adjustRendererZoom(action.type)
@@ -1710,6 +1753,26 @@ function menuItems() {
     { label: desktopText('menu.refreshInterface'), accelerator: 'CmdOrCtrl+R', click: reloadRenderer },
     { label: desktopText('menu.restartHarness'), accelerator: 'CmdOrCtrl+Shift+R', click: () => { void requestHarnessRestart() } },
     { label: desktopText('menu.openBrowser'), click: () => { void openWebUiInBrowser() } },
+    { type: 'separator' },
+    {
+      label: desktopText('menu.interface'),
+      // Official first, then the workbench — the same order both settings
+      // panels present, so the pair never reads differently in two places.
+      submenu: [
+        {
+          label: desktopText('menu.interfaceOfficial'),
+          type: 'radio',
+          checked: uiMode === 'official',
+          click: () => { applyUiMode('official') },
+        },
+        {
+          label: desktopText('menu.interfaceWorkbench'),
+          type: 'radio',
+          checked: uiMode === 'zcode',
+          click: () => { applyUiMode('zcode') },
+        },
+      ],
+    },
     { type: 'separator' },
     { label: desktopText('menu.checkUpdates'), click: () => { void checkForUpdates(true) } },
     { label: desktopText('menu.aboutAndUpdates'), click: () => { openInAppReleaseNotes({ mode: 'history' }) } },
@@ -1894,6 +1957,9 @@ if (!portableLaunchGate.allowed) {
     .then(() => {
       void probeShellAvailability().catch(() => {})
       initializeDesktopLocale()
+      // Adopt the recorded front end before the first load, so the window
+      // opens straight into it rather than switching after first paint.
+      uiMode = normalizeUiMode(readConfig().uiMode) ?? DEFAULT_UI_MODE
       return createApp()
     })
     .catch(error => dialog.showErrorBox(APP_NAME, errorMessage(error)))

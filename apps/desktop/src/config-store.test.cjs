@@ -6,6 +6,7 @@ const test = require('node:test')
 const {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_CONFIG,
+  DEFAULT_UI_MODE,
   migrateConfig,
   writeAtomic,
   readConfigStore,
@@ -93,6 +94,38 @@ test('readConfigStore recovers from .bak and preserves corrupt file when config.
     assert.equal(readFileSync(join(dir, corruptFile), 'utf8'), '{ invalid json corrupted truncation...')
     const restoredBackup = JSON.parse(readFileSync(bakPath, 'utf8'))
     assert.equal(restoredBackup.workspace, 'C:\\saved-good', 'Known-good backup must remain intact after recovery')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the interface preference defaults to the modern workbench', () => {
+  assert.equal(DEFAULT_UI_MODE, 'zcode')
+  assert.equal(DEFAULT_CONFIG.uiMode, 'zcode')
+  assert.equal(migrateConfig({}).uiMode, 'zcode')
+})
+
+test('a recorded interface preference survives migration', () => {
+  assert.equal(migrateConfig({ schemaVersion: 1, uiMode: 'official' }).uiMode, 'official')
+  assert.equal(migrateConfig({ uiMode: 'official' }).uiMode, 'official')
+})
+
+test('an unknown interface preference falls back instead of reaching a menu', () => {
+  // The field is also written by the renderer bridge, so a hand-edited or
+  // downgraded file must not put an unrenderable value in front of the shell.
+  for (const value of ['classic', '', 42, null, {}]) {
+    assert.equal(migrateConfig({ schemaVersion: 1, uiMode: value }).uiMode, 'zcode')
+  }
+})
+
+test('updateConfigStore round-trips the interface preference', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-config-uimode-'))
+  try {
+    const configPath = join(dir, 'config.json')
+    updateConfigStore(configPath, { uiMode: 'official' })
+    assert.equal(readConfigStore(configPath, { logger: { warn: () => {} } }).uiMode, 'official')
+    updateConfigStore(configPath, { uiMode: 'zcode' })
+    assert.equal(readConfigStore(configPath, { logger: { warn: () => {} } }).uiMode, 'zcode')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

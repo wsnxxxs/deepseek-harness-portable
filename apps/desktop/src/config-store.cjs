@@ -12,6 +12,7 @@ const {
   closeSync,
 } = require('node:fs')
 const { join, resolve } = require('node:path')
+const { DEFAULT_UI_MODE, UI_MODES } = require('@dsh-portable/zcode-ui/ui-mode-contract')
 
 const CURRENT_SCHEMA_VERSION = 1
 
@@ -20,6 +21,7 @@ const DEFAULT_CONFIG = Object.freeze({
   workspace: undefined,
   recentWorkspaces: [],
   zoomFactor: 1.0,
+  uiMode: DEFAULT_UI_MODE,
   windowBounds: {},
   lastDismissedVersion: '',
   lastSeenVersion: '',
@@ -48,6 +50,13 @@ function migrateConfig(raw) {
     if (typeof result.zoomFactor !== 'number' || Number.isNaN(result.zoomFactor)) {
       result.zoomFactor = 1.0
     }
+  }
+
+  // The field is normalized on every read rather than only at a version bump:
+  // it is also written by the renderer bridge, so an unknown value from a
+  // hand-edited file must fall back rather than reach a menu check mark.
+  if (!UI_MODES.includes(result.uiMode)) {
+    result.uiMode = DEFAULT_UI_MODE
   }
 
   return result
@@ -176,6 +185,8 @@ function updateConfigStore(configPath, patch, { logger = console } = {}) {
 module.exports = {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_CONFIG,
+  DEFAULT_UI_MODE,
+  UI_MODES,
   migrateConfig,
   writeAtomic,
   readConfigStore,

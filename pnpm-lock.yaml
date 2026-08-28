@@ -36,6 +36,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@dsh-portable/zcode-ui':
+        specifier: workspace:^
+        version: link:../zcode-ui
       '@dsh-portable/desktop-protocol':
         specifier: workspace:^
         version: link:../../packages/desktop-protocol
