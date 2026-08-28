@@ -77,7 +77,7 @@ const CLIENT_AUDITS = `${CLIENT_PAGE_SIZE}
         platform: '未验证',
         externalRuntime: '未验证；安装前检查 README、package.json 与安装脚本',
         dataEgress: '未验证联网或图片外发行为',
-        activation: '未验证工具、prompt、daemon 的激活与卸载行为',
+        activation: '未验证工具与 prompt，也未验证 daemon 的激活与卸载行为',
         knownIssues: 'Portable 尚无该仓库的审阅记录',
         verified: '未验证',
       }
@@ -115,7 +115,7 @@ const CLIENT_AUDITS = `${CLIENT_PAGE_SIZE}
             ] }),
           ),
           audit.reviewed ? null : React.createElement('div', { className: 'dsh-market-review-warning' },
-            '未验证插件可能改变工具、提示词、网络和本机进程表面。确认安装前请自行核查仓库。'),
+            '未验证插件可能改变工具和提示词，也可能改变网络和本机进程表面。安装前请自行核查仓库。'),
           React.createElement('div', { className: 'dsh-market-review-actions' },
             React.createElement('button', {
               className: 'dsh-market-install',

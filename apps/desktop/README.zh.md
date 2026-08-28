@@ -9,7 +9,7 @@
 - 在 127.0.0.1 启动打包的 dsh Web runtime。
 - 将工作区选择保存在 Electron 用户数据中。
 - 用户数据默认保存在官方 DSH_HOME 根目录：Windows 为 `%USERPROFILE%\.dsh`，Linux/macOS 为 `$HOME/.dsh`。
-- 托盘和应用菜单提供工作区、浏览器模式、版本检查、更新日志和关于入口。
+- 托盘和应用菜单提供工作区与浏览器模式入口，也能检查版本、查看更新日志和关于信息。
 - 从 GitHub 或配置的镜像获取发布说明，并支持缓存和本地清单离线降级。
 - 检测到新版本时，在标题栏下方居中显示紧凑提示，7 秒或关闭后销毁，支持按版本忽略，并可打开发布页手动安装。
 - 桌面外壳不会下载、替换或回滚安装目录；Windows 便携版用户仍可在明确选择后使用独立更新脚本。
@@ -66,8 +66,8 @@ Electron runtime。构建期间会使用 `musl-gcc` 编译官方上游 Landlock 
 
 ## 发布身份
 
-- 发布：DeepSeek Harness Desktop v1.5.6
-- 分发：1.5.6
+- 发布：DeepSeek Harness Desktop v1.6.0
+- 分发：1.6.0
 - 外壳：0.1.0-shell.2
 - 内核：读取打包后的 @deepseek-ai/dsh-web-app manifest
 

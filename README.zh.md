@@ -52,22 +52,22 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 ## 功能特性
 
 - 内置原生 Electron 桌面外壳与 DeepSeek Harness Web runtime，在回环地址启动。
-- 支持工作区选择、浏览器模式、托盘/应用菜单、更新历史、关于信息和诊断导出。
+- 支持选择工作区和浏览器模式，托盘/应用菜单还可查看更新历史、关于信息并导出诊断。
 - 支持版本检查、紧凑的新版本提示和发布页入口；桌面外壳不会下载或替换应用文件。
-- 原生侧边栏 Logo 集成桌面菜单、系统主题同步、Windows 11 Mica/标题栏样式、macOS 原生菜单、分阶段启动过渡，以及适配多显示器的窗口状态记忆。
+- 原生侧边栏 Logo 集成桌面菜单，支持系统主题同步；Windows 11 使用 Mica/标题栏样式，macOS 使用原生菜单；启动过渡分阶段显示，窗口状态适配多显示器。
 - 极简模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY；Linux 沙箱模式遵循上游 bwrap/Landlock 失败关闭策略。
-- 预装可移除的插件市场，支持 GitHub 分页搜索、一键安装、插件更新管理和 Agent 市场工具。
+- 预装可移除的插件市场，支持 GitHub 分页搜索和一键安装，并提供插件更新管理及 Agent 市场工具。
 - Vision Bridge 的 `view_image` 复用内核附件与模型服务分析本地 PNG、JPEG、WebP 和 GIF；可自动选择已配置的图片模型（包括官方 `deepseek-v4-flash-vision-exp` 目录项），也可在插件设置中固定模型，不需要单独配置端点或 API 密钥。
 - 会话输入框会保留图片附件为图片数据，并支持通过内核 Session Remote 上传文本/Office 文件；上游 `@file` 路径引用仍可直接使用，桌面文件附件会拒绝无法取得本地路径的拖放对象。
-- Learning 模式提供基于资料锚点的教学、会话笔记、概念复习、学习者记忆、非阻塞语义图示、按需理解检查和会话内学习路线；长期内容通过独立的学习库存放，教学状态依据学习者证据更新，并可随刷新、恢复和消息压缩延续。
-- 使用量设置页基于持久化运行时投影汇总 token 消耗、模型明细、活跃度和会话耗时。
+- Learning 模式提供基于资料锚点的教学，并保留会话笔记、概念复习和学习者记忆；它还支持非阻塞语义图示、按需理解检查和会话内学习路线。长期内容通过独立的学习库存放，教学状态依据学习者证据更新，并可随刷新、恢复和消息压缩延续。
+- 使用量设置页基于持久化运行时投影汇总 token 消耗和模型明细，并显示活跃度与会话耗时。
 
 ## 最新发布
 
 | 项目 | 版本 |
 | --- | --- |
-| 发布 | DeepSeek Harness Desktop **v1.5.6**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.6)) |
-| 分发版本 | 1.5.6 |
+| 发布 | DeepSeek Harness Desktop **v1.6.0**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.0)) |
+| 分发版本 | 1.6.0 |
 | 桌面外壳 | 0.1.0-shell.2 |
 | 内核 | 0.1.2-alpha.1（`dsh-v0.1.2-alpha.1`） |
 

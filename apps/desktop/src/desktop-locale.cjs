@@ -194,7 +194,7 @@ const MESSAGES = {
       dialogTitle: 'Shell 运行环境指南',
       nativeDialogTitle: '原生 POSIX Shell',
       missingMessage: '极简模式需要 WSL (Linux Bash) 运行环境',
-      missingDetail: '极简模式专为 DeepSeek RL 训练环境对齐设计（需要原生 Linux Bash）。\n\n推荐配置步骤：\n1. 打开 PowerShell 运行：wsl --install\n2. 安装完成后根据提示设置 Linux 用户名与密码\n3. 重启 DeepSeek Harness 即可体验极简模式。\n\n提示：若无需极简模式，可在新会话中直接使用【标准模式 (PowerShell)】，无需安装 WSL。',
+      missingDetail: '极简模式专为 DeepSeek RL 训练环境对齐设计（需要原生 Linux Bash）。\n\n建议按下面步骤配置 WSL。\n1. 打开 PowerShell 运行：wsl --install\n2. 安装完成后根据提示设置 Linux 用户名与密码\n3. 重启 DeepSeek Harness 即可体验极简模式。\n\n提示：若无需极简模式，可在新会话中直接使用【标准模式 (PowerShell)】，无需安装 WSL。',
       readyMessage: 'WSL Linux 环境已就绪',
       readyDetail: '检测到已安装发行版：{distros}。\n极简模式将直接在您的 WSL Linux 环境中运行。',
       nativeMessage: '原生 Bash 环境已就绪',
