@@ -179,7 +179,7 @@
   border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
   border-radius: var(--zx-radius-lg);
   background: var(--zx-bg-overlay);
-  background: color-mix(in srgb, var(--zx-bg-overlay) 82%, transparent);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);
   box-shadow:
     0 16px 38px rgb(0 0 0 / 30%),
     0 3px 9px rgb(0 0 0 / 18%),
