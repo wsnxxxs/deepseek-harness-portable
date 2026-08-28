@@ -7,25 +7,27 @@
 }
 
 .shell {
+  box-sizing: border-box;
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto;
-  border: 1px solid var(--zx-border);
-  border-radius: var(--zx-radius-xl);
+  border: 1px solid color-mix(in srgb, var(--zx-label) 14%, transparent);
+  border-radius: 20px;
   background: var(--zx-bg-card);
-  box-shadow: var(--zx-shadow-card);
-  transition: border-color var(--zx-motion);
+  box-shadow: var(--zx-shadow-panel);
+  transition: border-color var(--zx-motion), box-shadow var(--zx-motion);
 }
 
 .shellFocused {
   border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
+  box-shadow: var(--zx-shadow-panel), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
 }
 
 .input {
   display: block;
   width: 100%;
   max-height: 40vh;
-  min-height: 52px;
-  padding: var(--zx-space-4) var(--zx-space-4) var(--zx-space-2);
+  min-height: 56px;
+  padding: 12px 15px 6px;
   border: 0;
   background: transparent;
   color: var(--zx-label);
@@ -48,67 +50,170 @@
 .controls {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--zx-space-2);
-  padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);
+  padding: 4px 9px 9px;
   min-width: 0;
 }
 
-/* Popover triggers otherwise keep their min-content width. At the narrowest
-   center-column size that width pushes the trailing send action past the
-   card's right inset instead of letting the labels ellipsize. */
-.controls > * {
+.leadingControls,
+.trailingControls {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+}
+
+.leadingControls {
+  flex: 1 1 auto;
+}
+
+.trailingControls {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+/* Popover triggers otherwise keep their min-content width. Keeping the
+   groups shrinkable lets the composer preserve a dedicated right seat for
+   model controls and the send action at compact widths. */
+.leadingControls > *,
+.trailingControls > * {
   min-width: 0;
 }
 
-.controls > * > button {
-  min-width: 0;
-}
-
-.spacer {
-  flex: 1 1 0;
+.leadingControls > * > button,
+.trailingControls > * > button {
   min-width: 0;
 }
 
 .control {
   display: inline-flex;
   align-items: center;
-  gap: var(--zx-space-2);
+  gap: 4px;
   min-width: 0;
-  max-width: 180px;
-  height: 26px;
-  padding: 0 var(--zx-space-2);
+  height: 28px;
+  padding: 0;
   color: var(--zx-label-secondary);
-  font-size: var(--zx-text-xs);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.controlTrigger {
+  max-width: 220px;
+  height: 28px;
+  padding: 0 5px 0 7px;
+  border-radius: var(--zx-radius-pill);
+  color: var(--zx-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.controlTrigger:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+}
+
+.controlTrigger:disabled {
+  color: var(--zx-label-faint);
+}
+
+.permissionRead {
+  color: var(--zx-label-secondary);
+}
+
+.permissionWrite {
+  color: var(--zx-accent);
+}
+
+.permissionDanger {
+  color: var(--zx-warn);
+}
+
+.control :global(svg) {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.controlChevron {
+  color: var(--zx-label-muted);
+}
+
+.modelTrigger .controlLabel {
+  color: var(--zx-label);
+}
+
+.reasoningTrigger .controlLabel {
+  color: var(--zx-label-muted);
 }
 
 .controlLabel {
+  display: inline-block;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.permissionMenu {
+  width: min(320px, calc(100vw - 32px));
+  min-width: min(280px, calc(100vw - 32px));
+}
+
+.permissionMenu > button {
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 7px 10px;
+  border-radius: var(--zx-radius-md);
+  line-height: 18px;
+}
+
+.permissionMenu > button > span {
+  white-space: normal;
+}
+
+.permissionMenu > button > span > span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.permissionMenu > button > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .modelMenu {
   max-height: min(60vh, 420px);
+  min-width: min(250px, calc(100vw - 32px));
 }
 
 .send {
   display: grid;
   place-items: center;
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--zx-accent);
-  color: var(--zx-on-accent);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-label);
+  color: var(--zx-bg-app);
   cursor: pointer;
-  transition: opacity var(--zx-motion-fast);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  transition: background var(--zx-motion-fast), opacity var(--zx-motion-fast), transform var(--zx-motion-fast);
+}
+
+.send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--zx-label) 88%, var(--zx-bg-app));
+  transform: translateY(-1px);
 }
 
 .send:disabled {
-  opacity: 0.4;
+  opacity: 0.38;
   cursor: default;
 }
 
@@ -120,6 +225,11 @@
 .stop {
   background: var(--zx-bg-active);
   color: var(--zx-label);
+}
+
+.send :global(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .error {
@@ -155,4 +265,44 @@
 .projectChip:hover {
   background: var(--zx-bg-hover);
   color: var(--zx-label);
+}
+
+@media (max-width: 720px) {
+  .dock {
+    padding-right: var(--zx-space-4);
+    padding-left: var(--zx-space-4);
+  }
+
+  .controls {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .leadingControls,
+  .trailingControls {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .leadingControls,
+  .trailingControls {
+    flex: 1 1 100%;
+  }
+
+  .trailingControls {
+    margin-left: 0;
+  }
+
+  .leadingControls .controlTrigger {
+    max-width: 170px;
+  }
+
+  .trailingControls .modelTrigger {
+    max-width: 170px;
+  }
+
+  .trailingControls .reasoningTrigger {
+    max-width: 112px;
+  }
 }

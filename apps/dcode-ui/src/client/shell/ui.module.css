@@ -177,7 +177,7 @@
   overflow: hidden auto;
   padding: var(--zx-space-1);
   border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
-  border-radius: var(--zx-radius-lg);
+  border-radius: 12px;
   background: var(--zx-bg-overlay);
   background: color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);
   box-shadow:
@@ -208,9 +208,10 @@
   align-items: center;
   gap: var(--zx-space-3);
   width: 100%;
+  min-height: 36px;
   padding: var(--zx-space-2) var(--zx-space-3);
   border: 0;
-  border-radius: var(--zx-radius-sm);
+  border-radius: var(--zx-radius-md);
   background: transparent;
   color: var(--zx-label);
   font: inherit;

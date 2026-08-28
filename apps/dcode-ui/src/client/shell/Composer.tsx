@@ -310,6 +310,11 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   const currentPresetLabel = currentPreset === undefined
     ? t('composer.mode')
     : modeLabel(currentPreset, currentPresetRow?.name ?? t('composer.mode'), t)
+  const permissionTriggerClass = currentPermission?.value === FULL_ACCESS_PERMISSION
+    ? css.permissionDanger
+    : currentPermission?.value === 'workspace-write'
+      ? css.permissionWrite
+      : css.permissionRead
 
   return (
     <>
@@ -347,78 +352,88 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
         />
         {error === undefined ? null : <div className={css.error}>{error}</div>}
         <div className={css.controls}>
-          <Popover
-            label={confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission')}
-            disabled={permissionRows.length === 0 || confirmingFullAccess}
-            trigger={
-              <span className={css.control}>
-                {permissionIcon(permissions?.currentValue ?? '')}
-                <span className={css.controlLabel}>
-                  {currentPermissionLabel}
+          <div className={css.leadingControls}>
+            <Popover
+              label={confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission')}
+              disabled={permissionRows.length === 0 || confirmingFullAccess}
+              triggerClassName={`${css.controlTrigger} ${permissionTriggerClass}`}
+              popoverClassName={css.permissionMenu}
+              trigger={
+                <span className={css.control}>
+                  {permissionIcon(permissions?.currentValue ?? '')}
+                  <span className={css.controlLabel}>{currentPermissionLabel}</span>
+                  <IconChevronDownOutline14 className={css.controlChevron} />
                 </span>
-              </span>
-            }
-            rows={permissionRows}
-          />
-          <Popover
-            label={blankSession ? t('composer.mode') : t('composer.modeLocked')}
-            disabled={!blankSession || sessionId === undefined || modeRows.length === 0}
-            trigger={
-              <span className={css.control}>
-                <IconAgentPresetOutline16 />
-                <span className={css.controlLabel}>{currentPresetLabel}</span>
-              </span>
-            }
-            rows={modeRows}
-          />
-          <span className={css.spacer} />
-          <Popover
-            label={t('composer.model')}
-            disabled={modelRows.length === 0}
-            align="end"
-            popoverClassName={css.modelMenu}
-            trigger={
-              <span className={css.control}>
-                <span className={css.controlLabel}>
-                  {currentModel === undefined
-                    ? t('composer.model')
-                    : `${currentModel.model.name} · ${currentModel.group.name}`}
+              }
+              rows={permissionRows}
+            />
+            <Popover
+              label={blankSession ? t('composer.mode') : t('composer.modeLocked')}
+              disabled={!blankSession || sessionId === undefined || modeRows.length === 0}
+              triggerClassName={`${css.controlTrigger} ${css.modeTrigger}`}
+              trigger={
+                <span className={css.control}>
+                  <IconAgentPresetOutline16 />
+                  <span className={css.controlLabel}>{currentPresetLabel}</span>
+                  <IconChevronDownOutline14 className={css.controlChevron} />
                 </span>
-              </span>
-            }
-            rows={modelRows}
-          />
-          <Popover
-            label={t('composer.reasoning')}
-            disabled={reasoningRows.length === 0}
-            align="end"
-            trigger={
-              <span className={css.control}>
-                <IconThinkOutline16 />
-                <span className={css.controlLabel}>
-                  {reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault')}
+              }
+              rows={modeRows}
+            />
+          </div>
+          <div className={css.trailingControls}>
+            <Popover
+              label={t('composer.model')}
+              disabled={modelRows.length === 0}
+              align="end"
+              triggerClassName={`${css.controlTrigger} ${css.modelTrigger}`}
+              popoverClassName={css.modelMenu}
+              trigger={
+                <span className={css.control}>
+                  <span className={css.controlLabel}>
+                    {currentModel === undefined
+                      ? t('composer.model')
+                      : `${currentModel.model.name} · ${currentModel.group.name}`}
+                  </span>
+                  <IconChevronDownOutline14 className={css.controlChevron} />
                 </span>
-              </span>
-            }
-            rows={reasoningRows}
-          />
-          {running
-            ? (
-              <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>
-                <IconStopFill16 />
-              </button>
-            )
-            : (
-              <button
-                type="button"
-                className={css.send}
-                onClick={() => { send('queue') }}
-                disabled={disabled || draft.trim() === ''}
-                aria-label={t('composer.send')}
-              >
-                <IconSendOutline16 />
-              </button>
-          )}
+              }
+              rows={modelRows}
+            />
+            <Popover
+              label={t('composer.reasoning')}
+              disabled={reasoningRows.length === 0}
+              align="end"
+              triggerClassName={`${css.controlTrigger} ${css.reasoningTrigger}`}
+              trigger={
+                <span className={css.control}>
+                  <IconThinkOutline16 />
+                  <span className={css.controlLabel}>
+                    {reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault')}
+                  </span>
+                  <IconChevronDownOutline14 className={css.controlChevron} />
+                </span>
+              }
+              rows={reasoningRows}
+            />
+            {running
+              ? (
+                <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>
+                  <IconStopFill16 />
+                </button>
+              )
+              : (
+                <button
+                  type="button"
+                  className={css.send}
+                  onClick={() => { send('queue') }}
+                  disabled={disabled || draft.trim() === ''}
+                  aria-label={t('composer.send')}
+                >
+                  <IconSendOutline16 />
+                </button>
+            )}
+          </div>
         </div>
       </div>
       </div>
