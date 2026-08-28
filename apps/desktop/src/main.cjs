@@ -60,7 +60,11 @@ const RECENT_WORKSPACES_LIMIT = 5
 const DESKTOP_TITLEBAR_HEIGHT = process.platform === 'win32' ? 36 : 0
 const LIGHT_WINDOW_SURFACE = '#f4f7fb'
 const DARK_WINDOW_SURFACE = '#0c1220'
-const SLOW_STARTUP_MS = 10_000
+// The first packaged launch may reconcile the embedded marketplace before the
+// web profile can publish its listening event. Keep the recoverable slow-start
+// panel behind the normal first-run window so a healthy startup is not shown
+// as an error just before it becomes ready.
+const SLOW_STARTUP_MS = 20_000
 const STARTUP_TIMEOUT_MS = 60_000
 const RENDERER_FIRST_PAINT_TIMEOUT_MS = 5_000
 const SPLASH_FADE_MS = 420
