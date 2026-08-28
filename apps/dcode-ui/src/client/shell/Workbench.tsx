@@ -12,7 +12,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { dcodeScope } from '../tokens.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
-import { useConversationBlank, useCurrentSessionId, useWorkspaceGroups } from '../state/hooks.ts'
+import {
+  useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups,
+} from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { ACRYLIC_ATTRIBUTE } from '../theme.ts'
 import { useAppearance } from './ThemeSwitch.tsx'
@@ -20,6 +22,8 @@ import { TopBar } from './TopBar.tsx'
 import { LeftRail } from './LeftRail.tsx'
 import { Aside } from './Aside.tsx'
 import { Composer } from './Composer.tsx'
+import { PlanCard } from './PlanCard.tsx'
+import { QuestionComposer } from './QuestionComposer.tsx'
 import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
 import { Transcript } from '../chat/Transcript.tsx'
@@ -57,6 +61,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const runtime = useRuntime()
   const state = useNavigation(navigation)
   const sessionId = useCurrentSessionId()
+  const pendingQuestion = usePendingQuestion(sessionId)
   const cwd = useCurrentCwd(sessionId)
   const blank = useConversationBlank(sessionId)
   const { scheme } = useAppearance()
@@ -171,12 +176,17 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 cwd={cwd}
                 blank={blank}
               />
-              <Composer
-                sessionId={sessionId}
-                blank={blank}
-                cwd={cwd}
-                onOpenWorkspace={openWorkspace}
-              />
+              <PlanCard key={sessionId} sessionId={sessionId} />
+              {pendingQuestion === undefined
+                ? (
+                  <Composer
+                    sessionId={sessionId}
+                    blank={blank}
+                    cwd={cwd}
+                    onOpenWorkspace={openWorkspace}
+                  />
+                )
+                : <QuestionComposer pending={pendingQuestion} />}
               {/* Balances the transcript's share of the free height while the
                   conversation is blank; inert otherwise. Kept after the
                   composer so the phase change never remounts it. */}

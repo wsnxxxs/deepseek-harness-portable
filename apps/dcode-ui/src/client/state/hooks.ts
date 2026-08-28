@@ -16,7 +16,8 @@ import type {
 import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { useRuntime, type Observable } from './runtime.ts'
+import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import { useRuntime, type DcodePendingInteraction, type Observable } from './runtime.ts'
 
 /**
  * Subscribe to one DSH observable.
@@ -78,6 +79,18 @@ const EMPTY_SESSION_LIST: SessionListState = {
   subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 }
 
+const EMPTY_PENDING_INTERACTIONS = new Map<SessionId, SessionPendingInteractionBase>()
+
+/** Narrow the shared pending-interaction roster to the ask-user-question face. */
+function questionInteraction(
+  value: SessionPendingInteractionBase | undefined,
+): DcodePendingInteraction | undefined {
+  if (value === undefined || !('questions' in value) || !Array.isArray(value.questions)) return undefined
+  if (typeof (value as Partial<DcodePendingInteraction>).answer !== 'function') return undefined
+  if (typeof (value as Partial<DcodePendingInteraction>).cancel !== 'function') return undefined
+  return value as DcodePendingInteraction
+}
+
 /** The Session Controller's list and current selection. */
 export function useSessionList(): SessionListState {
   const runtime = useRuntime()
@@ -91,6 +104,16 @@ export function useCurrentSessionId(): SessionId | undefined {
     runtime.sessions.list as Observable<SessionListState>,
     EMPTY_SESSION_LIST,
     state => state.current,
+  )
+}
+
+/** The current session's pending ask-user-question or plan-review request. */
+export function usePendingQuestion(sessionId: SessionId | undefined): DcodePendingInteraction | undefined {
+  const runtime = useRuntime()
+  return useObservableSelector(
+    runtime.pendingInteractions,
+    EMPTY_PENDING_INTERACTIONS,
+    snapshot => questionInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)),
   )
 }
 

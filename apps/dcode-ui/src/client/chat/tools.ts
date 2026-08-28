@@ -12,6 +12,7 @@
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { ConversationNode, ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /** How a tool call reads in one line. */
 export interface ToolSummary {
@@ -52,6 +53,34 @@ export function parseArgs(argsRaw: string | undefined): Record<string, unknown> 
     // still renders with its name and no detail.
     return {}
   }
+}
+
+/**
+ * Read the newest whole-list todo snapshot from the transcript.
+ *
+ * The live `todos` projection is preferred by surfaces that have it, but this
+ * replay fallback keeps the plan visible while an older connection is still
+ * assembling that projection.
+ */
+export function latestTodos(nodes: readonly ConversationNode[]): readonly TodoItem[] {
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = nodes[index]
+    if (node?.kind !== 'tool-result') continue
+    for (const block of walkCalls(node as ToolCallBlock)) {
+      const name = 'isError' in block ? block.call?.name : block.name
+      if (name !== 'todo_write') continue
+      const argsRaw = 'isError' in block ? block.call?.argsRaw : block.argsRaw
+      const todos = parseArgs(argsRaw).todos
+      if (!Array.isArray(todos)) continue
+      return todos.filter((row): row is TodoItem => {
+        if (typeof row !== 'object' || row === null) return false
+        const value = row as Partial<TodoItem>
+        return typeof value.content === 'string'
+          && (value.status === 'pending' || value.status === 'in_progress' || value.status === 'completed')
+      })
+    }
+  }
+  return []
 }
 
 /** First string field present among the candidates. */

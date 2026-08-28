@@ -138,7 +138,13 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
     // and a renderer epoch change re-runs it instead of silently dropping the
     // contribution.
     active = ctx.slots.inject('root', () => ctx.slots.register(
-      { name: 'root', priority: ROOT_PRIORITY, locale: DCODE_NS },
+      {
+        name: 'root',
+        priority: ROOT_PRIORITY,
+        locale: DCODE_NS,
+        // `settings.section` is already owned by the official `sidebar.settings`
+        // entry; the workbench keeps its own settings surface while active.
+      },
       render,
     ))
   }
