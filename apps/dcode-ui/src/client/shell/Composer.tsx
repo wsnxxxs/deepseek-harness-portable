@@ -455,6 +455,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
           className={css.fileInput}
           type="file"
           multiple
+          aria-hidden="true"
+          tabIndex={-1}
           onChange={event => {
             addAttachments(Array.from(event.currentTarget.files ?? []))
             event.currentTarget.value = ''
