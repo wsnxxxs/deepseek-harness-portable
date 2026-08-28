@@ -48,12 +48,14 @@ describe('vault action copy and controls', () => {
         blocks: [{ kind: 'text', text: '卷积是滑窗逐点相乘求和。' }],
       }],
     }
-    const useSession = (select: (value: typeof session) => string): string => select(session)
+    // alpha.1 moved the message projection onto useChat's `legacy` slice.
+    const chat = { legacy: session }
+    const useChat = (select: (value: typeof chat) => string): string => select(chat)
 
     render(
       <Keep
         messageId="message-1"
-        useSession={useSession}
+        useChat={useChat}
         sessionId="session-1"
         cwd="/vault"
         call={vi.fn()}

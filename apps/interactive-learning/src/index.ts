@@ -6,7 +6,6 @@ registerInteractiveLearningSessionCompatibility()
 export { registerInteractiveLearningSessionCompatibility } from './bootstrap.ts'
 export {
   LEARN_INTENT,
-  LEARNING_INTENT_POLICY,
   LEARNING_INTENT_ROUTING_GUIDANCE,
   classifyLearnIntent,
   isLearnIntent,
@@ -28,9 +27,7 @@ export {
   type LearningStateUpdateResult,
   type ObservableLearnerStateUpdate,
   type LearningLifecycleEvent,
-  type PresentLearningActivityRequest,
   type PresentLearningCheckpointRequest,
-  type PresentLearningGateRequest,
 } from './broker.ts'
 export { LearningActivityBroker as default } from './broker.ts'
 export {
@@ -148,6 +145,7 @@ export {
 export {
   INITIAL_REVIEW_INTERVAL_DAYS,
   MAX_CONCEPT_CARDS,
+  MAX_REVIEW_INTERVAL_DAYS,
   buildConceptStudyMap,
   conceptCardDraftFromState,
   conceptCardPathOf,
@@ -189,6 +187,7 @@ export {
   LEARNING_TEACHING_POLICY_CORE,
   LEARNING_GRADED_POLICY,
   LEARNING_MATERIAL_POLICY,
+  LEARNING_CONCEPT_SAVE_POLICY,
   LEARNING_REVIEW_POLICY,
   LEARNING_VISUAL_POLICY,
   LEARNING_CHINESE_TEMPLATES,
@@ -197,8 +196,6 @@ export {
   type LearningPolicyRoute,
 } from './teaching-policy.ts'
 export type {
-  LearningActivityV1,
-  LearningActivityV2,
   LearningCheckpointCancelledResultV1,
   LearningCheckpointEvidenceKindV1,
   LearningCheckpointKindV1,
@@ -213,14 +210,6 @@ export type {
   LearningCheckpointV1,
   LearningCheckpointWaitEnvelopeInputV1,
   LearningCheckpointWaitEnvelopeV1,
-  LearningQuestionV2,
-  LearningRevealV2,
-  LearningResponseV1,
-  LearningResponseV2,
-  LearningActivityKind,
-  LearningVisualV3,
-  LearningVisualSeriesV3,
-  LearningVisualResultV3,
   LearningVisualV4,
   LearningVisualContentV4,
   LearningVisualKindV4,

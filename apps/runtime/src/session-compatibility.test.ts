@@ -8,8 +8,10 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { logPath } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -22,6 +24,7 @@ import {
   reduceLearnerState,
 } from '@dsh-portable/interactive-learning'
 import { MockAdapter } from '../../../vendor/deepseek-harness/packages/core/agent-loop/tests/mock-adapter.ts'
+import { canonicalModeId } from './mode-catalog.js'
 import type { RuntimeModeTrace } from './mode-catalog.js'
 import {
   appendPortableModeResolution,
@@ -189,6 +192,99 @@ test('packaged compatibility registers required Learning state before configured
     await ctx.fiber.dispose()
     if (wasKnown) known.add(LEARNER_STATE_SESSION_EVENT_TYPE)
     else known.delete(LEARNER_STATE_SESSION_EVENT_TYPE)
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+/**
+ * Materialize one durable log created before the `code` → `ptc` rename: the
+ * creation header names the retired id, and an optional in-session selection
+ * event repeats it. Both are written verbatim, exactly as the pre-rename
+ * distribution persisted them.
+ */
+async function writeLegacyPresetFixture(
+  root: string,
+  cwd: string,
+  id: SessionId,
+  header: { agentPreset?: string },
+  selected?: string,
+): Promise<void> {
+  const source = [
+    JSON.stringify({
+      type: 'session',
+      version: 0,
+      id,
+      createdAt: 0,
+      cwd,
+      delegationDepth: 0,
+      ...header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset },
+    }),
+    ...selected === undefined ? [] : [JSON.stringify({
+      type: 'agent-preset/selected',
+      seq: 0,
+      time: 1,
+      data: { agentPreset: selected },
+    })],
+    '',
+  ].join('\n')
+  const target = logPath(root, cwd, id, 'none')
+  await mkdir(dirname(target), { recursive: true })
+  await writeFile(target, source)
+}
+
+test('cold resume maps the retired code preset to ptc without rewriting the durable log', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-legacy-preset-resume-'))
+  const cwd = join(root, 'workspace')
+  const headerId = SessionId('session-legacy-preset-header-v1')
+  const selectionId = SessionId('session-legacy-preset-selection-v1')
+  const ctx = new Context()
+  try {
+    // Both shapes a pre-rename session can carry: the creation header alone,
+    // and a header superseded by an in-session selection.
+    await mkdir(cwd, { recursive: true })
+    await writeLegacyPresetFixture(root, cwd, headerId, { agentPreset: 'code' })
+    await writeLegacyPresetFixture(root, cwd, selectionId, { agentPreset: 'standard' }, 'code')
+
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(AgentRegistry)
+    // Register the projection alone: this asserts the kernel's persisted-id
+    // compatibility, not the preset roster's filesystem composition.
+    ctx.sessionProjections.register(agentPresetProjectionDefinition)
+    ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
+    await ctx.plugin(AgentLoop, {
+      agents: [
+        { id: 'legacy-header-resume', resumeSessionId: headerId, provider: 'mock', model: 'mock' },
+        { id: 'legacy-selection-resume', resumeSessionId: selectionId, provider: 'mock', model: 'mock' },
+      ],
+    })
+    await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+
+    // The Session Controller resumes from this projection value, never the
+    // header alone, so the composed and mounted preset is the renamed id.
+    const headerAgent = await waitFor(() => ctx.agents.get(headerId))
+    const headerProjection = ctx.sessionProjections.snapshot(headerAgent.session)
+    assert.equal(headerProjection.values.agentPreset, 'ptc')
+
+    const selectionAgent = await waitFor(() => ctx.agents.get(selectionId))
+    const selectionProjection = ctx.sessionProjections.snapshot(selectionAgent.session)
+    assert.equal(selectionProjection.values.agentPreset, 'ptc')
+
+    // The creation fact and the durable log keep the retired id verbatim.
+    assert.equal(headerAgent.session.header.agentPreset, 'code')
+    assert.match(await readFile(logPath(root, cwd, headerId, 'none'), 'utf8'), /"agentPreset":"code"/)
+
+    // The portable trace mapping and the kernel projection must not diverge:
+    // a mode-resolution trace has to name the same preset the session runs.
+    assert.equal(
+      canonicalModeId(headerAgent.session.header.agentPreset ?? ''),
+      headerProjection.values.agentPreset,
+    )
+  } finally {
+    await ctx.fiber.dispose()
     await rm(root, { recursive: true, force: true })
   }
 })

@@ -35,8 +35,8 @@ export declare const LEARN_INTENT_NATURAL_LANGUAGE_RULES: {
 /**
  * Explicit precedence table for the classifier's hand-written if/else order.
  * Lower priority number wins. Exclusions intentionally precede broad learning
- * words, while a clear request to learn a mechanism precedes an ambiguous
- * implementation verb when no concrete code context is present.
+ * words, while a clear request to learn precedes an implementation verb —
+ * including one about code, which is the common case in this preset.
  */
 export declare const LEARN_INTENT_RULES: readonly [{
     readonly id: "translation-task";
@@ -67,7 +67,7 @@ export declare const LEARN_INTENT_RULES: readonly [{
     readonly kind: "dont-trigger";
     readonly trigger: "coding-task";
     readonly priority: 50;
-    readonly conflict: "wins when concrete code context is present";
+    readonly conflict: "loses to an explicit, non-negated request to learn";
 }, {
     readonly id: "calculation-task";
     readonly kind: "dont-trigger";
@@ -178,14 +178,23 @@ export declare const LEARN_INTENT_RULES: readonly [{
     readonly conflict: "fallback; low confidence because the desired help shape is unknown";
 }];
 export type LearnIntentRuleId = typeof LEARN_INTENT_RULES[number]['id'];
+/**
+ * Prompt-facing guidance for the model when the hand-maintained patterns do
+ * not make the boundary clear.  Only the natural-language inventory is sent:
+ * the precedence table below orders the classifier, and its rule ids carry no
+ * meaning the model could act on.
+ */
 export declare const LEARN_INTENT_MODEL_GUIDANCE: string;
 /** Classify the first-turn request before choosing a teaching route. */
 export declare function classifyLearnIntent(input: string): LearnIntentDecision;
 export declare function isLearnIntent(input: string): boolean;
 /** Whether a message explicitly closes or switches away from a learning segment. */
 export declare function isLearningBoundary(input: string): boolean;
-/** Compact standing text; detailed diagnosis and moves stay in references. */
-/** Shared route guidance used by both the standing policy and the semantic router. */
+/**
+ * Route guidance for the semantic router's own classification pass. The
+ * standing teaching policy deliberately does not restate it: the Host ships a
+ * decided route with every turn, and a low-confidence turn already carries
+ * `LEARN_INTENT_MODEL_GUIDANCE`.
+ */
 export declare const LEARNING_INTENT_ROUTING_GUIDANCE: string;
-export declare const LEARNING_INTENT_POLICY: string;
 //# sourceMappingURL=learn-intent.d.ts.map

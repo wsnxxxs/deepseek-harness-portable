@@ -3,13 +3,13 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-modules'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { LearnerLocale } from './learner-locale.ts'
 import {
   UserQuestionService,
   UserQuestionError,
 } from '@deepseek-ai/dsh-user-questions'
 import {
   CHECKPOINT_RESULT_PROTOCOL,
-  RESPONSE_PROTOCOL,
   LearningProtocolError,
   parseLearningCheckpointResultV1,
   parseLearningCheckpointV1,
@@ -20,18 +20,11 @@ import {
   type LearningCheckpointSkippedReasonV1,
   type LearningCheckpointCancelledReasonV1,
   type LearningCheckpointV1,
-  type LearningActivityV2,
-  type LearningActivityV1,
-  type LearningQuestionV2,
-  type LearningRevealV2,
-  type LearningResponseV2,
-  type LearningResponseV1,
 } from './protocol-current.ts'
 import {
   encodeLearningCheckpointDetail,
   learningCheckpointQuestionId,
 } from './host-transport.ts'
-import type { LegacyLearningGate } from './legacy-gate.ts'
 import {
   LEARNER_STATE_SESSION_EVENT_TYPE,
   LEARNING_SEGMENT_EVENT_PROTOCOL,
@@ -97,22 +90,6 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     learningActivities: LearningActivityBroker
   }
-}
-
-export interface PresentLearningActivityRequest {
-  activity: LearningActivityV1
-  agent?: Agent
-  signal?: AbortSignal
-  /** Bounded wait for a compatible Client response. Primarily configurable by tests/embedders. */
-  timeoutMs?: number
-}
-
-export interface PresentLearningGateRequest {
-  activity: LearningActivityV2
-  agent?: Agent
-  signal?: AbortSignal
-  timeoutMs?: number
-  callId?: string
 }
 
 export interface PresentLearningCheckpointRequest {
@@ -200,15 +177,6 @@ export interface LearningLifecycleEvent {
   name: LearningLifecycleEventName; at: number; phase: 'question' | 'reveal'
   activityId: string; lessonToken: string; roundToken: string; seq: number; callId?: string
 }
-function fallback(activityId: string, activity: LearningActivityV1, reason: string): LearningResponseV1 {
-  return {
-    protocol: RESPONSE_PROTOCOL,
-    activityId,
-    action: 'skip',
-    interactionState: { reason, fallbackMarkdown: activity.fallbackMarkdown },
-  }
-}
-
 function boundedIdentity(value: string, label: string): string {
   if (typeof value !== 'string' || value.length < 1 || value.length > 512
     || value.trim() !== value || /[\u0000-\u001F\u007F]/.test(value)) {
@@ -445,8 +413,6 @@ export class LearningActivityBroker extends Service {
   static inject = ['userQuestions']
 
   private readonly pendingActivities = new Map<AbortController, { reason?: LearningAbortReason }>()
-  private legacyGate: LegacyLearningGate | undefined
-  private legacyGatePromise: Promise<LegacyLearningGate> | undefined
   private readonly checkpointCalls = new Map<string, CheckpointCallRecord>()
   private readonly checkpointReceipts = new Map<string, CheckpointReceiptRecord>()
   private readonly pendingCheckpointSessions = new Map<string, string>()
@@ -457,6 +423,7 @@ export class LearningActivityBroker extends Service {
   /** Current Host agent for the session-scoped Client recall bridge. */
   private readonly activeAgents = new Map<string, { agent: Agent; session: Agent['session'] }>()
   private readonly learnerStates = new Map<string, LearnerStateCacheRecord>()
+  private readonly turnLocales = new WeakMap<Agent, LearnerLocale>()
   private readonly observers = new Set<(event: LearningLifecycleEvent) => void>()
   private disposed = false
 
@@ -464,7 +431,6 @@ export class LearningActivityBroker extends Service {
     super(ctx, 'learningActivities')
     ctx.effect(() => () => {
       this.disposed = true
-      this.legacyGate?.dispose()
       for (const [controller, state] of this.pendingActivities) {
         state.reason = 'plugin-disposed'
         controller.abort(new LearningWaitAbort(state.reason))
@@ -532,7 +498,7 @@ export class LearningActivityBroker extends Service {
 
   /** Diagnostics/test seam; no activity payloads or learner answers are exposed. */
   get pendingCount(): number {
-    return this.pendingActivities.size + (this.legacyGate?.pendingCount ?? 0)
+    return this.pendingActivities.size
   }
 
   /** Diagnostics/test seam; state content remains private to its session. */
@@ -551,6 +517,21 @@ export class LearningActivityBroker extends Service {
   /** Whether this composition can render Learning visuals and checkpoints. */
   get richClientAvailable(): boolean {
     return this.hasRichClient()
+  }
+
+  /**
+   * Record the language of the turn being served, for Host-side tools that
+   * write text a learner reads. Set from the claimed user message.
+   * @param agent - The agent whose turn this is.
+   * @param locale - The language that turn was written in.
+   */
+  setTurnLocale(agent: Agent, locale: LearnerLocale): void {
+    this.turnLocales.set(agent, locale)
+  }
+
+  /** The language of the current turn, or undefined before one is claimed. */
+  turnLocale(agent: Agent): LearnerLocale | undefined {
+    return this.turnLocales.get(agent)
   }
 
   /** Fold the latest durable full snapshot for this exact live session. */
@@ -737,24 +718,6 @@ export class LearningActivityBroker extends Service {
       .some((entry: { id: string }) => entry.id === INTERACTIVE_LEARNING_PACKAGE) === true
   }
 
-  /** Load the retired Question/Reveal coordinator only when its API is used. */
-  private async getLegacyGate(): Promise<LegacyLearningGate> {
-    if (this.legacyGate !== undefined) return this.legacyGate
-    if (this.legacyGatePromise !== undefined) return this.legacyGatePromise
-    this.legacyGatePromise = import('./legacy-gate.ts').then(({ LegacyLearningGate }) => {
-      const gate = new LegacyLearningGate({
-        ctx: this.ctx,
-        defaultTimeoutMs: DEFAULT_LEARNING_WAIT_TIMEOUT_MS,
-        hasRichClient: () => this.hasRichClient(),
-        emit: event => this.emit(event),
-      })
-      this.legacyGate = gate
-      if (this.disposed) gate.dispose()
-      return gate
-    })
-    return this.legacyGatePromise
-  }
-
   private dropLearnerState(session: { id: unknown }): void {
     const sessionId = String(session.id)
     if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId)
@@ -924,11 +887,12 @@ export class LearningActivityBroker extends Service {
         ...(turn === undefined ? {} : { turn }),
       },
     }])
-    if (feedback.status !== 'revealed') {
-      void this.persistRecallReview(active.agent, feedback).catch(cause => {
-        this.ctx.logger.warn(`recall review schedule was not persisted: ${String(cause)}`)
-      })
-    }
+    // Whether a rating reschedules anything is `nextReviewSchedule`'s decision,
+    // not this call site's: a revealed card still has to drop the interval it
+    // grew before the learner failed it.
+    void this.persistRecallReview(active.agent, feedback).catch(cause => {
+      this.ctx.logger.warn(`recall review schedule was not persisted: ${String(cause)}`)
+    })
     return { status: 'recorded', observationId }
   }
 
@@ -1234,29 +1198,6 @@ export class LearningActivityBroker extends Service {
     return result
   }
 
-  async presentQuestion(request: Omit<PresentLearningGateRequest, 'activity'> & { activity: LearningQuestionV2 }): Promise<LearningResponseV2> {
-    return this.presentGate(request)
-  }
-
-  async presentReveal(request: Omit<PresentLearningGateRequest, 'activity'> & { activity: LearningRevealV2 }): Promise<LearningResponseV2> {
-    return this.presentGate(request)
-  }
-
-  /** V2 live path: one call owns exactly one durable Question or Reveal wait. */
-  async presentGate(request: PresentLearningGateRequest): Promise<LearningResponseV2> {
-    const gate = await this.getLegacyGate()
-    return gate.present(request)
-  }
-
-
-
-
-  /** @deprecated V1 is accepted only for static legacy replay/fallback. */
-  async present(request: PresentLearningActivityRequest): Promise<LearningResponseV1> {
-    const { parseLearningActivity } = await import('./legacy-protocol.ts')
-    const activity = parseLearningActivity(request.activity)
-    return fallback(randomUUID(), activity, 'legacy-replay-only')
-  }
 }
 
 export default LearningActivityBroker

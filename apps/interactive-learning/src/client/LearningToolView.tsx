@@ -8,42 +8,22 @@ import {
   parseLearningCheckpointV1,
   parseLearningCheckpointResultV1,
   isLearningCheckpointDisplayTextSafe,
-  parseLearningVisualV3,
-  parseLearningVisualResultV3,
   parseLearningVisualV4,
   parseLearningVisualResultV4,
   LearningProtocolError,
   CHECKPOINT_PROTOCOL,
   CHECKPOINT_RESULT_PROTOCOL,
-  ACTIVITY_PROTOCOL_V2,
-  RESPONSE_PROTOCOL,
-  RESPONSE_PROTOCOL_V2,
-  VISUAL_PROTOCOL_V3,
   VISUAL_PROTOCOL_V4,
-  VISUAL_RESULT_PROTOCOL_V3,
   VISUAL_RESULT_PROTOCOL_V4,
   type LearningCheckpointV1,
   type LearningCheckpointResultV1,
-  type LearningActivityV1,
-  type LearningActivityV2,
-  type LearningResponseV1,
-  type LearningResponseV2,
-  type LearningVisualV3,
-  type LearningVisualResultV3,
   type LearningVisualV4 as LearningVisualV4Definition,
   type LearningVisualResultV4,
 } from '../protocol-current.ts'
-import {
-  parseLearningActivity,
-  parseLearningActivityV2,
-  parseLearningResponse,
-  parseLearningResponseV2,
-} from '../legacy-protocol.ts'
 import { envelopeOf, isPendingQuestion, LearningInteraction, type LearningQuestionWait } from './LearningComposer.tsx'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
 import { emitLearningCallLifecycle, emitLearningUiLifecycle } from './lifecycle.ts'
-import { LearningVisual } from './LearningVisual.tsx'
 import { LearningVisualV4, type LearningVisualV4Labels } from './visuals/index.tsx'
 import type { LearningLocaleKey } from './locales.ts'
 import { markdownLabels } from './markdown-labels.ts'
@@ -51,72 +31,10 @@ import { markdownLabels } from './markdown-labels.ts'
 type LearningToolViewProps = ToolCallViewProps & PropsLocale<'interactive-learning'>
 
 /** Compatibility shape for the standalone browser fixtures from the rc line. */
-type LegacySessionHook = (selector: (snapshot: { pending?: readonly unknown[] }) => unknown) => unknown
-
-function legacyPendingInteraction(
-  useSession: LegacySessionHook | undefined,
-  sessionId: string,
-): SessionPendingInteraction | undefined {
-  if (useSession === undefined) return undefined
-  const pending = useSession(snapshot => snapshot.pending)
-  if (!Array.isArray(pending)) return undefined
-  for (const value of pending) {
-    if (isPendingQuestion(value)) {
-      if (String(value.sessionId) === sessionId) return value as SessionPendingInteraction
-      continue
-    }
-
-    // Standalone rc fixtures expose the pre-alpha carrier. Keep this narrow
-    // adapter local to the compatibility path; the live client uses the
-    // alpha.1 PendingQuestion instance directly.
-    const legacy = value as {
-      kind?: unknown
-      key?: unknown
-      sessionId?: unknown
-      payload?: { questions?: readonly unknown[] }
-      respond?: (request: unknown) => unknown
-    }
-    if (legacy.kind !== 'question'
-      || typeof legacy.key !== 'string'
-      || String(legacy.sessionId) !== sessionId
-      || !Array.isArray(legacy.payload?.questions)
-      || typeof legacy.respond !== 'function') continue
-
-    const respond = legacy.respond
-    const settle = async (request: unknown): Promise<void> => {
-      const receipt = await respond(request) as { accepted?: unknown; reason?: unknown } | undefined
-      if (receipt?.accepted === false) throw new Error(String(receipt.reason ?? 'pending interaction was rejected'))
-    }
-    return {
-      kind: 'question',
-      key: legacy.key,
-      sessionId: legacy.sessionId as string,
-      questions: legacy.payload.questions as never,
-      answer: (answer: unknown) => settle({
-        ok: true,
-        value: { sessionId: legacy.sessionId, answer },
-      }),
-      cancel: () => settle({
-        ok: false,
-        error: { code: 'cancelled', message: 'the learner cancelled this activity', details: {} },
-      }),
-    } as unknown as SessionPendingInteraction
-  }
-  return undefined
-}
-
 /** Every payload shape this view can render, live or from durable replay. */
-type LearningCallDefinition =
-  | LearningActivityV1
-  | LearningActivityV2
-  | LearningCheckpointV1
-  | LearningVisualV3
-  | LearningVisualV4Definition
+type LearningCallDefinition = LearningCheckpointV1 | LearningVisualV4Definition
 
-type LearningCallResult =
-  | LearningResponseV1
-  | LearningResponseV2
-  | LearningCheckpointResultV1
+type LearningCallResult = LearningCheckpointResultV1
 
 /** Text the surface can still show when a payload fails its closed schema. */
 interface LearningTextFallback {
@@ -322,7 +240,7 @@ function textFallbackOf(parsed: Record<string, unknown>): LearningTextFallback |
       || !isLearningCheckpointDisplayTextSafe(markdown)) return undefined
     return { markdown, protocol: CHECKPOINT_PROTOCOL }
   }
-  if (protocol !== VISUAL_PROTOCOL_V4 && protocol !== VISUAL_PROTOCOL_V3) return undefined
+  if (protocol !== VISUAL_PROTOCOL_V4) return undefined
   const title = boundedText(parsed.title, 200)
   const description = boundedText(parsed.description, 1_000)
   const markdown = typeof parsed.fallbackMarkdown === 'string'
@@ -387,12 +305,9 @@ function parseLearningCall(raw: string | undefined): ParsedLearningCall {
     return streamingTitle === undefined ? {} : { streamingTitle }
   }
   try {
-    const protocol = parsed.protocol
-    const definition = protocol === CHECKPOINT_PROTOCOL ? parseLearningCheckpointV1(parsed)
-      : protocol === VISUAL_PROTOCOL_V4 ? parseLearningVisualV4(parsed)
-        : protocol === VISUAL_PROTOCOL_V3 ? parseLearningVisualV3(parsed)
-          : protocol === ACTIVITY_PROTOCOL_V2 ? parseLearningActivityV2(parsed)
-            : parseLearningActivity(parsed)
+    const definition = parsed.protocol === CHECKPOINT_PROTOCOL
+      ? parseLearningCheckpointV1(parsed)
+      : parseLearningVisualV4(parsed)
     return { definition }
   } catch (cause) {
     const fallback = textFallbackOf(parsed)
@@ -408,28 +323,22 @@ function parseLearningResult(
   if (text === '') return undefined
   try {
     const parsed = JSON.parse(text) as { protocol?: unknown }
-    if (parsed.protocol === CHECKPOINT_RESULT_PROTOCOL) {
-      return parseLearningCheckpointResultV1(
-        parsed,
-        definition?.protocol === CHECKPOINT_PROTOCOL ? { checkpoint: definition } : {},
-      )
-    }
-    return parsed.protocol === RESPONSE_PROTOCOL_V2
-      ? parseLearningResponseV2(parsed)
-      : parseLearningResponse(parsed)
+    if (parsed.protocol !== CHECKPOINT_RESULT_PROTOCOL) return undefined
+    return parseLearningCheckpointResultV1(
+      parsed,
+      definition?.protocol === CHECKPOINT_PROTOCOL ? { checkpoint: definition } : {},
+    )
   } catch {
     return undefined
   }
 }
 
 /** Parse one complete visual result exactly once. */
-function parseVisualResult(text: string): LearningVisualResultV3 | LearningVisualResultV4 | undefined {
+function parseVisualResult(text: string): LearningVisualResultV4 | undefined {
   if (text === '') return undefined
   try {
     const parsed = JSON.parse(text) as { protocol?: unknown }
-    return parsed.protocol === VISUAL_RESULT_PROTOCOL_V4
-      ? parseLearningVisualResultV4(parsed)
-      : parseLearningVisualResultV3(parsed)
+    return parsed.protocol === VISUAL_RESULT_PROTOCOL_V4 ? parseLearningVisualResultV4(parsed) : undefined
   } catch { return undefined }
 }
 function pendingActivity(
@@ -441,79 +350,11 @@ function pendingActivity(
   if (activity === undefined) return undefined
   if (!isPendingQuestion(interaction) || String(interaction.sessionId) !== sessionId) return undefined
   const envelope = envelopeOf(interaction)
-  if (activity.protocol === VISUAL_PROTOCOL_V3 || activity.protocol === VISUAL_PROTOCOL_V4) return undefined
-  if (activity.protocol === CHECKPOINT_PROTOCOL) {
-    return envelope !== undefined
-      && 'checkpoint' in envelope
-      && envelope.sessionId === sessionId
-      && envelope.callId === callId ? interaction : undefined
-  }
-  if (activity.protocol === ACTIVITY_PROTOCOL_V2) {
-    return envelope !== undefined && 'phase' in envelope
-      && (envelope.callId === undefined || envelope.callId === callId)
-      && envelope.phase === activity.phase
-      && envelope.seq === activity.seq
-      && envelope.activityId !== ''
-      && envelope.waitId !== '' ? interaction : undefined
-  }
-  const canonical = JSON.stringify(activity)
-  return envelope !== undefined && 'activity' in envelope && JSON.stringify(envelope.activity) === canonical
-    ? interaction : undefined
-}
-
-function explanationOf(response: LearningResponseV1 | undefined): string | undefined {
-  if (response?.action !== 'submit' || typeof response.answer !== 'object'
-    || response.answer === null || Array.isArray(response.answer)) return undefined
-  const explanation = response.answer.explanation
-  return typeof explanation === 'string' && explanation.trim() !== '' ? explanation.trim() : undefined
-}
-
-function compactAnswer(answer: import('../protocol-current.ts').LearningJson | undefined): string | undefined {
-  if (answer === undefined || answer === null) return undefined
-  if (typeof answer === 'string' || typeof answer === 'number' || typeof answer === 'boolean') return String(answer)
-  if (!Array.isArray(answer)) {
-    for (const key of ['text', 'explanation', 'answer']) {
-      const candidate = answer[key]
-      if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate)
-    }
-  }
-  try { return JSON.stringify(answer) } catch { return undefined }
-}
-
-function answerRecord(response: LearningResponseV1 | undefined): Record<string, unknown> | undefined {
-  if (response?.action !== 'submit' || typeof response.answer !== 'object'
-    || response.answer === null || Array.isArray(response.answer)) return undefined
-  return response.answer
-}
-
-function evidenceOf(
-  activity: LearningActivityV1,
-  response: LearningResponseV1 | undefined,
-  t: LearningToolViewProps['t'],
-): string | undefined {
-  const answer = answerRecord(response)
-  if (answer === undefined) return undefined
-  if (activity.kind === 'parameter_explorer') {
-    const parameters = answer.parameters
-    if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) return undefined
-    const values = activity.payload.parameters.flatMap(parameter => {
-      const value = (parameters as Record<string, unknown>)[parameter.id]
-      return typeof value === 'number'
-        ? [t('rangeValue', { label: parameter.label, value })]
-        : []
-    })
-    return values.length === 0 ? undefined : values.join(' · ')
-  }
-  if (activity.kind === 'process_stepper') {
-    const checkpoints = answer.checkpoints
-    return Array.isArray(checkpoints) && checkpoints.length > 0
-      ? t('processEvidence', { count: checkpoints.length })
-      : undefined
-  }
-  const selected = answer.selectedDifferences
-  return Array.isArray(selected)
-    ? t('structureEvidence', { count: selected.length })
-    : undefined
+  if (activity.protocol !== CHECKPOINT_PROTOCOL) return undefined
+  return envelope !== undefined
+    && 'checkpoint' in envelope
+    && envelope.sessionId === sessionId
+    && envelope.callId === callId ? interaction : undefined
 }
 
 function checkpointAnswerOf(activity: LearningCheckpointV1, result: LearningCheckpointResultV1): string | undefined {
@@ -619,8 +460,8 @@ function LearningReceipt({
 }
 
 export function LearningToolView({
-  block, inspect, t, useSessionPendingInteraction, sessionId, useSession,
-}: LearningToolViewProps & { useSession?: LegacySessionHook }) {
+  block, inspect, t, useSessionPendingInteraction, sessionId,
+}: LearningToolViewProps) {
   void inspect
   const done = 'kind' in block
   const raw = argsRawOf(block)
@@ -639,17 +480,13 @@ export function LearningToolView({
 
   const pendingInteraction = typeof useSessionPendingInteraction === 'function'
     ? useSessionPendingInteraction(snapshot => snapshot.get(sessionId))
-    : legacyPendingInteraction(useSession, String(sessionId))
+    : undefined
   const matched = pendingActivity(pendingInteraction, String(sessionId), definition, callId)
 
   useEffect(() => {
     if (done || raw === undefined || raw === '') return
     if (definition === undefined) emitLearningCallLifecycle('learning.call.stream_started', { callId })
-    else emitLearningCallLifecycle('learning.call.args_completed', {
-      callId,
-      phase: definition.protocol === ACTIVITY_PROTOCOL_V2 ? definition.phase : undefined,
-      seq: definition.protocol === ACTIVITY_PROTOCOL_V2 ? definition.seq : undefined,
-    })
+    else emitLearningCallLifecycle('learning.call.args_completed', { callId })
   }, [definition, callId, done, raw])
 
   if (definition === undefined) {
@@ -733,83 +570,5 @@ export function LearningToolView({
     )
   }
 
-  if (definition.protocol === VISUAL_PROTOCOL_V3) {
-    if (done && (isError || visualResult?.protocol !== VISUAL_RESULT_PROTOCOL_V3)) {
-      return (
-        <LearningFallback
-          headline={t('visualFailed')}
-          text={definition.description ?? definition.title}
-          state="error"
-          protocol="visual-v3"
-          t={t}
-        />
-      )
-    }
-    return (
-      <LearningVisual
-        visual={definition}
-        storageKey={`${String(sessionId)}:${callId ?? 'visual'}`}
-      />
-    )
-  }
-
-  if (definition.protocol === ACTIVITY_PROTOCOL_V2) {
-    if (!done) {
-      return matched === undefined ? <LearningRunning t={t} /> : <LearningInteraction matched={matched} t={t} />
-    }
-    const v2Response = result?.protocol === RESPONSE_PROTOCOL_V2 ? result : undefined
-    if (v2Response === undefined) {
-      return (
-        <LearningFallback
-          headline={t('invalidResult')}
-          markdown={definition.fallbackMarkdown}
-          state="error"
-          protocol={ACTIVITY_PROTOCOL_V2}
-          t={t}
-        />
-      )
-    }
-    if (definition.phase === 'question') {
-      return (
-        <LearningReceipt
-          state={v2Response.action}
-          status={v2Response.action === 'submit' ? t('completed')
-            : v2Response.action === 'skip' ? t('skipped') : t('cancelled')}
-          answer={v2Response.phase === 'question' ? compactAnswer(v2Response.answer) : undefined}
-        />
-      )
-    }
-    return (
-      <div className={css.legacyReveal} {...learningScope} data-learning-result={v2Response.action}>
-        <MarkdownText text={definition.feedback.explanation} labels={markdownLabels(t)} />
-        {definition.feedback.answer === undefined ? null : <strong>{definition.feedback.answer}</strong>}
-      </div>
-    )
-  }
-
-  if (!done) {
-    return matched === undefined ? <LearningRunning t={t} /> : <LearningInteraction matched={matched} t={t} />
-  }
-  if (result === undefined) {
-    return (
-      <LearningFallback
-        headline={t('invalidResult')}
-        markdown={definition.fallbackMarkdown}
-        state="unknown"
-        protocol={RESPONSE_PROTOCOL}
-        t={t}
-      />
-    )
-  }
-  const legacyResponse = result.protocol === RESPONSE_PROTOCOL ? result : undefined
-  return (
-    <LearningReceipt
-      state={legacyResponse?.action ?? 'unknown'}
-      status={legacyResponse?.action === 'submit' ? t('completed')
-        : legacyResponse?.action === 'skip' ? t('skipped')
-          : legacyResponse?.action === 'cancel' ? t('cancelled') : t('invalidResult')}
-      evidence={evidenceOf(definition, legacyResponse, t)}
-      answer={explanationOf(legacyResponse)}
-    />
-  )
+  return null
 }

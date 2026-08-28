@@ -197,7 +197,7 @@ function ConceptCard({
             <div className={css.actions}>
               <button
                 type="button"
-                className={css.buttonPrimary}
+                data-lx-control="primary" data-lx-density="compact"
                 disabled={busy}
                 onClick={() => {
                   void apply('concepts/save', { body: draft }, () => { setEditing(false) })
@@ -207,7 +207,7 @@ function ConceptCard({
               </button>
               <button
                 type="button"
-                className={css.button}
+                data-lx-control="secondary" data-lx-density="compact"
                 onClick={() => { setDraft(concept.body); setEditing(false) }}
               >
                 {t('vaultCancel')}
@@ -217,12 +217,12 @@ function ConceptCard({
         )
         : (
           <div className={css.actions}>
-            <button type="button" className={css.button} onClick={() => { setEditing(true) }}>
+            <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setEditing(true) }}>
               {t('vaultEdit')}
             </button>
             <button
               type="button"
-              className={css.button}
+              data-lx-control="secondary" data-lx-density="compact"
               onClick={() => {
                 if (file !== undefined) { setFile(undefined); return }
                 void (async () => {
@@ -254,7 +254,7 @@ function ConceptCard({
               />
               <button
                 type="button"
-                className={css.button}
+                data-lx-control="secondary" data-lx-density="compact"
                 disabled={busy}
                 onClick={() => {
                   const days = Number(deferDays)
@@ -272,7 +272,7 @@ function ConceptCard({
             </span>
             <button
               type="button"
-              className={css.buttonCorrect}
+              data-lx-control="danger" data-lx-density="compact"
               disabled={busy || concept.mastery === 'unseen'}
               title={t('vaultCorrectHint')}
               onClick={() => {
@@ -457,7 +457,7 @@ export function ReviewSection({
                   <button
                     key={entry.rating}
                     type="button"
-                    className={entry.rating === 'mastered' ? css.buttonPrimary : css.button}
+                    data-lx-control={entry.rating === 'mastered' ? 'primary' : 'secondary'} data-lx-density="compact"
                     disabled={busy}
                     onClick={() => { rate(entry.rating) }}
                   >
@@ -469,7 +469,7 @@ export function ReviewSection({
           )
           : (
             <div className={css.actions}>
-              <button type="button" className={css.button} onClick={() => { setShown(true) }}>
+              <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setShown(true) }}>
                 {t('vaultReviewShow')}
               </button>
             </div>

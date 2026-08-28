@@ -1,1 +1,1 @@
-{"version":3,"file":"protocol.d.ts","sourceRoot":"","sources":["../../src/protocol.ts"],"names":[],"mappings":"AAAA,mFAAmF;AAEnF,cAAc,uBAAuB,CAAA;AACrC,OAAO,EACL,qBAAqB,EACrB,qBAAqB,EACrB,uBAAuB,EACvB,uBAAuB,GACxB,MAAM,sBAAsB,CAAA"}
+{"version":3,"file":"protocol.d.ts","sourceRoot":"","sources":["../../src/protocol.ts"],"names":[],"mappings":"AAAA,8BAA8B;AAE9B,cAAc,uBAAuB,CAAA"}

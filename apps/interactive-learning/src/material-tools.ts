@@ -323,7 +323,6 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       'Use this to explore a supplied source or choose a section when no trusted locator is known. Without a sourceId it lists every source and its top-level sections; with one it returns that source\'s section tree. When a valid sectionId or page is already known, learning_material_read may go directly.',
       'The returned coverage line states which parts could NOT be read; repeat that boundary to the learner instead of implying the whole source was understood.',
       'Never mention a section, chapter, or page that is not in this result.',
-      '中文模板：先看真实结构，再决定教什么；未读到的部分要如实说明。',
     ].join(' '),
     parameters: {
       sourceId: {
@@ -436,7 +435,6 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       'A long section returns its opening plus its child section ids rather than the whole text: read the child you actually need, one at a time.',
       'The returned receiptId and anchor are evidence for learning_state_update source_anchors_observed; cite only this exact anchor after the read succeeds.',
       'If sourceId plus a valid sectionId or page is already known, call this directly; use learning_material_map when you need to explore the source structure.',
-      '中文模板：一次只读你真正要讲的那一节，并引用返回的锚点。',
     ].join(' '),
     parameters: {
       sourceId: { type: 'string', required: true },
@@ -546,7 +544,6 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       'Find a literal phrase inside the learner\'s stored material and get back the sections that contain it.',
       'Use it to locate where the material defines a term, states a rule, or gives another worked example — then read that section.',
       'Matching is literal and case-insensitive, not a regular expression. Results carry locator receipts only: read the section before treating a hit as content evidence.',
-      '中文模板：先定位材料里真正讲到这个词的地方，再去读那一节。',
     ].join(' '),
     parameters: {
       query: { type: 'string', required: true, description: 'Literal phrase to find.' },
@@ -634,18 +631,23 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
   ctx.tools.register(closeRoot(defineTool({
     name: 'learning_material_recall',
     description: [
-      'Retrieve the passage the CURRENT TEACHING SITUATION calls for. Takes no query: what to look for is derived from the learner state you have been maintaining — an open misconception pulls up contradicting material, an example that already failed pulls up a different one, a prerequisite gap pulls up the missing earlier rule.',
+      'Retrieve the passage the CURRENT TEACHING SITUATION calls for. With no argument, what to look for is derived from the learner state you have been maintaining — an open misconception pulls up contradicting material, an example that already failed pulls up a different one, a prerequisite gap pulls up the missing earlier rule.',
+      'Pass `focus` with the learner\x27s own words when they said what they want ("the chapter on ordering", "where it defines the residual"). Their words lead the search and can retrieve on their own, so this works before the state knows anything.',
       'Use it when you know what is wrong but not where the material addresses it. Use learning_material_search instead when you already know the exact phrase to find, and learning_material_read when you already know the section.',
       'The result names the retrieval intent and why it was chosen; teach from the passages and cite their receipt-backed anchors. Passages are bounded to a per-turn budget, so ask for one section with learning_material_read when you need more of it.',
-      '中文模板：当前卡在哪里，就去材料里找能解开那一处的段落，而不是把整章拉进来。',
     ].join(' '),
-    parameters: {},
+    parameters: {
+      focus: {
+        type: 'string',
+        description: 'Optional: what the learner asked to find, in their words. Omit it to retrieve from the teaching situation alone.',
+      },
+    },
     output: {
       schema: recallOutput,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     isConcurrencySafe: () => false,
-    async execute(_args, exec) {
+    async execute(args, exec) {
       const vault = await vaultOf(ctx, exec.agent)
       if (vault === undefined) return { ...NO_VAULT }
       await syncMentionedMaterial(exec.agent, vault)
@@ -655,12 +657,14 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
         return { status: 'no-plan' as const, detail: 'recall requires a live agent session' }
       }
       const state = ctx.learningActivities.learnerState(agent)
-      const plan = planRetrieval(state)
+      const focus = typeof args.focus === 'string' ? args.focus : ''
+      const plan = planRetrieval(state, undefined, focus)
       if (plan === undefined) {
         return {
           status: 'no-plan' as const,
           detail: 'The learner state carries no goal, gap, or misconception yet, so there is nothing '
-            + 'to retrieve for. Teach from conversation, or use learning_material_map to orient first.',
+            + 'to retrieve for. Pass focus with what the learner asked to find, teach from '
+            + 'conversation, or use learning_material_map to orient first.',
         }
       }
 

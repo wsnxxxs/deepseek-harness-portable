@@ -169,15 +169,23 @@ const EXAMPLE_MOVES: ReadonlySet<string> = new Set(['worked_example', 'example',
  * else, a failed example needs a different one, and only when nothing more
  * specific applies does this fall back to finding where the material states the
  * goal.
+ *
+ * `focus` is the exception to that ordering. State is an inference about what
+ * the learner needs; a phrase they typed is not. When one is supplied it leads
+ * the search and can plan a retrieval on its own, so a learner who names a
+ * section gets it even in a session whose state is still empty.
  * @param state - The current learner state.
  * @param budgetChars - Material budget for this turn.
- * @returns the plan, or `undefined` when state says nothing to plan on.
+ * @param focus - The learner's own words about what to find, when they said.
+ * @returns the plan, or `undefined` when neither state nor focus says anything.
  */
 export function planRetrieval(
   state: LearnerState,
   budgetChars = DEFAULT_RETRIEVAL_BUDGET_CHARS,
+  focus = '',
 ): RetrievalPlan | undefined {
   const goalTerms = keyPhrases(state.goal ?? '')
+  const focusTerms = keyPhrases(focus)
 
   const build = (
     intent: RetrievalIntent,
@@ -190,6 +198,7 @@ export function planRetrieval(
     // situation terms. A long learner misconception must not crowd the concept
     // itself out of the bounded search plan.
     terms: [...new Set([
+      ...focusTerms,
       ...goalTerms.slice(0, 2),
       ...extra,
       ...goalTerms.slice(2),
@@ -221,8 +230,10 @@ export function planRetrieval(
   if (state.phase === 'transfer') {
     return build('transfer-context', 'phase is transfer, so a different context for the same idea is what to find')
   }
-  if (goalTerms.length === 0) return undefined
-  return build('verbatim-anchor', 'no more specific situation applies, so find where the material states the goal')
+  if (goalTerms.length === 0 && focusTerms.length === 0) return undefined
+  return build('verbatim-anchor', focusTerms.length === 0
+    ? 'no more specific situation applies, so find where the material states the goal'
+    : 'the learner named what to look for, so their own words lead the search')
 }
 
 /** One retrieved passage, ready to cite. */

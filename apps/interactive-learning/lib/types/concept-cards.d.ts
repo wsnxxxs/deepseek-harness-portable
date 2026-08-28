@@ -7,6 +7,14 @@ import type { LearningStudyMapV4 } from './protocol-current.ts';
 import type { TopicVault } from './topic-vault.ts';
 export declare const MAX_CONCEPT_CARDS = 48;
 export declare const INITIAL_REVIEW_INTERVAL_DAYS = 3;
+/**
+ * A rating is a scheduling signal, not mastery evidence, so it must not carry
+ * unbounded authority over when a card is seen again. Doubling from three days
+ * passes a year after eight successes and never returns; the cap keeps a
+ * self-rating a person may be systematically wrong about from pushing their own
+ * card permanently out of the queue.
+ */
+export declare const MAX_REVIEW_INTERVAL_DAYS = 90;
 export type ConceptCardRating = 'revealed' | 'mastered' | 'review';
 export interface ConceptCardDraft {
     conceptSlug: string;
@@ -42,7 +50,16 @@ export declare function isConceptDue(due: string | null | undefined, now?: Date)
 export declare function buildConceptStudyMap(vault: TopicVault, goal?: string, now?: Date): Promise<LearningStudyMapV4>;
 /** The small, deterministic schedule used for the first review after a card is saved. */
 export declare function reviewIntervalDays(mastery: LearnerMastery, independence?: LearnerEvidence['independence']): number;
-/** Apply one learner-owned rating without pretending the rating is mastery evidence. */
+/**
+ * Apply one learner-owned rating without pretending the rating is mastery evidence.
+ *
+ * `revealed` means the learner could not recall the card, so it stays due today
+ * and comes back in this same session's queue. An interval grown over several
+ * successes must not survive the failure that just contradicted it: it drops
+ * back to the initial one, or the next `mastered` doubles from a number the
+ * learner has already disproved. A card still at the initial interval has
+ * nothing to reset and returns `undefined`, leaving the stored card untouched.
+ */
 export declare function nextReviewSchedule(card: Pick<ConceptCard, 'intervalDays' | 'mastery'>, rating: ConceptCardRating, now?: Date): ConceptCardSchedule | undefined;
 /** D1's gate: only a correct, independent, fresh transfer can create a card. */
 export declare function hasFreshIndependentTransfer(state: LearnerState): boolean;
@@ -69,6 +86,15 @@ export declare function conceptCardDraftFromState(state: LearnerState, options?:
     explanation?: string;
     unverifiedTransfer?: string;
     relatedConcepts?: readonly string[];
+    /** Overrides the state goal when the learner names the card themselves. */
+    label?: string;
+    /**
+     * Defaults to true: a card the model proposes on its own still needs
+     * evidence, or the vault fills with things the learner never learned.
+     * A learner who asks for the card in words has supplied the only
+     * authority that gate was standing in for, so this drops to false there.
+     */
+    requireVerifiedTransfer?: boolean;
 }, now?: Date): ConceptCardDraft | undefined;
 export declare function recallCardIdOf(conceptSlug: string): string;
 /** Re-anchor durable cards when an imported source is rebuilt. */

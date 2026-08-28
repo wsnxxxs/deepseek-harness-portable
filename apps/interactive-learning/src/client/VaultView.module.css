@@ -46,29 +46,34 @@
   max-width: 62ch;
 }
 
-.stateNext {
-  display: flex;
-  align-items: baseline;
-  gap: var(--lx-space-sm);
-  margin: var(--lx-space-xs) 0 0;
-  border-inline-start: 2px solid var(--lx-accent);
-  padding-inline-start: var(--lx-space-md);
-  color: var(--lx-label-primary);
-  font-size: var(--lx-text-xs);
-  line-height: var(--lx-leading-xs);
-}
-
-.stateNext > span {
-  color: var(--lx-accent);
-  font-family: var(--lx-font-mono);
-}
-
 .stateActions {
   display: flex;
   gap: var(--lx-space-sm);
   flex-wrap: wrap;
   margin-block-start: var(--lx-space-xs);
 }
+
+/* The cause of a failed read is a developer string, so it sits below the
+   recovery action at the weight of a footnote rather than beside it. */
+.stateDetails {
+  margin-block-start: var(--lx-space-xs);
+  color: var(--lx-label-tertiary);
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
+}
+
+.stateDetails > summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.stateDetails > summary:focus-visible {
+  outline: 2px solid var(--lx-accent);
+  outline-offset: 2px;
+  border-radius: var(--lx-radius-sm);
+}
+
+.stateDetails > .path { display: block; margin-block-start: var(--lx-space-2xs); }
 
 /* ---------- header ---------- */
 
@@ -144,41 +149,6 @@
   font-size: var(--lx-text-sm);
 }
 
-.searchRow {
-  display: flex;
-  align-items: stretch;
-  gap: var(--lx-space-sm);
-}
-
-.searchRow .search { flex: 1 1 auto; min-width: 0; }
-
-.searchClear {
-  flex: none;
-  border: 1px solid var(--lx-border-default);
-  border-radius: var(--lx-radius-sm);
-  background: var(--lx-surface-raised);
-  padding: var(--lx-space-sm) var(--lx-space-md);
-  color: var(--lx-label-secondary);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  cursor: pointer;
-}
-
-.searchClear:hover { color: var(--lx-label-primary); border-color: var(--lx-border-strong); }
-
-.searchClear:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
-}
-
-.searchStatus {
-  min-height: var(--lx-leading-micro);
-  margin: calc(var(--lx-space-xs) * -1) 0 0;
-  color: var(--lx-label-tertiary);
-  font-size: var(--lx-text-micro);
-  line-height: var(--lx-leading-micro);
-}
-
 .search::placeholder { color: var(--lx-label-tertiary); }
 
 .search:focus-visible {
@@ -191,30 +161,6 @@
   color: var(--lx-label-tertiary);
   font-size: var(--lx-text-micro);
   line-height: var(--lx-leading-micro);
-}
-
-.headerButton {
-  box-sizing: border-box;
-  flex: none;
-  min-height: var(--lx-control-height-md);
-  border: 1px solid var(--lx-border-default);
-  border-radius: var(--lx-radius-pill);
-  background: transparent;
-  padding: var(--lx-control-padding-md);
-  color: var(--lx-label-primary);
-  font: inherit;
-  font-size: var(--lx-text-xs);
-  cursor: pointer;
-}
-
-.headerButton:hover {
-  border-color: var(--lx-border-strong);
-  background: var(--lx-surface-sunken);
-}
-
-.headerButton:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
 }
 
 /* ---------- source card ---------- */
@@ -230,9 +176,9 @@
   flex-direction: column;
   gap: var(--lx-space-md);
   border: var(--lx-card-border);
-  border-radius: var(--lx-radius-lg);
-  background: var(--lx-surface-card);
-  padding: var(--lx-space-lg) var(--lx-space-xl);
+  border-radius: var(--lx-card-radius-compact);
+  background: var(--lx-card-background);
+  padding: var(--lx-card-padding-compact);
 }
 
 .cardHead {
@@ -263,16 +209,14 @@
   line-height: var(--lx-leading-2xs);
 }
 
-.meta,
 .metaRight {
+  margin-inline-start: auto;
   color: var(--lx-label-tertiary);
   font-family: var(--lx-font-mono);
   font-size: var(--lx-text-micro);
   line-height: var(--lx-leading-micro);
   font-variant-numeric: tabular-nums;
 }
-
-.metaRight { margin-inline-start: auto; }
 
 .sourceDetails {
   border-top: 1px solid var(--lx-border-subtle);
@@ -345,54 +289,6 @@
 
 /* ---------- coverage strip ---------- */
 
-.coverage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lx-space-xs);
-}
-
-.coverageHead,
-.coverageLegend {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-md);
-  flex-wrap: wrap;
-  color: var(--lx-label-tertiary);
-  font-size: var(--lx-text-micro);
-  line-height: var(--lx-leading-micro);
-}
-
-.coverageHead {
-  color: var(--lx-label-secondary);
-  font-weight: var(--lx-weight-medium);
-}
-
-.coverageTotal {
-  color: var(--lx-label-tertiary);
-  font-family: var(--lx-font-mono);
-  font-size: var(--lx-text-micro);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--lx-weight-regular);
-}
-
-.coverageLegend { gap: var(--lx-space-lg); }
-
-.coverageLegend > span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lx-space-xs);
-}
-
-.coverageLegend i {
-  display: inline-block;
-  width: 18px;
-  height: 6px;
-  border-radius: var(--lx-radius-pill);
-}
-
-.coverageKeyReady { background: color-mix(in srgb, var(--lx-accent) 68%, transparent); }
-.coverageKeyWarn { background: var(--lx-warn); }
-
 .strip {
   display: flex;
   gap: 1px;
@@ -456,25 +352,6 @@
   flex-wrap: wrap;
   border-top: 1px solid var(--lx-border-subtle);
   padding-top: var(--lx-space-md);
-}
-
-.button {
-  border: 1px solid var(--lx-border-default);
-  border-radius: var(--lx-radius-sm);
-  background: var(--lx-surface-raised);
-  padding: var(--lx-control-padding-sm);
-  min-height: var(--lx-control-height-sm);
-  color: var(--lx-label-secondary);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  cursor: pointer;
-}
-
-.button:hover { color: var(--lx-label-primary); border-color: var(--lx-border-strong); }
-
-.button:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
 }
 
 .path {
@@ -557,37 +434,6 @@
   padding-inline-start: var(--lx-space-lg);
 }
 
-.readingHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--lx-space-md);
-}
-
-.readingEyebrow {
-  margin: 0 0 var(--lx-space-3xs);
-  color: var(--lx-label-tertiary);
-  font-size: var(--lx-text-micro);
-  letter-spacing: var(--lx-tracking-eyebrow);
-  text-transform: uppercase;
-}
-
-.readingTitle {
-  margin: 0;
-  color: var(--lx-label-primary);
-  font-size: var(--lx-text-sm);
-  font-weight: var(--lx-weight-strong);
-  line-height: var(--lx-leading-sm);
-}
-
-.readingPage {
-  flex: none;
-  color: var(--lx-label-tertiary);
-  font-family: var(--lx-font-mono);
-  font-size: var(--lx-text-micro);
-  font-variant-numeric: tabular-nums;
-}
-
 .readingCrumbs {
   margin: 0;
   color: var(--lx-label-tertiary);
@@ -628,19 +474,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--lx-space-2xl);
-}
-
-.resultsState {
-  padding: var(--lx-space-2xl) 0;
-  color: var(--lx-label-secondary);
-  font-size: var(--lx-text-sm);
-}
-
-.searchSummary {
-  margin: 0;
-  color: var(--lx-label-secondary);
-  font-size: var(--lx-text-xs);
-  line-height: var(--lx-leading-xs);
 }
 
 .group {
@@ -733,13 +566,6 @@
   font-size: var(--lx-text-2xs);
   line-height: var(--lx-leading-2xs);
   overflow-wrap: anywhere;
-}
-
-.hitMark {
-  border-radius: var(--lx-radius-xs);
-  background: color-mix(in srgb, var(--lx-accent) 22%, transparent);
-  padding-inline: 1px;
-  color: var(--lx-label-primary);
 }
 
 .hitPath {
@@ -962,49 +788,6 @@
   flex-wrap: wrap;
 }
 
-.buttonPrimary {
-  border: 1px solid var(--lx-accent);
-  border-radius: var(--lx-radius-sm);
-  background: var(--lx-accent);
-  padding: var(--lx-control-padding-sm);
-  min-height: var(--lx-control-height-sm);
-  color: var(--lx-label-on-accent);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  font-weight: var(--lx-weight-medium);
-  cursor: pointer;
-}
-
-.buttonPrimary:disabled { opacity: var(--lx-control-disabled-opacity); cursor: default; }
-
-.buttonPrimary:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
-}
-
-/* The mastery downgrade. Outlined in the danger colour rather than filled: it
-   is destructive to a record, but it is also the honest thing to press. */
-.buttonCorrect {
-  margin-inline-start: auto;
-  border: 1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);
-  border-radius: var(--lx-radius-sm);
-  background: transparent;
-  padding: var(--lx-control-padding-sm);
-  min-height: var(--lx-control-height-sm);
-  color: var(--lx-danger);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  cursor: pointer;
-}
-
-.buttonCorrect:disabled { opacity: var(--lx-control-disabled-opacity); cursor: default; }
-.buttonCorrect:hover:enabled { background: color-mix(in srgb, var(--lx-danger) 10%, transparent); }
-
-.buttonCorrect:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
-}
-
 .deferGroup {
   display: inline-flex;
   align-items: center;
@@ -1080,7 +863,6 @@
     padding-block-end: var(--lx-space-sm);
     position: static;
   }
-  .buttonCorrect { margin-inline-start: 0; }
 }
 
 /* ---------- notes (S3) ---------- */
@@ -1199,32 +981,6 @@
   padding-inline-start: var(--lx-space-lg);
 }
 
-/*
- * Outlined, never filled. Every filled button in this panel commits to the
- * local folder; this one leaves the machine, and the outline plus the
- * `.spendMark` beside it is the only vocabulary the panel has for that.
- */
-.buttonSpend {
-  border: 1px solid var(--lx-accent);
-  border-radius: var(--lx-radius-sm);
-  background: transparent;
-  padding: var(--lx-control-padding-sm);
-  min-height: var(--lx-control-height-sm);
-  color: var(--lx-accent);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  font-weight: var(--lx-weight-medium);
-  cursor: pointer;
-}
-
-.buttonSpend:hover:enabled { background: var(--lx-surface-accent); }
-.buttonSpend:disabled { opacity: var(--lx-control-disabled-opacity); cursor: default; }
-
-.buttonSpend:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: var(--lx-focus-offset);
-}
-
 .spendMark {
   border: 1px solid color-mix(in srgb, var(--lx-warn) 45%, transparent);
   border-radius: var(--lx-radius-pill);
@@ -1297,81 +1053,6 @@
   white-space: nowrap;
 }
 
-/* Anchored above the trigger: the entry sits at the very bottom of the column,
-   so a sheet that opened downward would be off-screen. */
-.rosterSheet {
-  position: absolute;
-  inset-block-end: calc(100% + var(--lx-space-sm));
-  inset-inline-start: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: var(--lx-space-sm);
-  min-width: 260px;
-  max-width: 340px;
-  max-height: 60vh;
-  overflow-y: auto;
-  border: var(--lx-card-border);
-  border-radius: var(--lx-radius-lg);
-  background: var(--lx-surface-raised);
-  padding: var(--lx-space-lg);
-  box-shadow: var(--lx-shadow-md);
-}
-
-.rosterList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lx-space-2xs);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.rosterRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lx-space-md);
-  width: 100%;
-  border: 0;
-  border-radius: var(--lx-radius-sm);
-  background: transparent;
-  padding: var(--lx-space-xs) var(--lx-space-sm);
-  color: var(--lx-label-primary);
-  font: inherit;
-  font-size: var(--lx-text-2xs);
-  text-align: start;
-  cursor: pointer;
-}
-
-.rosterRow:hover:enabled { background: var(--lx-surface-sunken); }
-.rosterRow:disabled { opacity: var(--lx-control-disabled-opacity); cursor: default; }
-
-.rosterRow:focus-visible {
-  outline: var(--lx-focus-width) solid var(--lx-focus-color);
-  outline-offset: calc(var(--lx-focus-offset) * -1);
-}
-
-.rosterName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rosterCounts {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lx-space-xs);
-  flex-shrink: 0;
-}
-
-.rosterNote {
-  margin: 0 0 0 var(--lx-space-sm);
-  color: var(--lx-warn);
-  font-size: var(--lx-text-micro);
-  line-height: var(--lx-leading-micro);
-}
-
 /* ---------- settings-style external library ---------- */
 
 .libraryOverlay {
@@ -1405,28 +1086,6 @@
   box-shadow: var(--lx-shadow-lg);
 }
 
-.libraryNav {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: var(--lx-space-lg);
-  width: 220px;
-  box-sizing: border-box;
-  border-inline-end: 1px solid var(--lx-border-subtle);
-  padding: 22px 12px 16px;
-}
-
-.libraryNavTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-sm);
-  padding: 0 12px;
-  color: var(--lx-label-primary);
-  font-size: var(--lx-text-md);
-  font-weight: var(--lx-weight-medium);
-  line-height: var(--lx-leading-md);
-}
-
 .libraryNavMeta {
   margin: calc(var(--lx-space-md) * -1) 12px 0;
   color: var(--lx-label-tertiary);
@@ -1448,16 +1107,15 @@
 .libraryTopic,
 .libraryTopicOn {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--lx-space-2xs);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lx-space-sm);
   width: 100%;
-  min-height: 48px;
   box-sizing: border-box;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-sm);
   background: transparent;
-  padding: var(--lx-space-sm) 12px;
+  padding: var(--lx-space-xs) var(--lx-space-sm);
   color: var(--lx-label-primary);
   font: inherit;
   text-align: start;
@@ -1485,14 +1143,24 @@
   line-height: var(--lx-leading-sm);
 }
 
-.libraryTopicMeta {
+.libraryTopicGroup {
   display: flex;
-  align-items: center;
-  gap: var(--lx-space-xs);
+  flex-direction: column;
+  gap: var(--lx-space-3xs);
+  margin-block-end: var(--lx-space-md);
+  padding-block-end: var(--lx-space-md);
+  border-bottom: 1px solid var(--lx-border-subtle);
+}
+
+.libraryTopicHeading {
+  margin: 0 0 var(--lx-space-2xs);
+  padding-inline: var(--lx-space-sm);
   color: var(--lx-label-tertiary);
   font-size: var(--lx-text-micro);
   line-height: var(--lx-leading-micro);
-  font-weight: var(--lx-weight-regular);
+  font-weight: var(--lx-weight-strong);
+  letter-spacing: var(--lx-tracking-eyebrow);
+  text-transform: uppercase;
 }
 
 .libraryMain {
@@ -1506,7 +1174,7 @@
   display: flex;
   flex: none;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--lx-space-sm);
   height: 54px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--lx-border-subtle);
@@ -1514,6 +1182,8 @@
 }
 
 .libraryHeaderTitle {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1555,14 +1225,6 @@
     width: calc(100vw - 24px);
     height: calc(100vh - 24px);
     flex-direction: column;
-  }
-
-  .libraryNav {
-    width: auto;
-    max-height: 176px;
-    border-inline-end: 0;
-    border-bottom: 1px solid var(--lx-border-subtle);
-    padding: 16px 12px 12px;
   }
 
   .libraryTopicList {

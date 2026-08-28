@@ -42,30 +42,6 @@ export interface TeachingEvalVerdict {
         detail: string;
     }>;
 }
-/** Retired V2 Question/Reveal event vocabulary, retained only for replay audits. */
-export type LegacyV2ReplayEventType = 'assistant-text' | 'learning-question-call' | 'learning-question-result' | 'learning-reveal-call' | 'animation-finished' | 'continue-enabled' | 'continue-committed' | 'learning-reveal-result';
-export interface LegacyV2ReplayEvent {
-    at: number;
-    type: LegacyV2ReplayEventType;
-    /** Stable model-step identity. Required for Learning tool calls. */
-    stepId?: string;
-    payload?: unknown;
-    text?: string;
-}
-export interface LegacyV2ReplayCandidate {
-    events: readonly LegacyV2ReplayEvent[];
-    /** Exact strings which must not appear before the first question result. */
-    answerMarkers?: readonly string[];
-    /** Exact strings which must not appear before the preceding reveal resolves. */
-    futureMarkers?: readonly string[];
-}
-/**
- * Read-only deterministic audit for conversations created by the retired V2
- * Question → Reveal → animation → Continue protocol. This is intentionally
- * excluded from the default V4.1 eval and must never be used as the current
- * teaching contract.
- */
-export declare function gradeLegacyV2ReplayTranscript(candidate: LegacyV2ReplayCandidate): TeachingEvalVerdict;
 /**
  * Versioned, credential-free MVP rubric. A remote or local model collector can
  * emit TeachingEvalCandidate JSON and feed it to the same deterministic gate.

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  classifyLearnIntent,
-  isLearnIntent,
-  LEARN_INTENT_NATURAL_LANGUAGE_RULES,
-  LEARN_INTENT_RULES,
-  LEARN_INTENT_MODEL_GUIDANCE,
-} from '../src/learn-intent.ts'
+import { classifyLearnIntent, isLearnIntent } from '../src/learn-intent.ts'
 
 describe('learn intent and trigger boundary', () => {
   it.each([
@@ -33,6 +27,11 @@ describe('learn intent and trigger boundary', () => {
     ['学习如何实现注意力机制的理论推导', 'explicit-learning'],
     ['Teach me electrical current', 'explicit-learning'],
     ['Do not quiz me, explain queues.', 'explicit-learning'],
+    // Code comprehension is the most common learning request in this preset;
+    // only an imperative to produce or change code is an ordinary task.
+    ['Explain this code and tell me why it fails.', 'explicit-learning'],
+    ['Teach me how to implement a queue in TypeScript.', 'explicit-learning'],
+    ['帮我解释这段代码为什么这样写', 'explicit-learning'],
     ['How does the current interest rate mechanism work?', 'current-topic'],
     ['Explain the current price mechanism.', 'current-topic'],
     ['I don\'t understand queues.', 'confusion-repair'],
@@ -44,8 +43,6 @@ describe('learn intent and trigger boundary', () => {
   it.each([
     ['Implement a binary search function.', 'coding-task'],
     ['Debug this Python stack trace.', 'coding-task'],
-    ['Explain this code and tell me why it fails.', 'coding-task'],
-    ['Teach me how to implement a queue in TypeScript.', 'coding-task'],
     ['Calculate 2+2.', 'calculation-task'],
     ['Write a quiz app in Python.', 'coding-task'],
     ['Create a quiz program.', 'coding-task'],
@@ -67,25 +64,6 @@ describe('learn intent and trigger boundary', () => {
   ] as const)('keeps %s off the learn route as %s', (request, trigger) => {
     expect(classifyLearnIntent(request)).toMatchObject({ intent: 'not-learn', trigger })
     expect(isLearnIntent(request)).toBe(false)
-  })
-
-  it('exposes the three-layer rule inventory without generating regexes from prose', () => {
-    expect(LEARN_INTENT_NATURAL_LANGUAGE_RULES.trigger.length).toBeGreaterThan(0)
-    expect(LEARN_INTENT_NATURAL_LANGUAGE_RULES.dontTrigger.length).toBeGreaterThan(0)
-    expect(LEARN_INTENT_RULES[0]).toMatchObject({ id: 'translation-task', kind: 'dont-trigger', priority: 10 })
-    expect(LEARN_INTENT_RULES.find(rule => rule.id === 'current-conceptual')).toMatchObject({
-      trigger: 'current-topic',
-      priority: 180,
-    })
-    expect(LEARN_INTENT_RULES.find(rule => rule.id === 'small-talk')).toMatchObject({
-      kind: 'dont-trigger',
-      trigger: 'unknown',
-    })
-    expect(LEARN_INTENT_RULES.at(-1)).toMatchObject({ id: 'bare-concept', priority: 220, trigger: 'bare-concept' })
-    expect(LEARN_INTENT_MODEL_GUIDANCE).toContain('Trigger cues:')
-    expect(LEARN_INTENT_MODEL_GUIDANCE).toContain("Don't-trigger cues:")
-    expect(LEARN_INTENT_MODEL_GUIDANCE).toContain('10:translation-task')
-    expect(LEARN_INTENT_MODEL_GUIDANCE).toContain('220:bare-concept')
   })
 
   it.each([

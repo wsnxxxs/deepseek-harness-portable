@@ -1,6 +1,7 @@
 import { Context, Service } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type LearningVisualStatusV4, type LearningRecallFeedbackV1, type LearningCheckpointResultV1, type LearningCheckpointV1, type LearningActivityV2, type LearningActivityV1, type LearningQuestionV2, type LearningRevealV2, type LearningResponseV2, type LearningResponseV1 } from './protocol-current.ts';
+import type { LearnerLocale } from './learner-locale.ts';
+import { type LearningVisualStatusV4, type LearningRecallFeedbackV1, type LearningCheckpointResultV1, type LearningCheckpointV1 } from './protocol-current.ts';
 import { type LearnerState, type LearnerStateCorrection, type LearnerStateEvent, type LearningSegmentAnchorEvent, type ObservableLearnerEvent, type LearningCheckpointAggregate } from './learner-state.ts';
 export declare const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
 export declare const DEFAULT_LEARNING_WAIT_TIMEOUT_MS: number;
@@ -9,20 +10,6 @@ declare module '@deepseek-ai/cordis' {
     interface Context {
         learningActivities: LearningActivityBroker;
     }
-}
-export interface PresentLearningActivityRequest {
-    activity: LearningActivityV1;
-    agent?: Agent;
-    signal?: AbortSignal;
-    /** Bounded wait for a compatible Client response. Primarily configurable by tests/embedders. */
-    timeoutMs?: number;
-}
-export interface PresentLearningGateRequest {
-    activity: LearningActivityV2;
-    agent?: Agent;
-    signal?: AbortSignal;
-    timeoutMs?: number;
-    callId?: string;
 }
 export interface PresentLearningCheckpointRequest {
     checkpoint: LearningCheckpointV1;
@@ -78,8 +65,6 @@ export interface LearningLifecycleEvent {
 export declare class LearningActivityBroker extends Service {
     static inject: string[];
     private readonly pendingActivities;
-    private legacyGate;
-    private legacyGatePromise;
     private readonly checkpointCalls;
     private readonly checkpointReceipts;
     private readonly pendingCheckpointSessions;
@@ -87,6 +72,7 @@ export declare class LearningActivityBroker extends Service {
     /** Current Host agent for the session-scoped Client recall bridge. */
     private readonly activeAgents;
     private readonly learnerStates;
+    private readonly turnLocales;
     private readonly observers;
     private disposed;
     constructor(ctx: Context);
@@ -98,6 +84,15 @@ export declare class LearningActivityBroker extends Service {
     get checkpointCacheSize(): number;
     /** Whether this composition can render Learning visuals and checkpoints. */
     get richClientAvailable(): boolean;
+    /**
+     * Record the language of the turn being served, for Host-side tools that
+     * write text a learner reads. Set from the claimed user message.
+     * @param agent - The agent whose turn this is.
+     * @param locale - The language that turn was written in.
+     */
+    setTurnLocale(agent: Agent, locale: LearnerLocale): void;
+    /** The language of the current turn, or undefined before one is claimed. */
+    turnLocale(agent: Agent): LearnerLocale | undefined;
     /** Fold the latest durable full snapshot for this exact live session. */
     learnerState(agent: Agent): LearnerState;
     /** Render only the bounded, model-facing projection of the current state. */
@@ -130,8 +125,6 @@ export declare class LearningActivityBroker extends Service {
     private emit;
     /** Whether this Web composition advertises the matching Client bundle. */
     private hasRichClient;
-    /** Load the retired Question/Reveal coordinator only when its API is used. */
-    private getLegacyGate;
     private dropLearnerState;
     private abortPendingCheckpointSession;
     private appendLearnerState;
@@ -160,16 +153,6 @@ export declare class LearningActivityBroker extends Service {
     private presentCheckpointOnce;
     private waitForCheckpoint;
     private acceptCheckpointReceipt;
-    presentQuestion(request: Omit<PresentLearningGateRequest, 'activity'> & {
-        activity: LearningQuestionV2;
-    }): Promise<LearningResponseV2>;
-    presentReveal(request: Omit<PresentLearningGateRequest, 'activity'> & {
-        activity: LearningRevealV2;
-    }): Promise<LearningResponseV2>;
-    /** V2 live path: one call owns exactly one durable Question or Reveal wait. */
-    presentGate(request: PresentLearningGateRequest): Promise<LearningResponseV2>;
-    /** @deprecated V1 is accepted only for static legacy replay/fallback. */
-    present(request: PresentLearningActivityRequest): Promise<LearningResponseV1>;
 }
 export default LearningActivityBroker;
 //# sourceMappingURL=broker.d.ts.map

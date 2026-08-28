@@ -15,7 +15,7 @@ const hash = 'a'.repeat(64)
 const comparePaths = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 const windowsSupport: Record<string, MeasuredModeSupport> = {
   standard: { level: 'native', variant: 'win32-powershell', presetHash: hash, upstreamCommit: '2222222', capabilitySnapshotHash: hash },
-  code: { level: 'native', variant: 'win32-powershell', presetHash: hash, upstreamCommit: '2222222', capabilitySnapshotHash: hash },
+  ptc: { level: 'native', variant: 'win32-powershell', presetHash: hash, upstreamCommit: '2222222', capabilitySnapshotHash: hash },
   cordis: { level: 'native', variant: 'win32-powershell', presetHash: hash, upstreamCommit: '2222222', capabilitySnapshotHash: hash },
   minimal: { level: 'compatible', variant: 'win32-wsl', presetHash: hash, upstreamCommit: '2222222', capabilitySnapshotHash: hash },
 }

@@ -1,3 +1,18 @@
+/**
+ * Compact standing policy for the Learning preset.
+ *
+ * The core is injected for every Learning request. Graded-work and visual
+ * construction rules are conditional additions so ordinary turns do not pay
+ * for details they cannot use. `LEARNING_TEACHING_POLICY` remains an alias
+ * for callers that only need the standing layer.
+ *
+ * Intent classification is deliberately absent. The Host classifies the turn
+ * and ships the conclusion in `learning:turn-route`; a low-confidence turn
+ * additionally gets `LEARN_INTENT_MODEL_GUIDANCE`, which is the same boundary
+ * in more detail. Restating it here made the standing layer ask every turn for
+ * a classification the turn context had already supplied, and doubled the
+ * guidance on exactly the low-confidence turns that can least afford it.
+ */
 export type LearningPolicyRoute = 'calibrate' | 'teach-minimum' | 'overview' | 'direct' | 'continue';
 export interface LearningPolicyContext {
     /** The request is inside an observable graded/submitted context. */
@@ -11,6 +26,8 @@ export interface LearningPolicyContext {
     material?: boolean;
     /** The learning folder contains at least one user-approved concept card. */
     concepts?: boolean;
+    /** The session runs inside a learning folder at all, cards or not. */
+    vault?: boolean;
 }
 export declare const LEARNING_TEACHING_POLICY_CORE: string;
 /** Inject only when the turn is known to be assessed or submitted. */
@@ -24,6 +41,12 @@ export declare const LEARNING_VISUAL_POLICY: string;
  * the coverage boundary the parse actually reports.
  */
 export declare const LEARNING_MATERIAL_POLICY: string;
+/**
+ * Inject whenever a learning folder exists. Saving a card needs only a vault;
+ * gating this with the review layer hid the save path from every session that
+ * had not saved a card yet, which is exactly the session where a learner asks.
+ */
+export declare const LEARNING_CONCEPT_SAVE_POLICY: string;
 /** Inject only when this vault has a real, user-approved card to review. */
 export declare const LEARNING_REVIEW_POLICY: string;
 /** Short templates make the standing/tool prompt usable for Chinese turns. */

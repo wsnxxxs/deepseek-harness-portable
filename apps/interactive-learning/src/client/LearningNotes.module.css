@@ -198,7 +198,7 @@
 .emptyView {
   border: var(--lx-card-border);
   border-radius: var(--lx-card-radius);
-  background: var(--lx-surface-card);
+  background: var(--lx-card-background);
   box-shadow: var(--lx-shadow-sm);
 }
 
@@ -212,12 +212,6 @@
   font-size: var(--lx-text-md);
   font-weight: var(--lx-weight-medium);
   line-height: var(--lx-leading-md);
-}
-
-.routeText {
-  margin: var(--lx-space-md) 0 0;
-  color: var(--lx-label-secondary);
-  font-size: var(--lx-text-xs);
 }
 
 .noteGrid {
@@ -366,53 +360,11 @@
   border-top: 1px solid var(--lx-border-subtle);
 }
 
-.viewActions button {
-  box-sizing: border-box;
-  min-height: var(--lx-control-height-md);
-  border: 1px solid var(--lx-border-strong);
-  border-radius: var(--lx-radius-pill);
-  background: transparent;
-  padding: var(--lx-control-padding-md);
-  color: var(--lx-label-secondary);
-  font: inherit;
-  font-size: var(--lx-text-xs);
-  cursor: pointer;
-}
-
-.viewActions button:hover:not(:disabled) {
-  border-color: var(--lx-accent);
-  background: var(--lx-surface-accent);
-  color: var(--lx-accent);
-}
-
-.viewActions button:disabled {
-  cursor: default;
-  opacity: var(--lx-control-disabled-opacity);
-}
-
-.viewActions .actionQuiet {
-  border-color: var(--lx-border-default);
-  color: var(--lx-label-tertiary);
-}
-
-.viewActions .actionPrimary {
-  margin-inline-start: auto;
-  border-color: var(--lx-accent);
-  background: var(--lx-accent);
-  color: var(--lx-label-on-accent);
-}
-
-.viewActions .actionPrimary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--lx-accent) 86%, var(--lx-label-primary));
-  color: var(--lx-label-on-accent);
-}
-
-.viewActions .actionSaved {
-  margin-inline-start: auto;
-  border-color: color-mix(in srgb, var(--lx-success) 42%, transparent);
-  background: color-mix(in srgb, var(--lx-success) 10%, transparent);
-  color: var(--lx-success);
-}
+/* Layout roles only. The look of these buttons is the shared control recipe in
+   tokens.module.css; a surface that restyles them here is reintroducing the
+   drift that recipe exists to end. */
+.viewActions .actionEnd { margin-inline-start: auto; }
+.viewActions .actionSave { margin-inline-start: auto; }
 
 .viewError {
   color: var(--lx-danger);
@@ -428,6 +380,6 @@
   .viewRoot { padding-inline: var(--lx-space-lg); }
   .viewHeader { flex-direction: column; }
   .noteGrid { grid-template-columns: minmax(0, 1fr); }
-  .viewActions .actionPrimary,
-  .viewActions .actionSaved { margin-inline-start: 0; }
+  .viewActions .actionEnd,
+  .viewActions .actionSave { margin-inline-start: 0; }
 }

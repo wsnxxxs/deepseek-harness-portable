@@ -7,27 +7,19 @@ import {
   CHECKPOINT_PROTOCOL,
   CHECKPOINT_RESULT_PROTOCOL,
   parseLearningCheckpointResultV1,
-  RESPONSE_PROTOCOL,
-  VISUAL_PROTOCOL_V3,
   VISUAL_PROTOCOL_V4,
-  VISUAL_RESULT_PROTOCOL_V3,
   VISUAL_RESULT_PROTOCOL_V4,
-  type LearningActivityV1,
   type LearningCheckpointKindV1,
   type LearningCheckpointResultV1,
   type LearningCheckpointV1,
-  type LearningResponseV1,
-  type LearningVisualV3,
   type LearningVisualV4,
-  type MathExpressionV1,
 } from '../../src/protocol.ts'
 import { encodeLearningCheckpointDetail, learningCheckpointQuestionId } from '../../src/transport.ts'
-import { compareActivity, parameterActivity, processActivity, visualV4Catalog } from '../fixtures.ts'
+import { visualV4Catalog } from '../fixtures.ts'
 import { DECISION_TREE_VISUAL } from '../visual-corpus.ts'
 import './page.css'
 
 const SESSION_ID = 'learning-browser-visual-gallery'
-const VISUAL_CALL_ID = 'call:logistic-regression-visual'
 const VISUAL_V4_CALL_PREFIX = 'call:visual-v4'
 
 type CheckpointSessionKey = 'a' | 'b'
@@ -99,119 +91,6 @@ const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
   return value
 }) as TranslateNS<'interactive-learning'>
 
-function logitExpression(): MathExpressionV1 {
-  return {
-    op: 'add',
-    left: { op: 'variable', name: 'beta0' },
-    right: {
-      op: 'mul',
-      left: { op: 'variable', name: 'beta1' },
-      right: { op: 'variable', name: 'x' },
-    },
-  }
-}
-
-/**
- * The main browser fixture mirrors the target teaching turn: two local sliders,
- * observed classes, an intentionally unbounded linear approximation, the
- * logistic curve, and a derived decision boundary.
- */
-const logisticVisual: LearningVisualV3 = {
-  protocol: VISUAL_PROTOCOL_V3,
-  kind: 'parameter_chart',
-  title: '为什么逻辑回归需要 Sigmoid',
-  description: '橙色虚线展示线性概率近似如何越界；拖动截距和斜率，观察 Sigmoid 如何始终把概率压在 0 到 1 之间。',
-  parameters: [
-    { id: 'beta0', label: 'β₀（截距）', min: -8, max: 2, step: 0.1, initial: -5 },
-    { id: 'beta1', label: 'β₁（斜率）', min: 0.1, max: 5, step: 0.1, initial: 1 },
-  ],
-  xAxis: { label: '学习时长（小时）', min: 0, max: 10, samples: 160 },
-  yAxis: { label: 'P（通过）', min: -0.5, max: 1.5 },
-  series: [
-    {
-      type: 'points',
-      id: 'failed-observations',
-      label: '不及格（y = 0）',
-      tone: 'red',
-      points: [1, 1.5, 2, 2.5, 3, 3.5, 4].map(x => ({ x, y: 0 })),
-    },
-    {
-      type: 'points',
-      id: 'passed-observations',
-      label: '通过（y = 1）',
-      tone: 'green',
-      points: [5.5, 6, 6.5, 7, 7.5, 8, 9].map(x => ({ x, y: 1 })),
-    },
-    {
-      type: 'curve',
-      id: 'linear-probability',
-      label: '线性概率近似（可越界）',
-      tone: 'orange',
-      stroke: 'dashed',
-      expression: {
-        op: 'add',
-        left: { op: 'constant', value: -0.36 },
-        right: {
-          op: 'mul',
-          left: { op: 'constant', value: 0.18 },
-          right: { op: 'variable', name: 'x' },
-        },
-      },
-    },
-    {
-      type: 'curve',
-      id: 'logistic-probability',
-      label: '逻辑回归（Sigmoid）',
-      tone: 'blue',
-      stroke: 'solid',
-      expression: { op: 'sigmoid', value: logitExpression() },
-    },
-  ],
-  metrics: [{
-    id: 'decision-boundary',
-    label: '决策边界 P = 0.5 → x =',
-    expression: {
-      op: 'div',
-      left: { op: 'neg', value: { op: 'variable', name: 'beta0' } },
-      right: { op: 'variable', name: 'beta1' },
-    },
-    digits: 1,
-    suffix: ' 小时',
-  }],
-}
-
-function runningVisualBlock() {
-  return {
-    callId: VISUAL_CALL_ID,
-    name: 'learning_visual',
-    argsRaw: JSON.stringify(logisticVisual),
-    turn: 1,
-    step: 1,
-    time: 2_000,
-    callView: null,
-    subCalls: [],
-  }
-}
-
-function completedVisualBlock() {
-  return {
-    kind: 'tool-result' as const,
-    seq: 3,
-    time: 3_000,
-    callId: VISUAL_CALL_ID,
-    call: { name: 'learning_visual', argsRaw: JSON.stringify(logisticVisual) },
-    callTime: 2_000,
-    content: [{
-      type: 'text' as const,
-      text: JSON.stringify({ protocol: VISUAL_RESULT_PROTOCOL_V3, status: 'ready' }),
-    }],
-    isError: false,
-    callView: null,
-    resultView: null,
-    subCalls: [],
-  }
-}
-
 function completedV4VisualBlock(catalogKey: string, visual: LearningVisualV4) {
   const callId = `${VISUAL_V4_CALL_PREFIX}:${catalogKey}`
   return {
@@ -232,77 +111,27 @@ function completedV4VisualBlock(catalogKey: string, visual: LearningVisualV4) {
   }
 }
 
-const legacyActivities = {
-  parameter_explorer: parameterActivity,
-  process_stepper: processActivity,
-  structure_compare: compareActivity,
-} as const
-type LegacyKind = keyof typeof legacyActivities
-
-function legacyResponse(kind: LegacyKind, activityId: string): LearningResponseV1 {
-  if (kind === 'parameter_explorer') {
-    return {
-      protocol: RESPONSE_PROTOCOL,
-      activityId,
-      action: 'submit',
-      answer: { parameters: { slope: 1.5 }, explanation: 'The slope controls the line direction.' },
-    }
-  }
-  if (kind === 'process_stepper') {
-    return {
-      protocol: RESPONSE_PROTOCOL,
-      activityId,
-      action: 'submit',
-      answer: { checkpoints: ['A'], explanation: 'FIFO removes A first.' },
-    }
-  }
-  return {
-    protocol: RESPONSE_PROTOCOL,
-    activityId,
-    action: 'submit',
-    answer: { selectedDifferences: ['lookup_cost'], explanation: 'Arrays support indexed lookup.' },
-  }
-}
-
-function legacyReplayBlock(kind: LegacyKind, activity: LearningActivityV1) {
-  const activityId = `legacy-${kind}`
-  return {
-    kind: 'tool-result' as const,
-    seq: 3,
-    time: 3_000,
-    callId: `call:${activityId}`,
-    call: { name: 'learning_activity', argsRaw: JSON.stringify(activity) },
-    callTime: 2_000,
-    content: [{ type: 'text' as const, text: JSON.stringify(legacyResponse(kind, activityId)) }],
-    isError: false,
-    callView: null,
-    resultView: null,
-    subCalls: [],
-  }
-}
 
 type BrowserToolBlock =
-  | ReturnType<typeof runningVisualBlock>
-  | ReturnType<typeof completedVisualBlock>
   | ReturnType<typeof completedV4VisualBlock>
   | ReturnType<typeof runningCheckpointBlock>
   | ReturnType<typeof completedCheckpointBlock>
-  | ReturnType<typeof legacyReplayBlock>
 
 const ToolView = LearningToolView as unknown as ComponentType<{
   block: BrowserToolBlock
   inspect(): void
   t: typeof t
   sessionId: string
-  useSession(selector: (snapshot: { pending: unknown[] }) => unknown): unknown
+  useSessionPendingInteraction(selector: (snapshot: { get(id: string): unknown }) => unknown): unknown
 }>
 
 /** Visual fixtures never claim the ordinary composer as a pending interaction. */
-const useEmptySession = (selector: (snapshot: { pending: unknown[] }) => unknown): unknown =>
-  selector({ pending: [] })
+const noPendingInteraction = (
+  selector: (snapshot: { get(id: string): unknown }) => unknown,
+): unknown => selector({ get: () => undefined })
 
 type VisualCatalogKey = keyof typeof visualV4Catalog
-type FixtureView = 'v4-gallery' | 'v3-running' | 'v3-completed' | 'checkpoint' | 'legacy-replay'
+type FixtureView = 'v4-gallery' | 'checkpoint'
 
 /**
  * A schema-valid plot whose curve samples to nothing inside the declared axes.
@@ -421,7 +250,6 @@ function BrowserAcceptance() {
   const [mode, setMode] = useState<'learning' | 'standard'>('learning')
   const [view, setView] = useState<FixtureView>('v4-gallery')
   const [visualKey, setVisualKey] = useState<VisualCatalogKey>('derivativePlot')
-  const [legacyKind, setLegacyKind] = useState<LegacyKind>('parameter_explorer')
   const [checkpointKind, setCheckpointKind] = useState<LearningCheckpointKindV1>('free_text')
   const [checkpointSession, setCheckpointSession] = useState<CheckpointSessionKey>('a')
   const [checkpointResult, setCheckpointResult] = useState<LearningCheckpointResultV1 | null>(null)
@@ -432,7 +260,6 @@ function BrowserAcceptance() {
   const [readiness, setReadiness] = useState<FixtureReadiness>(initialReadiness)
   const fixtureRef = useRef<HTMLElement>(null)
   const selectedVisual = visualV4ById.get(visualKey) as LearningVisualV4
-  const legacyActivity = legacyActivities[legacyKind]()
   const checkpoint = useMemo(() => checkpointFixture(checkpointKind), [checkpointKind])
   const checkpointIds = checkpointIdentity(checkpointSession)
   const respondToCheckpoint = useCallback(async (request: unknown) => {
@@ -446,61 +273,48 @@ function BrowserAcceptance() {
     kind: 'question',
     key: `question_${checkpointIds.waitId}`,
     sessionId: checkpointIds.sessionId,
-    payload: {
-      questions: [{
-        id: learningCheckpointQuestionId(checkpointIds.waitId),
-        question: checkpoint.prompt,
-        detail: encodeLearningCheckpointDetail({ ...checkpointIds, checkpoint }),
-      }],
-    },
-    respond: respondToCheckpoint,
+    questions: [{
+      id: learningCheckpointQuestionId(checkpointIds.waitId),
+      question: checkpoint.prompt,
+      detail: encodeLearningCheckpointDetail({ ...checkpointIds, checkpoint }),
+    }],
+    answer: (value: unknown) => respondToCheckpoint({
+      ok: true,
+      value: { sessionId: checkpointIds.sessionId, answer: value },
+    }),
+    cancel: () => respondToCheckpoint({
+      ok: false,
+      error: { code: 'cancelled', message: 'the learner cancelled this activity', details: {} },
+    }),
   }), [checkpoint, checkpointIds.callId, checkpointIds.checkpointId, checkpointIds.sessionId, checkpointIds.waitId, respondToCheckpoint])
-  const useCheckpointSession = useCallback((selector: (snapshot: { pending: unknown[] }) => unknown): unknown => (
-    selector({ pending: checkpointResult === null ? [pendingCheckpoint] : [] })
-  ), [checkpointResult, pendingCheckpoint])
+  const useCheckpointPendingInteraction = useCallback((
+    selector: (snapshot: { get(id: string): unknown }) => unknown,
+  ): unknown => selector({
+    get: (id: string) => (
+      id === checkpointIds.sessionId && checkpointResult === null ? pendingCheckpoint : undefined
+    ),
+  }), [checkpointIds.sessionId, checkpointResult, pendingCheckpoint])
   const expectedKind = mode !== 'learning'
     ? null
-    : view === 'v4-gallery'
-      ? selectedVisual.content.kind
-      : view.startsWith('v3-')
-        ? logisticVisual.kind
-        : view === 'checkpoint'
-          ? checkpoint.kind
-        : null
+    : view === 'v4-gallery' ? selectedVisual.content.kind : checkpoint.kind
   const expectedVisualIds = mode === 'learning' && view === 'v4-gallery'
     ? visualDeclaredIds(selectedVisual)
     : []
   const expectedVisualIdsKey = expectedVisualIds.join('\u0000')
   const activeProtocol = mode !== 'learning'
     ? null
-    : view === 'v4-gallery'
-      ? VISUAL_PROTOCOL_V4
-      : view.startsWith('v3-')
-        ? VISUAL_PROTOCOL_V3
-        : view === 'checkpoint'
-          ? CHECKPOINT_PROTOCOL
-        : legacyActivity.protocol
+    : view === 'v4-gallery' ? VISUAL_PROTOCOL_V4 : CHECKPOINT_PROTOCOL
   const activeFixtureKey = mode === 'standard'
     ? 'standard'
     : view === 'v4-gallery'
       ? `${view}:${visualKey}`
-      : view === 'checkpoint'
-        ? `${view}:${checkpointSession}:${checkpointKind}:${checkpointResult?.status ?? 'pending'}:${String(checkpointMountEpoch)}`
-      : view === 'legacy-replay'
-        ? `${view}:${legacyKind}`
-        : view
+      : `${view}:${checkpointSession}:${checkpointKind}:${checkpointResult?.status ?? 'pending'}:${String(checkpointMountEpoch)}`
   const currentReadiness = readiness.fixtureKey === activeFixtureKey
     ? readiness
     : { ...initialReadiness, fixtureKey: activeFixtureKey, expectedKind }
   const protocolLabel = activeProtocol === VISUAL_PROTOCOL_V4
     ? 'visual@4'
-    : activeProtocol === VISUAL_PROTOCOL_V3
-      ? 'visual@3 replay'
-      : activeProtocol === CHECKPOINT_PROTOCOL
-        ? 'checkpoint@1'
-      : activeProtocol === null
-        ? 'none'
-        : 'activity@1 replay'
+    : activeProtocol === CHECKPOINT_PROTOCOL ? 'checkpoint@1' : 'none'
 
   useEffect(() => {
     const host = fixtureRef.current
@@ -523,11 +337,8 @@ function BrowserAcceptance() {
       const hasNativeContent = expectedVisualIds.length === 0 || Array.from(
         renderedVisual?.querySelectorAll<HTMLElement>('[data-visual-id]') ?? [],
       ).some(node => expectedVisualIdSet.has(node.dataset.visualId ?? ''))
-      const hasCompletedLegacyResult = host.querySelector('[data-learning-result]:not([data-learning-result="error"])') !== null
       const ready = mode === 'standard'
           ? host.matches('[data-testid="standard-clean"]') && !hasMarkdown
-        : view === 'legacy-replay'
-          ? hasCompletedLegacyResult && !hasError && !hasFallback && !hasMarkdown
         : view === 'checkpoint'
           ? checkpointResult === null
             ? renderedKind === checkpoint.kind && renderState === 'pending' && !hasError && !hasFallback && !hasMarkdown
@@ -628,17 +439,8 @@ function BrowserAcceptance() {
         <button type="button" aria-pressed={view === 'v4-gallery'} onClick={() => { setMode('learning'); setView('v4-gallery') }}>
           V4 renderer gallery
         </button>
-        <button type="button" aria-pressed={view === 'v3-running'} onClick={() => { setMode('learning'); setView('v3-running') }}>
-          V3 running ToolView
-        </button>
-        <button type="button" aria-pressed={view === 'v3-completed'} onClick={() => { setMode('learning'); setView('v3-completed') }}>
-          V3 completed ToolView
-        </button>
         <button type="button" aria-pressed={view === 'checkpoint'} onClick={() => openCheckpoint()}>
           Checkpoint gate
-        </button>
-        <button type="button" aria-pressed={view === 'legacy-replay'} onClick={() => { setMode('learning'); setView('legacy-replay') }}>
-          Legacy V1 replay
         </button>
       </nav>
 
@@ -692,7 +494,7 @@ function BrowserAcceptance() {
                 inspect={() => {}}
                 t={t}
                 sessionId={SESSION_ID}
-                useSession={useEmptySession}
+                useSessionPendingInteraction={noPendingInteraction}
               />
             </div>
             <p className="continuation" data-testid="same-turn-continuation">
@@ -730,49 +532,14 @@ function BrowserAcceptance() {
                 inspect={() => {}}
                 t={t}
                 sessionId={checkpointIds.sessionId}
-                useSession={useCheckpointSession}
+                useSessionPendingInteraction={useCheckpointPendingInteraction}
               />
             </div>
             <p className="continuation" data-testid="checkpoint-continuation">
               Respond callbacks: <strong data-testid="checkpoint-respond-count">{checkpointRespondCount}</strong>. No reveal or Continue gate follows a terminal result.
             </p>
           </article>
-        ) : view === 'legacy-replay' ? (
-          <article ref={fixtureRef} className="assistant-turn" data-testid="legacy-replay">
-            <div className="legacy-toolbar" role="group" aria-label="Legacy replay kind">
-              <span>Optional legacy replay:</span>
-              {(Object.keys(legacyActivities) as LegacyKind[]).map(kind => (
-                <button key={kind} type="button" aria-pressed={legacyKind === kind} onClick={() => setLegacyKind(kind)}>
-                  {kind}
-                </button>
-              ))}
-            </div>
-            <ToolView
-              block={legacyReplayBlock(legacyKind, legacyActivity)}
-              inspect={() => {}}
-              t={t}
-              sessionId={SESSION_ID}
-              useSession={useEmptySession}
-            />
-          </article>
-        ) : (
-          <article ref={fixtureRef} className="assistant-turn" data-testid={view === 'v3-running' ? 'v3-running-tool-view' : 'v3-completed-tool-view'}>
-            <p>逻辑回归的出发点只有一个：我们想用一条曲线预测<strong>概率</strong>，但普通线性输出会越过 0 和 1。</p>
-            <p>拖动下面两个参数。橙色虚线代表会越界的线性近似，蓝色实线则经过 Sigmoid 压缩。</p>
-            <div className="tool-state" data-state={view === 'v3-running' ? 'running' : 'completed'}>
-              ToolView: {view === 'v3-running' ? 'running call' : 'completed result'} · pending=[]
-            </div>
-            <ToolView
-              block={view === 'v3-running' ? runningVisualBlock() : completedVisualBlock()}
-              inspect={() => {}}
-              t={t}
-              sessionId={SESSION_ID}
-              useSession={useEmptySession}
-            />
-            <p className="continuation" data-testid="same-turn-continuation">
-              关键点：不论参数怎样变化，蓝色曲线始终位于 0 到 1 之间；P = 0.5 所在的 x 就是当前决策边界。你觉得增大 β₁ 会让边界附近的曲线更陡还是更平？
-            </p>
-          </article>
+        ) : null}
         )}
 
         {sentMessages.map((message, index) => (

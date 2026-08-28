@@ -4,28 +4,14 @@ import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation
 import type { PendingQuestion, QuestionAnswer } from '@deepseek-ai/dsh-client-ui-user-questions/client'
 import {
   CHECKPOINT_RESULT_PROTOCOL,
-  RESPONSE_PROTOCOL,
-  RESPONSE_PROTOCOL_V2,
-  type LearningActivityEnvelopeV1,
   type LearningCheckpointResponseV1,
   type LearningCheckpointResultV1,
   type LearningCheckpointWaitEnvelopeV1,
-  type LearningWaitEnvelopeV2,
-  type LearningResponseV2,
-  type LearningResponseV1,
 } from '../protocol-current.ts'
 import {
   decodeLearningCheckpointDetail,
   decodeLearningCheckpointQuestionId,
-  decodeLearningDetail,
-  decodeLearningQuestionId,
-  decodeLearningWaitDetail,
-  decodeLearningWaitQuestionId,
 } from '../transport.ts'
-import { ActivityFrame } from './ActivityFrame.tsx'
-import { ActivityRenderer } from './ActivityRenderer.tsx'
-import type { ActivitySubmission } from './types.ts'
-import { RoundActivity } from './RoundActivity.tsx'
 import { LearningCheckpoint } from './LearningCheckpoint.tsx'
 
 export type LearningQuestionWait = PendingQuestion
@@ -39,17 +25,14 @@ export function isPendingQuestion(value: ComposerChainProps['pendingInteraction'
     && typeof candidate.cancel === 'function'
 }
 
-export function envelopeOf(wait: LearningQuestionWait): LearningActivityEnvelopeV1 | LearningWaitEnvelopeV2 | LearningCheckpointWaitEnvelopeV1 | undefined {
+export function envelopeOf(wait: LearningQuestionWait): LearningCheckpointWaitEnvelopeV1 | undefined {
   if (wait.questions.length !== 1) return undefined
   const question = wait.questions[0]
   if (question === undefined) return undefined
   const checkpoint = decodeLearningCheckpointDetail(question.detail)
-  if (checkpoint !== undefined && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId) {
-    return checkpoint
-  }
-  const v2 = decodeLearningWaitDetail(question.detail)
-  if (v2 !== undefined && decodeLearningWaitQuestionId(question.id) === v2.waitId) return v2
-  return decodeLearningQuestionId(question.id) ?? decodeLearningDetail(question.detail)
+  return checkpoint !== undefined && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId
+    ? checkpoint
+    : undefined
 }
 
 /** Pure composer-chain selector: only package-owned question envelopes are claimed. */
@@ -59,8 +42,7 @@ export function selectLearningActivity({ pendingInteraction, session }: Composer
     || currentSessionId === undefined
     || String(pendingInteraction.sessionId) !== String(currentSessionId)) return null
   const envelope = envelopeOf(pendingInteraction)
-  if (envelope === undefined) return null
-  if ('checkpoint' in envelope && envelope.sessionId !== String(currentSessionId)) return null
+  if (envelope === undefined || envelope.sessionId !== String(currentSessionId)) return null
   return pendingInteraction
 }
 
@@ -89,7 +71,7 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
   if (envelope === undefined) return null
 
   const send = (
-    response: LearningResponseV1 | LearningResponseV2 | LearningCheckpointResultV1,
+    response: LearningCheckpointResultV1,
     checkpointMeta?: { draftRecovered: boolean },
   ): Promise<void> => {
     // React state does not become visible until after the current event batch.
@@ -121,8 +103,8 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
     return pending
   }
 
-  if ('checkpoint' in envelope) {
-    if (envelope.sessionId !== String(matched.sessionId)) return null
+  if (envelope.sessionId !== String(matched.sessionId)) return null
+  {
     const common = {
       protocol: CHECKPOINT_RESULT_PROTOCOL,
       checkpointId: envelope.checkpointId,
@@ -152,84 +134,4 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
     )
   }
 
-  if ('waitId' in envelope) {
-    // One durable wait owns one durable receipt. A refresh or transport retry
-    // therefore replays the same idempotency key instead of minting a new ACK.
-    const stableReceiptId = `receipt_${envelope.waitId}`
-    const common = {
-      protocol: RESPONSE_PROTOCOL_V2,
-      activityId: envelope.activityId,
-      lessonToken: envelope.lessonToken,
-      roundToken: envelope.roundToken,
-      seq: envelope.seq,
-    } as const
-    const storageKey = `${envelope.waitId}:${envelope.activityId}:${envelope.phase}:${envelope.seq}`
-    const submitAnswer = async (answer: import('../protocol-current.ts').LearningJson, interactionState: import('../protocol-current.ts').LearningJson) => {
-      await send({ ...common, phase: 'question', action: 'submit', answer, interactionState, receiptId: stableReceiptId })
-    }
-    const continueReveal = async (animation: { completed: true; reducedMotion?: boolean }) => {
-      await send({ ...common, phase: 'reveal', action: 'continue', animation, receiptId: stableReceiptId })
-    }
-    const cancelRound = async () => {
-      await send(envelope.phase === 'question'
-        ? { ...common, phase: 'question', action: 'cancel', receiptId: stableReceiptId }
-        : { ...common, phase: 'reveal', action: 'cancel', animation: { completed: false }, receiptId: stableReceiptId })
-    }
-    return (
-      <RoundActivity
-        activity={envelope.activity}
-        storageKey={storageKey}
-        onSubmitAnswer={envelope.phase === 'question' ? submitAnswer : undefined}
-        onContinue={envelope.phase === 'reveal' ? continueReveal : undefined}
-        onCancel={cancelRound}
-        t={t}
-      />
-    )
-  }
-
-  const respond = (response: LearningResponseV1): void => {
-    const question = matched.questions[0]
-    if (question === undefined) return
-    setBusy(true)
-    setError(null)
-    void send(response).catch(() => {})
-  }
-
-  const submit = ({ answer, interactionState }: ActivitySubmission): void => respond({
-    protocol: RESPONSE_PROTOCOL,
-    activityId: envelope.activityId,
-    action: 'submit',
-    answer,
-    interactionState,
-  })
-
-  const skip = (): void => respond({
-    protocol: RESPONSE_PROTOCOL,
-    activityId: envelope.activityId,
-    action: 'skip',
-  })
-
-  const cancel = (): void => {
-    setBusy(true)
-    setError(null)
-    void matched.cancel().catch((cause: unknown) => {
-      setBusy(false)
-      setError(t('error', { message: cause instanceof Error ? cause.message : String(cause) }))
-    })
-  }
-
-  return (
-    <ActivityFrame
-      key={matched.key}
-      activityId={envelope.activityId}
-      activity={envelope.activity}
-      busy={busy}
-      error={error}
-      onSkip={skip}
-      onCancel={cancel}
-      t={t}
-    >
-      <ActivityRenderer activity={envelope.activity} busy={busy} onSubmit={submit} t={t} />
-    </ActivityFrame>
-  )
 }

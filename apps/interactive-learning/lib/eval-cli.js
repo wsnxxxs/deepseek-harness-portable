@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { c as resolveAnchorTarget, m as normalizeQuote, o as mentionSupported, u as sectionMentions } from "./material-anchor-GE7zenuO.js";
-import { c as gradeTeachingSuite, n as OFFLINE_REFERENCE_CANDIDATES, r as OFFLINE_TRAJECTORY_CANDIDATES, u as gradeTeachingTrajectorySuite } from "./eval-BYUcLVHy.js";
+import { l as gradeTeachingTrajectorySuite, n as OFFLINE_REFERENCE_CANDIDATES, r as OFFLINE_TRAJECTORY_CANDIDATES, s as gradeTeachingSuite } from "./eval-DiicoVsg.js";
 import { readFile } from "node:fs/promises";
 //#region lib/types/eval-material.js
 /**

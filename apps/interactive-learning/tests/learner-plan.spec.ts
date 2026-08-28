@@ -160,7 +160,7 @@ describe('plan events through the model-facing tool', () => {
   it('records and advances a route end to end, and shows it to the next model step', async () => {
     const { Context } = await import('@deepseek-ai/cordis')
     const AgentRegistry = (await import('@deepseek-ai/dsh-agent')).default
-    const { CallId } = await import('@deepseek-ai/dsh-llm')
+    const { ToolCallId } = await import('@deepseek-ai/dsh-llm')
     const SessionStore = (await import('@deepseek-ai/dsh-session')).default
     const SystemPrompt = (await import('@deepseek-ai/dsh-system-prompt')).default
     const ToolRuntime = (await import('@deepseek-ai/dsh-tools')).default
@@ -182,7 +182,7 @@ describe('plan events through the model-facing tool', () => {
     const disposeAgent = ctx.agents.register(agent)
     const run = (callId: string, event: unknown) => ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId(callId),
+      callId: ToolCallId(callId),
       name: 'learning_state_update',
       arguments: { action: 'update', event },
       agent,

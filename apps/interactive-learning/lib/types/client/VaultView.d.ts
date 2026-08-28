@@ -8,6 +8,7 @@
  * material pane also exposes an explicit visual re-read that calls a model.
  * @module @dsh-portable/interactive-learning/src/client/VaultView
  */
+import { type ReactNode } from 'react';
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 /** Business face supplied by the slot registration. */
@@ -25,6 +26,21 @@ export interface VaultLibraryProps {
     t: VaultViewProps['t'];
     /** Optional close action supplied by the external library shell. */
     onClose?: () => void;
+    /**
+     * The surrounding shell already names the selected topic. Set by the sidebar
+     * overlay so the panel does not print the same title directly beneath it.
+     */
+    embedded?: boolean;
+    /**
+     * The shell's own topic navigation, rendered at the head of this panel's
+     * rail instead of in a second column beside it.
+     *
+     * Two vertical navigations side by side in one dialog spent the horizontal
+     * budget twice and left the learner choosing between "which topic" and
+     * "which part of it" in two different places. They are one choice, made in
+     * one column, narrowing left to right.
+     */
+    topics?: ReactNode;
 }
 /**
  * The panel.
@@ -38,7 +54,7 @@ export interface VaultLibraryProps {
  * per section, because the rail badges the due count — the number has to be
  * right before anyone clicks "review" to find out.
  */
-export declare function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps): import("react").JSX.Element;
+export declare function VaultLibrary({ cwd, call, t, onClose, embedded, topics }: VaultLibraryProps): import("react").JSX.Element;
 /** Legacy conversation-view adapter; the long-term library now renders outside the session. */
 export declare function VaultView({ cwd, call, t }: VaultViewProps): import("react").JSX.Element;
 export {};

@@ -125,7 +125,7 @@ describe('exact non-Learning catalog isolation', () => {
         expect(toolNames).toEqual(expect.arrayContaining([
           'learning_visual_select',
           'learning_state_update',
-          'learning_checkpoint_select',
+          'learning_checkpoint',
           'learning_material_map',
           'learning_material_read',
           'learning_material_search',

@@ -198,39 +198,13 @@ export function VaultRosterAction({
         <div {...learningScope} className={css.libraryOverlay} role="presentation">
           <div className={css.libraryMask} aria-hidden="true" onClick={() => { setOpen(false) }} />
           <div className={css.libraryPanel} role="dialog" aria-modal="true" aria-label={t('vaultRosterTitle')}>
-            <nav className={css.libraryNav} aria-label={t('vaultRosterTitle')}>
-              <div className={css.libraryNavTitle}>
-                <IconBrowseOutline16 size={16} />
-                <span>{t('vaultRosterTitle')}</span>
-              </div>
-              <p className={css.libraryNavMeta}>
-                {t('vaultLibraryTopics', { count: String(roster.vaults.length) })}
-              </p>
-              <ul className={css.libraryTopicList}>
-                {roster.vaults.map((vault) => (
-                  <li key={vault.cwd}>
-                    <button
-                      type="button"
-                      className={vault.cwd === selected.cwd ? css.libraryTopicOn : css.libraryTopic}
-                      aria-current={vault.cwd === selected.cwd ? 'page' : undefined}
-                      onClick={() => { setSelectedCwd(vault.cwd) }}
-                    >
-                      <span className={css.libraryTopicName}>{vault.title}</span>
-                      <span className={css.libraryTopicMeta}>
-                        {vault.due > 0 && <span className={css.railDue}>{String(vault.due)}</span>}
-                        <span>{t('vaultRosterRow', {
-                          concepts: String(vault.concepts),
-                          notes: String(vault.notes),
-                        })}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
             <section className={css.libraryMain}>
               <div className={css.libraryHeader}>
+                <IconBrowseOutline16 size={16} />
                 <span className={css.libraryHeaderTitle}>{selected.title}</span>
+                <span className={css.libraryNavMeta}>
+                  {t('vaultLibraryTopics', { count: String(roster.vaults.length) })}
+                </span>
                 <button
                   type="button"
                   className={css.libraryClose}
@@ -245,7 +219,28 @@ export function VaultRosterAction({
                   cwd={selected.cwd}
                   call={call}
                   t={t}
+                  embedded
                   onClose={() => { setOpen(false) }}
+                  topics={roster.vaults.length < 2 ? undefined : (
+                    <div className={css.libraryTopicGroup}>
+                      <p className={css.libraryTopicHeading}>{t('vaultRosterTitle')}</p>
+                      <ul className={css.libraryTopicList}>
+                        {roster.vaults.map(vault => (
+                          <li key={vault.cwd}>
+                            <button
+                              type="button"
+                              className={vault.cwd === selected.cwd ? css.libraryTopicOn : css.libraryTopic}
+                              aria-current={vault.cwd === selected.cwd ? 'page' : undefined}
+                              onClick={() => { setSelectedCwd(vault.cwd) }}
+                            >
+                              <span className={css.libraryTopicName}>{vault.title}</span>
+                              {vault.due > 0 && <span className={css.railDue}>{String(vault.due)}</span>}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 />
               </div>
             </section>

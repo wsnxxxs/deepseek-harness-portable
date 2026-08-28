@@ -150,7 +150,7 @@ export function ReparseControl({
 
   if (!asked) {
     return (
-      <button type="button" className={css.button} onClick={() => { setFailure(''); setAsked(true) }}>
+      <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setFailure(''); setAsked(true) }}>
         {t('vaultReparseOffer')}
       </button>
     )
@@ -170,7 +170,7 @@ export function ReparseControl({
       {runnable && (
         <>
           <div className={css.actions}>
-            <button type="button" className={css.buttonSpend} disabled={busy} onClick={run}>
+            <button type="button" data-lx-control="spend" data-lx-density="compact" disabled={busy} onClick={run}>
               {busy
                 ? t('vaultReparseRunning', { count: String(info.pages.length) })
                 : t('vaultReparseRun', { count: String(info.pages.length), model: info.model ?? '' })}

@@ -136,7 +136,7 @@ export const MATH_UNARY_OPERATORS = [
 const parameter = { type: 'object', additionalProperties: false, properties: {
   id: {
     type: 'string',
-    description: 'Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.',
+    description: 'Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.',
     required: true,
   },
   label: { type: 'string', required: true },
@@ -185,11 +185,19 @@ function required<const S extends ValueSchemaSpec>(schema: S): S & { required: t
   return { ...schema, required: true }
 }
 
-// Shared with the runtime parser: expressive enough for common activation and
-// statistics curves while remaining bounded by the visual AST depth.
-const expression = mathExpressionSchema(MAX_VISUAL_MATH_DEPTH)
+// Written as ordinary infix text and parsed at the tool boundary into the same
+// closed AST the renderers have always evaluated. Inlining that AST as JSON
+// Schema cost about 95% of the plot and field_2d schemas, and `sigmoid(w*x+b)`
+// is what a model wants to write anyway. See `src/math-parser.ts`.
+const MATH_SYNTAX = [
+  'Infix expression, e.g. `sigmoid(w*x + b)` or `normpdf((x - mu)/sigma)/sigma`.',
+  `Operators + - * / ^ and unary -, with parentheses; functions ${MATH_UNARY_OPERATORS.join(', ')} take one argument and ${MATH_BINARY_OPERATORS.join(', ')} take two.`,
+  'leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density.',
+  'Names are numbers, x, and declared parameter ids; nothing else, and no assignment or function definition.',
+].join(' ')
+const expression = { type: 'string', description: MATH_SYNTAX } as const
 const requiredExpression = required(expression)
-const mathExpressionDescription = 'Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.'
+const mathExpressionDescription = MATH_SYNTAX
 const identifier = {
   type: 'string',
   description: 'Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -.',
@@ -686,14 +694,14 @@ const field2DContent = { type: 'object', additionalProperties: false, properties
   yAxis: { ...axis, required: true, properties: { ...axis.properties, samples: { type: 'integer' } } },
   scalar: { type: 'object', additionalProperties: false, properties: {
     samples: scalarFieldSamples,
-    expression: { ...expression, description: 'Closed math AST using x and y variables.' },
+    expression: { ...expression, description: `Scalar field over x and y. ${MATH_SYNTAX}` },
     min: { type: 'number' }, max: { type: 'number' },
   } },
   vector: { type: 'object', additionalProperties: false, properties: {
     samples: vectorFieldSamples,
     expression: { type: 'object', additionalProperties: false, properties: {
-      u: { ...requiredExpression, description: 'Horizontal component using x and y variables.' },
-      v: { ...requiredExpression, description: 'Vertical component using x and y variables.' },
+      u: { ...requiredExpression, description: `Horizontal component using x and y. ${MATH_SYNTAX}` },
+      v: { ...requiredExpression, description: `Vertical component using x and y. ${MATH_SYNTAX}` },
     } },
   } },
 } } as const
@@ -921,6 +929,54 @@ export interface LearningCheckpointSchemaSelectionV1 {
   kind: typeof LEARNING_CHECKPOINT_KINDS[number]
   expectedEvidence: typeof LEARNING_CHECKPOINT_EVIDENCE_KINDS[number]
   prompt: string
+}
+
+/**
+ * The whole checkpoint payload in one tool, branched on `kind`.
+ *
+ * The retired two-step form asked the model to select a kind, then exposed a
+ * kind-specific payload schema on the next step. That pattern is worth a full
+ * model round trip for the visual tool, whose fifteen content schemas are some
+ * five thousand tokens together; here all five branches come to about a
+ * thousand characters, so the round trip bought nothing. The answer-free
+ * guarantee never came from the selector anyway — the closed schema simply has
+ * no correct-answer or rubric field to fill in.
+ */
+export function learningCheckpointParametersOneStepV1(): ParameterSchemaSpec {
+  const shared = {
+    protocol: { type: 'string', const: CHECKPOINT_PROTOCOL, required: true },
+    prompt: {
+      type: 'string',
+      required: true,
+      description: 'One self-contained, answer-free prompt for the current teaching move.',
+    },
+    context: { type: 'string' },
+    expectedEvidence: {
+      type: 'string',
+      enum: LEARNING_CHECKPOINT_EVIDENCE_KINDS,
+      required: true,
+      description: 'What the response demonstrates: attempt, prediction, explanation, contrast, or fresh transfer.',
+    },
+    fallbackMarkdown: {
+      type: 'string',
+      required: true,
+      description: 'Self-sufficient ordinary-conversation fallback; never include the answer.',
+    },
+  } as const
+  return {
+    ...shared,
+    kind: {
+      type: 'string',
+      enum: LEARNING_CHECKPOINT_KINDS,
+      required: true,
+      description: 'Response shape: free_text=short prose; single_choice=one label; numeric=one number; prediction=what happens next; code_slot=one small code fragment.',
+    },
+    options: {
+      type: 'array',
+      items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1,
+      description: 'Required for kind=single_choice and forbidden otherwise: two to eight answer-free choices. No correct-answer or rubric field exists.',
+    },
+  }
 }
 
 export function learningCheckpointParametersV1(

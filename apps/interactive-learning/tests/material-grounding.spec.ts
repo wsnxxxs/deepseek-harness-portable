@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -364,7 +364,7 @@ describe('learning_visual refuses an ungrounded study map', () => {
   async function emitStudyMap(agent: Agent, anchor: string) {
     const selected = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId(`select-${Math.random()}`),
+      callId: ToolCallId(`select-${Math.random()}`),
       name: 'learning_visual_select',
       arguments: {
         kind: 'study_map',
@@ -377,7 +377,7 @@ describe('learning_visual refuses an ungrounded study map', () => {
 
     return await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId(`visual-${Math.random()}`),
+      callId: ToolCallId(`visual-${Math.random()}`),
       name: 'learning_visual',
       arguments: {
         protocol: VISUAL_PROTOCOL_V4,

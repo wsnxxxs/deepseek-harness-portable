@@ -183,7 +183,7 @@ export function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }:
           <header className={css.cardHead}>
             <h3 className={css.cardTitle}>{t('vaultKeepTitle')}</h3>
             <span className={css.metaRight}>
-              <button type="button" className={css.button} onClick={() => { setOpen(false) }}>
+              <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setOpen(false) }}>
                 {t('vaultKeepClose')}
               </button>
             </span>
@@ -210,7 +210,7 @@ export function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }:
                 <div className={css.actions}>
                   <button
                     type="button"
-                    className={css.buttonPrimary}
+                    data-lx-control="primary" data-lx-density="compact"
                     disabled={busy}
                     onClick={() => { keep('note') }}
                   >
@@ -218,7 +218,7 @@ export function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }:
                   </button>
                   <button
                     type="button"
-                    className={css.button}
+                    data-lx-control="secondary" data-lx-density="compact"
                     disabled={busy}
                     onClick={() => { keep('pending-concept') }}
                   >

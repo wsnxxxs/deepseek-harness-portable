@@ -1,5 +1,5 @@
 /** Schema-first source for model-facing Learning visual and checkpoint payloads. */
-import type { InferValue, ParameterSchemaSpec, ValueSchemaSpec } from '@deepseek-ai/dsh-tools';
+import type { InferValue, ParameterSchemaSpec } from '@deepseek-ai/dsh-tools';
 export declare const VISUAL_PROTOCOL_V4: "dsh-learning/visual@4";
 export declare const VISUAL_RESULT_PROTOCOL_V4: "dsh-learning/visual-result@4";
 export declare const LEARNING_VISUAL_STATUSES: readonly ["ready", "unavailable"];
@@ -229,7 +229,7 @@ export declare const LEARNING_VISUAL_CONTENT_SCHEMAS_V4: {
                     readonly properties: {
                         readonly id: {
                             readonly type: "string";
-                            readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.";
+                            readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.";
                             readonly required: true;
                         };
                         readonly label: {
@@ -320,80 +320,8 @@ export declare const LEARNING_VISUAL_CONTENT_SCHEMAS_V4: {
                                 readonly required: true;
                             };
                             readonly expression: {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                                readonly description: string;
                                 readonly type: "string";
-                                readonly enum?: readonly string[];
-                                readonly const?: string;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "number";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "integer";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "boolean";
-                                readonly enum?: readonly boolean[];
-                                readonly const?: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "null";
-                                readonly enum?: readonly null[];
-                                readonly const?: null;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "array";
-                                readonly items?: ValueSchemaSpec;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "object";
-                                readonly properties?: ParameterSchemaSpec;
-                                readonly additionalProperties: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly type: "json";
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                 readonly required: true;
                             };
                             readonly tone: {
@@ -564,80 +492,8 @@ export declare const LEARNING_VISUAL_CONTENT_SCHEMAS_V4: {
                             readonly required: true;
                         };
                         readonly expression: {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                            readonly description: string;
                             readonly type: "string";
-                            readonly enum?: readonly string[];
-                            readonly const?: string;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "number";
-                            readonly enum?: readonly number[];
-                            readonly const?: number;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "integer";
-                            readonly enum?: readonly number[];
-                            readonly const?: number;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "boolean";
-                            readonly enum?: readonly boolean[];
-                            readonly const?: boolean;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "null";
-                            readonly enum?: readonly null[];
-                            readonly const?: null;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "array";
-                            readonly items?: ValueSchemaSpec;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "object";
-                            readonly properties?: ParameterSchemaSpec;
-                            readonly additionalProperties: boolean;
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly type: "json";
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly required: true;
-                        } | {
-                            readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                            readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                            readonly title?: string;
-                            readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                            readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                             readonly required: true;
                         };
                         readonly digits: {
@@ -2354,72 +2210,8 @@ export declare const LEARNING_VISUAL_CONTENT_SCHEMAS_V4: {
                         };
                     };
                     readonly expression: {
-                        readonly description: "Closed math AST using x and y variables.";
+                        readonly description: `Scalar field over x and y. ${string}`;
                         readonly type: "string";
-                        readonly enum?: readonly string[];
-                        readonly const?: string;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "number";
-                        readonly enum?: readonly number[];
-                        readonly const?: number;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "integer";
-                        readonly enum?: readonly number[];
-                        readonly const?: number;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "boolean";
-                        readonly enum?: readonly boolean[];
-                        readonly const?: boolean;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "null";
-                        readonly enum?: readonly null[];
-                        readonly const?: null;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "array";
-                        readonly items?: ValueSchemaSpec;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "object";
-                        readonly properties?: ParameterSchemaSpec;
-                        readonly additionalProperties: boolean;
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly type: "json";
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                    } | {
-                        readonly description: "Closed math AST using x and y variables.";
-                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                        readonly title?: string;
-                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                     };
                     readonly min: {
                         readonly type: "number";
@@ -2468,157 +2260,13 @@ export declare const LEARNING_VISUAL_CONTENT_SCHEMAS_V4: {
                         readonly additionalProperties: false;
                         readonly properties: {
                             readonly u: {
-                                readonly description: "Horizontal component using x and y variables.";
+                                readonly description: `Horizontal component using x and y. ${string}`;
                                 readonly type: "string";
-                                readonly enum?: readonly string[];
-                                readonly const?: string;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "number";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "integer";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "boolean";
-                                readonly enum?: readonly boolean[];
-                                readonly const?: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "null";
-                                readonly enum?: readonly null[];
-                                readonly const?: null;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "array";
-                                readonly items?: ValueSchemaSpec;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "object";
-                                readonly properties?: ParameterSchemaSpec;
-                                readonly additionalProperties: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly type: "json";
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Horizontal component using x and y variables.";
-                                readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                 readonly required: true;
                             };
                             readonly v: {
-                                readonly description: "Vertical component using x and y variables.";
+                                readonly description: `Vertical component using x and y. ${string}`;
                                 readonly type: "string";
-                                readonly enum?: readonly string[];
-                                readonly const?: string;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "number";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "integer";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "boolean";
-                                readonly enum?: readonly boolean[];
-                                readonly const?: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "null";
-                                readonly enum?: readonly null[];
-                                readonly const?: null;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "array";
-                                readonly items?: ValueSchemaSpec;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "object";
-                                readonly properties?: ParameterSchemaSpec;
-                                readonly additionalProperties: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly type: "json";
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly required: true;
-                            } | {
-                                readonly description: "Vertical component using x and y variables.";
-                                readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                 readonly required: true;
                             };
                         };
@@ -2783,7 +2431,7 @@ export declare const LEARNING_VISUAL_SCHEMA_V4: {
                             readonly properties: {
                                 readonly id: {
                                     readonly type: "string";
-                                    readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.";
+                                    readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.";
                                     readonly required: true;
                                 };
                                 readonly label: {
@@ -2874,80 +2522,8 @@ export declare const LEARNING_VISUAL_SCHEMA_V4: {
                                         readonly required: true;
                                     };
                                     readonly expression: {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                                        readonly description: string;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                     readonly tone: {
@@ -3118,80 +2694,8 @@ export declare const LEARNING_VISUAL_SCHEMA_V4: {
                                     readonly required: true;
                                 };
                                 readonly expression: {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                                    readonly description: string;
                                     readonly type: "string";
-                                    readonly enum?: readonly string[];
-                                    readonly const?: string;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "number";
-                                    readonly enum?: readonly number[];
-                                    readonly const?: number;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "integer";
-                                    readonly enum?: readonly number[];
-                                    readonly const?: number;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "boolean";
-                                    readonly enum?: readonly boolean[];
-                                    readonly const?: boolean;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "null";
-                                    readonly enum?: readonly null[];
-                                    readonly const?: null;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "array";
-                                    readonly items?: ValueSchemaSpec;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "object";
-                                    readonly properties?: ParameterSchemaSpec;
-                                    readonly additionalProperties: boolean;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "json";
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                     readonly required: true;
                                 };
                                 readonly digits: {
@@ -4895,72 +4399,8 @@ export declare const LEARNING_VISUAL_SCHEMA_V4: {
                                 };
                             };
                             readonly expression: {
-                                readonly description: "Closed math AST using x and y variables.";
+                                readonly description: `Scalar field over x and y. ${string}`;
                                 readonly type: "string";
-                                readonly enum?: readonly string[];
-                                readonly const?: string;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "number";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "integer";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "boolean";
-                                readonly enum?: readonly boolean[];
-                                readonly const?: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "null";
-                                readonly enum?: readonly null[];
-                                readonly const?: null;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "array";
-                                readonly items?: ValueSchemaSpec;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "object";
-                                readonly properties?: ParameterSchemaSpec;
-                                readonly additionalProperties: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "json";
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                             };
                             readonly min: {
                                 readonly type: "number";
@@ -5009,157 +4449,13 @@ export declare const LEARNING_VISUAL_SCHEMA_V4: {
                                 readonly additionalProperties: false;
                                 readonly properties: {
                                     readonly u: {
-                                        readonly description: "Horizontal component using x and y variables.";
+                                        readonly description: `Horizontal component using x and y. ${string}`;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                     readonly v: {
-                                        readonly description: "Vertical component using x and y variables.";
+                                        readonly description: `Vertical component using x and y. ${string}`;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                 };
@@ -5366,7 +4662,7 @@ export declare const LEARNING_VISUAL_RESULT_SCHEMA_V4: {
                             readonly properties: {
                                 readonly id: {
                                     readonly type: "string";
-                                    readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.";
+                                    readonly description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.";
                                     readonly required: true;
                                 };
                                 readonly label: {
@@ -5457,80 +4753,8 @@ export declare const LEARNING_VISUAL_RESULT_SCHEMA_V4: {
                                         readonly required: true;
                                     };
                                     readonly expression: {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                                        readonly description: string;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                     readonly tone: {
@@ -5701,80 +4925,8 @@ export declare const LEARNING_VISUAL_RESULT_SCHEMA_V4: {
                                     readonly required: true;
                                 };
                                 readonly expression: {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+                                    readonly description: string;
                                     readonly type: "string";
-                                    readonly enum?: readonly string[];
-                                    readonly const?: string;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "number";
-                                    readonly enum?: readonly number[];
-                                    readonly const?: number;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "integer";
-                                    readonly enum?: readonly number[];
-                                    readonly const?: number;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "boolean";
-                                    readonly enum?: readonly boolean[];
-                                    readonly const?: boolean;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "null";
-                                    readonly enum?: readonly null[];
-                                    readonly const?: null;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "array";
-                                    readonly items?: ValueSchemaSpec;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "object";
-                                    readonly properties?: ParameterSchemaSpec;
-                                    readonly additionalProperties: boolean;
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly type: "json";
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly required: true;
-                                } | {
-                                    readonly description: "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
-                                    readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                    readonly title?: string;
-                                    readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                    readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                     readonly required: true;
                                 };
                                 readonly digits: {
@@ -7478,72 +6630,8 @@ export declare const LEARNING_VISUAL_RESULT_SCHEMA_V4: {
                                 };
                             };
                             readonly expression: {
-                                readonly description: "Closed math AST using x and y variables.";
+                                readonly description: `Scalar field over x and y. ${string}`;
                                 readonly type: "string";
-                                readonly enum?: readonly string[];
-                                readonly const?: string;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "number";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "integer";
-                                readonly enum?: readonly number[];
-                                readonly const?: number;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "boolean";
-                                readonly enum?: readonly boolean[];
-                                readonly const?: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "null";
-                                readonly enum?: readonly null[];
-                                readonly const?: null;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "array";
-                                readonly items?: ValueSchemaSpec;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "object";
-                                readonly properties?: ParameterSchemaSpec;
-                                readonly additionalProperties: boolean;
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly type: "json";
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                            } | {
-                                readonly description: "Closed math AST using x and y variables.";
-                                readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                readonly title?: string;
-                                readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                             };
                             readonly min: {
                                 readonly type: "number";
@@ -7592,157 +6680,13 @@ export declare const LEARNING_VISUAL_RESULT_SCHEMA_V4: {
                                 readonly additionalProperties: false;
                                 readonly properties: {
                                     readonly u: {
-                                        readonly description: "Horizontal component using x and y variables.";
+                                        readonly description: `Horizontal component using x and y. ${string}`;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Horizontal component using x and y variables.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                     readonly v: {
-                                        readonly description: "Vertical component using x and y variables.";
+                                        readonly description: `Vertical component using x and y. ${string}`;
                                         readonly type: "string";
-                                        readonly enum?: readonly string[];
-                                        readonly const?: string;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "number";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "integer";
-                                        readonly enum?: readonly number[];
-                                        readonly const?: number;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "boolean";
-                                        readonly enum?: readonly boolean[];
-                                        readonly const?: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "null";
-                                        readonly enum?: readonly null[];
-                                        readonly const?: null;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "array";
-                                        readonly items?: ValueSchemaSpec;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "object";
-                                        readonly properties?: ParameterSchemaSpec;
-                                        readonly additionalProperties: boolean;
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly type: "json";
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly required: true;
-                                    } | {
-                                        readonly description: "Vertical component using x and y variables.";
-                                        readonly oneOf: readonly [ValueSchemaSpec, ValueSchemaSpec, ...ValueSchemaSpec[]];
-                                        readonly title?: string;
-                                        readonly default?: import("@deepseek-ai/dsh-session").JsonValue;
-                                        readonly examples?: import("@deepseek-ai/dsh-session").JsonValue;
                                         readonly required: true;
                                     };
                                 };
@@ -7941,5 +6885,17 @@ export interface LearningCheckpointSchemaSelectionV1 {
     expectedEvidence: typeof LEARNING_CHECKPOINT_EVIDENCE_KINDS[number];
     prompt: string;
 }
+/**
+ * The whole checkpoint payload in one tool, branched on `kind`.
+ *
+ * The retired two-step form asked the model to select a kind, then exposed a
+ * kind-specific payload schema on the next step. That pattern is worth a full
+ * model round trip for the visual tool, whose fifteen content schemas are some
+ * five thousand tokens together; here all five branches come to about a
+ * thousand characters, so the round trip bought nothing. The answer-free
+ * guarantee never came from the selector anyway — the closed schema simply has
+ * no correct-answer or rubric field to fill in.
+ */
+export declare function learningCheckpointParametersOneStepV1(): ParameterSchemaSpec;
 export declare function learningCheckpointParametersV1(selection: LearningCheckpointSchemaSelectionV1): ParameterSchemaSpec;
 //# sourceMappingURL=protocol-schema.d.ts.map

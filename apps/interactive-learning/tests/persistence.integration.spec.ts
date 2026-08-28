@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   KNOWN_SESSION_EVENT_TYPES,
   SessionId,
@@ -80,7 +80,7 @@ describe('Learning state durable load order', () => {
 
     const update = await first.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('durable-state-update'),
+      callId: ToolCallId('durable-state-update'),
       name: 'learning_state_update',
       arguments: {
         action: 'update',

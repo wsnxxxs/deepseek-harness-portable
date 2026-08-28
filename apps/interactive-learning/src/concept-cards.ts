@@ -24,6 +24,14 @@ import type { TopicVault } from './topic-vault.ts'
 
 export const MAX_CONCEPT_CARDS = 48
 export const INITIAL_REVIEW_INTERVAL_DAYS = 3
+/**
+ * A rating is a scheduling signal, not mastery evidence, so it must not carry
+ * unbounded authority over when a card is seen again. Doubling from three days
+ * passes a year after eight successes and never returns; the cap keeps a
+ * self-rating a person may be systematically wrong about from pushing their own
+ * card permanently out of the queue.
+ */
+export const MAX_REVIEW_INTERVAL_DAYS = 90
 
 export type ConceptCardRating = 'revealed' | 'mastered' | 'review'
 
@@ -170,18 +178,34 @@ export function reviewIntervalDays(
   return 1
 }
 
-/** Apply one learner-owned rating without pretending the rating is mastery evidence. */
+/**
+ * Apply one learner-owned rating without pretending the rating is mastery evidence.
+ *
+ * `revealed` means the learner could not recall the card, so it stays due today
+ * and comes back in this same session's queue. An interval grown over several
+ * successes must not survive the failure that just contradicted it: it drops
+ * back to the initial one, or the next `mastered` doubles from a number the
+ * learner has already disproved. A card still at the initial interval has
+ * nothing to reset and returns `undefined`, leaving the stored card untouched.
+ */
 export function nextReviewSchedule(
   card: Pick<ConceptCard, 'intervalDays' | 'mastery'>,
   rating: ConceptCardRating,
   now = new Date(),
 ): ConceptCardSchedule | undefined {
-  if (rating === 'revealed') return undefined
   const prior = Number.isSafeInteger(card.intervalDays) && card.intervalDays > 0
     ? card.intervalDays
     : reviewIntervalDays(card.mastery)
+  if (rating === 'revealed') {
+    if (prior <= INITIAL_REVIEW_INTERVAL_DAYS) return undefined
+    return {
+      due: addDays(now, 0),
+      intervalDays: INITIAL_REVIEW_INTERVAL_DAYS,
+      lastReviewedAt: now.toISOString(),
+    }
+  }
   const intervalDays = rating === 'mastered'
-    ? Math.max(1, prior * 2)
+    ? Math.min(MAX_REVIEW_INTERVAL_DAYS, Math.max(1, prior * 2))
     : Math.max(1, Math.floor(prior / 2))
   return {
     due: addDays(now, intervalDays),
@@ -524,11 +548,21 @@ export function conceptCardDraftFromState(
     explanation?: string
     unverifiedTransfer?: string
     relatedConcepts?: readonly string[]
+    /** Overrides the state goal when the learner names the card themselves. */
+    label?: string
+    /**
+     * Defaults to true: a card the model proposes on its own still needs
+     * evidence, or the vault fills with things the learner never learned.
+     * A learner who asks for the card in words has supplied the only
+     * authority that gate was standing in for, so this drops to false there.
+     */
+    requireVerifiedTransfer?: boolean
   } = {},
   now = new Date(),
 ): ConceptCardDraft | undefined {
-  const label = text(state.goal, 160)
-  if (label === '' || !hasFreshIndependentTransfer(state)) return undefined
+  const label = text(options.label, 160) || text(state.goal, 160)
+  if (label === '') return undefined
+  if (options.requireVerifiedTransfer !== false && !hasFreshIndependentTransfer(state)) return undefined
   const transfer = [...state.evidence]
     .reverse()
     .find(isFreshIndependentTransfer)

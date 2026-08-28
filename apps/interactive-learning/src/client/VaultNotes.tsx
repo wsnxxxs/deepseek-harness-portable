@@ -196,12 +196,12 @@ function NoteCard({
               />
             )}
             <div className={css.actions}>
-              <button type="button" className={css.buttonPrimary} disabled={busy} onClick={save}>
+              <button type="button" data-lx-control="primary" data-lx-density="compact" disabled={busy} onClick={save}>
                 {busy ? t('vaultSaving') : t('vaultSave')}
               </button>
               <button
                 type="button"
-                className={css.button}
+                data-lx-control="secondary" data-lx-density="compact"
                 onClick={() => {
                   setDraft(note.body)
                   setTarget(note.conceptSlug ?? '')
@@ -218,13 +218,13 @@ function NoteCard({
           <>
             {note.excerpt !== '' && <p className={css.noteExcerpt}>{note.excerpt}</p>}
             <div className={css.actions}>
-              <button type="button" className={css.button} onClick={() => { setEditing(true) }}>
+              <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setEditing(true) }}>
                 {t('vaultEdit')}
               </button>
               {note.kind === 'pending-concept' && note.gate === 'ready' && (
                 <button
                   type="button"
-                  className={css.buttonPrimary}
+                  data-lx-control="primary" data-lx-density="compact"
                   disabled={busy}
                   title={t('vaultNotePromoteHint')}
                   onClick={promote}
@@ -235,12 +235,12 @@ function NoteCard({
               {confirming
                 ? (
                   <>
-                    <button type="button" className={css.buttonCorrect} disabled={busy} onClick={remove}>
+                    <button type="button" data-lx-control="danger" data-lx-density="compact" disabled={busy} onClick={remove}>
                       {t('vaultNoteDeleteConfirm')}
                     </button>
                     <button
                       type="button"
-                      className={css.button}
+                      data-lx-control="secondary" data-lx-density="compact"
                       onClick={() => { setConfirming(false) }}
                     >
                       {t('vaultCancel')}
@@ -250,7 +250,7 @@ function NoteCard({
                 : (
                   <button
                     type="button"
-                    className={css.buttonCorrect}
+                    data-lx-control="danger" data-lx-density="compact"
                     disabled={busy}
                     onClick={() => { setConfirming(true) }}
                   >
@@ -339,10 +339,10 @@ export function NotesSection({
           onChange={(event) => { setBody(event.target.value) }}
         />
         <div className={css.actions}>
-          <button type="button" className={css.buttonPrimary} disabled={busy} onClick={create}>
+          <button type="button" data-lx-control="primary" data-lx-density="compact" disabled={busy} onClick={create}>
             {busy ? t('vaultSaving') : t('vaultSave')}
           </button>
-          <button type="button" className={css.button} onClick={() => { setComposing(false) }}>
+          <button type="button" data-lx-control="secondary" data-lx-density="compact" onClick={() => { setComposing(false) }}>
             {t('vaultCancel')}
           </button>
         </div>
@@ -353,7 +353,7 @@ export function NotesSection({
       <div className={css.actions}>
         <button
           type="button"
-          className={css.button}
+          data-lx-control="secondary" data-lx-density="compact"
           onClick={() => { setFailure(''); setComposing(true) }}
         >
           {t('vaultNoteNew')}

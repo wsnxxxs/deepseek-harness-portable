@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode, type ComponentType } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { ActivityRendererRegistry, activityRendererRegistry } from '../src/client/ActivityRenderer.tsx'
-import { LearningVisual } from '../src/client/LearningVisual.tsx'
 import { LearningCheckpoint } from '../src/client/LearningCheckpoint.tsx'
 import { LearningToolView } from '../src/client/LearningToolView.tsx'
 import { LEARNING_TOOL_VIEW_KEYS, LearningStateUpdateToolView } from '../src/client/index.ts'
@@ -13,8 +11,6 @@ import { en } from '../src/client/locales.ts'
 import {
   CHECKPOINT_PROTOCOL,
   CHECKPOINT_RESULT_PROTOCOL,
-  RESPONSE_PROTOCOL_V2,
-  VISUAL_RESULT_PROTOCOL_V3,
   VISUAL_RESULT_PROTOCOL_V4,
   parseLearningVisualV4,
   type LearningCheckpointKindV1,
@@ -26,7 +22,7 @@ import {
   encodeLearningCheckpointDetail,
   learningCheckpointQuestionId,
 } from '../src/transport.ts'
-import { logisticVisual, questionRound, visualV4Catalog } from './fixtures.ts'
+import { visualV4Catalog } from './fixtures.ts'
 
 const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
   let value: string = en[key]
@@ -41,12 +37,12 @@ const ToolView = LearningToolView as unknown as ComponentType<{
   inspect(): void
   t: typeof t
   sessionId: string
-  useSession(selector: (snapshot: { pending: unknown[] }) => unknown): unknown
+  useSessionPendingInteraction(selector: (snapshot: { get(id: string): unknown }) => unknown): unknown
 }>
 
-const useEmptySession = (selector: (snapshot: { pending: unknown[] }) => unknown): unknown => (
-  selector({ pending: [] })
-)
+const noPendingInteraction = (
+  selector: (snapshot: { get(id: string): unknown }) => unknown,
+): unknown => selector({ get: () => undefined })
 
 function completedVisualV4Block(visual: LearningVisualV4, callId: string) {
   return {
@@ -97,18 +93,24 @@ function runningCheckpointHarness(checkpoint = checkpointFixture(), ids: {
   const waitId = ids.waitId ?? 'wait_checkpoint'
   const checkpointId = ids.checkpointId ?? 'checkpoint_one'
   const respond = vi.fn().mockResolvedValue({ accepted: true })
+  const settle = async (request: unknown): Promise<void> => {
+    const receipt = await respond(request) as { accepted?: unknown; reason?: unknown } | undefined
+    if (receipt?.accepted === false) throw new Error(String(receipt.reason ?? 'rejected'))
+  }
   const pending = {
     kind: 'question',
     key: `question_${waitId}`,
     sessionId,
-    payload: {
-      questions: [{
-        id: learningCheckpointQuestionId(waitId),
-        question: checkpoint.prompt,
-        detail: encodeLearningCheckpointDetail({ sessionId, callId, waitId, checkpointId, checkpoint }),
-      }],
-    },
-    respond,
+    questions: [{
+      id: learningCheckpointQuestionId(waitId),
+      question: checkpoint.prompt,
+      detail: encodeLearningCheckpointDetail({ sessionId, callId, waitId, checkpointId, checkpoint }),
+    }],
+    answer: (value: unknown) => settle({ ok: true, value: { sessionId, answer: value } }),
+    cancel: () => settle({
+      ok: false,
+      error: { code: 'cancelled', message: 'the learner cancelled this activity', details: {} },
+    }),
   }
   return {
     sessionId,
@@ -124,9 +126,9 @@ function runningCheckpointHarness(checkpoint = checkpointFixture(), ids: {
       name: 'learning_checkpoint',
       argsRaw: JSON.stringify(checkpoint),
     },
-    usePendingSession: (selector: (snapshot: { pending: unknown[] }) => unknown): unknown => (
-      selector({ pending: [pending] })
-    ),
+    usePendingInteraction: (
+      selector: (snapshot: { get(id: string): unknown }) => unknown,
+    ): unknown => selector({ get: (id: string) => (id === sessionId ? pending : undefined) }),
   }
 }
 
@@ -182,87 +184,16 @@ afterEach(() => {
 })
 
 describe('learning client registration', () => {
-  it('retains only the three trusted V1 renderers for historical activity replay', () => {
-    expect(activityRendererRegistry.kinds()).toEqual([
-      'parameter_explorer',
-      'process_stepper',
-      'structure_compare',
-    ])
-    const registry = new ActivityRendererRegistry()
-    const renderer = (() => null) as never
-    registry.register('parameter_explorer', renderer)
-    expect(() => registry.register('parameter_explorer', renderer)).toThrow(/already registered/)
-  })
-
-  it('registers visual/checkpoint routes, a silent state route, and legacy replay keys', () => {
+  it('registers visual/checkpoint routes and a silent state route', () => {
     expect(LEARNING_TOOL_VIEW_KEYS).toEqual([
       'learning_visual',
       'learning_checkpoint',
       'learning_state_update',
-      'learning_activity',
-      'learning_question',
-      'learning_reveal',
     ])
     const silent = render(<LearningStateUpdateToolView />)
     expect(silent.container.innerHTML).toBe('')
     expect(screen.queryByRole('status')).toBeNull()
     expect(document.body.textContent).not.toContain(en.invalidActivity)
-  })
-})
-
-describe('non-blocking LearningVisual v3', () => {
-  it('updates its curve and metric from sliders while retaining point observations', () => {
-    const visual = logisticVisual()
-    const view = render(<LearningVisual visual={visual} storageKey="logistic" />)
-
-    expect(screen.getByRole('heading', { name: 'Logistic regression boundary' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Logistic regression boundary' })).toBeTruthy()
-    expect(screen.getByRole('list', { name: 'Logistic regression boundary' }).textContent).toContain('Observed outcomes')
-    expect(view.container.querySelectorAll('[data-series="observations"] circle')).toHaveLength(2)
-    expect(view.container.querySelector('[data-series="observations"] title')?.textContent).toBe('Failed after 1 hour')
-
-    const curve = view.container.querySelector('path[data-tone="blue"]')
-    const initialPath = curve?.getAttribute('d')
-    expect(initialPath).toBeTruthy()
-    expect(screen.getByText('Decision boundary').parentElement?.textContent).toContain('5.0 h')
-
-    const slope = screen.getByRole('slider', { name: 'Slope' }) as HTMLInputElement
-    fireEvent.change(slope, { target: { value: '2' } })
-    expect(slope.value).toBe('2')
-    expect(curve?.getAttribute('d')).not.toBe(initialPath)
-    expect(screen.getByText('Decision boundary').parentElement?.textContent).toContain('2.5 h')
-    expect(JSON.parse(sessionStorage.getItem('dsh-learning/visual@3:logistic') ?? '{}')).toMatchObject({
-      b0: -5,
-      b1: 2,
-    })
-
-    expect(screen.queryByRole('button')).toBeNull()
-    expect(view.container.textContent).not.toMatch(/Submit|Continue/)
-  })
-
-  it('restores local parameter state on a replay without producing an answer gate', () => {
-    const visual = logisticVisual()
-    const first = render(<LearningVisual visual={visual} storageKey="stable-call" />)
-    fireEvent.change(screen.getByRole('slider', { name: 'Intercept' }), { target: { value: '-2' } })
-    first.unmount()
-
-    const replay = render(<LearningVisual visual={visual} storageKey="stable-call" />)
-    expect((screen.getByRole('slider', { name: 'Intercept' }) as HTMLInputElement).value).toBe('-2')
-    expect(replay.container.querySelector('[data-learning-visual="parameter_chart"]')).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-
-  it('bounds tick generation and keeps finite SVG geometry for extreme finite axes', () => {
-    const visual = logisticVisual()
-    const view = render(<LearningVisual visual={{
-      ...visual,
-      xAxis: { ...visual.xAxis, min: -1e308, max: 1e308, samples: 24 },
-      yAxis: { ...visual.yAxis, min: -1e308, max: 1e308 },
-    }} storageKey="extreme-axes" />)
-
-    expect(screen.getByRole('img', { name: 'Logistic regression boundary' })).toBeTruthy()
-    expect(view.container.querySelectorAll('line').length).toBeLessThan(60)
-    expect(view.container.innerHTML).not.toMatch(/(?:NaN|Infinity)/)
   })
 })
 
@@ -277,7 +208,7 @@ describe('learning_visual tool-call replay', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_recall_bridge"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: en.visualShowHint }))
@@ -304,10 +235,10 @@ describe('learning_visual tool-call replay', () => {
       time: 1_000,
       callId: 'visual-running',
       name: 'learning_visual',
-      argsRaw: '{"protocol":"dsh-learning/visual@3","kind":"parameter_chart","title":"Logistic',
+      argsRaw: '{"protocol":"dsh-learning/visual@4","title":"Derivative',
     }
     const view = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSession={useEmptySession} />,
+      <ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSessionPendingInteraction={noPendingInteraction} />,
     )
     expect(screen.getByRole('status').textContent).toContain('Preparing')
     expect(screen.queryByText(/could not be displayed safely/)).toBeNull()
@@ -315,52 +246,19 @@ describe('learning_visual tool-call replay', () => {
 
     view.rerender(
       <ToolView
-        block={{ ...block, argsRaw: JSON.stringify(logisticVisual()) }}
+        block={{ ...block, argsRaw: JSON.stringify(visualV4Catalog.derivativePlot) }}
         inspect={() => {}}
         t={t}
         sessionId="s1"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
-    expect(screen.getByRole('slider', { name: 'Slope' })).toBeTruthy()
+    expect(screen.getByRole('slider', { name: /^指数 n/ })).toBeTruthy()
     expect(view.container.querySelector('[data-state="running"]')).toBeNull()
     expect(events).toEqual(['learning.call.stream_started', 'learning.call.args_completed'])
     unsubscribe()
   })
 
-  it('replays the same interactive chart from a completed ready result', () => {
-    const visual = logisticVisual()
-    const block = {
-      kind: 'tool-result',
-      seq: 3,
-      time: 3_000,
-      callId: 'visual-complete',
-      call: { name: 'learning_visual', argsRaw: JSON.stringify(visual) },
-      callTime: 2_000,
-      content: [{
-        type: 'text',
-        text: JSON.stringify({ protocol: VISUAL_RESULT_PROTOCOL_V3, status: 'ready' }),
-      }],
-      isError: false,
-      callView: null,
-      resultView: null,
-      subCalls: [],
-    }
-    const first = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSession={useEmptySession} />,
-    )
-    fireEvent.change(screen.getByRole('slider', { name: 'Slope' }), { target: { value: '3' } })
-    expect(first.container.querySelectorAll('[data-series="observations"] circle')).toHaveLength(2)
-    first.unmount()
-
-    const replay = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSession={useEmptySession} />,
-    )
-    expect((screen.getByRole('slider', { name: 'Slope' }) as HTMLInputElement).value).toBe('3')
-    expect(screen.getByText('Decision boundary').parentElement?.textContent).toContain('1.7 h')
-    expect(replay.container.querySelector('path[data-tone="blue"]')?.getAttribute('d')).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
 })
 
 describe('semantic LearningVisual v4 completed ToolView gallery', () => {
@@ -377,7 +275,7 @@ describe('semantic LearningVisual v4 completed ToolView gallery', () => {
         inspect={() => {}}
         t={t}
         sessionId="s-v4"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     const root = view.container.querySelector(`[data-learning-visual="${visual.content.kind}"]`)
@@ -571,13 +469,13 @@ describe('semantic LearningVisual v4 completed ToolView gallery', () => {
     const visual = parseLearningVisualV4(visualV4Catalog.derivativePlot)
     const block = completedVisualV4Block(visual, 'v4-plot-replay')
     const first = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s-v4" useSession={useEmptySession} />,
+      <ToolView block={block} inspect={() => {}} t={t} sessionId="s-v4" useSessionPendingInteraction={noPendingInteraction} />,
     )
     fireEvent.change(screen.getByRole('slider', { name: /^指数 n/ }), { target: { value: '1.5' } })
     first.unmount()
 
     const replay = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s-v4" useSession={useEmptySession} />,
+      <ToolView block={block} inspect={() => {}} t={t} sessionId="s-v4" useSessionPendingInteraction={noPendingInteraction} />,
     )
     expect((screen.getByRole('slider', { name: /^指数 n/ }) as HTMLInputElement).value).toBe('1.5')
     expect(replay.container.querySelector('[data-learning-visual="plot"]')).toBeTruthy()
@@ -663,7 +561,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     const draft = screen.getByRole('textbox', { name: en.checkpointFreeTextLabel }) as HTMLTextAreaElement
@@ -677,7 +575,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     expect((screen.getByRole('textbox', { name: en.checkpointFreeTextLabel }) as HTMLTextAreaElement).value)
@@ -702,7 +600,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Retry contribution' } })
@@ -731,7 +629,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     expect(view.container.querySelector('[data-learning-checkpoint]')).toBeTruthy()
@@ -751,7 +649,7 @@ describe('learning_checkpoint client gate and replay', () => {
           inspect={() => {}}
           t={t}
           sessionId={harness.sessionId}
-          useSession={harness.usePendingSession}
+          useSessionPendingInteraction={harness.usePendingInteraction}
         />
       </StrictMode>,
     )
@@ -781,7 +679,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'unsent draft' } })
@@ -806,7 +704,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId={harness.sessionId}
-        useSession={harness.usePendingSession}
+        useSessionPendingInteraction={harness.usePendingInteraction}
       />,
     )
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'retain this answer' } })
@@ -832,7 +730,7 @@ describe('learning_checkpoint client gate and replay', () => {
       ...extra,
     })
     const view = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="session_checkpoint" useSession={useEmptySession} />,
+      <ToolView block={block} inspect={() => {}} t={t} sessionId="session_checkpoint" useSessionPendingInteraction={noPendingInteraction} />,
     )
 
     expect(view.container.querySelector(`[data-learning-result="${status}"]`)?.textContent).toContain(expectedLabel)
@@ -856,7 +754,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_checkpoint"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByRole('alert').textContent).toContain(en.invalidResult)
@@ -871,7 +769,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_checkpoint"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByRole('alert').textContent).toContain(en.invalidActivity)
@@ -903,7 +801,7 @@ describe('learning_checkpoint client gate and replay', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_checkpoint"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
 
@@ -913,60 +811,5 @@ describe('learning_checkpoint client gate and replay', () => {
     } else {
       expect(view.container.textContent).toContain(expectedFallback)
     }
-  })
-})
-
-describe('retired V2 result replay', () => {
-  function completedQuestionBlock(content: string) {
-    const activity = questionRound()
-    return {
-      activity,
-      block: {
-        kind: 'tool-result',
-        seq: 3,
-        time: 3_000,
-        callId: 'legacy-question',
-        call: { name: 'learning_question', argsRaw: JSON.stringify(activity) },
-        callTime: 2_000,
-        content: [{ type: 'text', text: content }],
-        isError: false,
-        callView: null,
-        resultView: null,
-        subCalls: [],
-      },
-    }
-  }
-
-  it('renders a successful historical Question as a compact answer receipt', () => {
-    const response = {
-      protocol: RESPONSE_PROTOCOL_V2,
-      phase: 'question',
-      activityId: 'legacy-activity',
-      lessonToken: 'legacy-lesson',
-      roundToken: 'legacy-round',
-      seq: 0,
-      action: 'submit',
-      answer: { text: 'A' },
-      receiptId: 'legacy-receipt',
-    }
-    const { block } = completedQuestionBlock(JSON.stringify(response))
-    const view = render(
-      <ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSession={useEmptySession} />,
-    )
-
-    expect(view.container.querySelector('[data-learning-result="submit"]')?.textContent).toContain('Response submitted')
-    expect(view.container.querySelector('[data-learning-result="submit"]')?.textContent).toContain('“A”')
-    expect(screen.queryByText('Which item leaves first?')).toBeNull()
-    expect(screen.queryByRole('radio')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-
-  it('shows a clear error and Markdown fallback when a historical result is corrupt', () => {
-    const { activity, block } = completedQuestionBlock('{not-json')
-    render(<ToolView block={block} inspect={() => {}} t={t} sessionId="s1" useSession={useEmptySession} />)
-
-    expect(screen.getByRole('alert').textContent).toContain('result could not be restored')
-    expect(document.body.textContent).toContain(activity.fallbackMarkdown)
-    expect(screen.queryByRole('button')).toBeNull()
   })
 })

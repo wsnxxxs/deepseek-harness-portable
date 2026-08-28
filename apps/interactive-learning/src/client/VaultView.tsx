@@ -9,7 +9,7 @@
  * @module @dsh-portable/interactive-learning/src/client/VaultView
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { learningScope } from './tokens.ts'
@@ -37,6 +37,21 @@ export interface VaultLibraryProps {
   t: VaultViewProps['t']
   /** Optional close action supplied by the external library shell. */
   onClose?: () => void
+  /**
+   * The surrounding shell already names the selected topic. Set by the sidebar
+   * overlay so the panel does not print the same title directly beneath it.
+   */
+  embedded?: boolean
+  /**
+   * The shell's own topic navigation, rendered at the head of this panel's
+   * rail instead of in a second column beside it.
+   *
+   * Two vertical navigations side by side in one dialog spent the horizontal
+   * budget twice and left the learner choosing between "which topic" and
+   * "which part of it" in two different places. They are one choice, made in
+   * one column, narrowing left to right.
+   */
+  topics?: ReactNode
 }
 
 /** Milliseconds of quiet before a query is sent; typing must not thrash the disk. */
@@ -281,7 +296,7 @@ function SourceCard({
       <footer className={css.cardFoot}>
         <button
           type="button"
-          className={css.button}
+          data-lx-control="secondary" data-lx-density="compact"
           aria-expanded={expanded}
           onClick={() => { setExpanded(value => !value) }}
         >
@@ -410,7 +425,7 @@ type SectionId = typeof SECTIONS[number]['id']
  * per section, because the rail badges the due count — the number has to be
  * right before anyone clicks "review" to find out.
  */
-export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
+export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }: VaultLibraryProps) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [failure, setFailure] = useState('')
   const [section, setSection] = useState<SectionId>('material')
@@ -625,10 +640,23 @@ export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
   }
 
   if (phase === 'error') {
+    // A read failure is usually one transient RPC, so the panel offers the
+    // reload it already owns rather than making a refresh the only way back.
+    // The raw cause is a developer string — an untranslated `ENOENT` with an
+    // absolute path — so it is folded away behind the localized sentence.
     return (
       <div {...learningScope} className={css.state}>
         <p className={css.stateTitle}>{t('vaultFailed')}</p>
-        <p className={css.stateBody}>{failure}</p>
+        <p className={css.stateBody}>{t('vaultFailedBody')}</p>
+        <div className={css.stateActions}>
+          <button data-lx-control="secondary" type="button" onClick={reload}>{t('vaultRetry')}</button>
+        </div>
+        {failure !== '' && (
+          <details className={css.stateDetails}>
+            <summary>{t('vaultFailedDetails')}</summary>
+            <code className={css.path}>{failure}</code>
+          </details>
+        )}
       </div>
     )
   }
@@ -693,11 +721,11 @@ export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
     <div {...learningScope} className={css.root} data-learning-library>
       <header className={css.head}>
         <div className={css.headRow}>
-          <h2 className={css.title}>{summary?.title ?? ''}</h2>
+          {!embedded && <h2 className={css.title}>{summary?.title ?? ''}</h2>}
           <div className={css.headActions}>
+            {/* Exceptional states only. Plain totals for sources and concepts
+                live on the rail, next to the section they belong to. */}
             <ul className={css.counts}>
-              <li className={css.count}>{t('vaultCountSources', { count: String(summary?.sources ?? 0) })}</li>
-              <li className={css.count}>{t('vaultConceptCount', { count: String(counts.concepts) })}</li>
               {counts.review > 0 && (
                 <li className={css.countDue}>{t('vaultCountDue', { count: String(counts.review) })}</li>
               )}
@@ -716,7 +744,7 @@ export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
               )}
             </ul>
             {onClose !== undefined && (
-              <button type="button" className={css.headerButton} onClick={onClose}>
+              <button type="button" data-lx-control="secondary" onClick={onClose}>
                 {t('vaultLibraryOpenSession')}
               </button>
             )}
@@ -756,6 +784,7 @@ export function VaultLibrary({ cwd, call, t, onClose }: VaultLibraryProps) {
         : (
           <div className={css.body}>
             <nav className={css.rail} aria-label={t('vaultTab')}>
+              {topics}
               {SECTIONS.map(entry => (
                 <button
                   key={entry.id}

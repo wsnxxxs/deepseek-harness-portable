@@ -185,8 +185,8 @@ try {
     sourceTypeClosure,
     'source lib/types must contain exactly the public declaration and map closure',
   )
-  assert.equal(sourceDeclarations.length, 39, 'source build must retain exactly 39 public declarations')
-  assert.equal(sourceDeclarationMaps.length, 39, 'source build must retain exactly 39 public declaration maps')
+  assert.equal(sourceDeclarations.length, 37, 'source build must retain exactly 37 public declarations')
+  assert.equal(sourceDeclarationMaps.length, 37, 'source build must retain exactly 37 public declaration maps')
 
   const packRoot = join(smokeRoot, 'pack')
   await mkdir(packRoot, { recursive: true })
@@ -280,12 +280,12 @@ try {
   // a clean consumer without depending on any generated staging directory.
   await writeFile(join(consumerRoot, 'types-smoke.ts'), [
     "import type { LearnerStateSnapshot, LearningCheckpointV1 } from '@dsh-portable/interactive-learning'",
-    "import type { ActivityRendererRegistry, LearningUiLifecycleEvent } from '@dsh-portable/interactive-learning/client'",
+    "import type { VaultViewInjected, LearningUiLifecycleEvent } from '@dsh-portable/interactive-learning/client'",
     'declare const checkpoint: LearningCheckpointV1',
     'declare const snapshot: LearnerStateSnapshot',
-    'declare const registry: ActivityRendererRegistry',
+    'declare const injected: VaultViewInjected',
     'declare const lifecycle: LearningUiLifecycleEvent',
-    'void [checkpoint, snapshot, registry, lifecycle]',
+    'void [checkpoint, snapshot, injected, lifecycle]',
   ].join('\n'))
   const packageRequire = createRequire(import.meta.url)
   run(process.execPath, [
@@ -323,16 +323,18 @@ try {
   assert.equal(typeof host.default, 'function')
   assert.equal(typeof agent.apply, 'function')
   assert.equal(typeof bootstrap.registerInteractiveLearningSessionCompatibility, 'function')
-  assert.equal(protocol.ACTIVITY_PROTOCOL, 'dsh-learning/activity@1')
-  assert.equal(protocol.TRANSPORT_PROTOCOL, 'dsh-learning/transport@1')
+  assert.equal(protocol.VISUAL_PROTOCOL_V4, 'dsh-learning/visual@4')
+  assert.equal(protocol.CHECKPOINT_PROTOCOL, 'dsh-learning/checkpoint@1')
   assert.equal(basename(preset.interactiveLearningPresetSource), 'learning')
   assert.ok(evaluation.TEACHING_EVAL_CASES.length >= 6)
-  assert.equal(typeof evaluation.gradeLegacyV2ReplayTranscript, 'function')
-  assert.equal(
-    Object.hasOwn(evaluation, 'gradeLearningTranscript'),
-    false,
-    'the generic retired V2 transcript grader must not remain publicly exported',
-  )
+  assert.equal(typeof evaluation.gradeTeachingCandidate, 'function')
+  for (const retired of ['gradeLearningTranscript', 'gradeLegacyV2ReplayTranscript']) {
+    assert.equal(
+      Object.hasOwn(evaluation, retired),
+      false,
+      `the retired transcript grader ${retired} must not remain publicly exported`,
+    )
+  }
 
   let clientRegistration
   globalThis.window = {

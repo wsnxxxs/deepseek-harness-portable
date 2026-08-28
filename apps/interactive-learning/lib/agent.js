@@ -1,6 +1,5 @@
-import { At as ensureVaultLayout, C as parseFileMentions, Ct as renderLearnerMemory, E as beginMaterialTurn, Ft as resolveTopicVault, Jt as LEARNING_INTENT_ROUTING_GUIDANCE, K as buildConceptStudyMap, Nt as readManifest, T as assertMaterialAnchorsReadable, Xt as LEARN_INTENT_MODEL_GUIDANCE, Z as hasFreshIndependentTransfer, b as registerMaterialTools, c as buildLearningTeachingPolicy, d as CONCEPT_TOOL_NAMES, f as registerConceptTools, g as MATERIAL_TOOL_NAMES, h as validateStudyMapAgainstVault, it as readLearnerMemoryWithCards, m as formatStudyMapViolations, p as validateRecallDeckAgainstVault, r as LEARNING_MATERIAL_POLICY, rt as readConceptCards, u as routeLearningTurn, w as syncMentionedMaterial, wt as upsertLearnerConcept, yt as conceptRecordFromState } from "./teaching-policy-CKAX6vej.js";
-import { A as LEARNING_VISUAL_KINDS_V4, D as LEARNING_CHECKPOINT_EVIDENCE_KINDS, L as VISUAL_RESULT_PROTOCOL_V4, O as LEARNING_CHECKPOINT_KINDS, R as learningCheckpointParametersV1, j as LEARNING_VISUAL_RESULT_SCHEMA_V4, k as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, w as parseLearningVisualV4, y as parseLearningCheckpointV1, z as learningVisualParametersV4 } from "./protocol-current-CVgOF60h.js";
-import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
+import { D as beginMaterialTurn, E as assertMaterialAnchorsReadable, Et as upsertLearnerConcept, Ft as readManifest, J as buildConceptStudyMap, Lt as resolveTopicVault, Mt as ensureVaultLayout, T as syncMentionedMaterial, Tt as renderLearnerMemory, Yt as LEARNING_INTENT_ROUTING_GUIDANCE, Zt as LEARN_INTENT_MODEL_GUIDANCE, _ as MATERIAL_TOOL_NAMES, at as readConceptCards, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, g as validateStudyMapAgainstVault, h as formatStudyMapViolations, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, ot as readLearnerMemoryWithCards, p as registerConceptTools, w as parseFileMentions, x as registerMaterialTools, xt as conceptRecordFromState } from "./teaching-policy-5J-AVqqu.js";
+import { D as learningCheckpointParametersOneStepV1, E as VISUAL_RESULT_PROTOCOL_V4, O as learningVisualParametersV4, b as LEARNING_VISUAL_RESULT_SCHEMA_V4, f as parseLearningVisualV4, l as parseLearningCheckpointV1, p as LearningProtocolError, v as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, y as LEARNING_VISUAL_KINDS_V4 } from "./protocol-current-_5GVMKMM.js";
 import { realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
 import { BlockAssembler, createUserMessage, deepFreeze } from "@deepseek-ai/dsh-llm";
@@ -897,6 +896,25 @@ function routeContextText(decision, richClientAvailable, materialAvailable = fal
 		...!richClientAvailable ? ["No rich learning client is available. Use a Markdown table or compact ASCII structure when one relationship needs a scaffold; keep teaching and the focused question in prose. Do not record a visual teaching move unless a native visual actually rendered."] : []
 	].join("\n");
 }
+/**
+* Whether this turn is worth a blocking semantic classification.
+*
+* The semantic pass is awaited inside prompt assembly, so it costs the learner
+* a whole serial model round trip before the real answer starts. That is worth
+* paying only where the deterministic answer is `unknown` — the tail where the
+* Host would otherwise route a genuine learning request to the ordinary task
+* path and lose the mode entirely.
+*
+* A bare concept name is deliberately excluded even though it is also low
+* confidence. It is the single most common way a learning session opens, its
+* deterministic route is already `calibrate`, and `calibrate` — one small
+* foothold plus one route-changing question — costs almost nothing when the
+* guess is wrong. The low-confidence prompt hint still lets the model reclassify
+* from the learner's own words on the very same turn.
+*/
+function needsSemanticRoute(decision) {
+	return decision.confidence === "low" && !decision.inherited && decision.intent.trigger === "unknown";
+}
 function isConfidentNotLearn(decision) {
 	return decision?.intent.intent === "not-learn" && decision.confidence !== "low";
 }
@@ -948,7 +966,7 @@ function compactLearnerStateDelta(state, previous) {
 const GRADED_CONTEXT = /(?:\b(?:graded|for\s+(?:a\s+)?grade|assignment|homework|coursework|exam\s+(?:question|problem)|test\s+(?:question|problem)|submit(?:ted|ting)?\s+(?:for|to))\b|作业|课程考核|考试题|测验题|计分|评分作业|需要提交|要提交)/iu;
 function richTeachingMoveForTool(name) {
 	if (name === "learning_visual_select" || name === "learning_visual") return "visual";
-	if (name === "learning_checkpoint_select" || name === "learning_checkpoint") return "checkpoint";
+	if (name === "learning_checkpoint") return "checkpoint";
 }
 /**
 * Learning tools that render nothing and therefore do not depend on a rich
@@ -962,13 +980,15 @@ const LEARNING_NON_RICH_TOOLS = /* @__PURE__ */ new Set([
 	...CONCEPT_TOOL_NAMES
 ]);
 const MATERIAL_TOOL_SET = new Set(MATERIAL_TOOL_NAMES);
+/** The one material tool whose query comes from the maintained learner state. */
+const STATE_DERIVED_MATERIAL_TOOL = "learning_material_recall";
 function learningToolAvailable(decision, toolName, richClientAvailable, agent, state) {
 	if (decision?.intent.intent === "learn" && decision.confidence !== "low" && toolName === GENERIC_USER_WAIT_TOOL) return false;
 	if (!toolName.startsWith(LEARNING_TOOL_PREFIX)) return true;
 	if (decision?.intent.intent === "learn" && agent !== void 0) {
 		if (MATERIAL_TOOL_SET.has(toolName) && vaultHasMaterial.get(agent) !== true) return false;
 		if (toolName === "learning_concept_recall" && vaultHasConcepts.get(agent) !== true) return false;
-		if (toolName === "learning_concept_propose" && (vaultAvailable.get(agent) !== true || state === void 0 || !hasFreshIndependentTransfer(state))) return false;
+		if (toolName === "learning_concept_propose" && vaultAvailable.get(agent) !== true) return false;
 	}
 	if (LEARNING_NON_RICH_TOOLS.has(toolName)) return true;
 	if (decision === void 0) return true;
@@ -985,6 +1005,8 @@ function learningToolAvailable(decision, toolName, richClientAvailable, agent, s
 * assemble waterfall refreshes this before the section is evaluated.
 */
 const learnerMemoryBlocks = /* @__PURE__ */ new WeakMap();
+/** The session whose memory block is already rendered; the block is sent once. */
+const learnerMemoryRenderedSessions = /* @__PURE__ */ new WeakMap();
 /**
 * Whether this agent's session runs in a learning folder that holds parsed
 * material. Drives the conditional material policy layer, which must not be
@@ -998,18 +1020,20 @@ const vaultAvailable = /* @__PURE__ */ new WeakMap();
 /** Last learner-state revision projected into durable memory for this agent. */
 const learnerMemoryProjectionRevisions = /* @__PURE__ */ new WeakMap();
 /**
-* Persist this session's concept state into the vault, then reload the vault's
-* memory for the next request.
+* Probe the vault flags this turn actually depends on.
 *
-* Both halves happen here so a session that ends without ceremony — a crash, a
-* closed window — has already written everything the last completed turn knew.
-* A session outside a vault clears the block rather than keeping a stale one.
+* Cheap and unconditional: whether the session is in a vault, whether that
+* vault holds parsed material, and whether it has approved cards all decide
+* which conditional policy layers and tools this turn gets, and all three
+* genuinely change mid-session — the first attachment creates the vault, and a
+* confirmed card arrives without a restart.
 */
-async function refreshLearnerMemory(services, agent) {
+async function refreshVaultFlags(services, agent) {
 	try {
 		const vault = await resolveTopicVault(services, agent.session.header.cwd);
 		if (vault === void 0) {
 			learnerMemoryBlocks.delete(agent);
+			learnerMemoryRenderedSessions.delete(agent);
 			vaultHasMaterial.delete(agent);
 			vaultHasConcepts.delete(agent);
 			vaultAvailable.delete(agent);
@@ -1019,24 +1043,42 @@ async function refreshLearnerMemory(services, agent) {
 		vaultAvailable.set(agent, true);
 		vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0);
 		vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0);
-		const state = services.learningActivities.learnerState(agent);
-		const priorProjection = learnerMemoryProjectionRevisions.get(agent);
-		if (priorProjection?.session !== agent.session || priorProjection.revision !== state.revision) {
-			const record = conceptRecordFromState(state, String(agent.session.id));
-			if (record !== void 0) await upsertLearnerConcept(vault, record);
-			learnerMemoryProjectionRevisions.set(agent, {
-				session: agent.session,
-				revision: state.revision
-			});
-		}
+		if (learnerMemoryRenderedSessions.get(agent) === agent.session) return;
 		const memory = await readLearnerMemoryWithCards(vault);
 		learnerMemoryBlocks.set(agent, renderLearnerMemory(memory, {
 			title: vault.title,
-			goal: state.goal ?? void 0,
+			goal: services.learningActivities.learnerState(agent).goal ?? void 0,
 			maxChars: 4e3
 		}));
+		learnerMemoryRenderedSessions.set(agent, agent.session);
 	} catch (cause) {
 		services.logger.warn(`learner memory was not refreshed: ${String(cause)}`);
+	}
+}
+/**
+* Project this session's concept state into the vault at the end of a turn.
+*
+* At turn end rather than during prompt assembly: assembly runs before every
+* model request, so writing there put a disk write on the critical path of each
+* step. A turn that ends without ceremony — a crash, a closed window — has
+* still persisted everything the last completed turn knew, which is what this
+* projection is for.
+*/
+async function projectLearnerMemory(services, agent) {
+	try {
+		const vault = await resolveTopicVault(services, agent.session.header.cwd);
+		if (vault === void 0) return;
+		const state = services.learningActivities.learnerState(agent);
+		const priorProjection = learnerMemoryProjectionRevisions.get(agent);
+		if (priorProjection?.session === agent.session && priorProjection.revision === state.revision) return;
+		const record = conceptRecordFromState(state, String(agent.session.id));
+		if (record !== void 0) await upsertLearnerConcept(vault, record);
+		learnerMemoryProjectionRevisions.set(agent, {
+			session: agent.session,
+			revision: state.revision
+		});
+	} catch (cause) {
+		services.logger.warn(`learner memory was not projected: ${String(cause)}`);
 	}
 }
 function learningSegmentComplete(services, agent) {
@@ -1155,58 +1197,7 @@ const visualDescription = (selection) => [
 	selection.pairedQuestion === void 0 ? "The call completes immediately. Continue with a self-sufficient ordinary-text interpretation of the selected learner action; do not add another question." : "The call completes immediately. Continue with a self-sufficient ordinary-text interpretation and ask only the selected paired question.",
 	"Keep all teaching explanation and learner prompting outside the visual payload; its title, labels, description, and fallback carry only the picture and its text equivalent.",
 	"Do not use a visual for a definition, short fact, or already-clear explanation. Keep labels in the learner's language and declare every relationship the learner needs to read.",
-	"中文模板：图只承载一个关系；正文负责讲解，并只保留一个会推动思考的问题。",
 	"Hard limits and field-specific payload rules are encoded in this kind-specific schema. Never provide HTML, Markdown diagrams, SVG markup, or JavaScript."
-].join(" ");
-const checkpointSelectorParameters = {
-	kind: {
-		type: "string",
-		enum: LEARNING_CHECKPOINT_KINDS,
-		required: true,
-		description: "Response shape: free_text=short prose; single_choice=one label; numeric=one number; prediction=what happens next; code_slot=one small code fragment."
-	},
-	expectedEvidence: {
-		type: "string",
-		enum: LEARNING_CHECKPOINT_EVIDENCE_KINDS,
-		required: true,
-		description: "What the response demonstrates: attempt, prediction, explanation, contrast, or fresh transfer."
-	},
-	prompt: {
-		type: "string",
-		required: true,
-		description: "One self-contained, answer-free prompt for the current teaching move."
-	},
-	purpose: {
-		type: "string",
-		required: true,
-		description: "Why this response will change the next teaching move."
-	}
-};
-const checkpointSelectorOutput = {
-	type: "object",
-	additionalProperties: false,
-	properties: {
-		status: {
-			type: "string",
-			const: "selected",
-			required: true
-		},
-		kind: {
-			type: "string",
-			enum: LEARNING_CHECKPOINT_KINDS,
-			required: true
-		}
-	}
-};
-const checkpointDescription = (selection) => [
-	"Optionally request one high-value reflective pause when the learner response materially changes the next teaching move.",
-	`Teaching purpose: ${selection.purpose}`,
-	`Expected evidence: ${selection.expectedEvidence}. The selection step fixed the answer-free prompt, response kind, and evidence type; preserve those const fields.`,
-	selection.kind === "single_choice" ? "Provide two to eight answer-free options; no correct-answer or rubric field exists." : "This response kind has no options field.",
-	"The normal path is ordinary conversation; this wire-compatible checkpoint is the sole deliberate user wait, not a per-turn ceremony or Continue ritual.",
-	"The payload must preserve the selected prompt and evidence kind; never include a correct answer, rubric, solution, future step, Reveal, animation, or Continue content.",
-	"A skipped, cancelled, unavailable, or failed reflective pause falls back to ordinary conversation without withholding teaching.",
-	"中文模板：给一个不泄露答案的聚焦提示，让学习者用一次回答决定下一步。"
 ].join(" ");
 const ephemeralToolDisposers = /* @__PURE__ */ new WeakMap();
 const GLOBAL_DYNAMIC_TOOL_KEY = {};
@@ -1225,7 +1216,6 @@ function registerEphemeralTool(target, key, slot, definition) {
 }
 function disposeDynamicTeachingTools(key) {
 	disposeEphemeralTool(key, "visual");
-	disposeEphemeralTool(key, "checkpoint");
 }
 function dynamicToolTarget(services, exec) {
 	const candidate = exec.agent;
@@ -1283,7 +1273,15 @@ function completedToolCallIds(agent, position) {
 	}
 	return ids;
 }
-/** A material call must wait for every state observation earlier in its step. */
+/**
+* Whether a state observation earlier in this step is still unresolved.
+*
+* Only `learning_material_recall` is ordered against it: that tool takes no
+* query and derives what to retrieve from the state being maintained, so a
+* half-applied update would retrieve against a stale picture. `map`, `read`
+* and `search` are addressed by the caller and read nothing from state, so
+* serializing them bought an extra model round trip for no correctness.
+*/
 function hasPendingStateUpdateInModelStep(exec) {
 	const agent = exec.agent;
 	const position = modelStepPosition(exec);
@@ -1327,10 +1325,12 @@ function apply(ctx) {
 		else pendingMaterialMentions.set(agent, mentions);
 		if (text === "") return;
 		const currentState = services.learningActivities.learnerState(agent);
+		const language = languageOf(text);
 		learningPromptStates.set(agent, {
 			graded: currentState.assessmentContext === "graded" || GRADED_CONTEXT.test(text),
-			language: languageOf(text)
+			language
 		});
+		services.learningActivities.setTurnLocale(agent, language === "en" ? "en" : "zh");
 		const previous = learningRoutes.get(agent);
 		const session = previous === void 0 ? { active: durableLearningSegmentActive(services, agent) } : previous.segment === "closed" ? { active: false } : learningSegmentComplete(services, agent) ? { active: false } : {
 			active: true,
@@ -1338,7 +1338,7 @@ function apply(ctx) {
 		};
 		const decision = routeLearningTurn(text, session);
 		learningRoutes.set(agent, decision);
-		if (decision.confidence === "low" && !decision.inherited) pendingSemanticRoutes.set(agent, {
+		if (needsSemanticRoute(decision)) pendingSemanticRoutes.set(agent, {
 			text,
 			turn,
 			session,
@@ -1348,6 +1348,9 @@ function apply(ctx) {
 			pendingSemanticRoutes.delete(agent);
 			recordLearningRouteAnchor(services, agent, turn, session, decision);
 		}
+	});
+	ctx.on("agent/turn-stopping", async ({ agent }) => {
+		await projectLearnerMemory(services, agent);
 	});
 	ctx.on("tools/pre-execute", (execution, next) => {
 		const agent = execution.agent;
@@ -1364,9 +1367,9 @@ function apply(ctx) {
 			kind: "deny",
 			reason: "index the supplied PDF with learning_material_map before viewing an individual page"
 		});
-		if (decision?.intent.intent === "learn" && agent !== void 0 && MATERIAL_TOOL_SET.has(execution.name) && hasPendingStateUpdateInModelStep(execution)) return Promise.resolve({
+		if (decision?.intent.intent === "learn" && agent !== void 0 && execution.name === STATE_DERIVED_MATERIAL_TOOL && hasPendingStateUpdateInModelStep(execution)) return Promise.resolve({
 			kind: "deny",
-			reason: "finish learning_state_update in an earlier tool step before retrieving learning material"
+			reason: "finish learning_state_update in an earlier tool step before calling learning_material_recall, which retrieves from that state"
 		});
 		if (!learningToolAvailable(decision, execution.name, services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent))) return Promise.resolve({
 			kind: "deny",
@@ -1385,26 +1388,21 @@ function apply(ctx) {
 		if (agent !== void 0) {
 			await resolvePendingSemanticRoute(services, agent, context.signal);
 			await prepareAttachedMaterial(services, agent);
-			await refreshLearnerMemory(services, agent);
+			await refreshVaultFlags(services, agent);
 		}
 		const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
 		const assembly = addPreparedMaterialPolicy(await next(), agent);
-		if (!isConfidentNotLearn(decision)) return {
-			...assembly,
-			tools: assembly.tools.filter((tool) => learningToolAvailable(decision, tool.name, services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent)))
-		};
+		const ordinary = isConfidentNotLearn(decision);
 		return {
 			...assembly,
-			sections: assembly.sections.filter((section) => section.name !== "learning:policy"),
-			contexts: assembly.contexts.filter((context) => context.name !== "learning:learner-state"),
-			tools: assembly.tools.filter((tool) => !tool.name.startsWith(LEARNING_TOOL_PREFIX))
+			tools: assembly.tools.filter((tool) => ordinary ? !tool.name.startsWith(LEARNING_TOOL_PREFIX) : learningToolAvailable(decision, tool.name, services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent)))
 		};
 	});
 	registerMaterialTools(services);
 	registerConceptTools(services);
 	services.tools.register(closeParameterRoot(defineTool({
 		name: "learning_visual_select",
-		description: "Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to exactly one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation. 中文模板：只呈现一个关系，把讲解和一个聚焦问题留在正文。",
+		description: "Use only when a visual will materially clarify one relationship. Make this tool call the only output of the selector step; wait until learning_visual returns before writing teaching prose. Select one native kind, state its teaching purpose, and bind it to exactly one learner action or paired question; the selected kind-specific learning_visual schema is exposed on the next model step. Do not select a visual for a definition, short fact, or already-clear explanation.",
 		parameters: visualSelectorParameters,
 		output: {
 			schema: visualSelectorOutput,
@@ -1453,7 +1451,7 @@ function apply(ctx) {
 							}
 						} else if (visual.content.view === "concepts") throw new TypeError("study_map concepts view requires a learning vault");
 					} else if (visual.content.kind === "recall_deck" && vault !== void 0) {
-						const violations = await validateRecallDeckAgainstVault(vault, visual.content);
+						const violations = await validateRecallDeckAgainstVault(vault, visual.content, payloadExec.agent === void 0 ? void 0 : services.learningActivities.turnLocale(payloadExec.agent));
 						if (violations.length > 0) throw new TypeError(`recall_deck must copy saved concept cards verbatim: ${violations.join("; ")}`);
 					}
 					try {
@@ -1490,8 +1488,7 @@ function apply(ctx) {
 			"Use update for one new observation, correct only after an explicit user correction, and reset only at a real session-local learning-boundary reset. A goal_observed event establishes a missing goal; never replace an active goal with a checkpoint prompt or plan objective—reset on a real topic switch or use correct for an explicit user correction. Honor an explicit mastery correction. If the learner merely asks not to be quizzed further, correct phase=complete and nextMove=complete without inventing transfer.",
 			"plan_observed records the route only when a multi-step goal genuinely needs one; plan_step_evidenced advances a step only from evidence the learner produced. A plan is never a checklist to march through, never announced every turn, and never a reason to continue after demonstrated transfer or a sufficiently confident complete explanation/attempt.",
 			"The Host reads the current revision synchronously and applies compare-and-swap protection; do not invent or guess revision metadata. If a retry races with another update, only an exact replay or a safe additive observation may be merged; corrections, resets, and replacement updates remain strict.",
-			"Assistant visual and checkpoint moves are recorded automatically; do not duplicate them here. This tool performs no user wait and must not replace ordinary conversation.",
-			"中文模板：只记录当前用户真实说过或做过、且会改变下一步教学的观察；不要推断隐藏特质。"
+			"Assistant visual and checkpoint moves are recorded automatically; do not duplicate them here. This tool performs no user wait and must not replace ordinary conversation."
 		].join(" "),
 		parameters: {
 			action: {
@@ -1557,53 +1554,33 @@ function apply(ctx) {
 		}
 	})));
 	services.tools.register(closeParameterRoot(defineTool({
-		name: "learning_checkpoint_select",
-		description: "Use only for a reflective pause when one learner response will materially change the next teaching move. Make this tool call the only output of the selector step. Select the response shape and evidence type, then give one self-contained answer-free prompt and its purpose; the kind-specific learning_checkpoint payload is exposed on the next model step. Ordinary conversation remains the default, and this is the sole deliberate user wait—not a per-turn ceremony. 中文模板：先给足够支架，再提出一个不含答案、会改变下一步的问题。",
-		parameters: checkpointSelectorParameters,
+		name: "learning_checkpoint",
+		description: [
+			"Optionally request one high-value reflective pause when the learner response will materially change the next teaching move.",
+			"Ordinary conversation remains the default, and this is the sole deliberate user wait — not a per-turn ceremony or Continue ritual.",
+			"Give one self-contained, answer-free prompt and the evidence it should produce. Provide options only for kind=single_choice: two to eight answer-free choices.",
+			"There is no correct-answer, rubric, solution, future-step, Reveal, or Continue field; never smuggle one into the prompt, the context, or the fallback.",
+			"Make this the only tool call in its model step. A skipped, cancelled, unavailable, or failed pause falls back to ordinary conversation without withholding teaching."
+		].join(" "),
+		parameters: learningCheckpointParametersOneStepV1(),
 		output: {
-			schema: checkpointSelectorOutput,
+			schema: LEARNING_CHECKPOINT_RESULT_SCHEMA_V1,
 			render: (_args, value) => [{
 				type: "text",
 				text: JSON.stringify(value)
 			}]
 		},
 		isConcurrencySafe: () => false,
-		async execute(args, exec) {
-			assertOnlyToolInModelStep(exec, "learning_checkpoint_select");
-			const selection = {
-				kind: args.kind,
-				expectedEvidence: args.expectedEvidence,
-				prompt: boundedSelectionText(args.prompt, "learning_checkpoint_select.prompt", 2e3),
-				purpose: boundedSelectionText(args.purpose, "learning_checkpoint_select.purpose", 500)
-			};
-			registerEphemeralTool(dynamicToolTarget(services, exec), dynamicToolKey(services, exec), "checkpoint", closeParameterRoot(defineTool({
-				name: "learning_checkpoint",
-				description: checkpointDescription(selection),
-				parameters: learningCheckpointParametersV1(selection),
-				output: {
-					schema: LEARNING_CHECKPOINT_RESULT_SCHEMA_V1,
-					render: (_args, value) => [{
-						type: "text",
-						text: JSON.stringify(value)
-					}]
-				},
-				isConcurrencySafe: () => false,
-				async execute(payload, payloadExec) {
-					const checkpoint = parseLearningCheckpointV1(payload);
-					assertSingleCheckpointInModelStep(payloadExec);
-					return await services.learningActivities.presentCheckpoint({
-						checkpoint,
-						agent: payloadExec.agent,
-						signal: payloadExec.signal,
-						callId: String(payloadExec.callId)
-					});
-				}
-			})));
+		async execute(payload, exec) {
+			const checkpoint = parseLearningCheckpointV1(payload);
+			assertSingleCheckpointInModelStep(exec);
 			if (exec.agent !== void 0) richTeachingMoves.set(exec.agent, "checkpoint");
-			return {
-				status: "selected",
-				kind: selection.kind
-			};
+			return await services.learningActivities.presentCheckpoint({
+				checkpoint,
+				agent: exec.agent,
+				signal: exec.signal,
+				callId: String(exec.callId)
+			});
 		}
 	})));
 	services.systemPrompt.section({
@@ -1619,6 +1596,7 @@ function apply(ctx) {
 				route: decision?.route,
 				material: agent === void 0 ? false : vaultHasMaterial.get(agent) ?? false,
 				concepts: agent === void 0 ? false : vaultHasConcepts.get(agent) ?? false,
+				vault: agent === void 0 ? false : vaultAvailable.get(agent) ?? false,
 				visual: decision !== void 0 && learningToolAvailable(decision, "learning_visual_select", services.learningActivities.richClientAvailable, agent, agent === void 0 ? void 0 : services.learningActivities.learnerState(agent))
 			});
 		}

@@ -80,15 +80,15 @@ export const LEARN_INTENT_NATURAL_LANGUAGE_RULES = {
 /**
  * Explicit precedence table for the classifier's hand-written if/else order.
  * Lower priority number wins. Exclusions intentionally precede broad learning
- * words, while a clear request to learn a mechanism precedes an ambiguous
- * implementation verb when no concrete code context is present.
+ * words, while a clear request to learn precedes an implementation verb —
+ * including one about code, which is the common case in this preset.
  */
 export const LEARN_INTENT_RULES = [
   { id: 'translation-task', kind: 'dont-trigger', trigger: 'translation-task', priority: 10, conflict: 'wins over every learning cue' },
   { id: 'resource-recommendation', kind: 'dont-trigger', trigger: 'resource-recommendation', priority: 20, conflict: 'wins unless a study artifact is explicitly requested' },
   { id: 'resource-software-task', kind: 'dont-trigger', trigger: 'coding-task', priority: 30, conflict: 'wins over resource-creation words' },
   { id: 'resource-creation', kind: 'trigger', trigger: 'resource-creation', priority: 40, conflict: 'wins over broad learning words unless negated or software-shaped' },
-  { id: 'coding-task', kind: 'dont-trigger', trigger: 'coding-task', priority: 50, conflict: 'wins when concrete code context is present' },
+  { id: 'coding-task', kind: 'dont-trigger', trigger: 'coding-task', priority: 50, conflict: 'loses to an explicit, non-negated request to learn' },
   { id: 'calculation-task', kind: 'dont-trigger', trigger: 'calculation-task', priority: 60, conflict: 'wins unless explicit learning language is the only request' },
   { id: 'troubleshooting-task', kind: 'dont-trigger', trigger: 'troubleshooting-task', priority: 70, conflict: 'wins for personal failures/problems' },
   { id: 'negated-learning', kind: 'dont-trigger', trigger: 'unknown', priority: 80, conflict: 'wins when the learning request itself is negated' },
@@ -113,17 +113,13 @@ export type LearnIntentRuleId = typeof LEARN_INTENT_RULES[number]['id']
 
 /**
  * Prompt-facing guidance for the model when the hand-maintained patterns do
- * not make the boundary clear.  The model should use the natural-language
- * inventory and precedence table, not invent a new regex.
+ * not make the boundary clear.  Only the natural-language inventory is sent:
+ * the precedence table below orders the classifier, and its rule ids carry no
+ * meaning the model could act on.
  */
-const LEARN_INTENT_CONFLICT_PRIORITY = LEARN_INTENT_RULES
-  .map(rule => `${String(rule.priority)}:${rule.id}`)
-  .join(' > ')
-
 export const LEARN_INTENT_MODEL_GUIDANCE = [
   `Trigger cues: ${LEARN_INTENT_NATURAL_LANGUAGE_RULES.trigger.join(' ')}`,
   `Don't-trigger cues: ${LEARN_INTENT_NATURAL_LANGUAGE_RULES.dontTrigger.join(' ')}`,
-  `Conflict priority (lower number wins): ${LEARN_INTENT_CONFLICT_PRIORITY}.`,
   'Use this as a compact hint, not as a replacement for the user message. If a low-confidence result conflicts with the user\'s apparent goal, reclassify from context and follow the ordinary task route. Do not treat a topic word, “explain”, or “how” alone as proof of learning intent when the user is asking for an implementation, fact, news update, recommendation, or verdict.',
 ].join(' ')
 
@@ -138,12 +134,13 @@ const RESOURCE_CREATION = /(?:(?:make|create|write|draft|prepare|turn|convert|�
 const NEGATED_RESOURCE_CREATION = /(?:do\s+not|don['’]?t|never)\s+(?:quiz\s+me|make|create|write|generate)|(?:不要|别|无需)(?:考我|测试我|生成|制作|整理|编写)/i
 const RESOURCE_SOFTWARE_TASK = /\b(?:quiz|flashcard|study[- ]guide)\s+(?:(?:app(?:lication)?|program|script|website|code)\b|(?:in|using|with)\s+(?:typescript|javascript|python|java|rust|golang|c\+\+|html|css)\b)|(?:测验|闪卡|学习指南)(?:应用|程序|脚本|网站|代码)/i
 const RESOURCE_RECOMMENDATION = /(?:recommend|suggest|what\s+should\s+i\s+read|推荐|建议).{0,80}(?:book|course|tutorial|resource|textbook|教材|课程|教程|资料|资源)|\b(?:best|good)\s+(?:book|course|tutorial|resource|textbook)\b|(?:教材|课程|教程|资料|资源)\s*(?:推荐|建议)/i
-const CODING_TASK = /(?:^|\s)(?:write|implement|code|build|fix|debug|refactor|run|deploy|integrate|编写|实现|写代码|写一个|写出|帮我写|编程|修复|调试|重构|部署|接入)(?:\b|\s|$)|(?:function|class|api|bug|stack\s+trace|报错|代码|函数|脚本).{0,80}(?:write|fix|debug|implement|编写|实现|修复|调试|写一个|写出|帮我写)|(?:explain|walk\s+me\s+through|what\s+does).{0,30}(?:this|the|my|following)\s+(?:code|function|class|snippet|script)|(?:解释|说明).{0,20}(?:这段|以下|这个).{0,10}(?:代码|函数|类|脚本)/i
-// Code nouns/locations keep an explicit teaching request on the ordinary
-// coding route. Generic verbs such as "implement" are otherwise ambiguous.
-// "teach me how compilers implement closures" is about understanding a
-// mechanism, not asking the assistant to write code.
-const CODE_CONTEXT = /(?:\b(?:code|function|class|api|bug|stack\s+trace|snippet|script|repository|repo|file|typescript|javascript|python|java|rust|golang|c\+\+|sql|html|css)\b|代码|函数|类|脚本|程序|仓库|报错|堆栈|接口)/i
+// A coding TASK is an imperative to produce or change code. Comprehension of
+// code — "explain this function", "teach me how to implement a queue in
+// TypeScript" — is a learning request, and in a Learning session it is the most
+// common one; classifying it as a task disabled the whole teaching surface.
+// Explicit learning language therefore wins over code nouns unless the learning
+// request is itself negated ("do not explain it, just fix it").
+const CODING_TASK = /(?:^|\s)(?:write|implement|code|build|fix|debug|refactor|run|deploy|integrate|编写|实现|写代码|写一个|写出|帮我写|编程|修复|调试|重构|部署|接入)(?:\b|\s|$)|(?:function|class|api|bug|stack\s+trace|报错|代码|函数|脚本).{0,80}(?:write|fix|debug|implement|编写|实现|修复|调试|写一个|写出|帮我写)/i
 const CALCULATION_TASK = /^(?:please\s+)?(?:calculate|compute|evaluate|solve)\b|(?:[;,，；]\s*)(?:please\s+)?(?:calculate|compute|evaluate|solve)\b|^(?:请)?(?:计算|求值|求解|解一下|解出)(?:\s|[:：]|$)|(?:直接)?(?:计算|求值|求解)(?:\s|[:：]|$)/i
 const FACTUAL_LOOKUP = /^(?:please\s+)?(?:who|when|where|how\s+(?:many|much)|what\s+(?:year|date)|what(?:'s|\s+is)(?:\s+the)?\s+(?:capital|currency|population|language))\b|^(?:谁(?:是|发明|提出)|什么时候|何时|哪里|哪一年|多少|哪个国家的首都|首都是哪里)|^.+(?:哪个国家的首都|首都是哪里|首都是什么|人口是多少|语言是什么|货币是什么)[?？。！!]?$/i
 const PERSONAL_TROUBLESHOOTING = /^(?:(?:why|how)\b.{0,40}\b(?:my|our)\b|(?:my|our)\b).{0,80}\b(?:won't|doesn't|isn't|can't|cannot|not\s+\w+ing|broken|failing|stopped|problem|issue)\b|^(?:为什么|怎么|如何).{0,30}(?:我的|我们的).{0,50}(?:坏了|打不开|无法|不能|启动不了|不工作|出问题)|^(?:我的|我们的).{0,60}(?:怎么办|坏了|打不开|无法|不能|启动不了|不工作|出问题)/i
@@ -225,7 +222,7 @@ const RULE_HANDLERS: Record<LearnIntentRuleId, RuleHandler> = {
     ? decision('learn', 'resource-creation', 'the learner asks for a study artifact')
     : undefined,
   'coding-task': text => CODING_TASK.test(text)
-    && !(EXPLICIT_LEARNING.test(text) && !CODE_CONTEXT.test(text))
+    && !(EXPLICIT_LEARNING.test(text) && !NEGATED_LEARNING_REQUEST.test(text))
     ? decision('not-learn', 'coding-task', 'implementation or troubleshooting task')
     : undefined,
   'calculation-task': text => CALCULATION_TASK.test(text)
@@ -320,14 +317,13 @@ export function isLearningBoundary(input: string): boolean {
   return intent.intent === 'not-learn' && intent.trigger !== 'unknown'
 }
 
-/** Compact standing text; detailed diagnosis and moves stay in references. */
-/** Shared route guidance used by both the standing policy and the semantic router. */
+/**
+ * Route guidance for the semantic router's own classification pass. The
+ * standing teaching policy deliberately does not restate it: the Host ships a
+ * decided route with every turn, and a low-confidence turn already carries
+ * `LEARN_INTENT_MODEL_GUIDANCE`.
+ */
 export const LEARNING_INTENT_ROUTING_GUIDANCE = [
   'Learn intent covers definitions (“what is X”), a bare concept name, ELI5/beginner requests, persistent confusion or rustiness (“I always mix these up / can’t remember / 没学会”), conceptual why/how questions, prerequisites, learning paths, and requested study artifacts such as “quiz me”, flashcards, or a study guide.',
   'Keep coding/implementation or debugging, direct calculation, personal troubleshooting, translation or rewriting, news/breaking updates, stable or current factual lookups, resource recommendations, and opinion or verdict requests on their ordinary task route. A current or contested topic is still learn intent when the user asks for structured understanding; a latest-news or current-value lookup is not.',
-].join(' ')
-
-export const LEARNING_INTENT_POLICY = [
-  'Classify the request before teaching:',
-  LEARNING_INTENT_ROUTING_GUIDANCE,
 ].join(' ')

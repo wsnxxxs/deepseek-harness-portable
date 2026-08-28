@@ -208,8 +208,13 @@ export async function assertLegacyCompatibilityLazy(root) {
     .map(match => match[1])
     .filter(target => target.includes('legacy-gate-') || target.includes('legacy-protocol-'))
   assert.deepEqual(eagerImports, [], `Host entry eagerly imports retired compatibility chunks:\n${eagerImports.join('\n')}`)
-  assert.match(contents, /import\(["']\.\/legacy-gate-[A-Za-z0-9_-]+\.js["']\)/)
-  assert.match(contents, /import\(["']\.\/legacy-protocol-[A-Za-z0-9_-]+\.js["']\)/)
+  // The V1/V2 Host WAITS are gone — no registered tool could reach them. Only
+  // the durable payload parsers remain, for replaying stored transcripts.
+  assert.doesNotMatch(contents, /legacy-gate-/, 'the retired V1/V2 wait coordinator must stay deleted')
+  // Nothing on the Host path parses a retired payload any more either: the
+  // durable parsers now live only in the CLIENT bundle, which replays stored
+  // transcripts. Absence is a stronger guarantee than a lazy import.
+  assert.doesNotMatch(contents, /legacy-protocol-/, 'the Host entry must not carry retired payload parsers')
 }
 
 const invokedPath = process.argv[1] === undefined ? undefined : pathToFileURL(resolve(process.argv[1])).href

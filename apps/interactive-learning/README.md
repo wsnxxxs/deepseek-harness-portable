@@ -41,7 +41,7 @@ guidance.
 | `src/ingest/`, `src/topic-vault.ts` | Material parsing, vault storage, and anchor infrastructure |
 | `src/learner-state*`, `src/concept-*` | Session state, concept cards, and confirmation flow |
 | `src/client/` | In-conversation learning UI, Learning Library, and tool-result renderers |
-| `src/protocol*` | Versioned declarative activity protocols |
+| `src/protocol*` | Versioned declarative activity protocols; retired V1/V2 payloads parse for replay only |
 
 ## Development and verification
 

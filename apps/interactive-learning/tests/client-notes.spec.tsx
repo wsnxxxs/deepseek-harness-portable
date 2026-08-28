@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentType } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { LearningSessionNotes, projectLearningNotes, type LearningNotesSource } from '../src/client/LearningNotes.tsx'
+import { LearningInputBridge, LearningNotesView, projectLearningNotes, type LearningNotesSource } from '../src/client/LearningNotes.tsx'
 import { LearningSurface } from '../src/client/LearningSurface.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -15,7 +15,34 @@ const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
   return value
 }) as TranslateNS<'interactive-learning'>
 
-const Notes = LearningSessionNotes as unknown as ComponentType<Record<string, unknown>>
+const View = LearningNotesView as unknown as ComponentType<Record<string, unknown>>
+const Bridge = LearningInputBridge as unknown as ComponentType<Record<string, unknown>>
+
+const SESSION_ID = 'notes-session'
+
+function renderNotes(
+  source: LearningNotesSource,
+  input: { setDraft: () => void; submit: () => void },
+): void {
+  const chat = { legacy: source }
+  render(
+    <>
+      <Bridge
+        session={{ sessionId: SESSION_ID }}
+        input={{ phase: 'plain' }}
+        inputActions={input}
+      />
+      <View
+        useSession={(select: (value: unknown) => unknown) => select({ removed: false, running: false })}
+        useChat={(select: (value: typeof chat) => unknown) => select(chat)}
+        sessionId={SESSION_ID}
+        cwd="/vault"
+        call={vi.fn()}
+        t={t}
+      />
+    </>,
+  )
+}
 const Surface = LearningSurface as unknown as ComponentType<Record<string, unknown>>
 
 function resultNode(name: string, args: Record<string, unknown>, result?: unknown) {
@@ -78,15 +105,7 @@ describe('session learning notes', () => {
   it('uses the composer path for the three explicit segment controls', () => {
     const setDraft = vi.fn()
     const submit = vi.fn()
-    render(
-      <Notes
-        session={sessionWithLearningNotes()}
-        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: sessionWithLearningNotes() })}
-        input={{ phase: 'plain' }}
-        inputActions={{ setDraft, submit }}
-        t={t}
-      />,
-    )
+    renderNotes(sessionWithLearningNotes(), { setDraft, submit })
 
     expect(screen.getByText(en.learningNotesGoal)).toBeTruthy()
     expect(screen.getByText(en.learningNotesEvidence)).toBeTruthy()
@@ -119,15 +138,7 @@ describe('session learning notes', () => {
         },
       ],
     } as LearningNotesSource
-    render(
-      <Notes
-        session={session}
-        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: session })}
-        input={{ phase: 'plain' }}
-        inputActions={{ setDraft: vi.fn(), submit: vi.fn() }}
-        t={t}
-      />,
-    )
+    renderNotes(session, { setDraft: vi.fn(), submit: vi.fn() })
     expect(screen.getByText(en.learningNotesTitle)).toBeTruthy()
     expect(screen.queryByRole('button', { name: en.learningNotesDeepen })).toBeNull()
   })
@@ -170,15 +181,7 @@ describe('session learning notes', () => {
 
     const setDraft = vi.fn()
     const submit = vi.fn()
-    render(
-      <Notes
-        session={session}
-        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: session })}
-        input={{ phase: 'plain' }}
-        inputActions={{ setDraft, submit }}
-        t={t}
-      />,
-    )
+    renderNotes(session, { setDraft, submit })
     expect(screen.getByText(en.learningResultTitle)).toBeTruthy()
     expect(screen.getByText(en.learningResultTransfer)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.learningResultCard }))

@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { registerConceptTools, type ConceptToolContext } from '../src/concept-tools.ts'
 import {
+  INITIAL_REVIEW_INTERVAL_DAYS,
+  MAX_REVIEW_INTERVAL_DAYS,
   buildConceptStudyMap,
   conceptCardDraftFromState,
   isConceptDue,
@@ -105,6 +107,14 @@ describe('concept cards', () => {
     expect(isConceptDue(card.due, new Date('2026-08-29T00:00:00.000Z'))).toBe(true)
     expect(nextReviewSchedule(card, 'mastered', new Date('2026-08-29T00:00:00.000Z'))?.intervalDays).toBe(6)
     expect(nextReviewSchedule(card, 'review', new Date('2026-08-29T00:00:00.000Z'))?.intervalDays).toBe(1)
+    // A self-rating is a scheduling signal, so it cannot push a card out of the
+    // queue without limit, and a failure drops the interval it grew before it.
+    const grown = { ...card, intervalDays: 80 }
+    expect(nextReviewSchedule(grown, 'mastered', new Date('2026-08-29T00:00:00.000Z'))?.intervalDays)
+      .toBe(MAX_REVIEW_INTERVAL_DAYS)
+    expect(nextReviewSchedule(grown, 'revealed', new Date('2026-08-29T00:00:00.000Z')))
+      .toMatchObject({ intervalDays: INITIAL_REVIEW_INTERVAL_DAYS, due: '2026-08-29' })
+    expect(nextReviewSchedule(card, 'revealed', new Date('2026-08-29T00:00:00.000Z'))).toBeUndefined()
 
     await updateConceptCardSchedule(vault, card.conceptSlug, {
       due: '2026-08-29', intervalDays: 3, lastReviewedAt: '2026-08-26T00:00:00.000Z',

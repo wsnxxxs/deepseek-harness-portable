@@ -56,17 +56,23 @@
 
 /* Learning is a learner-facing surface. Host context and tool payloads remain
    available in trajectory/debug, while the native Think row stays visible when
-   the assistant actually emits one. */
+   the assistant actually emits one.
+
+   The learning tools are matched by NAME PREFIX, with the two that render
+   learner-facing content named as exceptions. The previous form enumerated the
+   nine tools to HIDE, so adding a tenth leaked its raw JSON payload into the
+   conversation with nothing to catch it — no error, no failing test, just a
+   visible regression nobody was looking for. Inverting it makes the default
+   safe: a new `learning_*` tool is hidden the moment it exists, and the list
+   that must be maintained is the short one — the tools whose ToolView IS the
+   lesson, which is exactly `LEARNING_TOOL_VIEW_KEYS` minus the replay-only
+   protocols.
+
+   This still couples to five Host DOM contracts (`data-slot`, `data-phase`, the
+   tab strip's selection, `data-chat-flow-kind`, `data-tool`). That coupling is
+   the real risk here; keeping the selector count low is what keeps it reviewable. */
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='context']),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_state_update'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_map'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_read'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_search'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_material_recall'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_concept_recall'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_concept_propose'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_visual_select'])),
-:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='learning_checkpoint_select'])),
+:global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool^='learning_']:not([data-tool='learning_visual']):not([data-tool='learning_checkpoint']))),
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:has([data-tool='view_image'])),
 :global(html[data-learning-surface='true'] [data-slot='conversation'] > [data-phase]:has([role='tablist'] > [role='tab']:first-child[aria-selected='true']) [data-chat-flow-kind='tool-call']:not(:has([data-slot='tool.call.toolview'] > *))) {
   display: none !important;

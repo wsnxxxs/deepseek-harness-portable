@@ -1,4 +1,3 @@
-import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
 //#region lib/types/protocol-schema.js
 function schemaPath(path) {
 	return path === "" ? "value" : path;
@@ -116,7 +115,7 @@ const parameter = {
 	properties: {
 		id: {
 			type: "string",
-			description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.",
+			description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.",
 			required: true
 		},
 		label: {
@@ -141,86 +140,24 @@ const parameter = {
 		}
 	}
 };
-function mathExpressionSchema(depth) {
-	const leaves = [{
-		type: "object",
-		additionalProperties: false,
-		properties: {
-			op: {
-				type: "string",
-				const: "constant",
-				required: true
-			},
-			value: {
-				type: "number",
-				required: true
-			}
-		}
-	}, {
-		type: "object",
-		additionalProperties: false,
-		properties: {
-			op: {
-				type: "string",
-				const: "variable",
-				required: true
-			},
-			name: {
-				type: "string",
-				description: "Use x or one of this visual's parameter ids.",
-				required: true
-			}
-		}
-	}];
-	if (depth <= 1) return { oneOf: leaves };
-	const nested = mathExpressionSchema(depth - 1);
-	return { oneOf: [
-		...leaves,
-		{
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				op: {
-					type: "string",
-					enum: MATH_UNARY_OPERATORS,
-					required: true
-				},
-				value: {
-					...nested,
-					required: true
-				}
-			}
-		},
-		{
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				op: {
-					type: "string",
-					enum: MATH_BINARY_OPERATORS,
-					required: true
-				},
-				left: {
-					...nested,
-					required: true
-				},
-				right: {
-					...nested,
-					required: true
-				}
-			}
-		}
-	] };
-}
 function required(schema) {
 	return {
 		...schema,
 		required: true
 	};
 }
-const expression = mathExpressionSchema(4);
+const MATH_SYNTAX = [
+	"Infix expression, e.g. `sigmoid(w*x + b)` or `normpdf((x - mu)/sigma)/sigma`.",
+	`Operators + - * / ^ and unary -, with parentheses; functions ${MATH_UNARY_OPERATORS.join(", ")} take one argument and ${MATH_BINARY_OPERATORS.join(", ")} take two.`,
+	"leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density.",
+	"Names are numbers, x, and declared parameter ids; nothing else, and no assignment or function definition."
+].join(" ");
+const expression = {
+	type: "string",
+	description: MATH_SYNTAX
+};
 const requiredExpression = required(expression);
-const mathExpressionDescription = "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+const mathExpressionDescription = MATH_SYNTAX;
 const identifier = {
 	type: "string",
 	description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -."
@@ -1845,7 +1782,7 @@ const field2DContent = {
 				samples: scalarFieldSamples,
 				expression: {
 					...expression,
-					description: "Closed math AST using x and y variables."
+					description: `Scalar field over x and y. ${MATH_SYNTAX}`
 				},
 				min: { type: "number" },
 				max: { type: "number" }
@@ -1862,11 +1799,11 @@ const field2DContent = {
 					properties: {
 						u: {
 							...requiredExpression,
-							description: "Horizontal component using x and y variables."
+							description: `Horizontal component using x and y. ${MATH_SYNTAX}`
 						},
 						v: {
 							...requiredExpression,
-							description: "Vertical component using x and y variables."
+							description: `Vertical component using x and y. ${MATH_SYNTAX}`
 						}
 					}
 				}
@@ -2289,63 +2226,248 @@ function learningVisualParametersV4(kind) {
 		}
 	};
 }
-function learningCheckpointParametersV1(selection) {
+/**
+* The whole checkpoint payload in one tool, branched on `kind`.
+*
+* The retired two-step form asked the model to select a kind, then exposed a
+* kind-specific payload schema on the next step. That pattern is worth a full
+* model round trip for the visual tool, whose fifteen content schemas are some
+* five thousand tokens together; here all five branches come to about a
+* thousand characters, so the round trip bought nothing. The answer-free
+* guarantee never came from the selector anyway — the closed schema simply has
+* no correct-answer or rubric field to fill in.
+*/
+function learningCheckpointParametersOneStepV1() {
 	return {
 		protocol: {
 			type: "string",
 			const: CHECKPOINT_PROTOCOL,
 			required: true
 		},
-		kind: {
-			type: "string",
-			const: selection.kind,
-			required: true
-		},
 		prompt: {
 			type: "string",
-			const: selection.prompt,
-			required: true
+			required: true,
+			description: "One self-contained, answer-free prompt for the current teaching move."
 		},
 		context: { type: "string" },
 		expectedEvidence: {
 			type: "string",
-			const: selection.expectedEvidence,
-			required: true
-		},
-		...selection.kind === "single_choice" ? { options: {
-			type: "array",
+			enum: LEARNING_CHECKPOINT_EVIDENCE_KINDS,
 			required: true,
-			items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1,
-			description: "Two to eight answer-free choices. No correct-answer or rubric field exists."
-		} } : {},
+			description: "What the response demonstrates: attempt, prediction, explanation, contrast, or fresh transfer."
+		},
 		fallbackMarkdown: {
 			type: "string",
 			required: true,
 			description: "Self-sufficient ordinary-conversation fallback; never include the answer."
+		},
+		kind: {
+			type: "string",
+			enum: LEARNING_CHECKPOINT_KINDS,
+			required: true,
+			description: "Response shape: free_text=short prose; single_choice=one label; numeric=one number; prediction=what happens next; code_slot=one small code fragment."
+		},
+		options: {
+			type: "array",
+			items: LEARNING_CHECKPOINT_OPTION_SCHEMA_V1,
+			description: "Required for kind=single_choice and forbidden otherwise: two to eight answer-free choices. No correct-answer or rubric field exists."
 		}
 	};
 }
 //#endregion
+//#region lib/types/math-parser.js
+/**
+* Parse an infix math expression into the payload AST.
+*
+* The AST itself is a good runtime representation and a terrible schema. Written
+* out as JSON Schema it has to be inlined once per level, so a depth-4
+* expression expands to roughly a hundred node definitions, each carrying the
+* full operator enums. Measured, that expansion was about 95% of the `plot` and
+* `field_2d` tool schemas — 118k of the 160k characters across all fifteen
+* visual kinds. It is also the least natural thing for a model to write:
+* `sigmoid(w*x + b)` becomes eleven nested objects.
+*
+* So the wire format is the string and the AST stays internal. The tool parses
+* at its boundary, which means the persisted payload, the validator, the
+* compiler, and every renderer are unchanged, and a replayed session from
+* before this change still holds exactly the AST it always did.
+*
+* Deliberately not `eval` or `new Function`: the payload is model-authored, so
+* it is parsed as data and never reaches an interpreter.
+* @module @dsh-portable/interactive-learning/src/math-parser
+*/
+const BINARY = new Set(MATH_BINARY_OPERATORS);
+const UNARY = new Set(MATH_UNARY_OPERATORS);
+/** Raised for a source string that is not a well-formed expression. */
+var MathParseError = class extends Error {
+	constructor(message) {
+		super(message);
+		this.name = "MathParseError";
+	}
+};
+/**
+* Names stop at a hyphen, so `-` is always subtraction.
+*
+* Identifiers elsewhere in a visual payload may contain hyphens, but a plot or
+* field parameter id may not, because `w-1` cannot mean both a variable and a
+* subtraction. Resolving that against the declared names was possible and was
+* the first thing tried; it also silently rewrote `normpdf(x)` to the variable
+* `n` in any plot that happened to declare a parameter called `n`. A grammar
+* that needs to know the variables before it can tokenize is the wrong grammar.
+*/
+function readName(source, start) {
+	const match = /^[a-z][a-z0-9_]*/.exec(source.slice(start));
+	return match === null ? "" : match[0];
+}
+function skip(cursor) {
+	while (cursor.at < cursor.source.length && /\s/.test(cursor.source[cursor.at])) cursor.at += 1;
+}
+function expect(cursor, character) {
+	skip(cursor);
+	if (cursor.source[cursor.at] !== character) throw new MathParseError(`expected ${character} at position ${String(cursor.at)}`);
+	cursor.at += 1;
+}
+/** `expr := term (('+' | '-') term)*` */
+function parseExpression(cursor) {
+	let left = parseTerm(cursor);
+	for (;;) {
+		skip(cursor);
+		const character = cursor.source[cursor.at];
+		if (character !== "+" && character !== "-") return left;
+		cursor.at += 1;
+		left = {
+			op: character === "+" ? "add" : "sub",
+			left,
+			right: parseTerm(cursor)
+		};
+	}
+}
+/** `term := factor (('*' | '/') factor)*` */
+function parseTerm(cursor) {
+	let left = parseFactor(cursor);
+	for (;;) {
+		skip(cursor);
+		const character = cursor.source[cursor.at];
+		if (character !== "*" && character !== "/") return left;
+		cursor.at += 1;
+		left = {
+			op: character === "*" ? "mul" : "div",
+			left,
+			right: parseFactor(cursor)
+		};
+	}
+}
+/** `factor := unary ('^' factor)?` — right associative, as exponentiation is. */
+function parseFactor(cursor) {
+	const left = parseUnary(cursor);
+	skip(cursor);
+	if (cursor.source[cursor.at] !== "^") return left;
+	cursor.at += 1;
+	return {
+		op: "pow",
+		left,
+		right: parseFactor(cursor)
+	};
+}
+/** `unary := '-' unary | primary` */
+function parseUnary(cursor) {
+	skip(cursor);
+	if (cursor.source[cursor.at] !== "-") return parsePrimary(cursor);
+	cursor.at += 1;
+	return {
+		op: "neg",
+		value: parseUnary(cursor)
+	};
+}
+/** `primary := number | call | name | '(' expr ')'` */
+function parsePrimary(cursor) {
+	skip(cursor);
+	const { source } = cursor;
+	if (cursor.at >= source.length) throw new MathParseError("expression ended early");
+	if (source[cursor.at] === "(") {
+		cursor.at += 1;
+		const inner = parseExpression(cursor);
+		expect(cursor, ")");
+		return inner;
+	}
+	const number = /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i.exec(source.slice(cursor.at));
+	if (number !== null) {
+		cursor.at += number[0].length;
+		return {
+			op: "constant",
+			value: Number(number[0])
+		};
+	}
+	if (!/[a-z]/.test(source[cursor.at])) throw new MathParseError(`unexpected ${JSON.stringify(source[cursor.at])} at position ${String(cursor.at)}`);
+	const name = readName(source, cursor.at);
+	cursor.at += name.length;
+	skip(cursor);
+	if (source[cursor.at] !== "(") return {
+		op: "variable",
+		name
+	};
+	cursor.at += 1;
+	const args = [parseExpression(cursor)];
+	for (;;) {
+		skip(cursor);
+		if (source[cursor.at] !== ",") break;
+		cursor.at += 1;
+		args.push(parseExpression(cursor));
+	}
+	expect(cursor, ")");
+	if (UNARY.has(name)) {
+		if (args.length !== 1) throw new MathParseError(`${name} takes one argument`);
+		return {
+			op: name,
+			value: args[0]
+		};
+	}
+	if (BINARY.has(name)) {
+		if (args.length !== 2) throw new MathParseError(`${name} takes two arguments`);
+		return {
+			op: name,
+			left: args[0],
+			right: args[1]
+		};
+	}
+	throw new MathParseError(`unknown function ${name}`);
+}
+/**
+* Parse one infix expression.
+* @param source - The expression as written, e.g. `sigmoid(w*x + b)`.
+* @returns the equivalent AST.
+* @throws MathParseError when the source is not a well-formed expression.
+*/
+function parseMathExpression(source) {
+	if (source.length > 512) throw new MathParseError("expression exceeds 512 characters");
+	const cursor = {
+		source: source.toLowerCase(),
+		at: 0
+	};
+	const parsed = parseExpression(cursor);
+	skip(cursor);
+	if (cursor.at !== cursor.source.length) throw new MathParseError(`unexpected trailing input at position ${String(cursor.at)}`);
+	return parsed;
+}
+//#endregion
+//#region lib/types/protocol-errors.js
+/** Stable error type shared by current and compatibility protocol parsers. */
+var LearningProtocolError = class extends Error {
+	issues;
+	code = "INVALID_LEARNING_ACTIVITY";
+	constructor(issues) {
+		super(`Invalid Learning Activity: ${issues.join("; ")}`);
+		this.issues = issues;
+		this.name = "LearningProtocolError";
+	}
+};
+//#endregion
 //#region lib/types/protocol-current.js
 /** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
-const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
-const RESPONSE_PROTOCOL = "dsh-learning/response@1";
-const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
-const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
-const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
-const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
-const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
-const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
 const RECALL_FEEDBACK_PROTOCOL_V1 = "dsh-learning/recall-feedback@1";
 const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
-const LEARNING_ACTIVITY_KINDS = [
-	"parameter_explorer",
-	"process_stepper",
-	"structure_compare"
-];
 const MAX_ACTIVITY_BYTES = 65536;
 const MAX_RESPONSE_BYTES = 32768;
-const MAX_MATH_DEPTH = 8;
 const MAX_MATH_NODES = 64;
 /** A learner's explicit recall interaction, sent from the visual Client to Host. */
 const LEARNING_RECALL_STATUSES = [
@@ -2403,11 +2525,22 @@ function jsonBytes(value) {
 		return;
 	}
 }
-function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth = 8) {
+function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth = 4) {
 	const binary = new Set(MATH_BINARY_OPERATORS);
 	const unary = new Set(MATH_UNARY_OPERATORS);
+	if (typeof value !== "string") {
+		issues.push(`${path} must be an expression string`);
+		return;
+	}
+	let root;
+	try {
+		root = parseMathExpression(value);
+	} catch (cause) {
+		issues.push(`${path} is not a valid expression: ${cause instanceof MathParseError ? cause.message : String(cause)}`);
+		return;
+	}
 	const stack = [{
-		value,
+		value: root,
 		path,
 		depth: 1
 	}];
@@ -2636,145 +2769,6 @@ function validateVisualAxisV3(value, path, issues, samplesAllowed) {
 	const maxOk = finite(value.max, `${path}.max`, issues);
 	if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
 	if (samplesAllowed && value.samples !== void 0 && (!integer(value.samples, `${path}.samples`, issues, 24) || value.samples > 256)) issues.push(`${path}.samples must be an integer from 24 to 256`);
-}
-function validateVisualParametersV3(value, issues) {
-	const path = "visual.parameters";
-	if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
-		issues.push(`${path} must contain 1 to 3 parameters`);
-		return [];
-	}
-	const parameters = value.filter(record);
-	if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
-	uniqueIds(parameters, path, issues);
-	for (const [index, parameter] of parameters.entries()) {
-		const itemPath = `${path}[${String(index)}]`;
-		onlyKeys(parameter, [
-			"id",
-			"label",
-			"min",
-			"max",
-			"step",
-			"initial"
-		], itemPath, issues);
-		id(parameter.id, `${itemPath}.id`, issues);
-		if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
-		text(parameter.label, `${itemPath}.label`, issues, 120);
-		const minOk = finite(parameter.min, `${itemPath}.min`, issues);
-		const maxOk = finite(parameter.max, `${itemPath}.max`, issues);
-		const stepOk = finite(parameter.step, `${itemPath}.step`, issues);
-		const initialOk = finite(parameter.initial, `${itemPath}.initial`, issues);
-		if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
-		if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
-		if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
-		if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
-	}
-	return parameters;
-}
-/** Validate the preferred, non-blocking visual protocol. */
-function parseLearningVisualV3(value) {
-	const issues = [];
-	const bytes = jsonBytes(value);
-	if (bytes === void 0) issues.push("visual must be serializable JSON");
-	else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-	if (!record(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
-	onlyKeys(value, [
-		"protocol",
-		"kind",
-		"title",
-		"description",
-		"parameters",
-		"xAxis",
-		"yAxis",
-		"series",
-		"metrics"
-	], "visual", issues);
-	if (value.protocol !== "dsh-learning/visual@3") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V3}`);
-	if (value.kind !== "parameter_chart") issues.push("visual.kind must be parameter_chart");
-	text(value.title, "visual.title", issues, 200);
-	if (value.description !== void 0) text(value.description, "visual.description", issues, 1e3);
-	const parameters = validateVisualParametersV3(value.parameters, issues);
-	const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
-	validateVisualAxisV3(value.xAxis, "visual.xAxis", issues, true);
-	validateVisualAxisV3(value.yAxis, "visual.yAxis", issues, false);
-	if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.series must contain 1 to 8 series");
-	else {
-		const series = value.series.filter(record);
-		if (series.length !== value.series.length) issues.push("visual.series entries must be objects");
-		uniqueIds(series, "visual.series", issues);
-		let curveCount = 0;
-		for (const [index, item] of series.entries()) {
-			const path = `visual.series[${String(index)}]`;
-			id(item.id, `${path}.id`, issues);
-			text(item.label, `${path}.label`, issues, 160);
-			if (item.tone !== void 0 && !VISUAL_TONES_V3.has(item.tone)) issues.push(`${path}.tone is unknown`);
-			if (item.type === "curve") {
-				curveCount += 1;
-				onlyKeys(item, [
-					"type",
-					"id",
-					"label",
-					"expression",
-					"tone",
-					"stroke"
-				], path, issues);
-				if (item.stroke !== void 0 && !VISUAL_STROKES_V3.has(item.stroke)) issues.push(`${path}.stroke is unknown`);
-				validateMath(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
-			} else if (item.type === "points") {
-				onlyKeys(item, [
-					"type",
-					"id",
-					"label",
-					"points",
-					"tone"
-				], path, issues);
-				if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 128) {
-					issues.push(`${path}.points must contain 1 to 128 points`);
-					continue;
-				}
-				for (const [pointIndex, point] of item.points.entries()) {
-					const pointPath = `${path}.points[${String(pointIndex)}]`;
-					if (!record(point)) {
-						issues.push(`${pointPath} must be an object`);
-						continue;
-					}
-					onlyKeys(point, [
-						"x",
-						"y",
-						"label"
-					], pointPath, issues);
-					finite(point.x, `${pointPath}.x`, issues);
-					finite(point.y, `${pointPath}.y`, issues);
-					if (point.label !== void 0) text(point.label, `${pointPath}.label`, issues, 160);
-				}
-			} else issues.push(`${path}.type must be curve or points`);
-		}
-		if (curveCount === 0) issues.push("visual.series must contain at least one curve");
-	}
-	if (value.metrics !== void 0) {
-		if (!Array.isArray(value.metrics) || value.metrics.length > 4) issues.push("visual.metrics must contain at most 4 metrics");
-		else {
-			const metrics = value.metrics.filter(record);
-			if (metrics.length !== value.metrics.length) issues.push("visual.metrics entries must be objects");
-			uniqueIds(metrics, "visual.metrics", issues);
-			for (const [index, metric] of metrics.entries()) {
-				const path = `visual.metrics[${String(index)}]`;
-				onlyKeys(metric, [
-					"id",
-					"label",
-					"expression",
-					"digits",
-					"suffix"
-				], path, issues);
-				id(metric.id, `${path}.id`, issues);
-				text(metric.label, `${path}.label`, issues, 160);
-				validateMath(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
-				if (metric.digits !== void 0 && (!integer(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
-				if (metric.suffix !== void 0) text(metric.suffix, `${path}.suffix`, issues, 80);
-			}
-		}
-	}
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
 }
 function validateVisualToneV4(value, path, issues) {
 	if (value !== void 0 && !VISUAL_TONES_V3.has(value)) issues.push(`${path} is unknown`);
@@ -4399,14 +4393,5 @@ function parseLearningRecallFeedbackV1(value) {
 	if (issues.length > 0) throw new LearningProtocolError(issues);
 	return value;
 }
-function parseLearningVisualResultV3(value) {
-	const issues = [];
-	if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
-	onlyKeys(value, ["protocol", "status"], "visualResult", issues);
-	if (value.protocol !== "dsh-learning/visual-result@3") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V3}`);
-	if (value.status !== "ready") issues.push("visualResult.status must be ready");
-	if (issues.length > 0) throw new LearningProtocolError(issues);
-	return value;
-}
 //#endregion
-export { LEARNING_VISUAL_KINDS_V4 as A, parseLearningVisualV3 as C, LEARNING_CHECKPOINT_EVIDENCE_KINDS as D, CHECKPOINT_RESULT_PROTOCOL as E, MAX_VISUAL_MATH_DEPTH as F, VISUAL_PROTOCOL_V4 as I, VISUAL_RESULT_PROTOCOL_V4 as L, LEARNING_VISUAL_STATUSES as M, MATH_BINARY_OPERATORS as N, LEARNING_CHECKPOINT_KINDS as O, MATH_UNARY_OPERATORS as P, learningCheckpointParametersV1 as R, parseLearningVisualResultV4 as S, CHECKPOINT_PROTOCOL as T, isLearningCheckpointDisplayTextSafe as _, LEARNING_RECALL_STATUSES as a, parseLearningRecallFeedbackV1 as b, MAX_MATH_NODES as c, RESPONSE_PROTOCOL as d, RESPONSE_PROTOCOL_V2 as f, VISUAL_RESULT_PROTOCOL_V3 as g, VISUAL_PROTOCOL_V3 as h, LEARNING_ACTIVITY_KINDS as i, LEARNING_VISUAL_RESULT_SCHEMA_V4 as j, LEARNING_CHECKPOINT_RESULT_SCHEMA_V1 as k, MAX_RESPONSE_BYTES as l, TRANSPORT_PROTOCOL_V2 as m, ACTIVITY_PROTOCOL_V2 as n, MAX_ACTIVITY_BYTES as o, TRANSPORT_PROTOCOL as p, CHECKPOINT_TRANSPORT_PROTOCOL as r, MAX_MATH_DEPTH as s, ACTIVITY_PROTOCOL as t, RECALL_FEEDBACK_PROTOCOL_V1 as u, parseLearningCheckpointResultV1 as v, parseLearningVisualV4 as w, parseLearningVisualResultV3 as x, parseLearningCheckpointV1 as y, learningVisualParametersV4 as z };
+export { MATH_UNARY_OPERATORS as C, learningCheckpointParametersOneStepV1 as D, VISUAL_RESULT_PROTOCOL_V4 as E, learningVisualParametersV4 as O, MATH_BINARY_OPERATORS as S, VISUAL_PROTOCOL_V4 as T, LEARNING_CHECKPOINT_KINDS as _, MAX_RESPONSE_BYTES as a, LEARNING_VISUAL_RESULT_SCHEMA_V4 as b, parseLearningCheckpointResultV1 as c, parseLearningVisualResultV4 as d, parseLearningVisualV4 as f, LEARNING_CHECKPOINT_EVIDENCE_KINDS as g, CHECKPOINT_RESULT_PROTOCOL as h, MAX_MATH_NODES as i, parseLearningCheckpointV1 as l, CHECKPOINT_PROTOCOL as m, LEARNING_RECALL_STATUSES as n, RECALL_FEEDBACK_PROTOCOL_V1 as o, LearningProtocolError as p, MAX_ACTIVITY_BYTES as r, isLearningCheckpointDisplayTextSafe as s, CHECKPOINT_TRANSPORT_PROTOCOL as t, parseLearningRecallFeedbackV1 as u, LEARNING_CHECKPOINT_RESULT_SCHEMA_V1 as v, MAX_VISUAL_MATH_DEPTH as w, LEARNING_VISUAL_STATUSES as x, LEARNING_VISUAL_KINDS_V4 as y };

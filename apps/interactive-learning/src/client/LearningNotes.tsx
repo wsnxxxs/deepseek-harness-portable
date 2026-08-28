@@ -258,7 +258,10 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
   const nodes = contentNodes(session)
   const calls = allLearningCalls(session)
   const evidence: string[] = []
+  /** The model's recorded goal, and the fallbacks used when it never records one. */
   let goal: string | null = null
+  let requestGoal: string | null = null
+  let correctedGoal: string | null = null
   let phase: LearningPhase | null = null
   let plan: PlanProjection | null = null
   let latestTitle: string | null = null
@@ -270,17 +273,19 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
     const args = parseJson(call.argsRaw)
     if (args === undefined) continue
 
-    // The learner's request is the most stable source for a session goal. It
-    // prevents a checkpoint question from becoming the headline when an old
-    // session lacks an early goal_observed event; explicit corrections still
-    // remain authoritative below.
-    if (goal === null) goal = precedingUserGoal(nodes, order) ?? null
+    // Kept as a FALLBACK, not as the goal. Assigning it here used to make the
+    // `goal === null` test below always false, so a `goal_observed` event could
+    // only win by being byte-identical to the user's own words — which is to say
+    // it never won, and the headline was always the raw request.
+    if (requestGoal === null) requestGoal = precedingUserGoal(nodes, order) ?? null
 
     if (call.name === 'learning_state_update') {
       const action = textOf(args.action, 30)
       if (action === 'reset') {
         closed = true
         goal = null
+        requestGoal = null
+        correctedGoal = null
         phase = null
         plan = null
         evidence.length = 0
@@ -293,12 +298,14 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
       const eventType = textOf(event?.type, 60)
       const eventGoal = textOf(event?.goal)
       const correctionGoal = typeof correction?.goal === 'string' ? textOf(correction.goal) : undefined
-      // A checkpoint prompt or a later plan is not a new learning goal. The
-      // durable state contract requires reset before starting another topic;
-      // preserve the first active goal in the learner-facing projection too.
-      if (eventGoal !== undefined && (goal === null || goal === eventGoal)) goal = eventGoal
-      if (correctionGoal !== undefined) goal = correctionGoal
-      if (correction?.goal === null) goal = null
+      // Only the FIRST goal_observed is kept, and only as a fallback below. A
+      // model has been observed writing a checkpoint prompt into this field, so
+      // the learner's own opening words outrank it; a later event cannot replace
+      // an active goal here either, matching the durable state contract's
+      // requirement to reset before another topic.
+      if (eventGoal !== undefined && goal === null) goal = eventGoal
+      if (correctionGoal !== undefined) correctedGoal = correctionGoal
+      if (correction?.goal === null) { correctedGoal = null; goal = null; requestGoal = null }
       if (eventType === 'learner_evidence_observed') {
         addEvidence(evidence, recordOf(event?.evidence)?.summary)
         if (isVerifiedTransfer(event?.evidence)) verifiedTransfer = true
@@ -316,7 +323,6 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
       const steps = stepsOf(event?.steps)
       if (eventType === 'plan_observed' && objective !== undefined && steps.length > 0) {
         plan = { objective, steps, activeStepId: textOf(event?.activeStepId, 80), completedStepIds: new Set() }
-        if (goal === null) goal = objective
       }
       if (eventType === 'plan_step_evidenced' && plan !== null) {
         const stepId = textOf(event?.stepId, 80)
@@ -344,10 +350,6 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
     learningMoves += 1
     const title = textOf(args.title) ?? textOf(recordOf(args.focus)?.title) ?? textOf(args.prompt)
     if (title !== undefined) latestTitle = title
-    if (goal === null) {
-      const visualGoal = textOf(args.description) ?? title
-      if (visualGoal !== undefined) goal = visualGoal
-    }
     const result = resultAnswer(call.content)
     if (result !== undefined) addEvidence(evidence, result)
     // A completed legacy activity can carry a short explanation in `answer`.
@@ -367,11 +369,17 @@ export function projectLearningNotes(session: LearningNotesSource): LearningNote
     return text !== undefined && isExplicitLearningBoundary(text)
   })) closed = true
 
-  if (goal === null && latestTitle !== null) goal = latestTitle
+  // Precedence, strongest first. An explicit user correction always wins. After
+  // that the learner's own opening request outranks the model's `goal_observed`,
+  // which is reached when the request is not in view — a resumed or compacted
+  // transcript, or a session opened from an action rather than typed. A plan
+  // objective and a figure title are the last resort: the durable state contract
+  // is explicit that neither is a goal.
+  const headline = correctedGoal ?? requestGoal ?? goal ?? plan?.objective ?? latestTitle
   return {
     visible: calls.length > 0,
     active: calls.length > 0 && !closed,
-    goal,
+    goal: headline ?? null,
     evidence,
     phase,
     plan,
@@ -512,7 +520,6 @@ export function LearningNotesView({
       <section className={css.goalCard}>
         <p className={css.cardEyebrow}>{t('learningNotesGoal')}</p>
         <p className={css.goalText}>{notes.goal ?? t('learningNotesUnknown')}</p>
-        <p className={css.routeText}>{routeProgress(notes, t)}</p>
       </section>
 
       <div className={css.noteGrid}>
@@ -565,19 +572,22 @@ export function LearningNotesView({
           <>
             <button
               type="button"
+              data-lx-control="secondary"
               disabled={disabled}
               data-learning-segment-action="deepen"
               onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesDeepenPrompt'))}
             >{t('learningNotesDeepen')}</button>
             <button
               type="button"
+              data-lx-control="secondary"
               disabled={disabled}
               data-learning-segment-action="rephrase"
               onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesRephrasePrompt'))}
             >{t('learningNotesRephrase')}</button>
             <button
               type="button"
-              className={css.actionQuiet}
+              className={css.actionEnd}
+              data-lx-control="quiet"
               disabled={disabled}
               data-learning-segment-action="end"
               onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningNotesEndPrompt'))}
@@ -585,16 +595,41 @@ export function LearningNotesView({
           </>
         )}
         {!notes.active && bridge !== undefined && (
-          <button
-            type="button"
-            disabled={disabled}
-            data-learning-result-action="practice"
-            onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningResultPracticePrompt'))}
-          >{t('learningResultPractice')}</button>
+          <>
+            <button
+              type="button"
+              data-lx-control="secondary"
+              disabled={disabled}
+              data-learning-result-action="practice"
+              onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningResultPracticePrompt'))}
+            >{t('learningResultPractice')}</button>
+            {/* Only after evidence of independent fresh transfer. A card offered
+                before that would invite saving an explanation the learner has
+                not yet shown they can reproduce. */}
+            {notes.verifiedTransfer && (
+              <button
+                type="button"
+                data-lx-control="secondary"
+                disabled={disabled}
+                data-learning-result-action="card"
+                onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningResultCardPrompt'))}
+              >{t('learningResultCard')}</button>
+            )}
+            <button
+              type="button"
+              className={css.actionEnd}
+              data-lx-control="quiet"
+              disabled={disabled}
+              data-learning-result-action="new-topic"
+              onClick={() => sendIntent(bridge.inputActions, bridge.input, t('learningResultNewTopicPrompt'))}
+            >{t('learningResultNewTopic')}</button>
+          </>
         )}
         <button
           type="button"
-          className={saved ? css.actionSaved : css.actionPrimary}
+          className={css.actionSave}
+          data-lx-control="primary"
+          {...(saved ? { 'data-lx-state': 'done' } : {})}
           disabled={saving || saved || cwd === undefined || cwd === ''}
           data-learning-save="session-note"
           onClick={save}
@@ -602,96 +637,5 @@ export function LearningNotesView({
       </footer>
       {failure !== '' && <p className={css.viewError} role="alert">{failure}</p>}
     </main>
-  )
-}
-
-export function LearningSessionNotes({ session, input, inputActions, useChat, t }: LearningNotesProps) {
-  const chat = useChat(state => state.legacy)
-  const notes = projectLearningNotes(chat)
-  if (!notes.visible) return null
-  const disabled = session.removed || session.running || input.phase !== 'plain'
-  return (
-    <details
-      className={css.notes}
-      {...learningScope}
-      data-learning-notes="session"
-      data-learning-segment-active={notes.active || undefined}
-      open
-    >
-      <summary className={css.summary}>{t('learningNotesTitle')}</summary>
-      <div className={css.body}>
-        <section className={css.section}>
-          <h3>{t('learningNotesGoal')}</h3>
-          <p>{notes.goal ?? t('learningNotesUnknown')}</p>
-        </section>
-        <section className={css.section}>
-          <h3>{t('learningNotesEvidence')}</h3>
-          {notes.evidence.length === 0
-            ? <p>{t('learningNotesNoEvidence')}</p>
-            : <ul>{notes.evidence.map((item, index) => <li key={`${item}:${String(index)}`}>{item}</li>)}</ul>}
-        </section>
-        <section className={css.section}>
-          <h3>{t('learningNotesRoute')}</h3>
-          <p>{routeProgress(notes, t)}</p>
-          {notes.plan?.objective === undefined ? null : <p className={css.objective}>{notes.plan.objective}</p>}
-        </section>
-        {!notes.active && (
-          <section className={css.result} data-learning-result>
-            <h3>{t('learningResultTitle')}</h3>
-            <p>{notes.phase === 'complete' ? t('learningResultComplete') : t('learningResultEnded')}</p>
-            <p>{notes.verifiedTransfer ? t('learningResultTransfer') : t('learningResultTransferPending')}</p>
-            <p className={css.resultNote}>{t('learningResultEvidenceNote')}</p>
-          </section>
-        )}
-        {notes.active && (
-          <div className={css.actions} aria-label={t('learningNotesActions')}>
-            <button
-              type="button"
-              disabled={disabled}
-              data-learning-segment-action="deepen"
-              onClick={() => sendIntent(inputActions, input, t('learningNotesDeepenPrompt'))}
-            >{t('learningNotesDeepen')}</button>
-            <button
-              type="button"
-              disabled={disabled}
-              data-learning-segment-action="rephrase"
-              onClick={() => sendIntent(inputActions, input, t('learningNotesRephrasePrompt'))}
-            >{t('learningNotesRephrase')}</button>
-            <button
-              type="button"
-              className={css.endAction}
-              disabled={disabled}
-              data-learning-segment-action="end"
-              onClick={() => sendIntent(inputActions, input, t('learningNotesEndPrompt'))}
-            >{t('learningNotesEnd')}</button>
-          </div>
-        )}
-        {!notes.active && (
-          <div className={css.actions} aria-label={t('learningResultActions')}>
-            <button
-              type="button"
-              disabled={disabled}
-              data-learning-result-action="practice"
-              onClick={() => sendIntent(inputActions, input, t('learningResultPracticePrompt'))}
-            >{t('learningResultPractice')}</button>
-            {notes.verifiedTransfer && (
-              <button
-                type="button"
-                disabled={disabled}
-                data-learning-result-action="card"
-                onClick={() => sendIntent(inputActions, input, t('learningResultCardPrompt'))}
-              >{t('learningResultCard')}</button>
-            )}
-            <button
-              type="button"
-              className={css.endAction}
-              disabled={disabled}
-              data-learning-result-action="new-topic"
-              onClick={() => sendIntent(inputActions, input, t('learningResultNewTopicPrompt'))}
-            >{t('learningResultNewTopic')}</button>
-          </div>
-        )}
-      </div>
-    </details>
   )
 }

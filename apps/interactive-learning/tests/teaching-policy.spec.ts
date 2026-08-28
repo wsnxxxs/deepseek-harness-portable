@@ -29,30 +29,35 @@ describe('authoritative compact Learning teaching policy', () => {
     expect(agentSource).not.toContain('Never repeat the same hint in new words')
 
     expect(skillSource).toContain('single authoritative source')
-    expect(skillSource).toContain('only routes to detailed construction references')
+    expect(skillSource).toContain('routes only to construction references')
     expect(skillSource).toContain('must not restate, weaken, or override the standing policy')
     expect(skillSource).not.toContain('Choose the smallest useful move')
     expect(skillSource).not.toContain('Continue from evidence')
     expect(skillSource).not.toContain('Know when to stop')
   })
 
-  it('puts the ambiguity route above overview dumping', () => {
+  it('keeps route-independent adaptation and defers the per-route move', () => {
     expectPolicyToCover(
-      'short “learn X”, “teach me X”, or “understand X” request with unknown level and goal as calibration',
-      'ask one question whose answer changes the teaching route',
-      'give one tiny foothold',
+      'The route for this turn is supplied with the turn',
+      'teach a clear goal and calibrate an underspecified one',
       'Fluent terminology sets the teaching level, not the response shape',
-      'from zero”, “beginner”, “ELI5”, or “concept intro”, teach one minimum concept immediately',
-      'complete/full overview',
-      'current or contested-topic survey',
-      'create requested study resources directly',
-      'concrete blocker with opening time pressure gets direct help first',
-      'narrow the move for impatience',
-      'give a concrete first step and change representation',
+      'decide whether the learner is impatient or genuinely stuck',
+      'keep them doing the last step',
+      'Check when a deadline appeared',
+      'Do the first step for them, change representation, and rebuild with them driving',
       'do not open with a questionnaire',
     )
+    // The Host has already classified the turn and states the result in the
+    // `learning:turn-route` context. Re-teaching the classification here spent
+    // tokens on every turn and let the two disagree.
+    for (const perRoute of [
+      'short “learn X”, “teach me X”, or “understand X” request with unknown level and goal as calibration',
+      'complete/full overview',
+      'concrete blocker with opening time pressure gets direct help first',
+    ]) {
+      expect(LEARNING_TEACHING_POLICY).not.toContain(perRoute)
+    }
   })
-
   it('pins the one-step evidence loop and repair behavior', () => {
     expectPolicyToCover(
       'Each response makes one cognitive move',
@@ -84,8 +89,8 @@ describe('authoritative compact Learning teaching policy', () => {
       'Use a visual only when one relationship is materially clearer',
       'use a checkpoint only when the learner\'s response will change the next move',
       'visual or checkpoint, never both',
-      'Both are optional and non-blocking',
-      'Load the interactive-teaching Skill when detailed diagnosis, pressure, integrity, visual, or supplied-source guidance is needed',
+      'a skip, cancel, or failed render must never block the lesson',
+      'Load the interactive-teaching Skill for visual construction or supplied-source handling',
       'Never invent facts, citations, source anchors, learner evidence, or confidence',
       '`learning_state_update`',
       'Low-confidence evidence may guide support but cannot establish mastery',
@@ -97,9 +102,14 @@ describe('authoritative compact Learning teaching policy', () => {
 
   it('keeps the standing policy within the compact prompt budget', () => {
     // This is a conservative proxy, not a model-specific tokenizer claim.
-    expect(LEARNING_TEACHING_POLICY.length).toBeLessThan(5000)
+    // Raised from 5000 when diagnosis, pressure, and tone moved back into the
+    // standing layer from Skill references. Those three decide behavior on
+    // ordinary turns, and a rule reachable only behind a load-the-Skill
+    // decision the model rarely makes is not in the prompt in any real sense.
+    // The cap still fails if a construction reference is pasted in wholesale.
+    expect(LEARNING_TEACHING_POLICY.length).toBeLessThan(7000)
     expect(Math.ceil(LEARNING_TEACHING_POLICY.length / 4)).toBeGreaterThanOrEqual(800)
-    expect(Math.ceil(LEARNING_TEACHING_POLICY.length / 4)).toBeLessThan(1250)
+    expect(Math.ceil(LEARNING_TEACHING_POLICY.length / 4)).toBeLessThan(1750)
   })
 
   it('keeps graded and visual guidance out of the core until the route needs it', () => {

@@ -1,8 +1,6 @@
 import { S as serializeLearnerStateSnapshot, _ as parseLearnerStateSnapshotEvent, a as LEARNER_STATE_SESSION_EVENT_TYPE, b as renderLearnerStateTranscript, c as LEARNING_CHECKPOINT_METRIC_KINDS, d as LEARNING_SEGMENT_SESSION_EVENT_TYPE, f as MAX_FAILED_MOVES, g as hydrateLearnerStateSnapshot, h as foldLearnerStateSession, i as LEARNER_STATE_PROTOCOL, l as LEARNING_CHECKPOINT_METRIC_STATUSES, m as createLearnerStateSnapshotEvent, n as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, o as LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, p as createInitialLearnerState, r as LEARNER_STATE_EVENT_PROTOCOL, s as LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, t as registerInteractiveLearningSessionCompatibility, u as LEARNING_SEGMENT_EVENT_PROTOCOL, v as reduceLearnerState, x as resetLearnerState, y as registerLearningSessionEventType } from "./bootstrap-hn9GNkJf.js";
-import { $ as labelFromBody, $t as classifyLearnIntent, A as ingestSource, At as ensureVaultLayout, B as executeRetrievalPlan, Bt as writeManifest, C as parseFileMentions, Ct as renderLearnerMemory, D as MAX_SOURCE_BYTES, Dt as VAULT_MANIFEST_PATH, Et as VAULT_DIRECTORIES, F as titleOf, Ft as resolveTopicVault, G as MAX_CONCEPT_CARDS, Gt as reanchor, H as matchedTerms, Ht as PAGE_MARKER, I as parseMarkdownBlocks, It as structurePathOf, J as conceptCardPathOf, Jt as LEARNING_INTENT_ROUTING_GUIDANCE, K as buildConceptStudyMap, Kt as renderExtractedMarkdown, L as DEFAULT_RETRIEVAL_BUDGET_CHARS, Lt as upsertManifestEntry, M as SUPPORTED_EXTENSIONS, Mt as readAllStructures, N as extensionOf, Nt as readManifest, O as describeDegradation, Ot as VaultContainmentError, P as parseSource, Pt as readStructure, Q as isConceptDue, Qt as LEARN_INTENT_RULES, R as RETRIEVAL_INTENTS, Rt as vaultFromRoot, S as mentionedPaths, St as readLearnerMemory, Tt as writeLearnerMemory, U as planRetrieval, Ut as deriveStructure, V as keyPhrases, W as INITIAL_REVIEW_INTERVAL_DAYS, Wt as emitSource, X as dateKey, Xt as LEARN_INTENT_MODEL_GUIDANCE, Y as conceptRecordFromCard, Yt as LEARN_INTENT, Z as hasFreshIndependentTransfer, Zt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, _ as MAX_MAP_SECTIONS, _t as MAX_RENDERED_CONCEPTS, a as LEARNING_TEACHING_POLICY, at as reanchorConceptCards, b as registerMaterialTools, bt as memoryPathOf, c as buildLearningTeachingPolicy, ct as reviewIntervalDays, d as CONCEPT_TOOL_NAMES, dt as updateConceptCardSchedule, en as isLearnIntent, et as nextReviewSchedule, f as registerConceptTools, ft as yamlString, g as MATERIAL_TOOL_NAMES, gt as LEARNER_MEMORY_PROTOCOL, h as validateStudyMapAgainstVault, ht as reanchorVaultMemory, i as LEARNING_REVIEW_POLICY, it as readLearnerMemoryWithCards, j as isSupportedSource, jt as isVaultRoot, k as ingestDirectory, kt as containedPath, l as routeLearningRequest, lt as saveConceptCard, m as formatStudyMapViolations, mt as reanchorAnchorLists, n as LEARNING_GRADED_POLICY, nt as readConceptCard, o as LEARNING_TEACHING_POLICY_CORE, ot as recallCardIdOf, pt as describeReanchor, q as conceptCardDraftFromState, qt as LEARNING_INTENT_POLICY, r as LEARNING_MATERIAL_POLICY, rt as readConceptCards, s as LEARNING_VISUAL_POLICY, st as renderConceptCard, t as LEARNING_CHINESE_TEMPLATES, tn as isLearningBoundary, tt as parseMarkdownFrontmatter, u as routeLearningTurn, ut as updateConceptCardAnchors, v as MAX_READ_CHARS, vt as MAX_STORED_CONCEPTS, w as syncMentionedMaterial, wt as upsertLearnerConcept, x as sectionAnchor, xt as parseLearnerConceptRecord, y as MAX_SEARCH_MATCHES, yt as conceptRecordFromState, z as excerptAround, zt as vaultRelative } from "./teaching-policy-CKAX6vej.js";
-import { E as CHECKPOINT_RESULT_PROTOCOL, b as parseLearningRecallFeedbackV1, d as RESPONSE_PROTOCOL, v as parseLearningCheckpointResultV1, y as parseLearningCheckpointV1 } from "./protocol-current-CVgOF60h.js";
-import { t as LearningProtocolError } from "./protocol-errors-Dbse7E4h.js";
-import { r as learningCheckpointQuestionId, t as encodeLearningCheckpointDetail } from "./host-transport-DG7rmn_s.js";
+import { $ as hasFreshIndependentTransfer, $t as LEARN_INTENT_RULES, A as ingestDirectory, At as VaultContainmentError, B as excerptAround, Bt as vaultFromRoot, C as mentionedPaths, Ct as parseLearnerConceptRecord, Dt as writeLearnerMemory, Et as upsertLearnerConcept, F as parseSource, Ft as readManifest, G as INITIAL_REVIEW_INTERVAL_DAYS, Gt as deriveStructure, H as keyPhrases, Ht as writeManifest, I as titleOf, It as readStructure, J as buildConceptStudyMap, Jt as renderExtractedMarkdown, K as MAX_CONCEPT_CARDS, Kt as emitSource, L as parseMarkdownBlocks, Lt as resolveTopicVault, M as isSupportedSource, Mt as ensureVaultLayout, N as SUPPORTED_EXTENSIONS, Nt as isVaultRoot, O as MAX_SOURCE_BYTES, Ot as VAULT_DIRECTORIES, P as extensionOf, Pt as readAllStructures, Q as dateKey, Qt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, R as DEFAULT_RETRIEVAL_BUDGET_CHARS, Rt as structurePathOf, S as sectionAnchor, St as memoryPathOf, T as syncMentionedMaterial, Tt as renderLearnerMemory, U as matchedTerms, V as executeRetrievalPlan, Vt as vaultRelative, W as planRetrieval, Wt as PAGE_MARKER, X as conceptCardPathOf, Xt as LEARN_INTENT, Y as conceptCardDraftFromState, Yt as LEARNING_INTENT_ROUTING_GUIDANCE, Z as conceptRecordFromCard, Zt as LEARN_INTENT_MODEL_GUIDANCE, _ as MATERIAL_TOOL_NAMES, _t as reanchorVaultMemory, a as LEARNING_REVIEW_POLICY, at as readConceptCards, b as MAX_SEARCH_MATCHES, bt as MAX_STORED_CONCEPTS, c as LEARNING_VISUAL_POLICY, ct as recallCardIdOf, d as routeLearningTurn, dt as saveConceptCard, en as classifyLearnIntent, et as isConceptDue, f as CONCEPT_TOOL_NAMES, ft as updateConceptCardAnchors, g as validateStudyMapAgainstVault, gt as reanchorAnchorLists, h as formatStudyMapViolations, ht as describeReanchor, i as LEARNING_MATERIAL_POLICY, it as readConceptCard, j as ingestSource, jt as containedPath, k as describeDegradation, kt as VAULT_MANIFEST_PATH, l as buildLearningTeachingPolicy, lt as renderConceptCard, mt as yamlString, n as LEARNING_CONCEPT_SAVE_POLICY, nn as isLearningBoundary, nt as nextReviewSchedule, o as LEARNING_TEACHING_POLICY, ot as readLearnerMemoryWithCards, p as registerConceptTools, pt as updateConceptCardSchedule, q as MAX_REVIEW_INTERVAL_DAYS, qt as reanchor, r as LEARNING_GRADED_POLICY, rt as parseMarkdownFrontmatter, s as LEARNING_TEACHING_POLICY_CORE, st as reanchorConceptCards, t as LEARNING_CHINESE_TEMPLATES, tn as isLearnIntent, tt as labelFromBody, u as routeLearningRequest, ut as reviewIntervalDays, v as MAX_MAP_SECTIONS, vt as LEARNER_MEMORY_PROTOCOL, w as parseFileMentions, wt as readLearnerMemory, x as registerMaterialTools, xt as conceptRecordFromState, y as MAX_READ_CHARS, yt as MAX_RENDERED_CONCEPTS, z as RETRIEVAL_INTENTS, zt as upsertManifestEntry } from "./teaching-policy-5J-AVqqu.js";
+import { c as parseLearningCheckpointResultV1, h as CHECKPOINT_RESULT_PROTOCOL, l as parseLearningCheckpointV1, p as LearningProtocolError, t as CHECKPOINT_TRANSPORT_PROTOCOL, u as parseLearningRecallFeedbackV1 } from "./protocol-current-_5GVMKMM.js";
 import { _ as slugify, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as VAULT_MANIFEST_PROTOCOL, g as sectionIdOf, h as quoteHashOf, l as sameStringList, n as anchorPage, o as mentionSupported, r as anchorTargetsOf, s as parseAnchorText, t as ANCHOR_PATH_SEPARATOR, u as sectionMentions } from "./material-anchor-GE7zenuO.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
@@ -13,6 +11,61 @@ import { execFile } from "node:child_process";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { BlockAssembler, createUserMessage } from "@deepseek-ai/dsh-llm";
+//#region lib/types/host-transport.js
+/**
+* Host-only transport writers.
+*
+* The renderer still owns the synchronous legacy transport decoders in
+* `transport.ts`. The broker only needs to write current wait projections;
+* keeping those writers here prevents the host entry from eagerly importing
+* the retired V1/V2 activity parsers.
+*/
+const MARKER_SUFFIX = "-->";
+const CHECKPOINT_WAIT_MARKER_PREFIX = "<!--dsh-learning/checkpoint-wait@1:";
+const CHECKPOINT_WAIT_QUESTION_ID_PREFIX = "dsh-learning/checkpoint-wait@1:";
+const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+function encodeBase64Url(value) {
+	const bytes = new TextEncoder().encode(value);
+	let result = "";
+	for (let index = 0; index < bytes.length; index += 3) {
+		const a = bytes[index];
+		const b = bytes[index + 1];
+		const c = bytes[index + 2];
+		const triple = a << 16 | (b ?? 0) << 8 | (c ?? 0);
+		result += BASE64URL[triple >> 18 & 63];
+		result += BASE64URL[triple >> 12 & 63];
+		if (b !== void 0) result += BASE64URL[triple >> 6 & 63];
+		if (c !== void 0) result += BASE64URL[triple & 63];
+	}
+	return result;
+}
+function opaqueToken(value) {
+	return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+}
+function boundedTransportIdentity(value) {
+	return typeof value === "string" && value.length >= 1 && value.length <= 512 && value.trim() === value && !/[\u0000-\u001F\u007F]/.test(value);
+}
+function assertCheckpointEnvelopeInput(input) {
+	if (!boundedTransportIdentity(input.sessionId)) throw new Error("sessionId must be a non-empty bounded transport identity");
+	if (!boundedTransportIdentity(input.callId)) throw new Error("callId must be a non-empty bounded transport identity");
+	if (!opaqueToken(input.waitId)) throw new Error("waitId must be a URL-safe opaque token");
+	if (!opaqueToken(input.checkpointId)) throw new Error("checkpointId must be a URL-safe opaque token");
+}
+/** A checkpoint question id contains one opaque lookup token. */
+function learningCheckpointQuestionId(waitId) {
+	if (!opaqueToken(waitId)) throw new Error("waitId must be a URL-safe opaque token");
+	return `${CHECKPOINT_WAIT_QUESTION_ID_PREFIX}${waitId}`;
+}
+/** Persist one answer-free checkpoint projection for refresh recovery. */
+function encodeLearningCheckpointDetail(input) {
+	assertCheckpointEnvelopeInput(input);
+	const envelope = {
+		transport: CHECKPOINT_TRANSPORT_PROTOCOL,
+		...input
+	};
+	return `${CHECKPOINT_WAIT_MARKER_PREFIX}${encodeBase64Url(JSON.stringify(envelope))}${MARKER_SUFFIX}\n${input.checkpoint.fallbackMarkdown}`;
+}
+//#endregion
 //#region lib/types/vault-concepts.js
 /**
 * The vault panel's concept and review face — the first writes the panel makes.
@@ -1781,7 +1834,6 @@ async function handleVaultEndpoint(ctx, endpoint, payload) {
 //#region lib/types/broker.js
 registerInteractiveLearningSessionCompatibility();
 const INTERACTIVE_LEARNING_PACKAGE = "@dsh-portable/interactive-learning";
-const DEFAULT_LEARNING_WAIT_TIMEOUT_MS = 3e5;
 var LearningWaitAbort = class extends Error {
 	reason;
 	constructor(reason) {
@@ -1790,17 +1842,6 @@ var LearningWaitAbort = class extends Error {
 		this.name = "LearningWaitAbort";
 	}
 };
-function fallback(activityId, activity, reason) {
-	return {
-		protocol: RESPONSE_PROTOCOL,
-		activityId,
-		action: "skip",
-		interactionState: {
-			reason,
-			fallbackMarkdown: activity.fallbackMarkdown
-		}
-	};
-}
 function boundedIdentity(value, label) {
 	if (typeof value !== "string" || value.length < 1 || value.length > 512 || value.trim() !== value || /[\u0000-\u001F\u007F]/.test(value)) throw new LearningProtocolError([`${label} must be a non-empty bounded identity`]);
 	return value;
@@ -1989,8 +2030,6 @@ function latestCheckpointAggregate(session) {
 var LearningActivityBroker = class extends Service {
 	static inject = ["userQuestions"];
 	pendingActivities = /* @__PURE__ */ new Map();
-	legacyGate;
-	legacyGatePromise;
 	checkpointCalls = /* @__PURE__ */ new Map();
 	checkpointReceipts = /* @__PURE__ */ new Map();
 	pendingCheckpointSessions = /* @__PURE__ */ new Map();
@@ -1998,13 +2037,13 @@ var LearningActivityBroker = class extends Service {
 	/** Current Host agent for the session-scoped Client recall bridge. */
 	activeAgents = /* @__PURE__ */ new Map();
 	learnerStates = /* @__PURE__ */ new Map();
+	turnLocales = /* @__PURE__ */ new WeakMap();
 	observers = /* @__PURE__ */ new Set();
 	disposed = false;
 	constructor(ctx) {
 		super(ctx, "learningActivities");
 		ctx.effect(() => () => {
 			this.disposed = true;
-			this.legacyGate?.dispose();
 			for (const [controller, state] of this.pendingActivities) {
 				state.reason = "plugin-disposed";
 				controller.abort(new LearningWaitAbort(state.reason));
@@ -2060,7 +2099,7 @@ var LearningActivityBroker = class extends Service {
 	}
 	/** Diagnostics/test seam; no activity payloads or learner answers are exposed. */
 	get pendingCount() {
-		return this.pendingActivities.size + (this.legacyGate?.pendingCount ?? 0);
+		return this.pendingActivities.size;
 	}
 	/** Diagnostics/test seam; state content remains private to its session. */
 	get learnerStateCacheSize() {
@@ -2073,6 +2112,19 @@ var LearningActivityBroker = class extends Service {
 	/** Whether this composition can render Learning visuals and checkpoints. */
 	get richClientAvailable() {
 		return this.hasRichClient();
+	}
+	/**
+	* Record the language of the turn being served, for Host-side tools that
+	* write text a learner reads. Set from the claimed user message.
+	* @param agent - The agent whose turn this is.
+	* @param locale - The language that turn was written in.
+	*/
+	setTurnLocale(agent, locale) {
+		this.turnLocales.set(agent, locale);
+	}
+	/** The language of the current turn, or undefined before one is claimed. */
+	turnLocale(agent) {
+		return this.turnLocales.get(agent);
 	}
 	/** Fold the latest durable full snapshot for this exact live session. */
 	learnerState(agent) {
@@ -2210,23 +2262,6 @@ var LearningActivityBroker = class extends Service {
 	hasRichClient() {
 		return this.ctx.get("clientModules")?.graph().entries.some((entry) => entry.id === INTERACTIVE_LEARNING_PACKAGE) === true;
 	}
-	/** Load the retired Question/Reveal coordinator only when its API is used. */
-	async getLegacyGate() {
-		if (this.legacyGate !== void 0) return this.legacyGate;
-		if (this.legacyGatePromise !== void 0) return this.legacyGatePromise;
-		this.legacyGatePromise = import("./legacy-gate-YGZdx5qv.js").then(({ LegacyLearningGate }) => {
-			const gate = new LegacyLearningGate({
-				ctx: this.ctx,
-				defaultTimeoutMs: DEFAULT_LEARNING_WAIT_TIMEOUT_MS,
-				hasRichClient: () => this.hasRichClient(),
-				emit: (event) => this.emit(event)
-			});
-			this.legacyGate = gate;
-			if (this.disposed) gate.dispose();
-			return gate;
-		});
-		return this.legacyGatePromise;
-	}
 	dropLearnerState(session) {
 		const sessionId = String(session.id);
 		if (this.activeAgents.get(sessionId)?.session === session) this.activeAgents.delete(sessionId);
@@ -2361,7 +2396,7 @@ var LearningActivityBroker = class extends Service {
 				...turn === void 0 ? {} : { turn }
 			}
 		}]);
-		if (feedback.status !== "revealed") this.persistRecallReview(active.agent, feedback).catch((cause) => {
+		this.persistRecallReview(active.agent, feedback).catch((cause) => {
 			this.ctx.logger.warn(`recall review schedule was not persisted: ${String(cause)}`);
 		});
 		return {
@@ -2637,26 +2672,10 @@ var LearningActivityBroker = class extends Service {
 		trimOldest(this.checkpointReceipts);
 		return result;
 	}
-	async presentQuestion(request) {
-		return this.presentGate(request);
-	}
-	async presentReveal(request) {
-		return this.presentGate(request);
-	}
-	/** V2 live path: one call owns exactly one durable Question or Reveal wait. */
-	async presentGate(request) {
-		return (await this.getLegacyGate()).present(request);
-	}
-	/** @deprecated V1 is accepted only for static legacy replay/fallback. */
-	async present(request) {
-		const { parseLearningActivity } = await import("./legacy-protocol-HNUHA_ju.js");
-		const activity = parseLearningActivity(request.activity);
-		return fallback(randomUUID(), activity, "legacy-replay-only");
-	}
 };
 //#endregion
 //#region lib/types/index.js
 /** Host entry: one non-model-facing Learning Activity broker service. */
 registerInteractiveLearningSessionCompatibility();
 //#endregion
-export { ANCHOR_PATH_SEPARATOR, CONCEPT_TOOL_NAMES, DEFAULT_RETRIEVAL_BUDGET_CHARS, DEFAULT_TRANSCRIPT_TOKEN_BUDGET, INITIAL_REVIEW_INTERVAL_DAYS, LEARNER_MEMORY_PROTOCOL, LEARNER_STATE_EVENT_PROTOCOL, LEARNER_STATE_PROTOCOL, LEARNER_STATE_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRIC_KINDS, LEARNING_CHECKPOINT_METRIC_STATUSES, LEARNING_CHINESE_TEMPLATES, LEARNING_GRADED_POLICY, LEARNING_INTENT_POLICY, LEARNING_INTENT_ROUTING_GUIDANCE, LEARNING_MATERIAL_POLICY, LEARNING_REVIEW_POLICY, LEARNING_SEGMENT_EVENT_PROTOCOL, LEARNING_SEGMENT_SESSION_EVENT_TYPE, LEARNING_TEACHING_POLICY, LEARNING_TEACHING_POLICY_CORE, LEARNING_VISUAL_POLICY, LEARN_INTENT, LEARN_INTENT_MODEL_GUIDANCE, LEARN_INTENT_NATURAL_LANGUAGE_RULES, LEARN_INTENT_RULES, LearningActivityBroker, LearningActivityBroker as default, MATERIAL_TOOL_NAMES, MAX_CONCEPT_CARDS, MAX_FAILED_MOVES, MAX_MAP_SECTIONS, MAX_READ_CHARS, MAX_RENDERED_CONCEPTS, MAX_SEARCH_MATCHES, MAX_SOURCE_BYTES, MAX_STORED_CONCEPTS, RETRIEVAL_INTENTS, SOURCE_STRUCTURE_PROTOCOL, SUPPORTED_EXTENSIONS, VAULT_DIRECTORIES, VAULT_MANIFEST_PATH, VAULT_MANIFEST_PROTOCOL, VaultContainmentError, anchorPage, anchorTargetsOf, buildConceptStudyMap, buildLearningTeachingPolicy, classifyLearnIntent, conceptCardDraftFromState, conceptCardPathOf, conceptRecordFromCard, conceptRecordFromState, containedPath, createInitialLearnerState, createLearnerStateSnapshotEvent, deriveStructure, describeDegradation, describeReanchor, emitSource, ensureVaultLayout, executeRetrievalPlan, extensionOf, foldLearnerStateSession, formatSectionAnchor, formatStudyMapViolations, hasFreshIndependentTransfer, hydrateLearnerStateSnapshot, ingestDirectory, ingestSource, isConceptDue, isLearnIntent, isLearningBoundary, isSupportedSource, isVaultRoot, keyPhrases, memoryPathOf, mentionSupported, mentionedPaths, nextReviewSchedule, parseAnchorText, parseFileMentions, parseLearnerConceptRecord, parseLearnerStateSnapshotEvent, parseSource, planRetrieval, readAllStructures, readConceptCard, readConceptCards, readLearnerMemory, readLearnerMemoryWithCards, readManifest, readStructure, reanchor, reanchorAnchorLists, reanchorConceptCards, reanchorVaultMemory, recallCardIdOf, reduceLearnerState, registerConceptTools, registerInteractiveLearningSessionCompatibility, registerLearningSessionEventType, registerMaterialTools, renderConceptCard, renderExtractedMarkdown, renderLearnerMemory, renderLearnerStateTranscript, resetLearnerState, resolveAnchorTarget, resolveTopicVault, reviewIntervalDays, routeLearningRequest, routeLearningTurn, sameStringList, saveConceptCard, sectionAnchor, sectionIdOf, sectionMentions, serializeLearnerStateSnapshot, slugify, structurePathOf, syncMentionedMaterial, titleOf, updateConceptCardAnchors, updateConceptCardSchedule, upsertLearnerConcept, upsertManifestEntry, validateStudyMapAgainstVault, vaultFromRoot, vaultRelative, writeLearnerMemory, writeManifest };
+export { ANCHOR_PATH_SEPARATOR, CONCEPT_TOOL_NAMES, DEFAULT_RETRIEVAL_BUDGET_CHARS, DEFAULT_TRANSCRIPT_TOKEN_BUDGET, INITIAL_REVIEW_INTERVAL_DAYS, LEARNER_MEMORY_PROTOCOL, LEARNER_STATE_EVENT_PROTOCOL, LEARNER_STATE_PROTOCOL, LEARNER_STATE_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRIC_KINDS, LEARNING_CHECKPOINT_METRIC_STATUSES, LEARNING_CHINESE_TEMPLATES, LEARNING_CONCEPT_SAVE_POLICY, LEARNING_GRADED_POLICY, LEARNING_INTENT_ROUTING_GUIDANCE, LEARNING_MATERIAL_POLICY, LEARNING_REVIEW_POLICY, LEARNING_SEGMENT_EVENT_PROTOCOL, LEARNING_SEGMENT_SESSION_EVENT_TYPE, LEARNING_TEACHING_POLICY, LEARNING_TEACHING_POLICY_CORE, LEARNING_VISUAL_POLICY, LEARN_INTENT, LEARN_INTENT_MODEL_GUIDANCE, LEARN_INTENT_NATURAL_LANGUAGE_RULES, LEARN_INTENT_RULES, LearningActivityBroker, LearningActivityBroker as default, MATERIAL_TOOL_NAMES, MAX_CONCEPT_CARDS, MAX_FAILED_MOVES, MAX_MAP_SECTIONS, MAX_READ_CHARS, MAX_RENDERED_CONCEPTS, MAX_REVIEW_INTERVAL_DAYS, MAX_SEARCH_MATCHES, MAX_SOURCE_BYTES, MAX_STORED_CONCEPTS, RETRIEVAL_INTENTS, SOURCE_STRUCTURE_PROTOCOL, SUPPORTED_EXTENSIONS, VAULT_DIRECTORIES, VAULT_MANIFEST_PATH, VAULT_MANIFEST_PROTOCOL, VaultContainmentError, anchorPage, anchorTargetsOf, buildConceptStudyMap, buildLearningTeachingPolicy, classifyLearnIntent, conceptCardDraftFromState, conceptCardPathOf, conceptRecordFromCard, conceptRecordFromState, containedPath, createInitialLearnerState, createLearnerStateSnapshotEvent, deriveStructure, describeDegradation, describeReanchor, emitSource, ensureVaultLayout, executeRetrievalPlan, extensionOf, foldLearnerStateSession, formatSectionAnchor, formatStudyMapViolations, hasFreshIndependentTransfer, hydrateLearnerStateSnapshot, ingestDirectory, ingestSource, isConceptDue, isLearnIntent, isLearningBoundary, isSupportedSource, isVaultRoot, keyPhrases, memoryPathOf, mentionSupported, mentionedPaths, nextReviewSchedule, parseAnchorText, parseFileMentions, parseLearnerConceptRecord, parseLearnerStateSnapshotEvent, parseSource, planRetrieval, readAllStructures, readConceptCard, readConceptCards, readLearnerMemory, readLearnerMemoryWithCards, readManifest, readStructure, reanchor, reanchorAnchorLists, reanchorConceptCards, reanchorVaultMemory, recallCardIdOf, reduceLearnerState, registerConceptTools, registerInteractiveLearningSessionCompatibility, registerLearningSessionEventType, registerMaterialTools, renderConceptCard, renderExtractedMarkdown, renderLearnerMemory, renderLearnerStateTranscript, resetLearnerState, resolveAnchorTarget, resolveTopicVault, reviewIntervalDays, routeLearningRequest, routeLearningTurn, sameStringList, saveConceptCard, sectionAnchor, sectionIdOf, sectionMentions, serializeLearnerStateSnapshot, slugify, structurePathOf, syncMentionedMaterial, titleOf, updateConceptCardAnchors, updateConceptCardSchedule, upsertLearnerConcept, upsertManifestEntry, validateStudyMapAgainstVault, vaultFromRoot, vaultRelative, writeLearnerMemory, writeManifest };

@@ -28,7 +28,6 @@ import { startVaultGate, type VaultGateOptions } from './vault-gate.ts'
 import { subscribeLearningUiLifecycle } from './lifecycle.ts'
 import { en, zh } from './locales.ts'
 
-export { ActivityRendererRegistry, activityRendererRegistry } from './ActivityRenderer.tsx'
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts'
 export { VaultLibrary, VaultView, type VaultViewInjected } from './VaultView.tsx'
 export { VaultKeepAction, messageText, titleFrom, type VaultKeepInjected } from './VaultKeep.tsx'
@@ -67,10 +66,6 @@ export const LEARNING_TOOL_VIEW_KEYS = [
   'learning_visual',
   'learning_checkpoint',
   'learning_state_update',
-  // Replay support for conversations created by the retired blocking protocol.
-  'learning_activity',
-  'learning_question',
-  'learning_reveal',
 ] as const
 
 /** Learner-state writes are internal bookkeeping and never produce a card. */

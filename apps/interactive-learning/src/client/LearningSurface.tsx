@@ -49,6 +49,7 @@ export function LearningSurface({
           <button
             key={key}
             type="button"
+            data-lx-control="chip"
             disabled={disabled}
             data-learning-start-choice={key}
             onClick={() => inputActions.setDraft(t(prompt))}

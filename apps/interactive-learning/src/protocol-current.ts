@@ -1,5 +1,6 @@
 /** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
 
+import { MathParseError, parseMathExpression } from './math-parser.ts'
 import {
   CHECKPOINT_PROTOCOL,
   CHECKPOINT_RESULT_PROTOCOL,
@@ -50,28 +51,12 @@ export type {
   GeneratedLearningVisualV4,
 } from './protocol-schema.ts'
 
-export const ACTIVITY_PROTOCOL = 'dsh-learning/activity@1' as const
-export const RESPONSE_PROTOCOL = 'dsh-learning/response@1' as const
-export const TRANSPORT_PROTOCOL = 'dsh-learning/transport@1' as const
-export const ACTIVITY_PROTOCOL_V2 = 'dsh-learning/activity@2' as const
-export const RESPONSE_PROTOCOL_V2 = 'dsh-learning/response@2' as const
-export const TRANSPORT_PROTOCOL_V2 = 'dsh-learning/wait@2' as const
-export const VISUAL_PROTOCOL_V3 = 'dsh-learning/visual@3' as const
-export const VISUAL_RESULT_PROTOCOL_V3 = 'dsh-learning/visual-result@3' as const
 export const RECALL_FEEDBACK_PROTOCOL_V1 = 'dsh-learning/recall-feedback@1' as const
 export const CHECKPOINT_TRANSPORT_PROTOCOL = 'dsh-learning/checkpoint-wait@1' as const
-export const LEARNING_ACTIVITY_KINDS = [
-  'parameter_explorer',
-  'process_stepper',
-  'structure_compare',
-] as const
-
 export const MAX_ACTIVITY_BYTES = 64 * 1024
 export const MAX_RESPONSE_BYTES = 32 * 1024
-export const MAX_MATH_DEPTH = 8
 export const MAX_MATH_NODES = 64
 
-export type LearningActivityKind = typeof LEARNING_ACTIVITY_KINDS[number]
 export type LearningAction = 'submit' | 'skip' | 'cancel'
 export type LearningJson = null | boolean | number | string | LearningJson[] | { [key: string]: LearningJson }
 export type LearningCheckpointKindV1 = typeof LEARNING_CHECKPOINT_KINDS[number]
@@ -82,28 +67,6 @@ export type MathExpressionV1 =
   | { op: 'variable'; name: string }
   | { op: typeof MATH_BINARY_OPERATORS[number]; left: MathExpressionV1; right: MathExpressionV1 }
   | { op: typeof MATH_UNARY_OPERATORS[number]; value: MathExpressionV1 }
-
-export interface ParameterDefinitionV1 {
-  id: string
-  label: string
-  min: number
-  max: number
-  step: number
-  initial: number
-}
-
-export interface ParameterCurveV1 {
-  id: string
-  label: string
-  expression: MathExpressionV1
-}
-
-export interface ParameterExplorerPayloadV1 {
-  parameters: ParameterDefinitionV1[]
-  xAxis: { label?: string; min: number; max: number; samples?: number }
-  curves: ParameterCurveV1[]
-  question?: string
-}
 
 export interface ProcessCheckpointV1 {
   question: string
@@ -117,108 +80,11 @@ export interface ProcessStepV1 {
   checkpoint?: ProcessCheckpointV1
 }
 
-export interface ProcessStepperPayloadV1 {
-  steps: ProcessStepV1[]
-  question?: string
-}
-
 export interface StructureItemV1 {
   id: string
   label: string
   detail?: string
 }
-
-export interface StructureAlignmentV1 {
-  id: string
-  leftId?: string
-  rightId?: string
-  prompt?: string
-}
-
-export interface StructureComparePayloadV1 {
-  left: { title: string; items: StructureItemV1[] }
-  right: { title: string; items: StructureItemV1[] }
-  alignments: StructureAlignmentV1[]
-  question?: string
-}
-
-interface ActivityBaseV1<K extends LearningActivityKind, P> {
-  protocol: typeof ACTIVITY_PROTOCOL
-  kind: K
-  title: string
-  objective: string
-  prompt: string
-  scaffold?: string
-  payload: P
-  fallbackMarkdown: string
-}
-
-export type LearningActivityV1 =
-  | ActivityBaseV1<'parameter_explorer', ParameterExplorerPayloadV1>
-  | ActivityBaseV1<'process_stepper', ProcessStepperPayloadV1>
-  | ActivityBaseV1<'structure_compare', StructureComparePayloadV1>
-
-export interface LearningResponseV1 {
-  protocol: typeof RESPONSE_PROTOCOL
-  activityId: string
-  action: LearningAction
-  answer?: LearningJson
-  interactionState?: LearningJson
-}
-
-export interface LearningActivityEnvelopeV1 {
-  transport: typeof TRANSPORT_PROTOCOL
-  activityId: string
-  activity: LearningActivityV1
-}
-
-export type LearningActivityEnvelopeInputV1 = Omit<LearningActivityEnvelopeV1, 'transport'>
-
-export interface LearningFocusV2 { title: string; progress?: { current: number; total?: number } }
-export type LearningInputV2 =
-  | { kind: 'single_choice'; options: Array<{ id: string; label: string }> }
-  | { kind: 'short_text'; placeholder?: string; maxLength?: number }
-  | { kind: 'number'; min?: number; max?: number; step?: number }
-export interface LearningFrameV2 { id: string; title: string; content?: string }
-export type LearningQuestionVisualV2 =
-  | { kind: 'process'; frame: LearningFrameV2 }
-  | { kind: 'parameter'; parameters: ParameterDefinitionV1[]; xAxis: ParameterExplorerPayloadV1['xAxis']; curves: ParameterCurveV1[] }
-  | { kind: 'structure'; left: StructureComparePayloadV1['left']; right: StructureComparePayloadV1['right']; alignments: StructureAlignmentV1[] }
-export type LearningRevealVisualV2 =
-  | { kind: 'process'; before: LearningFrameV2; after: LearningFrameV2 }
-  | { kind: 'parameter'; parameters: ParameterDefinitionV1[]; xAxis: ParameterExplorerPayloadV1['xAxis']; curves: ParameterCurveV1[]; emphasis?: string }
-  | { kind: 'structure'; left: StructureComparePayloadV1['left']; right: StructureComparePayloadV1['right']; alignments: StructureAlignmentV1[]; emphasisAlignmentIds?: string[] }
-export interface LearningQuestionV2 {
-  protocol: typeof ACTIVITY_PROTOCOL_V2; phase: 'question'; lessonToken?: string; seq: number
-  focus: LearningFocusV2; prompt: string; scaffold?: string; input: LearningInputV2
-  visual?: LearningQuestionVisualV2; fallbackMarkdown: string
-}
-export interface LearningRevealV2 {
-  protocol: typeof ACTIVITY_PROTOCOL_V2; phase: 'reveal'; lessonToken: string; roundToken: string; seq: number
-  focus: LearningFocusV2
-  feedback: { verdict?: 'correct' | 'partial' | 'misconception' | 'neutral'; learnerEcho?: string; explanation: string; answer?: string }
-  visual?: LearningRevealVisualV2
-  animation: { kind: 'draw' | 'morph' | 'highlight' | 'step_complete'; preferredDurationMs?: number; reducedMotion: 'commit-final-state' }
-  advance: { mode: 'user-after-animation'; label?: string }; fallbackMarkdown: string
-}
-export type LearningActivityV2 = LearningQuestionV2 | LearningRevealV2
-interface LearningResponseBaseV2 {
-  protocol: typeof RESPONSE_PROTOCOL_V2; activityId: string; lessonToken: string; roundToken: string
-  seq: number; receiptId: string; interactionState?: LearningJson
-}
-export interface LearningQuestionResponseV2 extends LearningResponseBaseV2 {
-  phase: 'question'; action: 'submit' | 'skip' | 'cancel'; answer?: LearningJson
-}
-export interface LearningRevealResponseV2 extends LearningResponseBaseV2 {
-  phase: 'reveal'; action: 'continue' | 'skip' | 'cancel'
-  animation: { completed: boolean; skipped?: boolean; reducedMotion?: boolean; error?: string }
-}
-export type LearningResponseV2 = LearningQuestionResponseV2 | LearningRevealResponseV2
-export interface LearningWaitEnvelopeV2 {
-  transport: typeof TRANSPORT_PROTOCOL_V2; waitId: string; activityId: string; callId?: string
-  lessonToken: string; roundToken: string; seq: number; phase: 'question' | 'reveal'; activity: LearningActivityV2
-}
-export type LearningWaitEnvelopeInputV2 = Omit<LearningWaitEnvelopeV2, 'transport'>
 
 /** Types are generated from the same schema used by tools and Host validation. */
 export type LearningCheckpointOptionV1 = GeneratedLearningCheckpointOptionV1
@@ -280,7 +146,7 @@ export interface LearningVisualCurveV3 {
   type: 'curve'
   id: string
   label: string
-  expression: MathExpressionV1
+  expression: string
   tone?: LearningVisualToneV3
   stroke?: LearningVisualStrokeV3
 }
@@ -300,30 +166,9 @@ export type LearningVisualSeriesV3 = LearningVisualCurveV3 | LearningVisualPoint
 export interface LearningVisualMetricV3 {
   id: string
   label: string
-  expression: MathExpressionV1
+  expression: string
   digits?: number
   suffix?: string
-}
-
-/**
- * A non-blocking, replayable visual embedded in the assistant's normal turn.
- * It never owns learner input: the ordinary conversation composer remains live.
- */
-export interface LearningVisualV3 {
-  protocol: typeof VISUAL_PROTOCOL_V3
-  kind: 'parameter_chart'
-  title: string
-  description?: string
-  parameters: ParameterDefinitionV1[]
-  xAxis: LearningVisualAxisV3
-  yAxis: LearningVisualAxisV3
-  series: LearningVisualSeriesV3[]
-  metrics?: LearningVisualMetricV3[]
-}
-
-export interface LearningVisualResultV3 {
-  protocol: typeof VISUAL_RESULT_PROTOCOL_V3
-  status: 'ready'
 }
 
 export type LearningVisualKindV4 = typeof LEARNING_VISUAL_KINDS_V4[number]
@@ -353,9 +198,19 @@ export type LearningPlotSeriesV4 =
   | LearningVisualLineSeriesV4
   | LearningVisualBarSeriesV4
 
+/** One slider a learner can move; its id is what expressions name. */
+export interface LearningVisualParameterV4 {
+  id: string
+  label: string
+  min: number
+  max: number
+  step: number
+  initial: number
+}
+
 export interface LearningPlotV4 {
   kind: 'plot'
-  parameters?: ParameterDefinitionV1[]
+  parameters?: LearningVisualParameterV4[]
   xAxis: LearningVisualAxisV3
   yAxis: LearningVisualAxisV3
   series: LearningPlotSeriesV4[]
@@ -839,14 +694,14 @@ export interface LearningVectorFieldGridV4 {
 
 export interface LearningScalarFieldV4 {
   samples?: LearningScalarFieldGridV4
-  expression?: MathExpressionV1
+  expression?: string
   min?: number
   max?: number
 }
 
 export interface LearningVectorFieldV4 {
   samples?: LearningVectorFieldGridV4
-  expression?: { u: MathExpressionV1; v: MathExpressionV1 }
+  expression?: { u: string; v: string }
 }
 
 export interface LearningField2DV4 {
@@ -959,7 +814,6 @@ export interface LearningRecallFeedbackV1 {
   status: LearningRecallStatusV1
 }
 
-
 type RecordValue = Record<string, unknown>
 
 function record(value: unknown): value is RecordValue {
@@ -1066,11 +920,26 @@ function validateMath(
   path: string,
   issues: string[],
   allowX = true,
-  maxDepth = MAX_MATH_DEPTH,
+  maxDepth = MAX_VISUAL_MATH_DEPTH,
 ): void {
   const binary = new Set<string>(MATH_BINARY_OPERATORS)
   const unary = new Set<string>(MATH_UNARY_OPERATORS)
-  const stack: Array<{ value: unknown; path: string; depth: number }> = [{ value, path, depth: 1 }]
+  // The payload carries infix source. Parsing it here rather than in the
+  // renderer means an unresolvable variable name is still caught against the
+  // parameters this visual actually declared, which is the check that matters:
+  // a curve plotting an undeclared symbol is silently wrong, not visibly wrong.
+  if (typeof value !== 'string') {
+    issues.push(`${path} must be an expression string`)
+    return
+  }
+  let root: MathExpressionV1
+  try {
+    root = parseMathExpression(value)
+  } catch (cause) {
+    issues.push(`${path} is not a valid expression: ${cause instanceof MathParseError ? cause.message : String(cause)}`)
+    return
+  }
+  const stack: Array<{ value: unknown; path: string; depth: number }> = [{ value: root, path, depth: 1 }]
   let nodes = 0
   while (stack.length > 0) {
     const node = stack.pop() as { value: unknown; path: string; depth: number }
@@ -1115,11 +984,6 @@ function validateMath(
   }
 }
 
-
-
-
-
-
 function integer(value: unknown, path: string, issues: string[], min = 0): value is number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < min) {
     issues.push(`${path} must be an integer >= ${String(min)}`)
@@ -1135,16 +999,6 @@ function token(value: unknown, path: string, issues: string[]): value is string 
   }
   return true
 }
-
-
-
-
-
-
-
-
-export type ExpectedLearningResponseV2 = Partial<Pick<LearningResponseV2,
-  'activityId' | 'phase' | 'lessonToken' | 'roundToken' | 'seq'>>
 
 
 const CHECKPOINT_RAW_HTML = /<(?:!DOCTYPE\b|!--|\/?[A-Za-z][^<>]*>)/i
@@ -1352,129 +1206,6 @@ function validateVisualAxisV3(value: unknown, path: string, issues: string[], sa
     && (!integer(value.samples, `${path}.samples`, issues, 24) || (value.samples as number) > 256)) {
     issues.push(`${path}.samples must be an integer from 24 to 256`)
   }
-}
-
-function validateVisualParametersV3(value: unknown, issues: string[]): RecordValue[] {
-  const path = 'visual.parameters'
-  if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
-    issues.push(`${path} must contain 1 to 3 parameters`)
-    return []
-  }
-  const parameters = value.filter(record)
-  if (parameters.length !== value.length) issues.push(`${path} entries must be objects`)
-  uniqueIds(parameters, path, issues)
-  for (const [index, parameter] of parameters.entries()) {
-    const itemPath = `${path}[${String(index)}]`
-    onlyKeys(parameter, ['id', 'label', 'min', 'max', 'step', 'initial'], itemPath, issues)
-    id(parameter.id, `${itemPath}.id`, issues)
-    if (parameter.id === 'x') issues.push(`${itemPath}.id must not use the reserved x-axis variable`)
-    text(parameter.label, `${itemPath}.label`, issues, 120)
-    const minOk = finite(parameter.min, `${itemPath}.min`, issues)
-    const maxOk = finite(parameter.max, `${itemPath}.max`, issues)
-    const stepOk = finite(parameter.step, `${itemPath}.step`, issues)
-    const initialOk = finite(parameter.initial, `${itemPath}.initial`, issues)
-    if (minOk && maxOk && (parameter.min as number) >= (parameter.max as number)) {
-      issues.push(`${itemPath}.min must be less than max`)
-    }
-    if (stepOk && (parameter.step as number) <= 0) issues.push(`${itemPath}.step must be positive`)
-    if (minOk && maxOk && stepOk && (parameter.step as number) > (parameter.max as number) - (parameter.min as number)) {
-      issues.push(`${itemPath}.step must not exceed the parameter range`)
-    }
-    if (minOk && maxOk && initialOk
-      && ((parameter.initial as number) < (parameter.min as number)
-        || (parameter.initial as number) > (parameter.max as number))) {
-      issues.push(`${itemPath}.initial must be inside the parameter range`)
-    }
-  }
-  return parameters
-}
-
-/** Validate the preferred, non-blocking visual protocol. */
-export function parseLearningVisualV3(value: unknown): LearningVisualV3 {
-  const issues: string[] = []
-  const bytes = jsonBytes(value)
-  if (bytes === undefined) issues.push('visual must be serializable JSON')
-  else if (bytes > MAX_ACTIVITY_BYTES) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`)
-  if (!record(value)) throw new LearningProtocolError([...issues, 'visual must be an object'])
-  onlyKeys(value, ['protocol', 'kind', 'title', 'description', 'parameters', 'xAxis', 'yAxis', 'series', 'metrics'], 'visual', issues)
-  if (value.protocol !== VISUAL_PROTOCOL_V3) issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V3}`)
-  if (value.kind !== 'parameter_chart') issues.push('visual.kind must be parameter_chart')
-  text(value.title, 'visual.title', issues, 200)
-  if (value.description !== undefined) text(value.description, 'visual.description', issues, 1_000)
-  const parameters = validateVisualParametersV3(value.parameters, issues)
-  const parameterIds = new Set(parameters.flatMap(parameter => typeof parameter.id === 'string' ? [parameter.id] : []))
-  validateVisualAxisV3(value.xAxis, 'visual.xAxis', issues, true)
-  validateVisualAxisV3(value.yAxis, 'visual.yAxis', issues, false)
-
-  if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) {
-    issues.push('visual.series must contain 1 to 8 series')
-  } else {
-    const series = value.series.filter(record)
-    if (series.length !== value.series.length) issues.push('visual.series entries must be objects')
-    uniqueIds(series, 'visual.series', issues)
-    let curveCount = 0
-    for (const [index, item] of series.entries()) {
-      const path = `visual.series[${String(index)}]`
-      id(item.id, `${path}.id`, issues)
-      text(item.label, `${path}.label`, issues, 160)
-      if (item.tone !== undefined && !VISUAL_TONES_V3.has(item.tone as LearningVisualToneV3)) {
-        issues.push(`${path}.tone is unknown`)
-      }
-      if (item.type === 'curve') {
-        curveCount += 1
-        onlyKeys(item, ['type', 'id', 'label', 'expression', 'tone', 'stroke'], path, issues)
-        if (item.stroke !== undefined && !VISUAL_STROKES_V3.has(item.stroke as LearningVisualStrokeV3)) {
-          issues.push(`${path}.stroke is unknown`)
-        }
-        validateMath(item.expression, parameterIds, `${path}.expression`, issues, true, MAX_VISUAL_MATH_DEPTH)
-      } else if (item.type === 'points') {
-        onlyKeys(item, ['type', 'id', 'label', 'points', 'tone'], path, issues)
-        if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 128) {
-          issues.push(`${path}.points must contain 1 to 128 points`)
-          continue
-        }
-        for (const [pointIndex, point] of item.points.entries()) {
-          const pointPath = `${path}.points[${String(pointIndex)}]`
-          if (!record(point)) {
-            issues.push(`${pointPath} must be an object`)
-            continue
-          }
-          onlyKeys(point, ['x', 'y', 'label'], pointPath, issues)
-          finite(point.x, `${pointPath}.x`, issues)
-          finite(point.y, `${pointPath}.y`, issues)
-          if (point.label !== undefined) text(point.label, `${pointPath}.label`, issues, 160)
-        }
-      } else {
-        issues.push(`${path}.type must be curve or points`)
-      }
-    }
-    if (curveCount === 0) issues.push('visual.series must contain at least one curve')
-  }
-
-  if (value.metrics !== undefined) {
-    if (!Array.isArray(value.metrics) || value.metrics.length > 4) {
-      issues.push('visual.metrics must contain at most 4 metrics')
-    } else {
-      const metrics = value.metrics.filter(record)
-      if (metrics.length !== value.metrics.length) issues.push('visual.metrics entries must be objects')
-      uniqueIds(metrics, 'visual.metrics', issues)
-      for (const [index, metric] of metrics.entries()) {
-        const path = `visual.metrics[${String(index)}]`
-        onlyKeys(metric, ['id', 'label', 'expression', 'digits', 'suffix'], path, issues)
-        id(metric.id, `${path}.id`, issues)
-        text(metric.label, `${path}.label`, issues, 160)
-        validateMath(metric.expression, parameterIds, `${path}.expression`, issues, false, MAX_VISUAL_MATH_DEPTH)
-        if (metric.digits !== undefined
-          && (!integer(metric.digits, `${path}.digits`, issues) || (metric.digits as number) > 6)) {
-          issues.push(`${path}.digits must be an integer from 0 to 6`)
-        }
-        if (metric.suffix !== undefined) text(metric.suffix, `${path}.suffix`, issues, 80)
-      }
-    }
-  }
-
-  if (issues.length > 0) throw new LearningProtocolError(issues)
-  return value as unknown as LearningVisualV3
 }
 
 function validateVisualToneV4(value: unknown, path: string, issues: string[]): void {
@@ -2852,16 +2583,4 @@ export function parseLearningRecallFeedbackV1(value: unknown): LearningRecallFee
   }
   if (issues.length > 0) throw new LearningProtocolError(issues)
   return value as unknown as LearningRecallFeedbackV1
-}
-
-export function parseLearningVisualResultV3(value: unknown): LearningVisualResultV3 {
-  const issues: string[] = []
-  if (!record(value)) throw new LearningProtocolError(['visual result must be an object'])
-  onlyKeys(value, ['protocol', 'status'], 'visualResult', issues)
-  if (value.protocol !== VISUAL_RESULT_PROTOCOL_V3) {
-    issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V3}`)
-  }
-  if (value.status !== 'ready') issues.push('visualResult.status must be ready')
-  if (issues.length > 0) throw new LearningProtocolError(issues)
-  return value as unknown as LearningVisualResultV3
 }

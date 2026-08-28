@@ -9,12 +9,8 @@
 
 import {
   CHECKPOINT_TRANSPORT_PROTOCOL,
-  TRANSPORT_PROTOCOL_V2,
-  type LearningActivityV2,
   type LearningCheckpointWaitEnvelopeInputV1,
   type LearningCheckpointWaitEnvelopeV1,
-  type LearningWaitEnvelopeInputV2,
-  type LearningWaitEnvelopeV2,
 } from './protocol-current.ts'
 
 const MARKER_SUFFIX = '-->'
@@ -63,36 +59,10 @@ function assertCheckpointEnvelopeInput(input: LearningCheckpointWaitEnvelopeInpu
   if (!opaqueToken(input.checkpointId)) throw new Error('checkpointId must be a URL-safe opaque token')
 }
 
-/** A V2 wait id contains one opaque reference and no teaching payload. */
-export function learningWaitQuestionId(waitId: string): string {
-  if (!opaqueToken(waitId)) throw new Error('waitId must be a URL-safe opaque token')
-  return `${WAIT_QUESTION_ID_PREFIX}${waitId}`
-}
-
 /** A checkpoint question id contains one opaque lookup token. */
 export function learningCheckpointQuestionId(waitId: string): string {
   if (!opaqueToken(waitId)) throw new Error('waitId must be a URL-safe opaque token')
   return `${CHECKPOINT_WAIT_QUESTION_ID_PREFIX}${waitId}`
-}
-
-/**
- * Persist the current V2 phase projection. `presentGateOnce` has already
- * parsed the activity, so this writer intentionally performs only the phase
- * and token consistency checks needed for the envelope.
- */
-export function encodeLearningWaitDetail(input: LearningWaitEnvelopeInputV2): string {
-  const envelope: LearningWaitEnvelopeV2 = { transport: TRANSPORT_PROTOCOL_V2, ...input }
-  const activity = envelope.activity as LearningActivityV2
-  if (activity.phase !== envelope.phase || activity.seq !== envelope.seq) {
-    throw new Error('wait projection phase/seq mismatch')
-  }
-  if (activity.phase === 'reveal'
-    && (activity.lessonToken !== envelope.lessonToken || activity.roundToken !== envelope.roundToken)) {
-    throw new Error('wait projection token mismatch')
-  }
-  if (activity.phase === 'question' && activity.lessonToken !== undefined
-    && activity.lessonToken !== envelope.lessonToken) throw new Error('wait projection token mismatch')
-  return `${WAIT_MARKER_PREFIX}${encodeBase64Url(JSON.stringify(envelope))}${MARKER_SUFFIX}\n${activity.fallbackMarkdown}`
 }
 
 /** Persist one answer-free checkpoint projection for refresh recovery. */

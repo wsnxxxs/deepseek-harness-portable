@@ -195,8 +195,8 @@ export async function rateConcept(
   if (card === undefined) return undefined
   const schedule = nextReviewSchedule(card, rating, now)
   if (schedule === undefined) {
-    // 'revealed' means the learner could not recall it. Leaving the card due is
-    // the point: it comes back in this same session's queue.
+    // A 'revealed' card at the initial interval has nothing to reschedule.
+    // Leaving it due is the point: it comes back in this same session's queue.
     return panelConcept(vault, card, now)
   }
   const updated = await updateConceptCardSchedule(vault, conceptSlug, schedule)

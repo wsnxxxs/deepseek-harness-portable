@@ -200,13 +200,13 @@ export function LearningCheckpoint({
         {isTextCheckpoint ? <p className={css.checkpointHint} id={hintId}>{t('checkpointKeyboardHint')}</p> : null}
         {error === null ? null : <p className={css.error} role="alert">{error}</p>}
         <div className={css.checkpointActions}>
-          <button className={css.primaryButton} type="submit" disabled={busy || !canSubmit}>
+          <button data-lx-control="primary" type="submit" disabled={busy || !canSubmit}>
             {busy ? t('submitting') : t('submit')}
           </button>
-          <button className={css.ghostButton} type="button" disabled={busy} onClick={() => void finish(onSkip)}>
+          <button data-lx-control="secondary" type="button" disabled={busy} onClick={() => void finish(onSkip)}>
             {t('skip')}
           </button>
-          <button className={css.textButton} type="button" disabled={busy} onClick={() => void finish(onCancel)}>
+          <button data-lx-control="quiet" type="button" disabled={busy} onClick={() => void finish(onCancel)}>
             {t('cancel')}
           </button>
         </div>

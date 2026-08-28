@@ -22,9 +22,9 @@ const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
 
 const ToolView = LearningToolView as unknown as ComponentType<Record<string, unknown>>
 
-const useEmptySession = (selector: (snapshot: { pending: unknown[] }) => unknown): unknown => (
-  selector({ pending: [] })
-)
+const noPendingInteraction = (
+  selector: (snapshot: { get(id: string): unknown }) => unknown,
+): unknown => selector({ get: () => undefined })
 
 function completedBlock(args: unknown, callId: string) {
   return {
@@ -45,7 +45,7 @@ function props(args: unknown, callId: string) {
     inspect: () => {},
     t,
     sessionId: 'session_state',
-    useSession: useEmptySession,
+    useSessionPendingInteraction: noPendingInteraction,
   }
 }
 
@@ -132,7 +132,7 @@ describe('rejected arguments explain themselves', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_state"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByText(en.waiting)).toBeTruthy()
@@ -146,7 +146,7 @@ describe('rejected arguments explain themselves', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_state"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByText('Preparing: Power rule and its derivative')).toBeTruthy()
@@ -161,7 +161,7 @@ describe('rejected arguments explain themselves', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_state"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByText('Preparing: Reading "big O" notation')).toBeTruthy()
@@ -174,7 +174,7 @@ describe('rejected arguments explain themselves', () => {
         inspect={() => {}}
         t={t}
         sessionId="session_state"
-        useSession={useEmptySession}
+        useSessionPendingInteraction={noPendingInteraction}
       />,
     )
     expect(screen.getByText(en.waiting)).toBeTruthy()

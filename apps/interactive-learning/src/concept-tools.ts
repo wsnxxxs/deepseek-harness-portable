@@ -14,6 +14,12 @@ import {
   renderConceptCard,
   saveConceptCard,
 } from './concept-cards.ts'
+import {
+  CONCEPT_SAVE_DIALOG,
+  type LearnerLocale,
+  recallCardText,
+  scriptLocaleOf,
+} from './learner-locale.ts'
 import { conceptRecordFromState, upsertLearnerConcept } from './learner-memory.ts'
 import type { LearnerState } from './learner-state.ts'
 import type { LearningRecallDeckV4 } from './protocol-current.ts'
@@ -24,8 +30,7 @@ export const CONCEPT_TOOL_NAMES = [
   'learning_concept_recall',
 ] as const
 
-const SAVE_LABEL = '保存概念卡'
-const DECLINE_LABEL = '暂不保存'
+
 
 const proposalOutput = {
   type: 'object', additionalProperties: false, properties: {
@@ -64,7 +69,10 @@ const recallOutput = {
 
 export type ConceptToolContext = Context & {
   tools: ToolRuntime
-  learningActivities: { learnerState(agent: Agent): LearnerState }
+  learningActivities: {
+    learnerState(agent: Agent): LearnerState
+    turnLocale?(agent: Agent): LearnerLocale | undefined
+  }
 }
 
 function closeRoot<T extends ToolDefinition>(tool: T): T {
@@ -74,6 +82,11 @@ function closeRoot<T extends ToolDefinition>(tool: T): T {
 async function vaultOf(ctx: Context, agent: Agent | undefined): Promise<TopicVault | undefined> {
   const cwd = agent?.session.header.cwd
   return cwd === undefined ? undefined : await resolveTopicVault(ctx, cwd)
+}
+
+/** The language of the turn being served, when the broker has recorded one. */
+function localeOf(ctx: ConceptToolContext, agent: Agent | undefined): LearnerLocale | undefined {
+  return agent === undefined ? undefined : ctx.learningActivities.turnLocale?.(agent)
 }
 
 function interactionOf(ctx: Context): UserQuestionService | undefined {
@@ -90,6 +103,7 @@ function errorCode(cause: unknown): string | undefined {
 export async function validateRecallDeckAgainstVault(
   vault: TopicVault,
   deck: LearningRecallDeckV4,
+  turnLocale?: LearnerLocale,
 ): Promise<readonly string[]> {
   const cards = await readConceptCards(vault)
   const byId = new Map(cards.map(card => [recallCardIdOf(card.conceptSlug), card]))
@@ -100,10 +114,9 @@ export async function validateRecallDeckAgainstVault(
       issues.push(`card ${String(index + 1)} has no matching saved concept card`)
       continue
     }
-    const expectedPrompt = `用自己的话解释“${card.label}”。`
-    const expectedAnswer = card.explanation || `概念卡：${card.label}`
-    if (item.prompt !== expectedPrompt) issues.push(`card ${item.id} changed its saved prompt`)
-    if (item.answer !== expectedAnswer) issues.push(`card ${item.id} changed its saved answer`)
+    const expected = recallCardText(card, turnLocale)
+    if (item.prompt !== expected.prompt) issues.push(`card ${item.id} changed its saved prompt`)
+    if (item.answer !== expected.answer) issues.push(`card ${item.id} changed its saved answer`)
   }
   return issues
 }
@@ -113,12 +126,19 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
   ctx.tools.register(closeRoot(defineTool({
     name: 'learning_concept_propose',
     description: [
-      'After the learner has independently solved a fresh transfer, propose one durable concept card from this teaching segment. Do not call before that evidence exists.',
+      'Save one durable concept card from this teaching segment. On your own initiative, call it only after the learner has independently solved a fresh transfer. When the learner asks for a card in their own words, set learnerRequested and save what the session has: their request is the authority the evidence gate was standing in for.',
       'The Host shows the learner the exact Markdown card and asks for an explicit save decision. This tool never writes when the learner declines, and it never extracts an automatic concept graph.',
       'You may supply the learner explanation, an unverified transfer context, and explicit related concept names; copy only learner wording or contexts explicitly discussed in this segment, and omit fields you cannot ground.',
-      '中文模板：只有独立迁移完成后才提议保存；是否写入由学习者决定。',
     ].join(' '),
     parameters: {
+      learnerRequested: {
+        type: 'boolean',
+        description: 'Set only when the learner asked for a card in this turn. Skips the evidence requirement and the save confirmation, because they already said to save it.',
+      },
+      label: {
+        type: 'string',
+        description: 'Optional card title; defaults to the tracked goal. Supply it when the learner named a different concept.',
+      },
       explanation: {
         type: 'string',
         description: 'Optional learner wording from this segment; omit it rather than writing an assistant summary as learner evidence.',
@@ -143,7 +163,10 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
         return { status: 'not-ready' as const, detail: 'A live learning session is required to propose a concept card.' }
       }
       const state = ctx.learningActivities.learnerState(agent)
+      const learnerRequested = args.learnerRequested === true
       const draft = conceptCardDraftFromState(state, {
+        label: typeof args.label === 'string' ? args.label : undefined,
+        requireVerifiedTransfer: !learnerRequested,
         explanation: typeof args.explanation === 'string' ? args.explanation : undefined,
         unverifiedTransfer: typeof args.unverifiedTransfer === 'string' ? args.unverifiedTransfer : undefined,
         relatedConcepts: Array.isArray(args.relatedConcepts) ? args.relatedConcepts : undefined,
@@ -151,45 +174,53 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
       if (draft === undefined) {
         return {
           status: 'not-ready' as const,
-          detail: 'No correct, independent, fresh transfer is recorded yet; continue teaching instead of saving a card.',
+          detail: learnerRequested
+            ? 'The card has no title: pass a label naming the concept the learner asked to save.'
+            : 'No correct, independent, fresh transfer is recorded yet; continue teaching instead of saving a card.',
         }
       }
       const vault = await vaultOf(ctx, agent)
       if (vault === undefined) {
         return { status: 'no-vault' as const, detail: 'This session is not inside a learning vault, so no concept card was written.' }
       }
-      const interaction = interactionOf(ctx)
-      if (interaction === undefined) {
-        return { status: 'unavailable' as const, detail: 'No user-confirmation channel is available; no concept card was written.' }
-      }
-
-      let answer
-      try {
-        answer = await interaction.ask({
-          questions: [{
-            id: 'concept-card-confirm',
-            header: '概念卡',
-            question: '要把这次已经完成的独立迁移保存为概念卡吗？',
-            detail: renderConceptCard(draft),
-            options: [
-              { label: SAVE_LABEL, description: '写入当前学习库的 concepts/，以后可以复习。' },
-              { label: DECLINE_LABEL, description: '本次不写入，学习状态仍保留在会话记忆中。' },
-            ],
-          }],
-          agent,
-          signal: exec.signal,
-        })
-      } catch (cause) {
-        const code = errorCode(cause)
-        if (code === 'NO_PROVIDER' || code === 'ASK_CANCELLED' || code === 'ASK_ABORTED') {
-          return { status: 'unavailable' as const, detail: 'The save decision was unavailable; no concept card was written.' }
+      // A model-initiated proposal still asks. A learner who said "save this"
+      // has already answered this exact question, and asking again reads as the
+      // assistant not having listened.
+      if (!learnerRequested) {
+        const dialog = CONCEPT_SAVE_DIALOG[localeOf(ctx, agent) ?? scriptLocaleOf(draft.label)]
+        const interaction = interactionOf(ctx)
+        if (interaction === undefined) {
+          return { status: 'unavailable' as const, detail: 'No user-confirmation channel is available; no concept card was written.' }
         }
-        throw cause
-      }
-      const item = answer.answers.find(candidate => candidate.id === 'concept-card-confirm')
-      const accepted = item?.selected.length === 1 && item.selected[0] === SAVE_LABEL && item.custom === undefined
-      if (!accepted) {
-        return { status: 'declined' as const, detail: 'The learner did not save the concept card; no file was written.' }
+
+        let answer
+        try {
+          answer = await interaction.ask({
+            questions: [{
+              id: 'concept-card-confirm',
+              header: dialog.header,
+              question: dialog.question,
+              detail: renderConceptCard(draft),
+              options: [
+                { label: dialog.save, description: dialog.saveDetail },
+                { label: dialog.decline, description: dialog.declineDetail },
+              ],
+            }],
+            agent,
+            signal: exec.signal,
+          })
+        } catch (cause) {
+          const code = errorCode(cause)
+          if (code === 'NO_PROVIDER' || code === 'ASK_CANCELLED' || code === 'ASK_ABORTED') {
+            return { status: 'unavailable' as const, detail: 'The save decision was unavailable; no concept card was written.' }
+          }
+          throw cause
+        }
+        const item = answer.answers.find(candidate => candidate.id === 'concept-card-confirm')
+        const accepted = item?.selected.length === 1 && item.selected[0] === dialog.save && item.custom === undefined
+        if (!accepted) {
+          return { status: 'declined' as const, detail: 'The learner did not save the concept card; no file was written.' }
+        }
       }
 
       const existing = await readConceptCard(vault, draft.conceptSlug)
@@ -208,8 +239,8 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
       return {
         status: existing === undefined ? 'saved' as const : 'updated' as const,
         detail: existing === undefined
-          ? 'The learner approved the concept card and it was saved in the learning vault.'
-          : 'The learner approved the updated concept card; the existing note was retained and a new observation was added.',
+          ? `The concept card was saved in the learning vault ${learnerRequested ? 'as the learner asked' : 'after the learner approved it'}.`
+          : `The updated concept card was saved ${learnerRequested ? 'as the learner asked' : 'after the learner approved it'}; the existing note was retained and a new observation was added.`,
         conceptSlug: card.conceptSlug,
         ...(card.due === null ? {} : { due: card.due }),
         path: conceptCardPathOf(vault, card.conceptSlug),
@@ -223,7 +254,6 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
       'Read the learner\'s saved concept cards that are due for review. The cards come from concepts/*.md, not from generated guesses.',
       'When a non-blocking review is useful, copy the returned prompt, answer, id, hint, and tags verbatim into one recall_deck; do not rewrite answers or invent cards. A self-rating is not mastery evidence.',
       'If there is no due card, continue the current teaching request instead of interrupting it for review.',
-      '中文模板：只在适合时主动复习到期卡片，不要打断当前问题。',
     ].join(' '),
     parameters: {},
     output: {
@@ -246,9 +276,7 @@ export function registerConceptTools(ctx: ConceptToolContext): void {
         status: 'ok' as const,
         cards: due.slice(0, 16).map(card => ({
           id: recallCardIdOf(card.conceptSlug),
-          prompt: `用自己的话解释“${card.label}”。`,
-          answer: card.explanation || `概念卡：${card.label}`,
-          ...(card.misconceptions[0] === undefined ? {} : { hint: `注意曾经的误解：${card.misconceptions[0]}` }),
+          ...recallCardText(card, localeOf(ctx, exec.agent)),
           tags: [card.mastery, ...(card.staleAnchors.length > 0 ? ['stale-anchor'] : [])],
           due: card.due!,
           mastery: card.mastery,

@@ -20,7 +20,7 @@ const axis = (label: string, min: number, max: number, samples?: number) => (
   samples === undefined ? { label, min, max } : { label, min, max, samples }
 )
 
-const linear = { op: 'variable', name: 'x' } as const
+const linear = 'x'
 
 function points(count: number, scale = 1): Array<{ x: number; y: number }> {
   return Array.from({ length: count }, (_, index) => ({ x: index, y: index * scale }))
@@ -58,18 +58,18 @@ const plots = {
     xAxis: axis('x', 0, 6, 48),
     yAxis: axis('y', 0, 12),
     series: [
-      { type: 'curve', id: 'model', label: 'k · x', stroke: 'dashed', expression: { op: 'mul', left: { op: 'variable', name: 'k' }, right: linear } },
+      { type: 'curve', id: 'model', label: 'k · x', stroke: 'dashed', expression: `k * ${linear}` },
       { type: 'line', id: 'fit', label: 'Fit', points: points(5, 1.8) },
       { type: 'points', id: 'obs', label: 'Observed', points: points(5, 2.1) },
       { type: 'bars', id: 'residual', label: 'Residual', points: points(5, 0.4) },
     ],
-    metrics: [{ id: 'slope', label: 'Slope', expression: { op: 'variable', name: 'k' }, digits: 2 }],
+    metrics: [{ id: 'slope', label: 'Slope', expression: 'k', digits: 2 }],
   }),
   negativeRange: visual('Axes that cross zero', {
     kind: 'plot',
     xAxis: axis('x', -4, 4, 40),
     yAxis: axis('y', -8, 8),
-    series: [{ type: 'curve', id: 'cubic', label: 'x³', expression: { op: 'pow', left: linear, right: { op: 'constant', value: 3 } } }],
+    series: [{ type: 'curve', id: 'cubic', label: 'x³', expression: `${linear}^3` }],
   }),
   singlePoint: visual('A one-point series', {
     kind: 'plot',
@@ -90,17 +90,13 @@ const plots = {
       type: 'curve',
       id: 'combined',
       label: 'a·x + b·c',
-      expression: {
-        op: 'add',
-        left: { op: 'mul', left: { op: 'variable', name: 'a' }, right: linear },
-        right: { op: 'mul', left: { op: 'variable', name: 'b' }, right: { op: 'variable', name: 'c' } },
-      },
+      expression: `a * ${linear} + b * c`,
     }],
     metrics: [
-      { id: 'm_a', label: 'a', expression: { op: 'variable', name: 'a' } },
-      { id: 'm_b', label: 'b', expression: { op: 'variable', name: 'b' } },
-      { id: 'm_c', label: 'c', expression: { op: 'variable', name: 'c' } },
-      { id: 'm_sum', label: 'a + b', expression: { op: 'add', left: { op: 'variable', name: 'a' }, right: { op: 'variable', name: 'b' } } },
+      { id: 'm_a', label: 'a', expression: 'a' },
+      { id: 'm_b', label: 'b', expression: 'b' },
+      { id: 'm_c', label: 'c', expression: 'c' },
+      { id: 'm_sum', label: 'a + b', expression: 'a + b' },
     ],
   }),
 }
@@ -437,7 +433,7 @@ const sequenced = {
     parameters: [{ id: 'n', label: 'n', min: 1, max: 3, step: 1, initial: 2 }],
     xAxis: axis('x', 0, 4, 32),
     yAxis: axis('y', 0, 16),
-    series: [{ type: 'curve', id: 'power', label: 'xⁿ', expression: { op: 'pow', left: linear, right: { op: 'variable', name: 'n' } } }],
+    series: [{ type: 'curve', id: 'power', label: 'xⁿ', expression: `${linear}^n` }],
   }, {
     sequence: {
       initialFrameId: 'frame_param',

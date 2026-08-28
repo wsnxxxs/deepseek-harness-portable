@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -90,7 +90,7 @@ describe('learner state survives message-surface compaction', () => {
 
       const update = await ctx.tools.execute({
         signal: new AbortController().signal,
-        callId: CallId(`compaction-update-${String(index)}`),
+        callId: ToolCallId(`compaction-update-${String(index)}`),
         name: 'learning_state_update',
         arguments: { action: 'update', event },
         agent,
@@ -144,7 +144,7 @@ describe('learner state survives message-surface compaction', () => {
 
     await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('compaction-loss-update'),
+      callId: ToolCallId('compaction-loss-update'),
       name: 'learning_state_update',
       arguments: { action: 'update', event: OBSERVATIONS[0] },
       agent,

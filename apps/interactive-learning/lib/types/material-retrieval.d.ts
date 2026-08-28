@@ -66,11 +66,17 @@ export declare function keyPhrases(text: string): readonly string[];
  * else, a failed example needs a different one, and only when nothing more
  * specific applies does this fall back to finding where the material states the
  * goal.
+ *
+ * `focus` is the exception to that ordering. State is an inference about what
+ * the learner needs; a phrase they typed is not. When one is supplied it leads
+ * the search and can plan a retrieval on its own, so a learner who names a
+ * section gets it even in a session whose state is still empty.
  * @param state - The current learner state.
  * @param budgetChars - Material budget for this turn.
- * @returns the plan, or `undefined` when state says nothing to plan on.
+ * @param focus - The learner's own words about what to find, when they said.
+ * @returns the plan, or `undefined` when neither state nor focus says anything.
  */
-export declare function planRetrieval(state: LearnerState, budgetChars?: number): RetrievalPlan | undefined;
+export declare function planRetrieval(state: LearnerState, budgetChars?: number, focus?: string): RetrievalPlan | undefined;
 /** One retrieved passage, ready to cite. */
 export interface RetrievedPassage {
     sourceId: string;

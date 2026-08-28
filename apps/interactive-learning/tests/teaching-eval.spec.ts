@@ -116,9 +116,9 @@ describe('non-blocking teaching behavior evaluation', () => {
     const visualProtocol = readFileSync(join(skillRoot, 'references/visual-protocol.md'), 'utf8')
     const referenceMaterials = readFileSync(join(skillRoot, 'references/reference-materials.md'), 'utf8')
     for (const phrase of [
-      'Route first',
-      'calibration',
-      'complete/full overview',
+      'Level and adaptation',
+      'The route for this turn is supplied with the turn',
+      'calibrate an underspecified one',
       'Each response makes one cognitive move',
       'Ask at most one focused learner question',
       'Never repeat a hint, analogy, question, or explanation fingerprint',

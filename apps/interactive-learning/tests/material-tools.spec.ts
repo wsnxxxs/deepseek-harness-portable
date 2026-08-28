@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { MATERIAL_TOOL_NAMES, MAX_READ_CHARS } from '../src/material-tools.ts'
@@ -44,7 +44,7 @@ async function call(
 ): Promise<Record<string, unknown>> {
   const result = await ctx.tools.execute({
     signal,
-    callId: CallId(`${name}-${Math.random()}`),
+    callId: ToolCallId(`${name}-${Math.random()}`),
     name,
     arguments: args,
     agent,

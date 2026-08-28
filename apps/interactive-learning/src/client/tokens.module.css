@@ -113,6 +113,13 @@
   --lx-card-padding: clamp(16px, 2.8cqi, 22px);
   --lx-card-background: var(--lx-surface-card);
 
+  /* The same recipe at list density. A source row, a saved note and a concept
+     row are cards, but a 16px radius and 22px of padding on a row in a list of
+     twenty reads as twenty dialogs. Naming the second density is what stops a
+     surface from quietly inventing a third one. */
+  --lx-card-radius-compact: var(--lx-radius-lg);
+  --lx-card-padding-compact: var(--lx-space-lg) var(--lx-space-xl);
+
   /* Elevation. Refined multi-tier ambient diffusion shadows with subtle tone lift. */
   --lx-shadow-sm: 0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);
   --lx-shadow-md: 0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);
@@ -284,4 +291,135 @@
 @media (forced-colors: active) {
   [data-learning-scope] [data-visual-state] { --lx-vs-alpha: 1; }
   [data-learning-scope] [data-visual-state="disabled"] { --lx-vs-alpha: 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   One control recipe.
+
+   The card recipe above stopped cards from drifting; controls only shared their
+   METRICS (`--lx-control-height-*`, `--lx-control-padding-*`) and drifted
+   anyway — the same "secondary button" was an 8px rect at 34px in the
+   checkpoint, an 8px rect at 30px in the library, and a pill at 34px and 30px
+   in the two note surfaces. The recipes are declared here, on the unhashed
+   attribute selector, for the same reason `[data-tone]` and `[data-visual-state]`
+   are: the surfaces compile to separate CSS Modules and cannot share a class.
+
+   SHAPE IS A ROLE, NOT A PREFERENCE:
+   - `chip` is a pill and is ONLY for inline actions inside the conversation
+     flow itself — today that is the blank-session quick-start row. It reads as
+     a suggestion the learner may take, not as a form to complete.
+   - `primary` / `secondary` / `quiet` / `danger` are 8px rects and are for form,
+     panel and dialog buttons — the checkpoint, the library, the keep sheet, and
+     the note panel's segment actions. They read as controls that commit
+     something. The segment actions are rects rather than chips because they sit
+     in the panel beside the conversation, not in its flow.
+
+   A surface that needs a control reaches for one of these five. Adding a sixth
+   means a new ROLE exists, not that a surface wanted a different look. */
+[data-learning-scope] [data-lx-control] {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--lx-control-height-md);
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--lx-radius-sm);
+  padding: var(--lx-control-padding-md);
+  background: transparent;
+  font: inherit;
+  font-size: var(--lx-text-xs);
+  line-height: var(--lx-leading-xs);
+  cursor: pointer;
+  transition:
+    background var(--lx-motion-fast) var(--lx-easing),
+    border-color var(--lx-motion-fast) var(--lx-easing),
+    color var(--lx-motion-fast) var(--lx-easing);
+}
+
+[data-learning-scope] [data-lx-control]:disabled {
+  cursor: default;
+  opacity: var(--lx-control-disabled-opacity);
+}
+
+[data-learning-scope] [data-lx-control="primary"] {
+  border-color: var(--lx-accent);
+  background: var(--lx-accent);
+  color: var(--lx-label-on-accent);
+  font-weight: var(--lx-weight-medium);
+}
+
+[data-learning-scope] [data-lx-control="primary"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--lx-accent) 86%, var(--lx-label-primary));
+}
+
+[data-learning-scope] [data-lx-control="secondary"] {
+  border-color: var(--lx-border-default);
+  color: var(--lx-label-secondary);
+}
+
+[data-learning-scope] [data-lx-control="quiet"] {
+  color: var(--lx-label-tertiary);
+}
+
+[data-learning-scope] [data-lx-control="secondary"]:hover:not(:disabled),
+[data-learning-scope] [data-lx-control="quiet"]:hover:not(:disabled) {
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+}
+
+/* The mastery downgrade and its kin. Outlined rather than filled: destructive
+   to a record, but also the honest thing to press. */
+[data-learning-scope] [data-lx-control="danger"] {
+  border-color: color-mix(in srgb, var(--lx-danger) 45%, transparent);
+  color: var(--lx-danger);
+}
+
+[data-learning-scope] [data-lx-control="danger"]:hover:not(:disabled) {
+  border-color: var(--lx-danger);
+}
+
+/* Leaves the machine. Outlined, never filled: every filled control commits to
+   the local folder, and this one spends a model call. The outline is the only
+   vocabulary the surfaces have for that difference. */
+[data-learning-scope] [data-lx-control="spend"] {
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+  font-weight: var(--lx-weight-medium);
+}
+
+[data-learning-scope] [data-lx-control="spend"]:hover:not(:disabled) {
+  background: var(--lx-surface-accent);
+}
+
+/* The only pill. See the shape rule above before reaching for it. */
+[data-learning-scope] [data-lx-control="chip"] {
+  min-height: var(--lx-control-height-sm);
+  border-color: var(--lx-border-subtle);
+  border-radius: var(--lx-radius-pill);
+  padding: var(--lx-control-padding-sm);
+  color: var(--lx-label-secondary);
+}
+
+[data-learning-scope] [data-lx-control="chip"]:hover:not(:disabled) {
+  border-color: var(--lx-accent);
+  background: var(--lx-surface-accent);
+  color: var(--lx-accent);
+}
+
+/* The same controls at list density. A panel that shows twenty rows, each with
+   two or three buttons, is not a dialog; 34px controls at 13px there crowd the
+   row they belong to. Density is a separate axis from shape on purpose — the
+   shape still says what kind of control it is. */
+[data-learning-scope] [data-lx-control][data-lx-density="compact"] {
+  min-height: var(--lx-control-height-sm);
+  padding: var(--lx-control-padding-sm);
+  font-size: var(--lx-text-2xs);
+}
+
+/* A confirmed, terminal state on an otherwise ordinary control. */
+[data-learning-scope] [data-lx-control][data-lx-state="done"] {
+  border-color: color-mix(in srgb, var(--lx-success) 42%, transparent);
+  background: color-mix(in srgb, var(--lx-success) 10%, transparent);
+  color: var(--lx-success);
 }

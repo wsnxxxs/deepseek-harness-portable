@@ -5,8 +5,8 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		let react = require("react");
-		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
+		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_dom = require("react-dom");
 		//#region src/protocol-schema.ts
 		function schemaPath(path) {
@@ -124,7 +124,7 @@ window.__ModuleLoader__.load({
 			properties: {
 				id: {
 					type: "string",
-					description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -. The id x is reserved for the chart axis.",
+					description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9 or _. No hyphen, because expressions name this id and there a hyphen is subtraction. The id x is reserved for the chart axis.",
 					required: true
 				},
 				label: {
@@ -149,86 +149,24 @@ window.__ModuleLoader__.load({
 				}
 			}
 		};
-		function mathExpressionSchema(depth) {
-			const leaves = [{
-				type: "object",
-				additionalProperties: false,
-				properties: {
-					op: {
-						type: "string",
-						const: "constant",
-						required: true
-					},
-					value: {
-						type: "number",
-						required: true
-					}
-				}
-			}, {
-				type: "object",
-				additionalProperties: false,
-				properties: {
-					op: {
-						type: "string",
-						const: "variable",
-						required: true
-					},
-					name: {
-						type: "string",
-						description: "Use x or one of this visual's parameter ids.",
-						required: true
-					}
-				}
-			}];
-			if (depth <= 1) return { oneOf: leaves };
-			const nested = mathExpressionSchema(depth - 1);
-			return { oneOf: [
-				...leaves,
-				{
-					type: "object",
-					additionalProperties: false,
-					properties: {
-						op: {
-							type: "string",
-							enum: MATH_UNARY_OPERATORS,
-							required: true
-						},
-						value: {
-							...nested,
-							required: true
-						}
-					}
-				},
-				{
-					type: "object",
-					additionalProperties: false,
-					properties: {
-						op: {
-							type: "string",
-							enum: MATH_BINARY_OPERATORS,
-							required: true
-						},
-						left: {
-							...nested,
-							required: true
-						},
-						right: {
-							...nested,
-							required: true
-						}
-					}
-				}
-			] };
-		}
 		function required(schema) {
 			return {
 				...schema,
 				required: true
 			};
 		}
-		const expression = mathExpressionSchema(4);
+		const MATH_SYNTAX = [
+			"Infix expression, e.g. `sigmoid(w*x + b)` or `normpdf((x - mu)/sigma)/sigma`.",
+			`Operators + - * / ^ and unary -, with parentheses; functions ${MATH_UNARY_OPERATORS.join(", ")} take one argument and ${MATH_BINARY_OPERATORS.join(", ")} take two.`,
+			"leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density.",
+			"Names are numbers, x, and declared parameter ids; nothing else, and no assignment or function definition."
+		].join(" ");
+		const expression = {
+			type: "string",
+			description: MATH_SYNTAX
+		};
 		const requiredExpression = required(expression);
-		const mathExpressionDescription = "Closed math AST. leaky_relu uses a 0.01 negative slope, step switches from 0 to 1 at zero, and normpdf is the standard normal density; compose normpdf with sub/div and an outer div for other means and standard deviations.";
+		const mathExpressionDescription = MATH_SYNTAX;
 		const identifier = {
 			type: "string",
 			description: "Identifier: 1 to 32 characters, start with a lowercase letter, then use only a-z, 0-9, _ or -."
@@ -1853,7 +1791,7 @@ window.__ModuleLoader__.load({
 						samples: scalarFieldSamples,
 						expression: {
 							...expression,
-							description: "Closed math AST using x and y variables."
+							description: `Scalar field over x and y. ${MATH_SYNTAX}`
 						},
 						min: { type: "number" },
 						max: { type: "number" }
@@ -1870,11 +1808,11 @@ window.__ModuleLoader__.load({
 							properties: {
 								u: {
 									...requiredExpression,
-									description: "Horizontal component using x and y variables."
+									description: `Horizontal component using x and y. ${MATH_SYNTAX}`
 								},
 								v: {
 									...requiredExpression,
-									description: "Vertical component using x and y variables."
+									description: `Vertical component using x and y. ${MATH_SYNTAX}`
 								}
 							}
 						}
@@ -2257,6 +2195,181 @@ window.__ModuleLoader__.load({
 			return validateSchemaValue(checkpointResultJsonSchemaV1, value, "checkpointResult");
 		}
 		//#endregion
+		//#region src/math-parser.ts
+		/**
+		* Parse an infix math expression into the payload AST.
+		*
+		* The AST itself is a good runtime representation and a terrible schema. Written
+		* out as JSON Schema it has to be inlined once per level, so a depth-4
+		* expression expands to roughly a hundred node definitions, each carrying the
+		* full operator enums. Measured, that expansion was about 95% of the `plot` and
+		* `field_2d` tool schemas — 118k of the 160k characters across all fifteen
+		* visual kinds. It is also the least natural thing for a model to write:
+		* `sigmoid(w*x + b)` becomes eleven nested objects.
+		*
+		* So the wire format is the string and the AST stays internal. The tool parses
+		* at its boundary, which means the persisted payload, the validator, the
+		* compiler, and every renderer are unchanged, and a replayed session from
+		* before this change still holds exactly the AST it always did.
+		*
+		* Deliberately not `eval` or `new Function`: the payload is model-authored, so
+		* it is parsed as data and never reaches an interpreter.
+		* @module @dsh-portable/interactive-learning/src/math-parser
+		*/
+		const BINARY = new Set(MATH_BINARY_OPERATORS);
+		const UNARY = new Set(MATH_UNARY_OPERATORS);
+		/** Raised for a source string that is not a well-formed expression. */
+		var MathParseError = class extends Error {
+			constructor(message) {
+				super(message);
+				this.name = "MathParseError";
+			}
+		};
+		/**
+		* Names stop at a hyphen, so `-` is always subtraction.
+		*
+		* Identifiers elsewhere in a visual payload may contain hyphens, but a plot or
+		* field parameter id may not, because `w-1` cannot mean both a variable and a
+		* subtraction. Resolving that against the declared names was possible and was
+		* the first thing tried; it also silently rewrote `normpdf(x)` to the variable
+		* `n` in any plot that happened to declare a parameter called `n`. A grammar
+		* that needs to know the variables before it can tokenize is the wrong grammar.
+		*/
+		function readName(source, start) {
+			const match = /^[a-z][a-z0-9_]*/.exec(source.slice(start));
+			return match === null ? "" : match[0];
+		}
+		function skip(cursor) {
+			while (cursor.at < cursor.source.length && /\s/.test(cursor.source[cursor.at])) cursor.at += 1;
+		}
+		function expect(cursor, character) {
+			skip(cursor);
+			if (cursor.source[cursor.at] !== character) throw new MathParseError(`expected ${character} at position ${String(cursor.at)}`);
+			cursor.at += 1;
+		}
+		/** `expr := term (('+' | '-') term)*` */
+		function parseExpression(cursor) {
+			let left = parseTerm(cursor);
+			for (;;) {
+				skip(cursor);
+				const character = cursor.source[cursor.at];
+				if (character !== "+" && character !== "-") return left;
+				cursor.at += 1;
+				left = {
+					op: character === "+" ? "add" : "sub",
+					left,
+					right: parseTerm(cursor)
+				};
+			}
+		}
+		/** `term := factor (('*' | '/') factor)*` */
+		function parseTerm(cursor) {
+			let left = parseFactor(cursor);
+			for (;;) {
+				skip(cursor);
+				const character = cursor.source[cursor.at];
+				if (character !== "*" && character !== "/") return left;
+				cursor.at += 1;
+				left = {
+					op: character === "*" ? "mul" : "div",
+					left,
+					right: parseFactor(cursor)
+				};
+			}
+		}
+		/** `factor := unary ('^' factor)?` — right associative, as exponentiation is. */
+		function parseFactor(cursor) {
+			const left = parseUnary(cursor);
+			skip(cursor);
+			if (cursor.source[cursor.at] !== "^") return left;
+			cursor.at += 1;
+			return {
+				op: "pow",
+				left,
+				right: parseFactor(cursor)
+			};
+		}
+		/** `unary := '-' unary | primary` */
+		function parseUnary(cursor) {
+			skip(cursor);
+			if (cursor.source[cursor.at] !== "-") return parsePrimary(cursor);
+			cursor.at += 1;
+			return {
+				op: "neg",
+				value: parseUnary(cursor)
+			};
+		}
+		/** `primary := number | call | name | '(' expr ')'` */
+		function parsePrimary(cursor) {
+			skip(cursor);
+			const { source } = cursor;
+			if (cursor.at >= source.length) throw new MathParseError("expression ended early");
+			if (source[cursor.at] === "(") {
+				cursor.at += 1;
+				const inner = parseExpression(cursor);
+				expect(cursor, ")");
+				return inner;
+			}
+			const number = /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i.exec(source.slice(cursor.at));
+			if (number !== null) {
+				cursor.at += number[0].length;
+				return {
+					op: "constant",
+					value: Number(number[0])
+				};
+			}
+			if (!/[a-z]/.test(source[cursor.at])) throw new MathParseError(`unexpected ${JSON.stringify(source[cursor.at])} at position ${String(cursor.at)}`);
+			const name = readName(source, cursor.at);
+			cursor.at += name.length;
+			skip(cursor);
+			if (source[cursor.at] !== "(") return {
+				op: "variable",
+				name
+			};
+			cursor.at += 1;
+			const args = [parseExpression(cursor)];
+			for (;;) {
+				skip(cursor);
+				if (source[cursor.at] !== ",") break;
+				cursor.at += 1;
+				args.push(parseExpression(cursor));
+			}
+			expect(cursor, ")");
+			if (UNARY.has(name)) {
+				if (args.length !== 1) throw new MathParseError(`${name} takes one argument`);
+				return {
+					op: name,
+					value: args[0]
+				};
+			}
+			if (BINARY.has(name)) {
+				if (args.length !== 2) throw new MathParseError(`${name} takes two arguments`);
+				return {
+					op: name,
+					left: args[0],
+					right: args[1]
+				};
+			}
+			throw new MathParseError(`unknown function ${name}`);
+		}
+		/**
+		* Parse one infix expression.
+		* @param source - The expression as written, e.g. `sigmoid(w*x + b)`.
+		* @returns the equivalent AST.
+		* @throws MathParseError when the source is not a well-formed expression.
+		*/
+		function parseMathExpression(source) {
+			if (source.length > 512) throw new MathParseError("expression exceeds 512 characters");
+			const cursor = {
+				source: source.toLowerCase(),
+				at: 0
+			};
+			const parsed = parseExpression(cursor);
+			skip(cursor);
+			if (cursor.at !== cursor.source.length) throw new MathParseError(`unexpected trailing input at position ${String(cursor.at)}`);
+			return parsed;
+		}
+		//#endregion
 		//#region src/protocol-errors.ts
 		/** Stable error type shared by current and compatibility protocol parsers. */
 		var LearningProtocolError = class extends Error {
@@ -2271,23 +2384,16 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/protocol-current.ts
 		/** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
-		const RESPONSE_PROTOCOL$1 = "dsh-learning/response@1";
-		const TRANSPORT_PROTOCOL = "dsh-learning/transport@1";
-		const ACTIVITY_PROTOCOL_V2$1 = "dsh-learning/activity@2";
-		const RESPONSE_PROTOCOL_V2$1 = "dsh-learning/response@2";
-		const TRANSPORT_PROTOCOL_V2 = "dsh-learning/wait@2";
-		const VISUAL_PROTOCOL_V3 = "dsh-learning/visual@3";
-		const VISUAL_RESULT_PROTOCOL_V3 = "dsh-learning/visual-result@3";
 		const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
-		const MAX_ACTIVITY_BYTES$1 = 65536;
-		const MAX_RESPONSE_BYTES$1 = 32768;
-		function record$1(value) {
+		const MAX_ACTIVITY_BYTES = 65536;
+		const MAX_RESPONSE_BYTES = 32768;
+		function record(value) {
 			return typeof value === "object" && value !== null && !Array.isArray(value);
 		}
-		function onlyKeys$1(value, allowed, path, issues) {
+		function onlyKeys(value, allowed, path, issues) {
 			for (const key of Object.keys(value)) if (!allowed.includes(key)) issues.push(`${path}.${key} is not supported`);
 		}
-		function text$1(value, path, issues, max = 8e3) {
+		function text(value, path, issues, max = 8e3) {
 			if (typeof value !== "string" || value.trim() === "") {
 				issues.push(`${path} must be a non-empty string`);
 				return false;
@@ -2295,21 +2401,21 @@ window.__ModuleLoader__.load({
 			if (value.length > max) issues.push(`${path} exceeds ${String(max)} characters`);
 			return true;
 		}
-		function finite$1(value, path, issues) {
+		function finite(value, path, issues) {
 			if (typeof value !== "number" || !Number.isFinite(value)) {
 				issues.push(`${path} must be a finite number`);
 				return false;
 			}
 			return true;
 		}
-		function id$1(value, path, issues) {
+		function id(value, path, issues) {
 			if (typeof value !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(value)) {
 				issues.push(`${path} must match ^[a-z][a-z0-9_-]{0,31}$`);
 				return false;
 			}
 			return true;
 		}
-		function uniqueIds$1(values, path, issues) {
+		function uniqueIds(values, path, issues) {
 			const seen = /* @__PURE__ */ new Set();
 			for (const [index, value] of values.entries()) {
 				if (typeof value.id !== "string") continue;
@@ -2317,18 +2423,29 @@ window.__ModuleLoader__.load({
 				seen.add(value.id);
 			}
 		}
-		function jsonBytes$1(value) {
+		function jsonBytes(value) {
 			try {
 				return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 			} catch {
 				return;
 			}
 		}
-		function validateMath$1(value, parameterIds, path, issues, allowX = true, maxDepth = 8) {
+		function validateMath(value, parameterIds, path, issues, allowX = true, maxDepth = 4) {
 			const binary = new Set(MATH_BINARY_OPERATORS);
 			const unary = new Set(MATH_UNARY_OPERATORS);
+			if (typeof value !== "string") {
+				issues.push(`${path} must be an expression string`);
+				return;
+			}
+			let root;
+			try {
+				root = parseMathExpression(value);
+			} catch (cause) {
+				issues.push(`${path} is not a valid expression: ${cause instanceof MathParseError ? cause.message : String(cause)}`);
+				return;
+			}
 			const stack = [{
-				value,
+				value: root,
 				path,
 				depth: 1
 			}];
@@ -2344,20 +2461,20 @@ window.__ModuleLoader__.load({
 					issues.push(`${node.path} exceeds AST depth ${String(maxDepth)}`);
 					return;
 				}
-				if (!record$1(node.value) || typeof node.value.op !== "string") {
+				if (!record(node.value) || typeof node.value.op !== "string") {
 					issues.push(`${node.path} must be a mathematical AST node`);
 					continue;
 				}
 				const expression = node.value;
 				const op = expression.op;
 				if (op === "constant") {
-					onlyKeys$1(expression, ["op", "value"], node.path, issues);
-					if (finite$1(expression.value, `${node.path}.value`, issues) && Math.abs(expression.value) > 0xe8d4a51000) issues.push(`${node.path}.value exceeds the numeric limit`);
+					onlyKeys(expression, ["op", "value"], node.path, issues);
+					if (finite(expression.value, `${node.path}.value`, issues) && Math.abs(expression.value) > 0xe8d4a51000) issues.push(`${node.path}.value exceeds the numeric limit`);
 				} else if (op === "variable") {
-					onlyKeys$1(expression, ["op", "name"], node.path, issues);
+					onlyKeys(expression, ["op", "name"], node.path, issues);
 					if (typeof expression.name !== "string" || !parameterIds.has(expression.name) && !(allowX && expression.name === "x")) issues.push(`${node.path}.name must be ${allowX ? "x or " : ""}a declared parameter id`);
 				} else if (binary.has(op)) {
-					onlyKeys$1(expression, [
+					onlyKeys(expression, [
 						"op",
 						"left",
 						"right"
@@ -2372,7 +2489,7 @@ window.__ModuleLoader__.load({
 						depth: node.depth + 1
 					});
 				} else if (unary.has(op)) {
-					onlyKeys$1(expression, ["op", "value"], node.path, issues);
+					onlyKeys(expression, ["op", "value"], node.path, issues);
 					stack.push({
 						value: expression.value,
 						path: `${node.path}.value`,
@@ -2381,14 +2498,14 @@ window.__ModuleLoader__.load({
 				} else issues.push(`${node.path}.op is unknown`);
 			}
 		}
-		function integer$1(value, path, issues, min = 0) {
+		function integer(value, path, issues, min = 0) {
 			if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
 				issues.push(`${path} must be an integer >= ${String(min)}`);
 				return false;
 			}
 			return true;
 		}
-		function token$1(value, path, issues) {
+		function token(value, path, issues) {
 			if (typeof value !== "string" || value.length < 1 || value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
 				issues.push(`${path} must be an opaque token of 1 to 128 URL-safe characters`);
 				return false;
@@ -2402,7 +2519,7 @@ window.__ModuleLoader__.load({
 			return !CHECKPOINT_RAW_HTML.test(value) && !CHECKPOINT_LEAKAGE_COPY.test(value);
 		}
 		function checkpointDisplayText(value, path, issues, max) {
-			const valid = text$1(value, path, issues, max);
+			const valid = text(value, path, issues, max);
 			if (valid && !isLearningCheckpointDisplayTextSafe(value)) {
 				issues.push(`${path} must not contain raw HTML, an answer key, scoring rubric, or future-step copy`);
 				return false;
@@ -2412,11 +2529,11 @@ window.__ModuleLoader__.load({
 		/** Strict, answer-free protocol for one optional learner checkpoint. */
 		function parseLearningCheckpointV1(value) {
 			const issues = [...validateLearningCheckpointSchemaV1(value)];
-			const bytes = jsonBytes$1(value);
+			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("checkpoint must be serializable JSON");
-			else if (bytes > 65536) issues.push(`checkpoint exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
-			if (!record$1(value)) throw new LearningProtocolError([...issues, "checkpoint must be an object"]);
-			onlyKeys$1(value, [
+			else if (bytes > 65536) issues.push(`checkpoint exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
+			if (!record(value)) throw new LearningProtocolError([...issues, "checkpoint must be an object"]);
+			onlyKeys(value, [
 				"protocol",
 				"kind",
 				"prompt",
@@ -2434,13 +2551,13 @@ window.__ModuleLoader__.load({
 			if (value.kind === "single_choice") {
 				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) issues.push("checkpoint.options must contain 2 to 8 options for single_choice");
 				else {
-					const options = value.options.filter(record$1);
+					const options = value.options.filter(record);
 					if (options.length !== value.options.length) issues.push("checkpoint.options entries must be objects");
-					uniqueIds$1(options, "checkpoint.options", issues);
+					uniqueIds(options, "checkpoint.options", issues);
 					for (const [index, option] of options.entries()) {
 						const path = `checkpoint.options[${String(index)}]`;
-						onlyKeys$1(option, ["id", "label"], path, issues);
-						id$1(option.id, `${path}.id`, issues);
+						onlyKeys(option, ["id", "label"], path, issues);
+						id(option.id, `${path}.id`, issues);
 						checkpointDisplayText(option.label, `${path}.label`, issues, 500);
 					}
 				}
@@ -2451,12 +2568,12 @@ window.__ModuleLoader__.load({
 		/** Validate one phase-bound checkpoint receipt before the Host accepts it. */
 		function parseLearningCheckpointResultV1(value, expected = {}) {
 			const issues = [...validateLearningCheckpointResultSchemaV1(value)];
-			const bytes = jsonBytes$1(value);
+			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("checkpoint result must be serializable JSON");
-			else if (bytes > 32768) issues.push(`checkpoint result exceeds ${String(MAX_RESPONSE_BYTES$1)} bytes`);
-			if (!record$1(value)) throw new LearningProtocolError([...issues, "checkpoint result must be an object"]);
+			else if (bytes > 32768) issues.push(`checkpoint result exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
+			if (!record(value)) throw new LearningProtocolError([...issues, "checkpoint result must be an object"]);
 			const submitted = value.status === "submitted";
-			onlyKeys$1(value, submitted ? [
+			onlyKeys(value, submitted ? [
 				"protocol",
 				"checkpointId",
 				"status",
@@ -2470,8 +2587,8 @@ window.__ModuleLoader__.load({
 				"receiptId"
 			], "checkpointResult", issues);
 			if (value.protocol !== "dsh-learning/checkpoint-result@1") issues.push(`checkpointResult.protocol must be ${CHECKPOINT_RESULT_PROTOCOL}`);
-			token$1(value.checkpointId, "checkpointResult.checkpointId", issues);
-			token$1(value.receiptId, "checkpointResult.receiptId", issues);
+			token(value.checkpointId, "checkpointResult.checkpointId", issues);
+			token(value.receiptId, "checkpointResult.receiptId", issues);
 			if (![
 				"submitted",
 				"skipped",
@@ -2500,24 +2617,24 @@ window.__ModuleLoader__.load({
 				else throw cause;
 			}
 			if (submitted) {
-				if (!record$1(value.response)) issues.push("checkpointResult.response must be an object when submitted");
+				if (!record(value.response)) issues.push("checkpointResult.response must be an object when submitted");
 				else {
 					const response = value.response;
 					const responsePath = "checkpointResult.response";
 					const expectedKind = checkpoint?.kind;
 					const shape = expectedKind === "single_choice" ? "optionId" : expectedKind === "numeric" ? "number" : expectedKind === void 0 ? void 0 : "text";
 					if (shape === "optionId" || shape === void 0 && Object.hasOwn(response, "optionId")) {
-						onlyKeys$1(response, ["optionId"], responsePath, issues);
-						if (id$1(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
+						onlyKeys(response, ["optionId"], responsePath, issues);
+						if (id(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
 					} else if (shape === "number" || shape === void 0 && Object.hasOwn(response, "number")) {
-						onlyKeys$1(response, ["number"], responsePath, issues);
-						finite$1(response.number, `${responsePath}.number`, issues);
+						onlyKeys(response, ["number"], responsePath, issues);
+						finite(response.number, `${responsePath}.number`, issues);
 					} else if (shape === "text" || shape === void 0 && Object.hasOwn(response, "text")) {
-						onlyKeys$1(response, ["text"], responsePath, issues);
-						text$1(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
+						onlyKeys(response, ["text"], responsePath, issues);
+						text(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
 					} else {
 						issues.push(`${responsePath} must contain exactly one of text, optionId, or number`);
-						onlyKeys$1(response, [], responsePath, issues);
+						onlyKeys(response, [], responsePath, issues);
 					}
 				}
 			} else if (value.response !== void 0) issues.push("checkpointResult.response is allowed only when status is submitted");
@@ -2538,11 +2655,11 @@ window.__ModuleLoader__.load({
 			"dotted"
 		]);
 		function validateVisualAxisV3(value, path, issues, samplesAllowed) {
-			if (!record$1(value)) {
+			if (!record(value)) {
 				issues.push(`${path} must be an object`);
 				return;
 			}
-			onlyKeys$1(value, samplesAllowed ? [
+			onlyKeys(value, samplesAllowed ? [
 				"label",
 				"min",
 				"max",
@@ -2552,150 +2669,11 @@ window.__ModuleLoader__.load({
 				"min",
 				"max"
 			], path, issues);
-			if (value.label !== void 0) text$1(value.label, `${path}.label`, issues, 120);
-			const minOk = finite$1(value.min, `${path}.min`, issues);
-			const maxOk = finite$1(value.max, `${path}.max`, issues);
+			if (value.label !== void 0) text(value.label, `${path}.label`, issues, 120);
+			const minOk = finite(value.min, `${path}.min`, issues);
+			const maxOk = finite(value.max, `${path}.max`, issues);
 			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-			if (samplesAllowed && value.samples !== void 0 && (!integer$1(value.samples, `${path}.samples`, issues, 24) || value.samples > 256)) issues.push(`${path}.samples must be an integer from 24 to 256`);
-		}
-		function validateVisualParametersV3(value, issues) {
-			const path = "visual.parameters";
-			if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
-				issues.push(`${path} must contain 1 to 3 parameters`);
-				return [];
-			}
-			const parameters = value.filter(record$1);
-			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds$1(parameters, path, issues);
-			for (const [index, parameter] of parameters.entries()) {
-				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys$1(parameter, [
-					"id",
-					"label",
-					"min",
-					"max",
-					"step",
-					"initial"
-				], itemPath, issues);
-				id$1(parameter.id, `${itemPath}.id`, issues);
-				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
-				text$1(parameter.label, `${itemPath}.label`, issues, 120);
-				const minOk = finite$1(parameter.min, `${itemPath}.min`, issues);
-				const maxOk = finite$1(parameter.max, `${itemPath}.max`, issues);
-				const stepOk = finite$1(parameter.step, `${itemPath}.step`, issues);
-				const initialOk = finite$1(parameter.initial, `${itemPath}.initial`, issues);
-				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
-				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
-				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
-				if (minOk && maxOk && initialOk && (parameter.initial < parameter.min || parameter.initial > parameter.max)) issues.push(`${itemPath}.initial must be inside the parameter range`);
-			}
-			return parameters;
-		}
-		/** Validate the preferred, non-blocking visual protocol. */
-		function parseLearningVisualV3(value) {
-			const issues = [];
-			const bytes = jsonBytes$1(value);
-			if (bytes === void 0) issues.push("visual must be serializable JSON");
-			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
-			if (!record$1(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
-			onlyKeys$1(value, [
-				"protocol",
-				"kind",
-				"title",
-				"description",
-				"parameters",
-				"xAxis",
-				"yAxis",
-				"series",
-				"metrics"
-			], "visual", issues);
-			if (value.protocol !== "dsh-learning/visual@3") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V3}`);
-			if (value.kind !== "parameter_chart") issues.push("visual.kind must be parameter_chart");
-			text$1(value.title, "visual.title", issues, 200);
-			if (value.description !== void 0) text$1(value.description, "visual.description", issues, 1e3);
-			const parameters = validateVisualParametersV3(value.parameters, issues);
-			const parameterIds = new Set(parameters.flatMap((parameter) => typeof parameter.id === "string" ? [parameter.id] : []));
-			validateVisualAxisV3(value.xAxis, "visual.xAxis", issues, true);
-			validateVisualAxisV3(value.yAxis, "visual.yAxis", issues, false);
-			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.series must contain 1 to 8 series");
-			else {
-				const series = value.series.filter(record$1);
-				if (series.length !== value.series.length) issues.push("visual.series entries must be objects");
-				uniqueIds$1(series, "visual.series", issues);
-				let curveCount = 0;
-				for (const [index, item] of series.entries()) {
-					const path = `visual.series[${String(index)}]`;
-					id$1(item.id, `${path}.id`, issues);
-					text$1(item.label, `${path}.label`, issues, 160);
-					if (item.tone !== void 0 && !VISUAL_TONES_V3.has(item.tone)) issues.push(`${path}.tone is unknown`);
-					if (item.type === "curve") {
-						curveCount += 1;
-						onlyKeys$1(item, [
-							"type",
-							"id",
-							"label",
-							"expression",
-							"tone",
-							"stroke"
-						], path, issues);
-						if (item.stroke !== void 0 && !VISUAL_STROKES_V3.has(item.stroke)) issues.push(`${path}.stroke is unknown`);
-						validateMath$1(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
-					} else if (item.type === "points") {
-						onlyKeys$1(item, [
-							"type",
-							"id",
-							"label",
-							"points",
-							"tone"
-						], path, issues);
-						if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 128) {
-							issues.push(`${path}.points must contain 1 to 128 points`);
-							continue;
-						}
-						for (const [pointIndex, point] of item.points.entries()) {
-							const pointPath = `${path}.points[${String(pointIndex)}]`;
-							if (!record$1(point)) {
-								issues.push(`${pointPath} must be an object`);
-								continue;
-							}
-							onlyKeys$1(point, [
-								"x",
-								"y",
-								"label"
-							], pointPath, issues);
-							finite$1(point.x, `${pointPath}.x`, issues);
-							finite$1(point.y, `${pointPath}.y`, issues);
-							if (point.label !== void 0) text$1(point.label, `${pointPath}.label`, issues, 160);
-						}
-					} else issues.push(`${path}.type must be curve or points`);
-				}
-				if (curveCount === 0) issues.push("visual.series must contain at least one curve");
-			}
-			if (value.metrics !== void 0) {
-				if (!Array.isArray(value.metrics) || value.metrics.length > 4) issues.push("visual.metrics must contain at most 4 metrics");
-				else {
-					const metrics = value.metrics.filter(record$1);
-					if (metrics.length !== value.metrics.length) issues.push("visual.metrics entries must be objects");
-					uniqueIds$1(metrics, "visual.metrics", issues);
-					for (const [index, metric] of metrics.entries()) {
-						const path = `visual.metrics[${String(index)}]`;
-						onlyKeys$1(metric, [
-							"id",
-							"label",
-							"expression",
-							"digits",
-							"suffix"
-						], path, issues);
-						id$1(metric.id, `${path}.id`, issues);
-						text$1(metric.label, `${path}.label`, issues, 160);
-						validateMath$1(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
-						if (metric.digits !== void 0 && (!integer$1(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
-						if (metric.suffix !== void 0) text$1(metric.suffix, `${path}.suffix`, issues, 80);
-					}
-				}
-			}
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
+			if (samplesAllowed && value.samples !== void 0 && (!integer(value.samples, `${path}.samples`, issues, 24) || value.samples > 256)) issues.push(`${path}.samples must be an integer from 24 to 256`);
 		}
 		function validateVisualToneV4(value, path, issues) {
 			if (value !== void 0 && !VISUAL_TONES_V3.has(value)) issues.push(`${path} is unknown`);
@@ -2715,12 +2693,12 @@ window.__ModuleLoader__.load({
 				issues.push(`${path} must contain at most 3 parameters`);
 				return [];
 			}
-			const parameters = value.filter(record$1);
+			const parameters = value.filter(record);
 			if (parameters.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds$1(parameters, path, issues);
+			uniqueIds(parameters, path, issues);
 			for (const [index, parameter] of parameters.entries()) {
 				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys$1(parameter, [
+				onlyKeys(parameter, [
 					"id",
 					"label",
 					"min",
@@ -2728,13 +2706,13 @@ window.__ModuleLoader__.load({
 					"step",
 					"initial"
 				], itemPath, issues);
-				id$1(parameter.id, `${itemPath}.id`, issues);
+				id(parameter.id, `${itemPath}.id`, issues);
 				if (parameter.id === "x") issues.push(`${itemPath}.id must not use the reserved x-axis variable`);
-				text$1(parameter.label, `${itemPath}.label`, issues, 120);
-				const minOk = finite$1(parameter.min, `${itemPath}.min`, issues);
-				const maxOk = finite$1(parameter.max, `${itemPath}.max`, issues);
-				const stepOk = finite$1(parameter.step, `${itemPath}.step`, issues);
-				const initialOk = finite$1(parameter.initial, `${itemPath}.initial`, issues);
+				text(parameter.label, `${itemPath}.label`, issues, 120);
+				const minOk = finite(parameter.min, `${itemPath}.min`, issues);
+				const maxOk = finite(parameter.max, `${itemPath}.max`, issues);
+				const stepOk = finite(parameter.step, `${itemPath}.step`, issues);
+				const initialOk = finite(parameter.initial, `${itemPath}.initial`, issues);
 				if (minOk && maxOk && parameter.min >= parameter.max) issues.push(`${itemPath}.min must be less than max`);
 				if (stepOk && parameter.step <= 0) issues.push(`${itemPath}.step must be positive`);
 				if (minOk && maxOk && stepOk && parameter.step > parameter.max - parameter.min) issues.push(`${itemPath}.step must not exceed the parameter range`);
@@ -2749,18 +2727,18 @@ window.__ModuleLoader__.load({
 			}
 			for (const [index, point] of value.entries()) {
 				const pointPath = `${path}[${String(index)}]`;
-				if (!record$1(point)) {
+				if (!record(point)) {
 					issues.push(`${pointPath} must be an object`);
 					continue;
 				}
-				onlyKeys$1(point, [
+				onlyKeys(point, [
 					"x",
 					"y",
 					"label"
 				], pointPath, issues);
-				finite$1(point.x, `${pointPath}.x`, issues);
-				finite$1(point.y, `${pointPath}.y`, issues);
-				if (point.label !== void 0) text$1(point.label, `${pointPath}.label`, issues, 160);
+				finite(point.x, `${pointPath}.x`, issues);
+				finite(point.y, `${pointPath}.y`, issues);
+				if (point.label !== void 0) text(point.label, `${pointPath}.label`, issues, 160);
 			}
 		}
 		function validateVisualMetricsV4(value, parameterIds, issues) {
@@ -2769,29 +2747,29 @@ window.__ModuleLoader__.load({
 				issues.push("visual.content.metrics must contain at most 4 metrics");
 				return [];
 			}
-			const metrics = value.filter(record$1);
+			const metrics = value.filter(record);
 			if (metrics.length !== value.length) issues.push("visual.content.metrics entries must be objects");
-			uniqueIds$1(metrics, "visual.content.metrics", issues);
+			uniqueIds(metrics, "visual.content.metrics", issues);
 			for (const [index, metric] of metrics.entries()) {
 				const path = `visual.content.metrics[${String(index)}]`;
-				onlyKeys$1(metric, [
+				onlyKeys(metric, [
 					"id",
 					"label",
 					"expression",
 					"digits",
 					"suffix"
 				], path, issues);
-				id$1(metric.id, `${path}.id`, issues);
-				text$1(metric.label, `${path}.label`, issues, 160);
-				validateMath$1(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
-				if (metric.digits !== void 0 && (!integer$1(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
-				if (metric.suffix !== void 0) text$1(metric.suffix, `${path}.suffix`, issues, 80);
+				id(metric.id, `${path}.id`, issues);
+				text(metric.label, `${path}.label`, issues, 160);
+				validateMath(metric.expression, parameterIds, `${path}.expression`, issues, false, 4);
+				if (metric.digits !== void 0 && (!integer(metric.digits, `${path}.digits`, issues) || metric.digits > 6)) issues.push(`${path}.digits must be an integer from 0 to 6`);
+				if (metric.suffix !== void 0) text(metric.suffix, `${path}.suffix`, issues, 80);
 			}
 			return metrics;
 		}
 		function validatePlotV4(value, issues) {
 			const ids = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"parameters",
 				"xAxis",
@@ -2806,16 +2784,16 @@ window.__ModuleLoader__.load({
 			validateVisualAxisV3(value.yAxis, "visual.content.yAxis", issues, false);
 			if (!Array.isArray(value.series) || value.series.length < 1 || value.series.length > 8) issues.push("visual.content.series must contain 1 to 8 series");
 			else {
-				const series = value.series.filter(record$1);
+				const series = value.series.filter(record);
 				if (series.length !== value.series.length) issues.push("visual.content.series entries must be objects");
-				uniqueIds$1(series, "visual.content.series", issues);
+				uniqueIds(series, "visual.content.series", issues);
 				for (const [index, item] of series.entries()) {
 					const path = `visual.content.series[${String(index)}]`;
-					if (id$1(item.id, `${path}.id`, issues)) registerVisualIdV4(ids, item.id, `${path}.id`, issues);
-					text$1(item.label, `${path}.label`, issues, 160);
+					if (id(item.id, `${path}.id`, issues)) registerVisualIdV4(ids, item.id, `${path}.id`, issues);
+					text(item.label, `${path}.label`, issues, 160);
 					validateVisualToneV4(item.tone, `${path}.tone`, issues);
 					if (item.type === "curve") {
-						onlyKeys$1(item, [
+						onlyKeys(item, [
 							"type",
 							"id",
 							"label",
@@ -2824,9 +2802,9 @@ window.__ModuleLoader__.load({
 							"stroke"
 						], path, issues);
 						validateVisualStrokeV4(item.stroke, `${path}.stroke`, issues);
-						validateMath$1(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
+						validateMath(item.expression, parameterIds, `${path}.expression`, issues, true, 4);
 					} else if (item.type === "points" || item.type === "bars") {
-						onlyKeys$1(item, [
+						onlyKeys(item, [
 							"type",
 							"id",
 							"label",
@@ -2835,7 +2813,7 @@ window.__ModuleLoader__.load({
 						], path, issues);
 						validateVisualPointsV4(item.points, `${path}.points`, issues, item.type === "bars" ? 64 : 256);
 					} else if (item.type === "line") {
-						onlyKeys$1(item, [
+						onlyKeys(item, [
 							"type",
 							"id",
 							"label",
@@ -2854,7 +2832,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateNodeLinkV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"layout",
 				"groups",
@@ -2870,14 +2848,14 @@ window.__ModuleLoader__.load({
 			if (value.groups !== void 0) {
 				if (!Array.isArray(value.groups) || value.groups.length < 1 || value.groups.length > 12) issues.push("visual.content.groups must contain 1 to 12 groups");
 				else {
-					groups = value.groups.filter(record$1);
+					groups = value.groups.filter(record);
 					if (groups.length !== value.groups.length) issues.push("visual.content.groups entries must be objects");
-					uniqueIds$1(groups, "visual.content.groups", issues);
+					uniqueIds(groups, "visual.content.groups", issues);
 					for (const [index, group] of groups.entries()) {
 						const path = `visual.content.groups[${String(index)}]`;
-						onlyKeys$1(group, ["id", "label"], path, issues);
-						if (id$1(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
-						text$1(group.label, `${path}.label`, issues, 120);
+						onlyKeys(group, ["id", "label"], path, issues);
+						if (id(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
+						text(group.label, `${path}.label`, issues, 120);
 					}
 				}
 			}
@@ -2885,21 +2863,21 @@ window.__ModuleLoader__.load({
 			let nodes = [];
 			if (!Array.isArray(value.nodes) || value.nodes.length < 2 || value.nodes.length > 48) issues.push("visual.content.nodes must contain 2 to 48 nodes");
 			else {
-				nodes = value.nodes.filter(record$1);
+				nodes = value.nodes.filter(record);
 				if (nodes.length !== value.nodes.length) issues.push("visual.content.nodes entries must be objects");
-				uniqueIds$1(nodes, "visual.content.nodes", issues);
+				uniqueIds(nodes, "visual.content.nodes", issues);
 				for (const [index, node] of nodes.entries()) {
 					const path = `visual.content.nodes[${String(index)}]`;
-					onlyKeys$1(node, [
+					onlyKeys(node, [
 						"id",
 						"label",
 						"detail",
 						"group",
 						"tone"
 					], path, issues);
-					if (id$1(node.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, node.id, `${path}.id`, issues);
-					text$1(node.label, `${path}.label`, issues, 120);
-					if (node.detail !== void 0) text$1(node.detail, `${path}.detail`, issues, 1e3);
+					if (id(node.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, node.id, `${path}.id`, issues);
+					text(node.label, `${path}.label`, issues, 120);
+					if (node.detail !== void 0) text(node.detail, `${path}.detail`, issues, 1e3);
 					if (node.group !== void 0 && (typeof node.group !== "string" || !groupIds.has(node.group))) issues.push(`${path}.group must reference a declared group`);
 					validateVisualToneV4(node.tone, `${path}.tone`, issues);
 				}
@@ -2908,12 +2886,12 @@ window.__ModuleLoader__.load({
 			const nodeIds = new Set(nodes.flatMap((node) => typeof node.id === "string" ? [node.id] : []));
 			if (!Array.isArray(value.edges) || value.edges.length < 1 || value.edges.length > 160) issues.push("visual.content.edges must contain 1 to 160 edges");
 			else {
-				const edges = value.edges.filter(record$1);
+				const edges = value.edges.filter(record);
 				if (edges.length !== value.edges.length) issues.push("visual.content.edges entries must be objects");
-				uniqueIds$1(edges, "visual.content.edges", issues);
+				uniqueIds(edges, "visual.content.edges", issues);
 				for (const [index, edge] of edges.entries()) {
 					const path = `visual.content.edges[${String(index)}]`;
-					onlyKeys$1(edge, [
+					onlyKeys(edge, [
 						"id",
 						"from",
 						"to",
@@ -2923,11 +2901,11 @@ window.__ModuleLoader__.load({
 						"stroke",
 						"directed"
 					], path, issues);
-					if (id$1(edge.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, edge.id, `${path}.id`, issues);
+					if (id(edge.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, edge.id, `${path}.id`, issues);
 					if (typeof edge.from !== "string" || !nodeIds.has(edge.from)) issues.push(`${path}.from must reference a declared node`);
 					if (typeof edge.to !== "string" || !nodeIds.has(edge.to)) issues.push(`${path}.to must reference a declared node`);
-					if (edge.label !== void 0) text$1(edge.label, `${path}.label`, issues, 120);
-					if (edge.detail !== void 0) text$1(edge.detail, `${path}.detail`, issues, 1e3);
+					if (edge.label !== void 0) text(edge.label, `${path}.label`, issues, 120);
+					if (edge.detail !== void 0) text(edge.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(edge.tone, `${path}.tone`, issues);
 					validateVisualStrokeV4(edge.stroke, `${path}.stroke`, issues);
 					if (edge.directed !== void 0 && typeof edge.directed !== "boolean") issues.push(`${path}.directed must be a boolean`);
@@ -2936,7 +2914,7 @@ window.__ModuleLoader__.load({
 			return focusIds;
 		}
 		function validateSceneElementBaseV4(element, path, allowed, issues) {
-			onlyKeys$1(element, [
+			onlyKeys(element, [
 				"type",
 				"id",
 				"label",
@@ -2944,14 +2922,14 @@ window.__ModuleLoader__.load({
 				"tone",
 				...allowed
 			], path, issues);
-			id$1(element.id, `${path}.id`, issues);
-			if (element.label !== void 0) text$1(element.label, `${path}.label`, issues, 120);
-			if (element.detail !== void 0) text$1(element.detail, `${path}.detail`, issues, 1e3);
+			id(element.id, `${path}.id`, issues);
+			if (element.label !== void 0) text(element.label, `${path}.label`, issues, 120);
+			if (element.detail !== void 0) text(element.detail, `${path}.detail`, issues, 1e3);
 			validateVisualToneV4(element.tone, `${path}.tone`, issues);
 		}
 		function validateScene2DV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"xAxis",
 				"yAxis",
@@ -2965,9 +2943,9 @@ window.__ModuleLoader__.load({
 				issues.push("visual.content.elements must contain 1 to 64 elements");
 				return focusIds;
 			}
-			const elements = value.elements.filter(record$1);
+			const elements = value.elements.filter(record);
 			if (elements.length !== value.elements.length) issues.push("visual.content.elements entries must be objects");
-			uniqueIds$1(elements, "visual.content.elements", issues);
+			uniqueIds(elements, "visual.content.elements", issues);
 			for (const [index, element] of elements.entries()) {
 				const path = `visual.content.elements[${String(index)}]`;
 				registerVisualIdV4(focusIds, element.id, `${path}.id`, issues);
@@ -2977,9 +2955,9 @@ window.__ModuleLoader__.load({
 						"y",
 						"size"
 					], issues);
-					finite$1(element.x, `${path}.x`, issues);
-					finite$1(element.y, `${path}.y`, issues);
-					if (element.size !== void 0 && finite$1(element.size, `${path}.size`, issues) && (element.size <= 0 || element.size > 64)) issues.push(`${path}.size must be greater than 0 and at most 64`);
+					finite(element.x, `${path}.x`, issues);
+					finite(element.y, `${path}.y`, issues);
+					if (element.size !== void 0 && finite(element.size, `${path}.size`, issues) && (element.size <= 0 || element.size > 64)) issues.push(`${path}.size must be greater than 0 and at most 64`);
 				} else if (element.type === "segment" || element.type === "arrow") {
 					validateSceneElementBaseV4(element, path, [
 						"x1",
@@ -2988,10 +2966,10 @@ window.__ModuleLoader__.load({
 						"y2",
 						"stroke"
 					], issues);
-					finite$1(element.x1, `${path}.x1`, issues);
-					finite$1(element.y1, `${path}.y1`, issues);
-					finite$1(element.x2, `${path}.x2`, issues);
-					finite$1(element.y2, `${path}.y2`, issues);
+					finite(element.x1, `${path}.x1`, issues);
+					finite(element.y1, `${path}.y1`, issues);
+					finite(element.x2, `${path}.x2`, issues);
+					finite(element.y2, `${path}.y2`, issues);
 					validateVisualStrokeV4(element.stroke, `${path}.stroke`, issues);
 				} else if (element.type === "circle") {
 					validateSceneElementBaseV4(element, path, [
@@ -2999,9 +2977,9 @@ window.__ModuleLoader__.load({
 						"cy",
 						"r"
 					], issues);
-					finite$1(element.cx, `${path}.cx`, issues);
-					finite$1(element.cy, `${path}.cy`, issues);
-					if (finite$1(element.r, `${path}.r`, issues) && element.r <= 0) issues.push(`${path}.r must be positive`);
+					finite(element.cx, `${path}.cx`, issues);
+					finite(element.cy, `${path}.cy`, issues);
+					if (finite(element.r, `${path}.r`, issues) && element.r <= 0) issues.push(`${path}.r must be positive`);
 				} else if (element.type === "rect") {
 					validateSceneElementBaseV4(element, path, [
 						"x",
@@ -3009,22 +2987,22 @@ window.__ModuleLoader__.load({
 						"width",
 						"height"
 					], issues);
-					finite$1(element.x, `${path}.x`, issues);
-					finite$1(element.y, `${path}.y`, issues);
-					if (finite$1(element.width, `${path}.width`, issues) && element.width <= 0) issues.push(`${path}.width must be positive`);
-					if (finite$1(element.height, `${path}.height`, issues) && element.height <= 0) issues.push(`${path}.height must be positive`);
+					finite(element.x, `${path}.x`, issues);
+					finite(element.y, `${path}.y`, issues);
+					if (finite(element.width, `${path}.width`, issues) && element.width <= 0) issues.push(`${path}.width must be positive`);
+					if (finite(element.height, `${path}.height`, issues) && element.height <= 0) issues.push(`${path}.height must be positive`);
 				} else if (element.type === "polygon") {
 					validateSceneElementBaseV4(element, path, ["points"], issues);
 					if (!Array.isArray(element.points) || element.points.length < 3 || element.points.length > 24) issues.push(`${path}.points must contain 3 to 24 points`);
 					else for (const [pointIndex, point] of element.points.entries()) {
 						const pointPath = `${path}.points[${String(pointIndex)}]`;
-						if (!record$1(point)) {
+						if (!record(point)) {
 							issues.push(`${pointPath} must be an object`);
 							continue;
 						}
-						onlyKeys$1(point, ["x", "y"], pointPath, issues);
-						finite$1(point.x, `${pointPath}.x`, issues);
-						finite$1(point.y, `${pointPath}.y`, issues);
+						onlyKeys(point, ["x", "y"], pointPath, issues);
+						finite(point.x, `${pointPath}.x`, issues);
+						finite(point.y, `${pointPath}.y`, issues);
 					}
 				} else if (element.type === "label") {
 					validateSceneElementBaseV4(element, path, [
@@ -3032,9 +3010,9 @@ window.__ModuleLoader__.load({
 						"y",
 						"text"
 					], issues);
-					finite$1(element.x, `${path}.x`, issues);
-					finite$1(element.y, `${path}.y`, issues);
-					text$1(element.text, `${path}.text`, issues, 240);
+					finite(element.x, `${path}.x`, issues);
+					finite(element.y, `${path}.y`, issues);
+					text(element.text, `${path}.text`, issues, 240);
 				} else issues.push(`${path}.type must be point, segment, arrow, circle, rect, polygon, or label`);
 			}
 			return focusIds;
@@ -3044,20 +3022,20 @@ window.__ModuleLoader__.load({
 				issues.push(`${path} must contain 2 to 4 subjects`);
 				return [];
 			}
-			const subjects = value.filter(record$1);
+			const subjects = value.filter(record);
 			if (subjects.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds$1(subjects, path, issues);
+			uniqueIds(subjects, path, issues);
 			for (const [index, subject] of subjects.entries()) {
 				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys$1(subject, [
+				onlyKeys(subject, [
 					"id",
 					"label",
 					"detail",
 					"tone"
 				], itemPath, issues);
-				id$1(subject.id, `${itemPath}.id`, issues);
-				text$1(subject.label, `${itemPath}.label`, issues, 120);
-				if (subject.detail !== void 0) text$1(subject.detail, `${itemPath}.detail`, issues, 1e3);
+				id(subject.id, `${itemPath}.id`, issues);
+				text(subject.label, `${itemPath}.label`, issues, 120);
+				if (subject.detail !== void 0) text(subject.detail, `${itemPath}.detail`, issues, 1e3);
 				validateVisualToneV4(subject.tone, `${itemPath}.tone`, issues);
 			}
 			return subjects;
@@ -3067,21 +3045,21 @@ window.__ModuleLoader__.load({
 				issues.push(`${path} must contain 1 to 10 items`);
 				return [];
 			}
-			const items = value.filter(record$1);
+			const items = value.filter(record);
 			if (items.length !== value.length) issues.push(`${path} entries must be objects`);
-			uniqueIds$1(items, path, issues);
+			uniqueIds(items, path, issues);
 			for (const [index, item] of items.entries()) {
 				const itemPath = `${path}[${String(index)}]`;
-				onlyKeys$1(item, ["id", "label"], itemPath, issues);
-				id$1(item.id, `${itemPath}.id`, issues);
-				text$1(item.label, `${itemPath}.label`, issues, 120);
+				onlyKeys(item, ["id", "label"], itemPath, issues);
+				id(item.id, `${itemPath}.id`, issues);
+				text(item.label, `${itemPath}.label`, issues, 120);
 			}
 			return items;
 		}
 		function validateRelationV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
 			if (value.variant === "comparison") {
-				onlyKeys$1(value, [
+				onlyKeys(value, [
 					"kind",
 					"variant",
 					"subjects",
@@ -3094,20 +3072,20 @@ window.__ModuleLoader__.load({
 					issues.push("visual.content.rows must contain 1 to 16 comparison rows");
 					return focusIds;
 				}
-				const rows = value.rows.filter(record$1);
+				const rows = value.rows.filter(record);
 				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
-				uniqueIds$1(rows, "visual.content.rows", issues);
+				uniqueIds(rows, "visual.content.rows", issues);
 				for (const [index, row] of rows.entries()) {
 					const path = `visual.content.rows[${String(index)}]`;
-					onlyKeys$1(row, [
+					onlyKeys(row, [
 						"id",
 						"label",
 						"cells",
 						"detail"
 					], path, issues);
-					if (id$1(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
-					text$1(row.label, `${path}.label`, issues, 120);
-					if (row.detail !== void 0) text$1(row.detail, `${path}.detail`, issues, 1e3);
+					if (id(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
+					text(row.label, `${path}.label`, issues, 120);
+					if (row.detail !== void 0) text(row.detail, `${path}.detail`, issues, 1e3);
 					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 4) {
 						issues.push(`${path}.cells must contain 1 to 4 cells`);
 						continue;
@@ -3115,11 +3093,11 @@ window.__ModuleLoader__.load({
 					const seenSubjects = /* @__PURE__ */ new Set();
 					for (const [cellIndex, cell] of row.cells.entries()) {
 						const cellPath = `${path}.cells[${String(cellIndex)}]`;
-						if (!record$1(cell)) {
+						if (!record(cell)) {
 							issues.push(`${cellPath} must be an object`);
 							continue;
 						}
-						onlyKeys$1(cell, [
+						onlyKeys(cell, [
 							"subjectId",
 							"value",
 							"tone"
@@ -3127,12 +3105,12 @@ window.__ModuleLoader__.load({
 						if (typeof cell.subjectId !== "string" || !subjectIds.has(cell.subjectId)) issues.push(`${cellPath}.subjectId must reference a declared subject`);
 						else if (seenSubjects.has(cell.subjectId)) issues.push(`${cellPath}.subjectId duplicates ${cell.subjectId}`);
 						else seenSubjects.add(cell.subjectId);
-						text$1(cell.value, `${cellPath}.value`, issues, 500);
+						text(cell.value, `${cellPath}.value`, issues, 500);
 						validateVisualToneV4(cell.tone, `${cellPath}.tone`, issues);
 					}
 				}
 			} else if (value.variant === "matrix") {
-				onlyKeys$1(value, [
+				onlyKeys(value, [
 					"kind",
 					"variant",
 					"rows",
@@ -3149,13 +3127,13 @@ window.__ModuleLoader__.load({
 					issues.push("visual.content.cells must contain 1 to 64 matrix cells");
 					return focusIds;
 				}
-				const cells = value.cells.filter(record$1);
+				const cells = value.cells.filter(record);
 				if (cells.length !== value.cells.length) issues.push("visual.content.cells entries must be objects");
-				uniqueIds$1(cells, "visual.content.cells", issues);
+				uniqueIds(cells, "visual.content.cells", issues);
 				const coordinates = /* @__PURE__ */ new Set();
 				for (const [index, cell] of cells.entries()) {
 					const path = `visual.content.cells[${String(index)}]`;
-					onlyKeys$1(cell, [
+					onlyKeys(cell, [
 						"id",
 						"rowId",
 						"columnId",
@@ -3163,7 +3141,7 @@ window.__ModuleLoader__.load({
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(cell.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, cell.id, `${path}.id`, issues);
+					if (id(cell.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, cell.id, `${path}.id`, issues);
 					if (typeof cell.rowId !== "string" || !rowIds.has(cell.rowId)) issues.push(`${path}.rowId must reference a declared row`);
 					if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${path}.columnId must reference a declared column`);
 					if (typeof cell.rowId === "string" && typeof cell.columnId === "string") {
@@ -3171,12 +3149,12 @@ window.__ModuleLoader__.load({
 						if (coordinates.has(coordinate)) issues.push(`${path} duplicates a matrix coordinate`);
 						coordinates.add(coordinate);
 					}
-					text$1(cell.label, `${path}.label`, issues, 240);
-					if (cell.detail !== void 0) text$1(cell.detail, `${path}.detail`, issues, 1e3);
+					text(cell.label, `${path}.label`, issues, 240);
+					if (cell.detail !== void 0) text(cell.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(cell.tone, `${path}.tone`, issues);
 				}
 			} else if (value.variant === "sets") {
-				onlyKeys$1(value, [
+				onlyKeys(value, [
 					"kind",
 					"variant",
 					"sets",
@@ -3190,20 +3168,20 @@ window.__ModuleLoader__.load({
 					issues.push("visual.content.items must contain 1 to 24 set items");
 					return focusIds;
 				}
-				const items = value.items.filter(record$1);
+				const items = value.items.filter(record);
 				if (items.length !== value.items.length) issues.push("visual.content.items entries must be objects");
-				uniqueIds$1(items, "visual.content.items", issues);
+				uniqueIds(items, "visual.content.items", issues);
 				for (const [index, item] of items.entries()) {
 					const path = `visual.content.items[${String(index)}]`;
-					onlyKeys$1(item, [
+					onlyKeys(item, [
 						"id",
 						"label",
 						"setIds",
 						"detail"
 					], path, issues);
-					if (id$1(item.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, item.id, `${path}.id`, issues);
-					text$1(item.label, `${path}.label`, issues, 120);
-					if (item.detail !== void 0) text$1(item.detail, `${path}.detail`, issues, 1e3);
+					if (id(item.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, item.id, `${path}.id`, issues);
+					text(item.label, `${path}.label`, issues, 120);
+					if (item.detail !== void 0) text(item.detail, `${path}.detail`, issues, 1e3);
 					if (!Array.isArray(item.setIds) || item.setIds.length < 1 || item.setIds.length > 3) issues.push(`${path}.setIds must contain 1 to 3 set ids`);
 					else {
 						const memberships = /* @__PURE__ */ new Set();
@@ -3217,7 +3195,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateTimelineV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"orientation",
 				"events",
@@ -3227,15 +3205,15 @@ window.__ModuleLoader__.load({
 			let events = [];
 			if (!Array.isArray(value.events) || value.events.length < 2 || value.events.length > 32) issues.push("visual.content.events must contain 2 to 32 events");
 			else {
-				events = value.events.filter(record$1);
+				events = value.events.filter(record);
 				if (events.length !== value.events.length) issues.push("visual.content.events entries must be objects");
-				uniqueIds$1(events, "visual.content.events", issues);
+				uniqueIds(events, "visual.content.events", issues);
 				const hasPositions = events.filter((event) => event.position !== void 0).length;
 				if (hasPositions !== 0 && hasPositions !== events.length) issues.push("visual.content.events.position must be provided for every event or omitted for every event");
 				let previousPosition = -1;
 				for (const [index, event] of events.entries()) {
 					const path = `visual.content.events[${String(index)}]`;
-					onlyKeys$1(event, [
+					onlyKeys(event, [
 						"id",
 						"time",
 						"label",
@@ -3243,11 +3221,11 @@ window.__ModuleLoader__.load({
 						"position",
 						"tone"
 					], path, issues);
-					if (id$1(event.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, event.id, `${path}.id`, issues);
-					text$1(event.time, `${path}.time`, issues, 80);
-					text$1(event.label, `${path}.label`, issues, 160);
-					if (event.detail !== void 0) text$1(event.detail, `${path}.detail`, issues, 1500);
-					if (event.position !== void 0 && finite$1(event.position, `${path}.position`, issues)) {
+					if (id(event.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, event.id, `${path}.id`, issues);
+					text(event.time, `${path}.time`, issues, 80);
+					text(event.label, `${path}.label`, issues, 160);
+					if (event.detail !== void 0) text(event.detail, `${path}.detail`, issues, 1500);
+					if (event.position !== void 0 && finite(event.position, `${path}.position`, issues)) {
 						const position = event.position;
 						if (position < 0 || position > 1) issues.push(`${path}.position must be from 0 to 1`);
 						if (position <= previousPosition) issues.push(`${path}.position must be greater than the preceding event position`);
@@ -3261,12 +3239,12 @@ window.__ModuleLoader__.load({
 			if (value.eras !== void 0) {
 				if (!Array.isArray(value.eras) || value.eras.length < 1 || value.eras.length > 8) issues.push("visual.content.eras must contain 1 to 8 eras");
 				else {
-					const eras = value.eras.filter(record$1);
+					const eras = value.eras.filter(record);
 					if (eras.length !== value.eras.length) issues.push("visual.content.eras entries must be objects");
-					uniqueIds$1(eras, "visual.content.eras", issues);
+					uniqueIds(eras, "visual.content.eras", issues);
 					for (const [index, era] of eras.entries()) {
 						const path = `visual.content.eras[${String(index)}]`;
-						onlyKeys$1(era, [
+						onlyKeys(era, [
 							"id",
 							"label",
 							"startEventId",
@@ -3274,8 +3252,8 @@ window.__ModuleLoader__.load({
 							"detail",
 							"tone"
 						], path, issues);
-						if (id$1(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
-						text$1(era.label, `${path}.label`, issues, 120);
+						if (id(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
+						text(era.label, `${path}.label`, issues, 120);
 						if (typeof era.startEventId !== "string" || !eventIds.has(era.startEventId)) issues.push(`${path}.startEventId must reference a declared event`);
 						if (typeof era.endEventId !== "string" || !eventIds.has(era.endEventId)) issues.push(`${path}.endEventId must reference a declared event`);
 						if (typeof era.startEventId === "string" && typeof era.endEventId === "string") {
@@ -3283,7 +3261,7 @@ window.__ModuleLoader__.load({
 							const endIndex = eventIndexes.get(era.endEventId);
 							if (startIndex !== void 0 && endIndex !== void 0 && startIndex > endIndex) issues.push(`${path}.startEventId must not occur after endEventId`);
 						}
-						if (era.detail !== void 0) text$1(era.detail, `${path}.detail`, issues, 1e3);
+						if (era.detail !== void 0) text(era.detail, `${path}.detail`, issues, 1e3);
 						validateVisualToneV4(era.tone, `${path}.tone`, issues);
 					}
 				}
@@ -3292,24 +3270,24 @@ window.__ModuleLoader__.load({
 		}
 		function validateFormulaStepsV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"notation",
 				"steps",
 				"conclusion"
 			], "visual.content", issues);
-			if (value.notation !== void 0) text$1(value.notation, "visual.content.notation", issues, 300);
-			if (value.conclusion !== void 0) text$1(value.conclusion, "visual.content.conclusion", issues, 1e3);
+			if (value.notation !== void 0) text(value.notation, "visual.content.notation", issues, 300);
+			if (value.conclusion !== void 0) text(value.conclusion, "visual.content.conclusion", issues, 1e3);
 			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) {
 				issues.push("visual.content.steps must contain 2 to 16 formula steps");
 				return focusIds;
 			}
-			const steps = value.steps.filter(record$1);
+			const steps = value.steps.filter(record);
 			if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-			uniqueIds$1(steps, "visual.content.steps", issues);
+			uniqueIds(steps, "visual.content.steps", issues);
 			for (const [index, step] of steps.entries()) {
 				const path = `visual.content.steps[${String(index)}]`;
-				onlyKeys$1(step, [
+				onlyKeys(step, [
 					"id",
 					"expression",
 					"label",
@@ -3317,18 +3295,18 @@ window.__ModuleLoader__.load({
 					"detail",
 					"tone"
 				], path, issues);
-				if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-				text$1(step.expression, `${path}.expression`, issues, 500);
-				if (step.label !== void 0) text$1(step.label, `${path}.label`, issues, 120);
-				if (step.rule !== void 0) text$1(step.rule, `${path}.rule`, issues, 240);
-				if (step.detail !== void 0) text$1(step.detail, `${path}.detail`, issues, 1500);
+				if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+				text(step.expression, `${path}.expression`, issues, 500);
+				if (step.label !== void 0) text(step.label, `${path}.label`, issues, 120);
+				if (step.rule !== void 0) text(step.rule, `${path}.rule`, issues, 240);
+				if (step.detail !== void 0) text(step.detail, `${path}.detail`, issues, 1500);
 				validateVisualToneV4(step.tone, `${path}.tone`, issues);
 			}
 			return focusIds;
 		}
 		function validateStudyMapV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"view",
 				"sourceLabel",
@@ -3338,38 +3316,38 @@ window.__ModuleLoader__.load({
 			], "visual.content", issues);
 			if (value.view !== void 0 && value.view !== "material" && value.view !== "concepts") issues.push("visual.content.view must be material or concepts");
 			const conceptView = value.view === "concepts";
-			text$1(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
-			if (value.goal !== void 0) text$1(value.goal, "visual.content.goal", issues, 600);
+			text(value.sourceLabel, "visual.content.sourceLabel", issues, 240);
+			if (value.goal !== void 0) text(value.goal, "visual.content.goal", issues, 600);
 			let sections = [];
 			if (!Array.isArray(value.sections) || value.sections.length > 16 || !conceptView && value.sections.length < 1) issues.push(conceptView ? "visual.content.sections must contain 0 to 16 sections for concepts view" : "visual.content.sections must contain 1 to 16 sections");
 			else {
-				sections = value.sections.filter(record$1);
+				sections = value.sections.filter(record);
 				if (sections.length !== value.sections.length) issues.push("visual.content.sections entries must be objects");
-				uniqueIds$1(sections, "visual.content.sections", issues);
+				uniqueIds(sections, "visual.content.sections", issues);
 				for (const [index, section] of sections.entries()) {
 					const path = `visual.content.sections[${String(index)}]`;
-					onlyKeys$1(section, [
+					onlyKeys(section, [
 						"id",
 						"label",
 						"anchor",
 						"summary"
 					], path, issues);
-					if (id$1(section.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, section.id, `${path}.id`, issues);
-					text$1(section.label, `${path}.label`, issues, 160);
-					if (section.anchor !== void 0) text$1(section.anchor, `${path}.anchor`, issues, 160);
-					if (section.summary !== void 0) text$1(section.summary, `${path}.summary`, issues, 1e3);
+					if (id(section.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, section.id, `${path}.id`, issues);
+					text(section.label, `${path}.label`, issues, 160);
+					if (section.anchor !== void 0) text(section.anchor, `${path}.anchor`, issues, 160);
+					if (section.summary !== void 0) text(section.summary, `${path}.summary`, issues, 1e3);
 				}
 			}
 			const sectionIds = new Set(sections.flatMap((section) => typeof section.id === "string" ? [section.id] : []));
 			let concepts = [];
 			if (!Array.isArray(value.concepts) || value.concepts.length > 48 || !conceptView && value.concepts.length < 1) issues.push(conceptView ? "visual.content.concepts must contain 0 to 48 concepts for concepts view" : "visual.content.concepts must contain 1 to 48 concepts");
 			else {
-				concepts = value.concepts.filter(record$1);
+				concepts = value.concepts.filter(record);
 				if (concepts.length !== value.concepts.length) issues.push("visual.content.concepts entries must be objects");
-				uniqueIds$1(concepts, "visual.content.concepts", issues);
+				uniqueIds(concepts, "visual.content.concepts", issues);
 				for (const [index, concept] of concepts.entries()) {
 					const path = `visual.content.concepts[${String(index)}]`;
-					onlyKeys$1(concept, [
+					onlyKeys(concept, [
 						"id",
 						"label",
 						"sectionId",
@@ -3382,17 +3360,17 @@ window.__ModuleLoader__.load({
 						"role",
 						"tone"
 					], path, issues);
-					if (id$1(concept.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, concept.id, `${path}.id`, issues);
-					text$1(concept.label, `${path}.label`, issues, 160);
+					if (id(concept.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, concept.id, `${path}.id`, issues);
+					text(concept.label, `${path}.label`, issues, 160);
 					if (typeof concept.sectionId !== "string" || !sectionIds.has(concept.sectionId)) issues.push(`${path}.sectionId must reference a declared section`);
-					if (concept.detail !== void 0) text$1(concept.detail, `${path}.detail`, issues, 1500);
-					if (concept.conceptSlug !== void 0) text$1(concept.conceptSlug, `${path}.conceptSlug`, issues, 64);
+					if (concept.detail !== void 0) text(concept.detail, `${path}.detail`, issues, 1500);
+					if (concept.conceptSlug !== void 0) text(concept.conceptSlug, `${path}.conceptSlug`, issues, 64);
 					if (concept.mastery !== void 0 && ![
 						"unseen",
 						"emerging",
 						"transfer"
 					].includes(concept.mastery)) issues.push(`${path}.mastery must be unseen, emerging, or transfer`);
-					if (concept.due !== void 0) text$1(concept.due, `${path}.due`, issues, 32);
+					if (concept.due !== void 0) text(concept.due, `${path}.due`, issues, 32);
 					if (concept.stale !== void 0 && typeof concept.stale !== "boolean") issues.push(`${path}.stale must be a boolean`);
 					if (concept.role !== void 0 && ![
 						"foundation",
@@ -3435,37 +3413,37 @@ window.__ModuleLoader__.load({
 		}
 		function validateRecallDeckV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"instructions",
 				"cards"
 			], "visual.content", issues);
-			if (value.instructions !== void 0) text$1(value.instructions, "visual.content.instructions", issues, 600);
+			if (value.instructions !== void 0) text(value.instructions, "visual.content.instructions", issues, 600);
 			if (!Array.isArray(value.cards) || value.cards.length < 2 || value.cards.length > 32) {
 				issues.push("visual.content.cards must contain 2 to 32 cards");
 				return focusIds;
 			}
-			const cards = value.cards.filter(record$1);
+			const cards = value.cards.filter(record);
 			if (cards.length !== value.cards.length) issues.push("visual.content.cards entries must be objects");
-			uniqueIds$1(cards, "visual.content.cards", issues);
+			uniqueIds(cards, "visual.content.cards", issues);
 			for (const [index, card] of cards.entries()) {
 				const path = `visual.content.cards[${String(index)}]`;
-				onlyKeys$1(card, [
+				onlyKeys(card, [
 					"id",
 					"prompt",
 					"answer",
 					"hint",
 					"tags"
 				], path, issues);
-				if (id$1(card.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, card.id, `${path}.id`, issues);
-				text$1(card.prompt, `${path}.prompt`, issues, 1e3);
-				text$1(card.answer, `${path}.answer`, issues, 2e3);
-				if (card.hint !== void 0) text$1(card.hint, `${path}.hint`, issues, 800);
+				if (id(card.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, card.id, `${path}.id`, issues);
+				text(card.prompt, `${path}.prompt`, issues, 1e3);
+				text(card.answer, `${path}.answer`, issues, 2e3);
+				if (card.hint !== void 0) text(card.hint, `${path}.hint`, issues, 800);
 				if (card.tags !== void 0) {
 					if (!Array.isArray(card.tags) || card.tags.length > 6) issues.push(`${path}.tags must contain at most 6 labels`);
 					else {
 						const seen = /* @__PURE__ */ new Set();
-						for (const [tagIndex, tag] of card.tags.entries()) if (text$1(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") {
+						for (const [tagIndex, tag] of card.tags.entries()) if (text(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") {
 							if (seen.has(tag)) issues.push(`${path}.tags duplicates ${tag}`);
 							else seen.add(tag);
 						}
@@ -3482,7 +3460,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateDataTableV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"columns",
 				"rows",
@@ -3494,26 +3472,26 @@ window.__ModuleLoader__.load({
 			let columns = [];
 			if (!Array.isArray(value.columns) || value.columns.length < 1 || value.columns.length > 24) issues.push("visual.content.columns must contain 1 to 24 columns");
 			else {
-				columns = value.columns.filter(record$1);
+				columns = value.columns.filter(record);
 				if (columns.length !== value.columns.length) issues.push("visual.content.columns entries must be objects");
-				uniqueIds$1(columns, "visual.content.columns", issues);
+				uniqueIds(columns, "visual.content.columns", issues);
 				for (const [index, column] of columns.entries()) {
 					const path = `visual.content.columns[${String(index)}]`;
-					onlyKeys$1(column, [
+					onlyKeys(column, [
 						"id",
 						"label",
 						"type",
 						"unit"
 					], path, issues);
-					if (id$1(column.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, column.id, `${path}.id`, issues);
-					text$1(column.label, `${path}.label`, issues, 160);
+					if (id(column.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, column.id, `${path}.id`, issues);
+					text(column.label, `${path}.label`, issues, 160);
 					if (![
 						"string",
 						"number",
 						"boolean",
 						"date"
 					].includes(column.type)) issues.push(`${path}.type must be string, number, boolean, or date`);
-					if (column.unit !== void 0) text$1(column.unit, `${path}.unit`, issues, 80);
+					if (column.unit !== void 0) text(column.unit, `${path}.unit`, issues, 80);
 				}
 			}
 			const columnIds = new Set(columns.flatMap((column) => typeof column.id === "string" ? [column.id] : []));
@@ -3521,18 +3499,18 @@ window.__ModuleLoader__.load({
 			let rows = [];
 			if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 128) issues.push("visual.content.rows must contain 1 to 128 rows");
 			else {
-				rows = value.rows.filter(record$1);
+				rows = value.rows.filter(record);
 				if (rows.length !== value.rows.length) issues.push("visual.content.rows entries must be objects");
-				uniqueIds$1(rows, "visual.content.rows", issues);
+				uniqueIds(rows, "visual.content.rows", issues);
 				for (const [index, row] of rows.entries()) {
 					const path = `visual.content.rows[${String(index)}]`;
-					onlyKeys$1(row, [
+					onlyKeys(row, [
 						"id",
 						"cells",
 						"detail"
 					], path, issues);
-					if (id$1(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
-					if (row.detail !== void 0) text$1(row.detail, `${path}.detail`, issues, 1e3);
+					if (id(row.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, row.id, `${path}.id`, issues);
+					if (row.detail !== void 0) text(row.detail, `${path}.detail`, issues, 1e3);
 					if (!Array.isArray(row.cells) || row.cells.length < 1 || row.cells.length > 24) {
 						issues.push(`${path}.cells must contain 1 to 24 cells`);
 						continue;
@@ -3540,11 +3518,11 @@ window.__ModuleLoader__.load({
 					const seen = /* @__PURE__ */ new Set();
 					for (const [cellIndex, cell] of row.cells.entries()) {
 						const cellPath = `${path}.cells[${String(cellIndex)}]`;
-						if (!record$1(cell)) {
+						if (!record(cell)) {
 							issues.push(`${cellPath} must be an object`);
 							continue;
 						}
-						onlyKeys$1(cell, ["columnId", "value"], cellPath, issues);
+						onlyKeys(cell, ["columnId", "value"], cellPath, issues);
 						if (typeof cell.columnId !== "string" || !columnIds.has(cell.columnId)) issues.push(`${cellPath}.columnId must reference a declared column`);
 						else if (seen.has(cell.columnId)) issues.push(`${cellPath}.columnId duplicates ${cell.columnId}`);
 						else seen.add(cell.columnId);
@@ -3571,17 +3549,17 @@ window.__ModuleLoader__.load({
 				if (typeof candidate !== "string" || !columnIds.has(candidate)) issues.push(`${path} must reference a declared column`);
 			};
 			if (value.initialSort !== void 0) {
-				if (!record$1(value.initialSort)) issues.push("visual.content.initialSort must be an object");
+				if (!record(value.initialSort)) issues.push("visual.content.initialSort must be an object");
 				else {
-					onlyKeys$1(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
+					onlyKeys(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
 					validateColumnRef(value.initialSort.columnId, "visual.content.initialSort.columnId");
 					if (value.initialSort.direction !== "asc" && value.initialSort.direction !== "desc") issues.push("visual.content.initialSort.direction must be asc or desc");
 				}
 			}
 			if (value.initialFilter !== void 0) {
-				if (!record$1(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
+				if (!record(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
 				else {
-					onlyKeys$1(value.initialFilter, [
+					onlyKeys(value.initialFilter, [
 						"columnId",
 						"operator",
 						"value"
@@ -3600,9 +3578,9 @@ window.__ModuleLoader__.load({
 				}
 			}
 			if (value.chart !== void 0) {
-				if (!record$1(value.chart)) issues.push("visual.content.chart must be an object");
+				if (!record(value.chart)) issues.push("visual.content.chart must be an object");
 				else {
-					onlyKeys$1(value.chart, [
+					onlyKeys(value.chart, [
 						"type",
 						"xColumnId",
 						"yColumnId",
@@ -3622,7 +3600,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateStateTransitionV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"states",
 				"transitions",
@@ -3631,12 +3609,12 @@ window.__ModuleLoader__.load({
 			let states = [];
 			if (!Array.isArray(value.states) || value.states.length < 2 || value.states.length > 32) issues.push("visual.content.states must contain 2 to 32 states");
 			else {
-				states = value.states.filter(record$1);
+				states = value.states.filter(record);
 				if (states.length !== value.states.length) issues.push("visual.content.states entries must be objects");
-				uniqueIds$1(states, "visual.content.states", issues);
+				uniqueIds(states, "visual.content.states", issues);
 				for (const [index, state] of states.entries()) {
 					const path = `visual.content.states[${String(index)}]`;
-					onlyKeys$1(state, [
+					onlyKeys(state, [
 						"id",
 						"label",
 						"detail",
@@ -3644,9 +3622,9 @@ window.__ModuleLoader__.load({
 						"initial",
 						"final"
 					], path, issues);
-					if (id$1(state.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, state.id, `${path}.id`, issues);
-					text$1(state.label, `${path}.label`, issues, 160);
-					if (state.detail !== void 0) text$1(state.detail, `${path}.detail`, issues, 1e3);
+					if (id(state.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, state.id, `${path}.id`, issues);
+					text(state.label, `${path}.label`, issues, 160);
+					if (state.detail !== void 0) text(state.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(state.tone, `${path}.tone`, issues);
 					if (state.initial !== void 0 && typeof state.initial !== "boolean") issues.push(`${path}.initial must be a boolean`);
 					if (state.final !== void 0 && typeof state.final !== "boolean") issues.push(`${path}.final must be a boolean`);
@@ -3656,12 +3634,12 @@ window.__ModuleLoader__.load({
 			let transitions = [];
 			if (!Array.isArray(value.transitions) || value.transitions.length < 1 || value.transitions.length > 96) issues.push("visual.content.transitions must contain 1 to 96 transitions");
 			else {
-				transitions = value.transitions.filter(record$1);
+				transitions = value.transitions.filter(record);
 				if (transitions.length !== value.transitions.length) issues.push("visual.content.transitions entries must be objects");
-				uniqueIds$1(transitions, "visual.content.transitions", issues);
+				uniqueIds(transitions, "visual.content.transitions", issues);
 				for (const [index, transition] of transitions.entries()) {
 					const path = `visual.content.transitions[${String(index)}]`;
-					onlyKeys$1(transition, [
+					onlyKeys(transition, [
 						"id",
 						"from",
 						"to",
@@ -3671,13 +3649,13 @@ window.__ModuleLoader__.load({
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(transition.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, transition.id, `${path}.id`, issues);
+					if (id(transition.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, transition.id, `${path}.id`, issues);
 					if (typeof transition.from !== "string" || !stateIds.has(transition.from)) issues.push(`${path}.from must reference a declared state`);
 					if (typeof transition.to !== "string" || !stateIds.has(transition.to)) issues.push(`${path}.to must reference a declared state`);
-					text$1(transition.trigger, `${path}.trigger`, issues, 240);
-					if (transition.guard !== void 0) text$1(transition.guard, `${path}.guard`, issues, 500);
-					if (transition.action !== void 0) text$1(transition.action, `${path}.action`, issues, 500);
-					if (transition.detail !== void 0) text$1(transition.detail, `${path}.detail`, issues, 1e3);
+					text(transition.trigger, `${path}.trigger`, issues, 240);
+					if (transition.guard !== void 0) text(transition.guard, `${path}.guard`, issues, 500);
+					if (transition.action !== void 0) text(transition.action, `${path}.action`, issues, 500);
+					if (transition.detail !== void 0) text(transition.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(transition.tone, `${path}.tone`, issues);
 				}
 			}
@@ -3685,23 +3663,23 @@ window.__ModuleLoader__.load({
 			if (value.steps !== void 0) {
 				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 steps");
 				else {
-					const steps = value.steps.filter(record$1);
+					const steps = value.steps.filter(record);
 					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds$1(steps, "visual.content.steps", issues);
+					uniqueIds(steps, "visual.content.steps", issues);
 					for (const [index, step] of steps.entries()) {
 						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys$1(step, [
+						onlyKeys(step, [
 							"id",
 							"label",
 							"currentStateId",
 							"transitionId",
 							"description"
 						], path, issues);
-						if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text$1(step.label, `${path}.label`, issues, 160);
+						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+						text(step.label, `${path}.label`, issues, 160);
 						if (typeof step.currentStateId !== "string" || !stateIds.has(step.currentStateId)) issues.push(`${path}.currentStateId must reference a declared state`);
 						if (step.transitionId !== void 0 && (typeof step.transitionId !== "string" || !transitionIds.has(step.transitionId))) issues.push(`${path}.transitionId must reference a declared transition`);
-						if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
 					}
 				}
 			}
@@ -3709,7 +3687,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateSequenceBufferV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"slots",
 				"pointers",
@@ -3719,25 +3697,25 @@ window.__ModuleLoader__.load({
 			let slots = [];
 			if (!Array.isArray(value.slots) || value.slots.length < 1 || value.slots.length > 128) issues.push("visual.content.slots must contain 1 to 128 slots");
 			else {
-				slots = value.slots.filter(record$1);
+				slots = value.slots.filter(record);
 				if (slots.length !== value.slots.length) issues.push("visual.content.slots entries must be objects");
-				uniqueIds$1(slots, "visual.content.slots", issues);
+				uniqueIds(slots, "visual.content.slots", issues);
 				const indexes = /* @__PURE__ */ new Set();
 				for (const [index, slot] of slots.entries()) {
 					const path = `visual.content.slots[${String(index)}]`;
-					onlyKeys$1(slot, [
+					onlyKeys(slot, [
 						"id",
 						"index",
 						"value",
 						"label",
 						"tone"
 					], path, issues);
-					if (id$1(slot.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, slot.id, `${path}.id`, issues);
-					if (!integer$1(slot.index, `${path}.index`, issues)) continue;
+					if (id(slot.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, slot.id, `${path}.id`, issues);
+					if (!integer(slot.index, `${path}.index`, issues)) continue;
 					if (indexes.has(slot.index)) issues.push(`${path}.index duplicates ${String(slot.index)}`);
 					indexes.add(slot.index);
 					validateTableValueV4(slot.value, `${path}.value`, issues);
-					if (slot.label !== void 0) text$1(slot.label, `${path}.label`, issues, 120);
+					if (slot.label !== void 0) text(slot.label, `${path}.label`, issues, 120);
 					validateVisualToneV4(slot.tone, `${path}.tone`, issues);
 				}
 			}
@@ -3748,20 +3726,20 @@ window.__ModuleLoader__.load({
 			if (value.pointers !== void 0) {
 				if (!Array.isArray(value.pointers) || value.pointers.length < 1 || value.pointers.length > 8) issues.push("visual.content.pointers must contain 1 to 8 pointers");
 				else {
-					pointers = value.pointers.filter(record$1);
+					pointers = value.pointers.filter(record);
 					if (pointers.length !== value.pointers.length) issues.push("visual.content.pointers entries must be objects");
-					uniqueIds$1(pointers, "visual.content.pointers", issues);
+					uniqueIds(pointers, "visual.content.pointers", issues);
 					for (const [index, pointer] of pointers.entries()) {
 						const path = `visual.content.pointers[${String(index)}]`;
-						onlyKeys$1(pointer, [
+						onlyKeys(pointer, [
 							"id",
 							"label",
 							"index",
 							"tone"
 						], path, issues);
-						if (id$1(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
-						text$1(pointer.label, `${path}.label`, issues, 120);
-						if (integer$1(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
+						if (id(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
+						text(pointer.label, `${path}.label`, issues, 120);
+						if (integer(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
 						validateVisualToneV4(pointer.tone, `${path}.tone`, issues);
 					}
 				}
@@ -3771,22 +3749,22 @@ window.__ModuleLoader__.load({
 			if (value.ranges !== void 0) {
 				if (!Array.isArray(value.ranges) || value.ranges.length < 1 || value.ranges.length > 8) issues.push("visual.content.ranges must contain 1 to 8 ranges");
 				else {
-					ranges = value.ranges.filter(record$1);
+					ranges = value.ranges.filter(record);
 					if (ranges.length !== value.ranges.length) issues.push("visual.content.ranges entries must be objects");
-					uniqueIds$1(ranges, "visual.content.ranges", issues);
+					uniqueIds(ranges, "visual.content.ranges", issues);
 					for (const [index, range] of ranges.entries()) {
 						const path = `visual.content.ranges[${String(index)}]`;
-						onlyKeys$1(range, [
+						onlyKeys(range, [
 							"id",
 							"label",
 							"start",
 							"end",
 							"tone"
 						], path, issues);
-						if (id$1(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
-						text$1(range.label, `${path}.label`, issues, 120);
-						const startOk = integer$1(range.start, `${path}.start`, issues);
-						const endOk = integer$1(range.end, `${path}.end`, issues);
+						if (id(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
+						text(range.label, `${path}.label`, issues, 120);
+						const startOk = integer(range.start, `${path}.start`, issues);
+						const endOk = integer(range.end, `${path}.end`, issues);
 						if (startOk && !slotIndexes.has(range.start)) issues.push(`${path}.start must reference a declared slot index`);
 						if (endOk && !slotIndexes.has(range.end)) issues.push(`${path}.end must reference a declared slot index`);
 						if (startOk && endOk && range.start > range.end) issues.push(`${path}.start must not exceed end`);
@@ -3798,12 +3776,12 @@ window.__ModuleLoader__.load({
 			if (value.steps !== void 0) {
 				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 snapshots");
 				else {
-					const steps = value.steps.filter(record$1);
+					const steps = value.steps.filter(record);
 					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds$1(steps, "visual.content.steps", issues);
+					uniqueIds(steps, "visual.content.steps", issues);
 					for (const [index, step] of steps.entries()) {
 						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys$1(step, [
+						onlyKeys(step, [
 							"id",
 							"label",
 							"description",
@@ -3811,18 +3789,18 @@ window.__ModuleLoader__.load({
 							"pointers",
 							"ranges"
 						], path, issues);
-						if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text$1(step.label, `${path}.label`, issues, 160);
-						if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+						text(step.label, `${path}.label`, issues, 160);
+						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
 						if (step.slots !== void 0) {
 							if (!Array.isArray(step.slots) || step.slots.length > 128) issues.push(`${path}.slots must contain at most 128 snapshots`);
 							else for (const [snapshotIndex, snapshot] of step.slots.entries()) {
 								const snapshotPath = `${path}.slots[${String(snapshotIndex)}]`;
-								if (!record$1(snapshot)) {
+								if (!record(snapshot)) {
 									issues.push(`${snapshotPath} must be an object`);
 									continue;
 								}
-								onlyKeys$1(snapshot, ["slotId", "value"], snapshotPath, issues);
+								onlyKeys(snapshot, ["slotId", "value"], snapshotPath, issues);
 								if (typeof snapshot.slotId !== "string" || !slotIds.has(snapshot.slotId)) issues.push(`${snapshotPath}.slotId must reference a declared slot`);
 								if (snapshot.value !== void 0) validateTableValueV4(snapshot.value, `${snapshotPath}.value`, issues);
 							}
@@ -3831,31 +3809,31 @@ window.__ModuleLoader__.load({
 							if (!Array.isArray(step.pointers) || step.pointers.length > 8) issues.push(`${path}.pointers must contain at most 8 snapshots`);
 							else for (const [snapshotIndex, snapshot] of step.pointers.entries()) {
 								const snapshotPath = `${path}.pointers[${String(snapshotIndex)}]`;
-								if (!record$1(snapshot)) {
+								if (!record(snapshot)) {
 									issues.push(`${snapshotPath} must be an object`);
 									continue;
 								}
-								onlyKeys$1(snapshot, ["pointerId", "index"], snapshotPath, issues);
+								onlyKeys(snapshot, ["pointerId", "index"], snapshotPath, issues);
 								if (typeof snapshot.pointerId !== "string" || !pointerIds.has(snapshot.pointerId)) issues.push(`${snapshotPath}.pointerId must reference a declared pointer`);
-								if (integer$1(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
+								if (integer(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
 							}
 						}
 						if (step.ranges !== void 0) {
 							if (!Array.isArray(step.ranges) || step.ranges.length > 8) issues.push(`${path}.ranges must contain at most 8 snapshots`);
 							else for (const [snapshotIndex, snapshot] of step.ranges.entries()) {
 								const snapshotPath = `${path}.ranges[${String(snapshotIndex)}]`;
-								if (!record$1(snapshot)) {
+								if (!record(snapshot)) {
 									issues.push(`${snapshotPath} must be an object`);
 									continue;
 								}
-								onlyKeys$1(snapshot, [
+								onlyKeys(snapshot, [
 									"rangeId",
 									"start",
 									"end"
 								], snapshotPath, issues);
 								if (typeof snapshot.rangeId !== "string" || !rangeIds.has(snapshot.rangeId)) issues.push(`${snapshotPath}.rangeId must reference a declared range`);
-								const startOk = integer$1(snapshot.start, `${snapshotPath}.start`, issues);
-								const endOk = integer$1(snapshot.end, `${snapshotPath}.end`, issues);
+								const startOk = integer(snapshot.start, `${snapshotPath}.start`, issues);
+								const endOk = integer(snapshot.end, `${snapshotPath}.end`, issues);
 								if (startOk && !slotIndexes.has(snapshot.start)) issues.push(`${snapshotPath}.start must reference a declared slot index`);
 								if (endOk && !slotIndexes.has(snapshot.end)) issues.push(`${snapshotPath}.end must reference a declared slot index`);
 								if (startOk && endOk && snapshot.start > snapshot.end) issues.push(`${snapshotPath}.start must not exceed end`);
@@ -3868,7 +3846,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateSequenceDiagramV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"participants",
 				"messages"
@@ -3876,32 +3854,32 @@ window.__ModuleLoader__.load({
 			let participants = [];
 			if (!Array.isArray(value.participants) || value.participants.length < 2 || value.participants.length > 16) issues.push("visual.content.participants must contain 2 to 16 participants");
 			else {
-				participants = value.participants.filter(record$1);
+				participants = value.participants.filter(record);
 				if (participants.length !== value.participants.length) issues.push("visual.content.participants entries must be objects");
-				uniqueIds$1(participants, "visual.content.participants", issues);
+				uniqueIds(participants, "visual.content.participants", issues);
 				for (const [index, participant] of participants.entries()) {
 					const path = `visual.content.participants[${String(index)}]`;
-					onlyKeys$1(participant, [
+					onlyKeys(participant, [
 						"id",
 						"label",
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(participant.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, participant.id, `${path}.id`, issues);
-					text$1(participant.label, `${path}.label`, issues, 160);
-					if (participant.detail !== void 0) text$1(participant.detail, `${path}.detail`, issues, 1e3);
+					if (id(participant.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, participant.id, `${path}.id`, issues);
+					text(participant.label, `${path}.label`, issues, 160);
+					if (participant.detail !== void 0) text(participant.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(participant.tone, `${path}.tone`, issues);
 				}
 			}
 			const participantIds = new Set(participants.flatMap((participant) => typeof participant.id === "string" ? [participant.id] : []));
 			if (!Array.isArray(value.messages) || value.messages.length < 1 || value.messages.length > 96) issues.push("visual.content.messages must contain 1 to 96 messages");
 			else {
-				const messages = value.messages.filter(record$1);
+				const messages = value.messages.filter(record);
 				if (messages.length !== value.messages.length) issues.push("visual.content.messages entries must be objects");
-				uniqueIds$1(messages, "visual.content.messages", issues);
+				uniqueIds(messages, "visual.content.messages", issues);
 				for (const [index, message] of messages.entries()) {
 					const path = `visual.content.messages[${String(index)}]`;
-					onlyKeys$1(message, [
+					onlyKeys(message, [
 						"id",
 						"from",
 						"to",
@@ -3910,10 +3888,10 @@ window.__ModuleLoader__.load({
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(message.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, message.id, `${path}.id`, issues);
+					if (id(message.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, message.id, `${path}.id`, issues);
 					if (typeof message.from !== "string" || !participantIds.has(message.from)) issues.push(`${path}.from must reference a declared participant`);
 					if (typeof message.to !== "string" || !participantIds.has(message.to)) issues.push(`${path}.to must reference a declared participant`);
-					text$1(message.label, `${path}.label`, issues, 240);
+					text(message.label, `${path}.label`, issues, 240);
 					if (![
 						"sync",
 						"async",
@@ -3921,7 +3899,7 @@ window.__ModuleLoader__.load({
 						"self"
 					].includes(message.type)) issues.push(`${path}.type must be sync, async, return, or self`);
 					if (message.type === "self" && message.from !== message.to) issues.push(`${path}.self messages must have matching from and to participants`);
-					if (message.detail !== void 0) text$1(message.detail, `${path}.detail`, issues, 1e3);
+					if (message.detail !== void 0) text(message.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(message.tone, `${path}.tone`, issues);
 				}
 			}
@@ -3929,25 +3907,25 @@ window.__ModuleLoader__.load({
 		}
 		function validateCodeTraceV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"language",
 				"code",
 				"lines",
 				"steps"
 			], "visual.content", issues);
-			text$1(value.language, "visual.content.language", issues, 40);
-			text$1(value.code, "visual.content.code", issues, 24e3);
+			text(value.language, "visual.content.language", issues, 40);
+			text(value.code, "visual.content.code", issues, 24e3);
 			const lineNumbers = /* @__PURE__ */ new Set();
 			if (!Array.isArray(value.lines) || value.lines.length < 1 || value.lines.length > 256) issues.push("visual.content.lines must contain 1 to 256 lines");
 			else {
-				const lines = value.lines.filter(record$1);
+				const lines = value.lines.filter(record);
 				if (lines.length !== value.lines.length) issues.push("visual.content.lines entries must be objects");
 				let previousLine = -1;
 				for (const [index, line] of lines.entries()) {
 					const path = `visual.content.lines[${String(index)}]`;
-					onlyKeys$1(line, ["number", "text"], path, issues);
-					if (integer$1(line.number, `${path}.number`, issues)) {
+					onlyKeys(line, ["number", "text"], path, issues);
+					if (integer(line.number, `${path}.number`, issues)) {
 						lineNumbers.add(line.number);
 						if (line.number <= previousLine) issues.push(`${path}.number must increase in source order`);
 						previousLine = line.number;
@@ -3958,12 +3936,12 @@ window.__ModuleLoader__.load({
 			}
 			if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 32) issues.push("visual.content.steps must contain 2 to 32 execution steps");
 			else {
-				const steps = value.steps.filter(record$1);
+				const steps = value.steps.filter(record);
 				if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-				uniqueIds$1(steps, "visual.content.steps", issues);
+				uniqueIds(steps, "visual.content.steps", issues);
 				for (const [index, step] of steps.entries()) {
 					const path = `visual.content.steps[${String(index)}]`;
-					onlyKeys$1(step, [
+					onlyKeys(step, [
 						"id",
 						"label",
 						"currentLine",
@@ -3972,17 +3950,17 @@ window.__ModuleLoader__.load({
 						"output",
 						"description"
 					], path, issues);
-					if (id$1(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-					text$1(step.label, `${path}.label`, issues, 160);
-					if (integer$1(step.currentLine, `${path}.currentLine`, issues) && !lineNumbers.has(step.currentLine)) issues.push(`${path}.currentLine must reference a declared source line`);
+					if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+					text(step.label, `${path}.label`, issues, 160);
+					if (integer(step.currentLine, `${path}.currentLine`, issues) && !lineNumbers.has(step.currentLine)) issues.push(`${path}.currentLine must reference a declared source line`);
 					if (!Array.isArray(step.variables) || step.variables.length > 32) issues.push(`${path}.variables must contain at most 32 variables`);
 					else {
-						const variables = step.variables.filter(record$1);
+						const variables = step.variables.filter(record);
 						if (variables.length !== step.variables.length) issues.push(`${path}.variables entries must be objects`);
 						const names = /* @__PURE__ */ new Set();
 						for (const [variableIndex, variable] of variables.entries()) {
 							const variablePath = `${path}.variables[${String(variableIndex)}]`;
-							onlyKeys$1(variable, [
+							onlyKeys(variable, [
 								"name",
 								"value",
 								"type"
@@ -3991,39 +3969,39 @@ window.__ModuleLoader__.load({
 							else if (names.has(variable.name)) issues.push(`${variablePath}.name duplicates ${variable.name}`);
 							else names.add(variable.name);
 							validateTableValueV4(variable.value, `${variablePath}.value`, issues);
-							if (variable.type !== void 0) text$1(variable.type, `${variablePath}.type`, issues, 80);
+							if (variable.type !== void 0) text(variable.type, `${variablePath}.type`, issues, 80);
 						}
 					}
 					if (!Array.isArray(step.stack) || step.stack.length > 16) issues.push(`${path}.stack must contain at most 16 frames`);
 					else {
-						const stack = step.stack.filter(record$1);
+						const stack = step.stack.filter(record);
 						if (stack.length !== step.stack.length) issues.push(`${path}.stack entries must be objects`);
-						uniqueIds$1(stack, `${path}.stack`, issues);
+						uniqueIds(stack, `${path}.stack`, issues);
 						for (const [frameIndex, frame] of stack.entries()) {
 							const framePath = `${path}.stack[${String(frameIndex)}]`;
-							onlyKeys$1(frame, [
+							onlyKeys(frame, [
 								"id",
 								"function",
 								"line"
 							], framePath, issues);
-							id$1(frame.id, `${framePath}.id`, issues);
-							text$1(frame.function, `${framePath}.function`, issues, 160);
-							if (frame.line !== void 0 && integer$1(frame.line, `${framePath}.line`, issues) && !lineNumbers.has(frame.line)) issues.push(`${framePath}.line must reference a declared source line`);
+							id(frame.id, `${framePath}.id`, issues);
+							text(frame.function, `${framePath}.function`, issues, 160);
+							if (frame.line !== void 0 && integer(frame.line, `${framePath}.line`, issues) && !lineNumbers.has(frame.line)) issues.push(`${framePath}.line must reference a declared source line`);
 						}
 					}
 					if (step.output !== void 0 && typeof step.output !== "string") issues.push(`${path}.output must be a string`);
 					else if (step.output !== void 0 && step.output.length > 4e3) issues.push(`${path}.output exceeds 4000 characters`);
-					if (step.description !== void 0) text$1(step.description, `${path}.description`, issues, 1e3);
+					if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
 				}
 			}
 			return focusIds;
 		}
 		function validateFieldGridV4(value, path, issues, components) {
-			if (!record$1(value)) {
+			if (!record(value)) {
 				issues.push(`${path} must be an object`);
 				return;
 			}
-			onlyKeys$1(value, components === "scalar" ? [
+			onlyKeys(value, components === "scalar" ? [
 				"columns",
 				"rows",
 				"values"
@@ -4033,44 +4011,44 @@ window.__ModuleLoader__.load({
 				"u",
 				"v"
 			], path, issues);
-			const columnsOk = integer$1(value.columns, `${path}.columns`, issues, 2) && value.columns <= 64;
-			const rowsOk = integer$1(value.rows, `${path}.rows`, issues, 2) && value.rows <= 64;
+			const columnsOk = integer(value.columns, `${path}.columns`, issues, 2) && value.columns <= 64;
+			const rowsOk = integer(value.rows, `${path}.rows`, issues, 2) && value.rows <= 64;
 			const expected = columnsOk && rowsOk ? value.columns * value.rows : void 0;
 			if (components === "scalar") {
 				if (!Array.isArray(value.values) || value.values.length < 1 || value.values.length > 4096) issues.push(`${path}.values must contain sampled values`);
 				else {
 					if (expected !== void 0 && value.values.length !== expected) issues.push(`${path}.values length must equal rows * columns`);
-					for (const [index, sample] of value.values.entries()) finite$1(sample, `${path}.values[${String(index)}]`, issues);
+					for (const [index, sample] of value.values.entries()) finite(sample, `${path}.values[${String(index)}]`, issues);
 				}
 			} else for (const component of ["u", "v"]) {
 				const samples = value[component];
 				if (!Array.isArray(samples) || samples.length < 1 || samples.length > 4096) issues.push(`${path}.${component} must contain sampled values`);
 				else {
 					if (expected !== void 0 && samples.length !== expected) issues.push(`${path}.${component} length must equal rows * columns`);
-					for (const [index, sample] of samples.entries()) finite$1(sample, `${path}.${component}[${String(index)}]`, issues);
+					for (const [index, sample] of samples.entries()) finite(sample, `${path}.${component}[${String(index)}]`, issues);
 				}
 			}
 		}
 		function validateFieldAxisV4(value, path, issues) {
-			if (!record$1(value)) {
+			if (!record(value)) {
 				issues.push(`${path} must be an object`);
 				return;
 			}
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"label",
 				"min",
 				"max",
 				"samples"
 			], path, issues);
-			if (value.label !== void 0) text$1(value.label, `${path}.label`, issues, 120);
-			const minOk = finite$1(value.min, `${path}.min`, issues);
-			const maxOk = finite$1(value.max, `${path}.max`, issues);
+			if (value.label !== void 0) text(value.label, `${path}.label`, issues, 120);
+			const minOk = finite(value.min, `${path}.min`, issues);
+			const maxOk = finite(value.max, `${path}.max`, issues);
 			if (minOk && maxOk && value.min >= value.max) issues.push(`${path}.min must be less than max`);
-			if (value.samples !== void 0 && (!integer$1(value.samples, `${path}.samples`, issues, 2) || value.samples > 64)) issues.push(`${path}.samples must be an integer from 2 to 64`);
+			if (value.samples !== void 0 && (!integer(value.samples, `${path}.samples`, issues, 2) || value.samples > 64)) issues.push(`${path}.samples must be an integer from 2 to 64`);
 		}
 		function validateField2DV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"xAxis",
 				"yAxis",
@@ -4082,9 +4060,9 @@ window.__ModuleLoader__.load({
 			if (value.scalar === void 0 && value.vector === void 0) issues.push("visual.content must provide scalar or vector data");
 			const fieldVariables = /* @__PURE__ */ new Set(["y"]);
 			if (value.scalar !== void 0) {
-				if (!record$1(value.scalar)) issues.push("visual.content.scalar must be an object");
+				if (!record(value.scalar)) issues.push("visual.content.scalar must be an object");
 				else {
-					onlyKeys$1(value.scalar, [
+					onlyKeys(value.scalar, [
 						"samples",
 						"expression",
 						"min",
@@ -4092,24 +4070,24 @@ window.__ModuleLoader__.load({
 					], "visual.content.scalar", issues);
 					if (value.scalar.samples === void 0 && value.scalar.expression === void 0) issues.push("visual.content.scalar must provide samples or expression");
 					if (value.scalar.samples !== void 0) validateFieldGridV4(value.scalar.samples, "visual.content.scalar.samples", issues, "scalar");
-					if (value.scalar.expression !== void 0) validateMath$1(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
-					const minOk = value.scalar.min === void 0 ? false : finite$1(value.scalar.min, "visual.content.scalar.min", issues);
-					const maxOk = value.scalar.max === void 0 ? false : finite$1(value.scalar.max, "visual.content.scalar.max", issues);
+					if (value.scalar.expression !== void 0) validateMath(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
+					const minOk = value.scalar.min === void 0 ? false : finite(value.scalar.min, "visual.content.scalar.min", issues);
+					const maxOk = value.scalar.max === void 0 ? false : finite(value.scalar.max, "visual.content.scalar.max", issues);
 					if (minOk && maxOk && value.scalar.min >= value.scalar.max) issues.push("visual.content.scalar.min must be less than max");
 				}
 			}
 			if (value.vector !== void 0) {
-				if (!record$1(value.vector)) issues.push("visual.content.vector must be an object");
+				if (!record(value.vector)) issues.push("visual.content.vector must be an object");
 				else {
-					onlyKeys$1(value.vector, ["samples", "expression"], "visual.content.vector", issues);
+					onlyKeys(value.vector, ["samples", "expression"], "visual.content.vector", issues);
 					if (value.vector.samples === void 0 && value.vector.expression === void 0) issues.push("visual.content.vector must provide samples or expression");
 					if (value.vector.samples !== void 0) validateFieldGridV4(value.vector.samples, "visual.content.vector.samples", issues, "vector");
 					if (value.vector.expression !== void 0) {
-						if (!record$1(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
+						if (!record(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
 						else {
-							onlyKeys$1(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
-							validateMath$1(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
-							validateMath$1(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
+							onlyKeys(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
+							validateMath(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
+							validateMath(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
 						}
 					}
 				}
@@ -4118,7 +4096,7 @@ window.__ModuleLoader__.load({
 		}
 		function validateCausalLoopV4(value, issues) {
 			const focusIds = /* @__PURE__ */ new Set();
-			onlyKeys$1(value, [
+			onlyKeys(value, [
 				"kind",
 				"variables",
 				"links",
@@ -4127,20 +4105,20 @@ window.__ModuleLoader__.load({
 			let variables = [];
 			if (!Array.isArray(value.variables) || value.variables.length < 2 || value.variables.length > 32) issues.push("visual.content.variables must contain 2 to 32 variables");
 			else {
-				variables = value.variables.filter(record$1);
+				variables = value.variables.filter(record);
 				if (variables.length !== value.variables.length) issues.push("visual.content.variables entries must be objects");
-				uniqueIds$1(variables, "visual.content.variables", issues);
+				uniqueIds(variables, "visual.content.variables", issues);
 				for (const [index, variable] of variables.entries()) {
 					const path = `visual.content.variables[${String(index)}]`;
-					onlyKeys$1(variable, [
+					onlyKeys(variable, [
 						"id",
 						"label",
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(variable.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, variable.id, `${path}.id`, issues);
-					text$1(variable.label, `${path}.label`, issues, 160);
-					if (variable.detail !== void 0) text$1(variable.detail, `${path}.detail`, issues, 1e3);
+					if (id(variable.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, variable.id, `${path}.id`, issues);
+					text(variable.label, `${path}.label`, issues, 160);
+					if (variable.detail !== void 0) text(variable.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(variable.tone, `${path}.tone`, issues);
 				}
 			}
@@ -4148,12 +4126,12 @@ window.__ModuleLoader__.load({
 			let links = [];
 			if (!Array.isArray(value.links) || value.links.length < 1 || value.links.length > 96) issues.push("visual.content.links must contain 1 to 96 links");
 			else {
-				links = value.links.filter(record$1);
+				links = value.links.filter(record);
 				if (links.length !== value.links.length) issues.push("visual.content.links entries must be objects");
-				uniqueIds$1(links, "visual.content.links", issues);
+				uniqueIds(links, "visual.content.links", issues);
 				for (const [index, link] of links.entries()) {
 					const path = `visual.content.links[${String(index)}]`;
-					onlyKeys$1(link, [
+					onlyKeys(link, [
 						"id",
 						"from",
 						"to",
@@ -4163,13 +4141,13 @@ window.__ModuleLoader__.load({
 						"detail",
 						"tone"
 					], path, issues);
-					if (id$1(link.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, link.id, `${path}.id`, issues);
+					if (id(link.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, link.id, `${path}.id`, issues);
 					if (typeof link.from !== "string" || !variableIds.has(link.from)) issues.push(`${path}.from must reference a declared variable`);
 					if (typeof link.to !== "string" || !variableIds.has(link.to)) issues.push(`${path}.to must reference a declared variable`);
 					if (link.polarity !== "positive" && link.polarity !== "negative") issues.push(`${path}.polarity must be positive or negative`);
 					if (link.delay !== void 0 && (typeof link.delay !== "number" || !Number.isFinite(link.delay) || link.delay < 0)) issues.push(`${path}.delay must be a non-negative finite number`);
-					if (link.label !== void 0) text$1(link.label, `${path}.label`, issues, 160);
-					if (link.detail !== void 0) text$1(link.detail, `${path}.detail`, issues, 1e3);
+					if (link.label !== void 0) text(link.label, `${path}.label`, issues, 160);
+					if (link.detail !== void 0) text(link.detail, `${path}.detail`, issues, 1e3);
 					validateVisualToneV4(link.tone, `${path}.tone`, issues);
 				}
 			}
@@ -4177,12 +4155,12 @@ window.__ModuleLoader__.load({
 			if (value.loops !== void 0) {
 				if (!Array.isArray(value.loops) || value.loops.length < 1 || value.loops.length > 12) issues.push("visual.content.loops must contain 1 to 12 loops");
 				else {
-					const loops = value.loops.filter(record$1);
+					const loops = value.loops.filter(record);
 					if (loops.length !== value.loops.length) issues.push("visual.content.loops entries must be objects");
-					uniqueIds$1(loops, "visual.content.loops", issues);
+					uniqueIds(loops, "visual.content.loops", issues);
 					for (const [index, loop] of loops.entries()) {
 						const path = `visual.content.loops[${String(index)}]`;
-						onlyKeys$1(loop, [
+						onlyKeys(loop, [
 							"id",
 							"label",
 							"type",
@@ -4190,8 +4168,8 @@ window.__ModuleLoader__.load({
 							"detail",
 							"tone"
 						], path, issues);
-						if (id$1(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
-						text$1(loop.label, `${path}.label`, issues, 160);
+						if (id(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
+						text(loop.label, `${path}.label`, issues, 160);
 						if (loop.type !== "reinforcing" && loop.type !== "balancing") issues.push(`${path}.type must be reinforcing or balancing`);
 						if (!Array.isArray(loop.linkIds) || loop.linkIds.length < 1 || loop.linkIds.length > 96) issues.push(`${path}.linkIds must contain 1 to 96 link ids`);
 						else {
@@ -4203,7 +4181,7 @@ window.__ModuleLoader__.load({
 								else seen.add(linkId);
 							}
 						}
-						if (loop.detail !== void 0) text$1(loop.detail, `${path}.detail`, issues, 1e3);
+						if (loop.detail !== void 0) text(loop.detail, `${path}.detail`, issues, 1e3);
 						validateVisualToneV4(loop.tone, `${path}.tone`, issues);
 					}
 				}
@@ -4212,30 +4190,30 @@ window.__ModuleLoader__.load({
 		}
 		function validateVisualSequenceV4(value, focusIds, issues) {
 			if (value === void 0) return;
-			if (!record$1(value)) {
+			if (!record(value)) {
 				issues.push("visual.sequence must be an object");
 				return;
 			}
-			onlyKeys$1(value, ["initialFrameId", "frames"], "visual.sequence", issues);
+			onlyKeys(value, ["initialFrameId", "frames"], "visual.sequence", issues);
 			if (!Array.isArray(value.frames) || value.frames.length < 2 || value.frames.length > 12) {
 				issues.push("visual.sequence.frames must contain 2 to 12 frames");
 				return;
 			}
-			const frames = value.frames.filter(record$1);
+			const frames = value.frames.filter(record);
 			if (frames.length !== value.frames.length) issues.push("visual.sequence.frames entries must be objects");
-			uniqueIds$1(frames, "visual.sequence.frames", issues);
+			uniqueIds(frames, "visual.sequence.frames", issues);
 			const frameIds = /* @__PURE__ */ new Set();
 			for (const [index, frame] of frames.entries()) {
 				const path = `visual.sequence.frames[${String(index)}]`;
-				onlyKeys$1(frame, [
+				onlyKeys(frame, [
 					"id",
 					"label",
 					"description",
 					"focusIds"
 				], path, issues);
-				if (id$1(frame.id, `${path}.id`, issues)) frameIds.add(frame.id);
-				text$1(frame.label, `${path}.label`, issues, 120);
-				if (frame.description !== void 0) text$1(frame.description, `${path}.description`, issues, 1e3);
+				if (id(frame.id, `${path}.id`, issues)) frameIds.add(frame.id);
+				text(frame.label, `${path}.label`, issues, 120);
+				if (frame.description !== void 0) text(frame.description, `${path}.description`, issues, 1e3);
 				if (!Array.isArray(frame.focusIds) || frame.focusIds.length > 64) {
 					issues.push(`${path}.focusIds must contain at most 64 ids`);
 					continue;
@@ -4250,11 +4228,11 @@ window.__ModuleLoader__.load({
 		/** Validate the semantic, model-facing visual protocol while retaining V3 replay separately. */
 		function parseLearningVisualV4(value) {
 			const issues = [...validateLearningVisualSchemaV4(value)];
-			const bytes = jsonBytes$1(value);
+			const bytes = jsonBytes(value);
 			if (bytes === void 0) issues.push("visual must be serializable JSON");
-			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES$1)} bytes`);
-			if (!record$1(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
-			onlyKeys$1(value, [
+			else if (bytes > 65536) issues.push(`visual exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
+			if (!record(value)) throw new LearningProtocolError([...issues, "visual must be an object"]);
+			onlyKeys(value, [
 				"protocol",
 				"title",
 				"description",
@@ -4263,11 +4241,11 @@ window.__ModuleLoader__.load({
 				"fallbackMarkdown"
 			], "visual", issues);
 			if (value.protocol !== "dsh-learning/visual@4") issues.push(`visual.protocol must be ${VISUAL_PROTOCOL_V4}`);
-			text$1(value.title, "visual.title", issues, 200);
-			if (value.description !== void 0) text$1(value.description, "visual.description", issues, 1e3);
-			if (value.fallbackMarkdown !== void 0) text$1(value.fallbackMarkdown, "visual.fallbackMarkdown", issues, 8e3);
+			text(value.title, "visual.title", issues, 200);
+			if (value.description !== void 0) text(value.description, "visual.description", issues, 1e3);
+			if (value.fallbackMarkdown !== void 0) text(value.fallbackMarkdown, "visual.fallbackMarkdown", issues, 8e3);
 			let focusIds = /* @__PURE__ */ new Set();
-			if (!record$1(value.content)) issues.push("visual.content must be an object");
+			if (!record(value.content)) issues.push("visual.content must be an object");
 			else if (value.content.kind === "plot") focusIds = validatePlotV4(value.content, issues);
 			else if (value.content.kind === "node_link") focusIds = validateNodeLinkV4(value.content, issues);
 			else if (value.content.kind === "scene_2d") focusIds = validateScene2DV4(value.content, issues);
@@ -4290,8 +4268,8 @@ window.__ModuleLoader__.load({
 		}
 		function parseLearningVisualResultV4(value) {
 			const issues = [...validateLearningVisualResultSchemaV4(value)];
-			if (!record$1(value)) throw new LearningProtocolError(["visual result must be an object"]);
-			onlyKeys$1(value, [
+			if (!record(value)) throw new LearningProtocolError(["visual result must be an object"]);
+			onlyKeys(value, [
 				"protocol",
 				"status",
 				"content"
@@ -4301,569 +4279,9 @@ window.__ModuleLoader__.load({
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
-		function parseLearningVisualResultV3(value) {
-			const issues = [];
-			if (!record$1(value)) throw new LearningProtocolError(["visual result must be an object"]);
-			onlyKeys$1(value, ["protocol", "status"], "visualResult", issues);
-			if (value.protocol !== "dsh-learning/visual-result@3") issues.push(`visualResult.protocol must be ${VISUAL_RESULT_PROTOCOL_V3}`);
-			if (value.status !== "ready") issues.push("visualResult.status must be ready");
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		//#endregion
-		//#region src/legacy-protocol.ts
-		/**
-		* Compatibility-only V1/V2 validators.
-		*
-		* This module intentionally owns a small copy of the retired wire validators
-		* instead of re-exporting them from `protocol.ts`. The broker reaches it via
-		* `import()` only when replaying an old activity or handling the retired V2
-		* Question/Reveal gate; the current visual/checkpoint path remains on the
-		* eager protocol chunk.
-		*/
-		const ACTIVITY_PROTOCOL = "dsh-learning/activity@1";
-		const RESPONSE_PROTOCOL = "dsh-learning/response@1";
-		const ACTIVITY_PROTOCOL_V2 = "dsh-learning/activity@2";
-		const RESPONSE_PROTOCOL_V2 = "dsh-learning/response@2";
-		const MAX_ACTIVITY_BYTES = 65536;
-		const MAX_RESPONSE_BYTES = 32768;
-		const ACTIVITY_KINDS = [
-			"parameter_explorer",
-			"process_stepper",
-			"structure_compare"
-		];
-		const MATH_BINARY = /* @__PURE__ */ new Set([
-			"add",
-			"sub",
-			"mul",
-			"div",
-			"pow",
-			"min",
-			"max"
-		]);
-		const MATH_UNARY = /* @__PURE__ */ new Set([
-			"abs",
-			"neg",
-			"exp",
-			"log",
-			"sqrt",
-			"sigmoid",
-			"tanh",
-			"relu",
-			"leaky_relu",
-			"step",
-			"normpdf"
-		]);
-		function record(value) {
-			return typeof value === "object" && value !== null && !Array.isArray(value);
-		}
-		function onlyKeys(value, allowed, path, issues) {
-			for (const key of Object.keys(value)) if (!allowed.includes(key)) issues.push(`${path}.${key} is not supported`);
-		}
-		function text(value, path, issues, max = 8e3) {
-			if (typeof value !== "string" || value.trim() === "") {
-				issues.push(`${path} must be a non-empty string`);
-				return false;
-			}
-			if (value.length > max) issues.push(`${path} exceeds ${String(max)} characters`);
-			return true;
-		}
-		function finite(value, path, issues) {
-			if (typeof value !== "number" || !Number.isFinite(value)) {
-				issues.push(`${path} must be a finite number`);
-				return false;
-			}
-			return true;
-		}
-		function integer(value, path, issues, min = 0) {
-			if (typeof value !== "number" || !Number.isInteger(value) || value < min) {
-				issues.push(`${path} must be an integer >= ${String(min)}`);
-				return false;
-			}
-			return true;
-		}
-		function token(value, path, issues) {
-			if (typeof value !== "string" || value.length < 1 || value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
-				issues.push(`${path} must be an opaque token of 1 to 128 URL-safe characters`);
-				return false;
-			}
-			return true;
-		}
-		function id(value, path, issues) {
-			if (typeof value !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(value)) {
-				issues.push(`${path} must match ^[a-z][a-z0-9_-]{0,31}$`);
-				return false;
-			}
-			return true;
-		}
-		function uniqueIds(values, path, issues) {
-			const seen = /* @__PURE__ */ new Set();
-			for (const [index, value] of values.entries()) {
-				if (typeof value.id !== "string") continue;
-				if (seen.has(value.id)) issues.push(`${path}[${String(index)}].id duplicates ${value.id}`);
-				seen.add(value.id);
-			}
-		}
-		function jsonBytes(value) {
-			try {
-				return new TextEncoder().encode(JSON.stringify(value)).byteLength;
-			} catch {
-				return;
-			}
-		}
-		function validateJson(value, path, issues, depth = 0) {
-			if (depth > 12) {
-				issues.push(`${path} exceeds JSON depth 12`);
-				return;
-			}
-			if (value === null || typeof value === "string" || typeof value === "boolean") return;
-			if (typeof value === "number") {
-				if (!Number.isFinite(value)) issues.push(`${path} must contain finite numbers`);
-				return;
-			}
-			if (Array.isArray(value)) {
-				for (const [index, item] of value.entries()) validateJson(item, `${path}[${String(index)}]`, issues, depth + 1);
-				return;
-			}
-			if (!record(value)) {
-				issues.push(`${path} must be lossless JSON`);
-				return;
-			}
-			for (const [key, item] of Object.entries(value)) validateJson(item, `${path}.${key}`, issues, depth + 1);
-		}
-		function validateMath(value, parameterIds, path, issues, depth = 1) {
-			if (depth > 8) {
-				issues.push(`${path} exceeds AST depth 8`);
-				return;
-			}
-			if (!record(value) || typeof value.op !== "string") {
-				issues.push(`${path} must be a mathematical AST node`);
-				return;
-			}
-			if (value.op === "constant") {
-				onlyKeys(value, ["op", "value"], path, issues);
-				finite(value.value, `${path}.value`, issues);
-				return;
-			}
-			if (value.op === "variable") {
-				onlyKeys(value, ["op", "name"], path, issues);
-				if (typeof value.name !== "string" || !parameterIds.has(value.name) && value.name !== "x") issues.push(`${path}.name must be x or a declared parameter id`);
-				return;
-			}
-			if (MATH_BINARY.has(value.op)) {
-				onlyKeys(value, [
-					"op",
-					"left",
-					"right"
-				], path, issues);
-				validateMath(value.left, parameterIds, `${path}.left`, issues, depth + 1);
-				validateMath(value.right, parameterIds, `${path}.right`, issues, depth + 1);
-				return;
-			}
-			if (MATH_UNARY.has(value.op)) {
-				onlyKeys(value, ["op", "value"], path, issues);
-				validateMath(value.value, parameterIds, `${path}.value`, issues, depth + 1);
-				return;
-			}
-			issues.push(`${path}.op is unknown`);
-		}
-		function validateV1Payload(kind, payload, issues) {
-			if (!record(payload)) {
-				issues.push("activity.payload must be an object");
-				return;
-			}
-			if (kind === "parameter_explorer") {
-				onlyKeys(payload, [
-					"parameters",
-					"xAxis",
-					"curves",
-					"question"
-				], "activity.payload", issues);
-				if (!Array.isArray(payload.parameters) || payload.parameters.length < 1 || payload.parameters.length > 2) issues.push("activity.payload.parameters must contain 1 or 2 parameters");
-				const parameters = Array.isArray(payload.parameters) ? payload.parameters.filter(record) : [];
-				uniqueIds(parameters, "activity.payload.parameters", issues);
-				for (const [index, parameter] of parameters.entries()) {
-					const path = `activity.payload.parameters[${String(index)}]`;
-					id(parameter.id, `${path}.id`, issues);
-					text(parameter.label, `${path}.label`, issues, 120);
-					finite(parameter.min, `${path}.min`, issues);
-					finite(parameter.max, `${path}.max`, issues);
-					finite(parameter.step, `${path}.step`, issues);
-					finite(parameter.initial, `${path}.initial`, issues);
-				}
-				if (!record(payload.xAxis)) issues.push("activity.payload.xAxis must be an object");
-				else {
-					finite(payload.xAxis.min, "activity.payload.xAxis.min", issues);
-					finite(payload.xAxis.max, "activity.payload.xAxis.max", issues);
-				}
-				const parameterIds = new Set(parameters.map((item) => typeof item.id === "string" ? item.id : ""));
-				if (!Array.isArray(payload.curves) || payload.curves.length < 1 || payload.curves.length > 3) issues.push("activity.payload.curves must contain 1 to 3 curves");
-				else {
-					const curves = payload.curves.filter(record);
-					uniqueIds(curves, "activity.payload.curves", issues);
-					for (const [index, curve] of curves.entries()) {
-						const path = `activity.payload.curves[${String(index)}]`;
-						id(curve.id, `${path}.id`, issues);
-						text(curve.label, `${path}.label`, issues, 120);
-						validateMath(curve.expression, parameterIds, `${path}.expression`, issues);
-					}
-				}
-			} else if (kind === "process_stepper") {
-				onlyKeys(payload, ["steps", "question"], "activity.payload", issues);
-				if (!Array.isArray(payload.steps) || payload.steps.length < 2 || payload.steps.length > 12) issues.push("activity.payload.steps must contain 2 to 12 steps");
-				else {
-					const steps = payload.steps.filter(record);
-					uniqueIds(steps, "activity.payload.steps", issues);
-					for (const [index, step] of steps.entries()) {
-						const path = `activity.payload.steps[${String(index)}]`;
-						id(step.id, `${path}.id`, issues);
-						text(step.title, `${path}.title`, issues, 200);
-						text(step.content, `${path}.content`, issues, 4e3);
-					}
-				}
-			} else if (kind === "structure_compare") {
-				onlyKeys(payload, [
-					"left",
-					"right",
-					"alignments",
-					"question"
-				], "activity.payload", issues);
-				for (const side of ["left", "right"]) {
-					const value = payload[side];
-					if (!record(value)) {
-						issues.push(`activity.payload.${side} must be an object`);
-						continue;
-					}
-					text(value.title, `activity.payload.${side}.title`, issues, 200);
-					if (!Array.isArray(value.items) || value.items.length < 1 || value.items.length > 20) issues.push(`activity.payload.${side}.items must contain 1 to 20 items`);
-					else {
-						const items = value.items.filter(record);
-						uniqueIds(items, `activity.payload.${side}.items`, issues);
-						for (const [index, item] of items.entries()) {
-							id(item.id, `activity.payload.${side}.items[${String(index)}].id`, issues);
-							text(item.label, `activity.payload.${side}.items[${String(index)}].label`, issues, 500);
-						}
-					}
-				}
-				if (!Array.isArray(payload.alignments) || payload.alignments.length < 1 || payload.alignments.length > 24) issues.push("activity.payload.alignments must contain 1 to 24 rows");
-			}
-		}
-		/** Validate a retired V1 activity used only by replay/fallback. */
-		function parseLearningActivity(value) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("activity must be serializable JSON");
-			else if (bytes > MAX_ACTIVITY_BYTES) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
-			onlyKeys(value, [
-				"protocol",
-				"kind",
-				"title",
-				"objective",
-				"prompt",
-				"scaffold",
-				"payload",
-				"fallbackMarkdown"
-			], "activity", issues);
-			if (value.protocol !== ACTIVITY_PROTOCOL) issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL}`);
-			if (!ACTIVITY_KINDS.includes(value.kind)) issues.push("activity.kind is unknown");
-			text(value.title, "activity.title", issues, 200);
-			text(value.objective, "activity.objective", issues, 1e3);
-			text(value.prompt, "activity.prompt", issues, 2e3);
-			if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
-			text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-			validateV1Payload(value.kind, value.payload, issues);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		/** Validate a retired V1 Client response. */
-		function parseLearningResponse(value, expectedActivityId) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("response must be serializable JSON");
-			else if (bytes > MAX_RESPONSE_BYTES) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
-			onlyKeys(value, [
-				"protocol",
-				"activityId",
-				"action",
-				"answer",
-				"interactionState"
-			], "response", issues);
-			if (value.protocol !== RESPONSE_PROTOCOL) issues.push(`response.protocol must be ${RESPONSE_PROTOCOL}`);
-			if (typeof value.activityId !== "string" || value.activityId === "") issues.push("response.activityId must be a non-empty string");
-			if (expectedActivityId !== void 0 && value.activityId !== expectedActivityId) issues.push("response.activityId does not match the pending activity");
-			if (value.action !== "submit" && value.action !== "skip" && value.action !== "cancel") issues.push("response.action is unknown");
-			if (value.answer !== void 0) validateJson(value.answer, "response.answer", issues);
-			if (value.interactionState !== void 0) validateJson(value.interactionState, "response.interactionState", issues);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		function validateFocus(value, issues) {
-			if (!record(value)) {
-				issues.push("activity.focus must be an object");
-				return;
-			}
-			onlyKeys(value, ["title", "progress"], "activity.focus", issues);
-			text(value.title, "activity.focus.title", issues, 200);
-			if (value.progress !== void 0) {
-				if (!record(value.progress)) issues.push("activity.focus.progress must be an object");
-				else {
-					integer(value.progress.current, "activity.focus.progress.current", issues, 1);
-					if (value.progress.total !== void 0) integer(value.progress.total, "activity.focus.progress.total", issues, 1);
-				}
-			}
-		}
-		function validateInput(value, issues) {
-			if (!record(value)) {
-				issues.push("activity.input must be an object");
-				return;
-			}
-			if (value.kind === "single_choice") {
-				onlyKeys(value, ["kind", "options"], "activity.input", issues);
-				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) {
-					issues.push("activity.input.options must contain 2 to 8 options");
-					return;
-				}
-				const options = value.options.filter(record);
-				uniqueIds(options, "activity.input.options", issues);
-				for (const [index, option] of options.entries()) {
-					id(option.id, `activity.input.options[${String(index)}].id`, issues);
-					text(option.label, `activity.input.options[${String(index)}].label`, issues, 500);
-				}
-			} else if (value.kind === "short_text") {
-				onlyKeys(value, [
-					"kind",
-					"placeholder",
-					"maxLength"
-				], "activity.input", issues);
-				if (value.placeholder !== void 0) text(value.placeholder, "activity.input.placeholder", issues, 500);
-				if (value.maxLength !== void 0) integer(value.maxLength, "activity.input.maxLength", issues, 1);
-			} else if (value.kind === "number") {
-				onlyKeys(value, [
-					"kind",
-					"min",
-					"max",
-					"step"
-				], "activity.input", issues);
-				finite(value.min, "activity.input.min", issues);
-				finite(value.max, "activity.input.max", issues);
-				finite(value.step, "activity.input.step", issues);
-			} else issues.push("activity.input.kind is unknown");
-		}
-		function validateFrame(value, path, issues) {
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return;
-			}
-			onlyKeys(value, [
-				"id",
-				"title",
-				"content"
-			], path, issues);
-			id(value.id, `${path}.id`, issues);
-			text(value.title, `${path}.title`, issues, 200);
-			if (value.content !== void 0) text(value.content, `${path}.content`, issues, 4e3);
-		}
-		function validateVisual(value, phase, issues) {
-			const path = "activity.visual";
-			if (!record(value)) {
-				issues.push(`${path} must be an object`);
-				return;
-			}
-			if (value.kind === "process") {
-				if (phase === "question") {
-					onlyKeys(value, ["kind", "frame"], path, issues);
-					validateFrame(value.frame, `${path}.frame`, issues);
-				} else {
-					onlyKeys(value, [
-						"kind",
-						"before",
-						"after"
-					], path, issues);
-					validateFrame(value.before, `${path}.before`, issues);
-					validateFrame(value.after, `${path}.after`, issues);
-				}
-			} else if (value.kind === "parameter" || value.kind === "structure") {
-				const required = value.kind === "parameter" ? [
-					"parameters",
-					"xAxis",
-					"curves"
-				] : [
-					"left",
-					"right",
-					"alignments"
-				];
-				for (const key of required) if (!(key in value)) issues.push(`${path}.${key} is required`);
-			} else issues.push(`${path}.kind is unknown`);
-		}
-		/** Validate a retired Question or Reveal activity. */
-		function parseLearningActivityV2(value) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("activity must be serializable JSON");
-			else if (bytes > MAX_ACTIVITY_BYTES) issues.push(`activity exceeds ${String(MAX_ACTIVITY_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "activity must be an object"]);
-			if (value.protocol !== ACTIVITY_PROTOCOL_V2) issues.push(`activity.protocol must be ${ACTIVITY_PROTOCOL_V2}`);
-			if (value.phase === "question") {
-				onlyKeys(value, [
-					"protocol",
-					"phase",
-					"lessonToken",
-					"seq",
-					"focus",
-					"prompt",
-					"scaffold",
-					"input",
-					"visual",
-					"fallbackMarkdown"
-				], "activity", issues);
-				if (value.lessonToken !== void 0) token(value.lessonToken, "activity.lessonToken", issues);
-				integer(value.seq, "activity.seq", issues);
-				validateFocus(value.focus, issues);
-				text(value.prompt, "activity.prompt", issues, 2e3);
-				if (value.scaffold !== void 0) text(value.scaffold, "activity.scaffold", issues, 4e3);
-				validateInput(value.input, issues);
-				if (value.visual !== void 0) validateVisual(value.visual, "question", issues);
-				text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-			} else if (value.phase === "reveal") {
-				onlyKeys(value, [
-					"protocol",
-					"phase",
-					"lessonToken",
-					"roundToken",
-					"seq",
-					"focus",
-					"feedback",
-					"visual",
-					"animation",
-					"advance",
-					"fallbackMarkdown"
-				], "activity", issues);
-				token(value.lessonToken, "activity.lessonToken", issues);
-				token(value.roundToken, "activity.roundToken", issues);
-				integer(value.seq, "activity.seq", issues);
-				validateFocus(value.focus, issues);
-				if (!record(value.feedback)) issues.push("activity.feedback must be an object");
-				else {
-					onlyKeys(value.feedback, [
-						"verdict",
-						"learnerEcho",
-						"explanation",
-						"answer"
-					], "activity.feedback", issues);
-					if (value.feedback.verdict !== void 0 && ![
-						"correct",
-						"partial",
-						"misconception",
-						"neutral"
-					].includes(value.feedback.verdict)) issues.push("activity.feedback.verdict is unknown");
-					if (value.feedback.learnerEcho !== void 0) text(value.feedback.learnerEcho, "activity.feedback.learnerEcho", issues, 2e3);
-					text(value.feedback.explanation, "activity.feedback.explanation", issues, 8e3);
-					if (value.feedback.answer !== void 0) text(value.feedback.answer, "activity.feedback.answer", issues, 4e3);
-				}
-				if (value.visual !== void 0) validateVisual(value.visual, "reveal", issues);
-				if (!record(value.animation)) issues.push("activity.animation must be an object");
-				else {
-					onlyKeys(value.animation, [
-						"kind",
-						"preferredDurationMs",
-						"reducedMotion"
-					], "activity.animation", issues);
-					if (![
-						"draw",
-						"morph",
-						"highlight",
-						"step_complete"
-					].includes(value.animation.kind)) issues.push("activity.animation.kind is unknown");
-					if (value.animation.preferredDurationMs !== void 0) integer(value.animation.preferredDurationMs, "activity.animation.preferredDurationMs", issues);
-					if (value.animation.reducedMotion !== "commit-final-state") issues.push("activity.animation.reducedMotion must be commit-final-state");
-				}
-				if (!record(value.advance)) issues.push("activity.advance must be an object");
-				else {
-					onlyKeys(value.advance, ["mode", "label"], "activity.advance", issues);
-					if (value.advance.mode !== "user-after-animation") issues.push("activity.advance.mode must be user-after-animation");
-					if (value.advance.label !== void 0) text(value.advance.label, "activity.advance.label", issues, 120);
-				}
-				text(value.fallbackMarkdown, "activity.fallbackMarkdown", issues, 16e3);
-			} else issues.push("activity.phase must be question or reveal");
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
-		/** Validate a retired phase-bound Client receipt. */
-		function parseLearningResponseV2(value, expected = {}) {
-			const issues = [];
-			const bytes = jsonBytes(value);
-			if (bytes === void 0) issues.push("response must be serializable JSON");
-			else if (bytes > MAX_RESPONSE_BYTES) issues.push(`response exceeds ${String(MAX_RESPONSE_BYTES)} bytes`);
-			if (!record(value)) throw new LearningProtocolError([...issues, "response must be an object"]);
-			if (value.phase === "question") {
-				onlyKeys(value, [
-					"protocol",
-					"phase",
-					"activityId",
-					"lessonToken",
-					"roundToken",
-					"seq",
-					"action",
-					"answer",
-					"receiptId",
-					"interactionState"
-				], "response", issues);
-				if (![
-					"submit",
-					"skip",
-					"cancel"
-				].includes(value.action)) issues.push("response.action is unknown");
-				if (value.answer !== void 0) validateJson(value.answer, "response.answer", issues);
-			} else if (value.phase === "reveal") {
-				onlyKeys(value, [
-					"protocol",
-					"phase",
-					"activityId",
-					"lessonToken",
-					"roundToken",
-					"seq",
-					"action",
-					"animation",
-					"receiptId",
-					"interactionState"
-				], "response", issues);
-				if (![
-					"continue",
-					"skip",
-					"cancel"
-				].includes(value.action)) issues.push("response.action is unknown");
-				if (!record(value.animation)) issues.push("response.animation must be an object");
-				else {
-					onlyKeys(value.animation, [
-						"completed",
-						"skipped",
-						"reducedMotion",
-						"error"
-					], "response.animation", issues);
-					if (typeof value.animation.completed !== "boolean") issues.push("response.animation.completed must be boolean");
-					if (value.action === "continue" && value.animation.completed !== true) issues.push("response.animation.completed must be true before continue");
-				}
-			} else issues.push("response.phase must be question or reveal");
-			if (value.protocol !== RESPONSE_PROTOCOL_V2) issues.push(`response.protocol must be ${RESPONSE_PROTOCOL_V2}`);
-			token(value.activityId, "response.activityId", issues);
-			token(value.lessonToken, "response.lessonToken", issues);
-			token(value.roundToken, "response.roundToken", issues);
-			integer(value.seq, "response.seq", issues);
-			token(value.receiptId, "response.receiptId", issues);
-			if (value.interactionState !== void 0) validateJson(value.interactionState, "response.interactionState", issues);
-			for (const [key, expectedValue] of Object.entries(expected)) if (expectedValue !== void 0 && value[key] !== expectedValue) issues.push(`response.${key} does not match the pending activity`);
-			if (issues.length > 0) throw new LearningProtocolError(issues);
-			return value;
-		}
 		//#endregion
 		//#region src/transport.ts
-		const MARKER_PREFIX = "<!--dsh-learning/transport@1:";
 		const MARKER_SUFFIX = "-->";
-		const QUESTION_ID_PREFIX = "dsh-learning/transport@1:";
-		const WAIT_MARKER_PREFIX = "<!--dsh-learning/wait@2:";
-		const WAIT_QUESTION_ID_PREFIX = "dsh-learning/wait@2:";
 		const CHECKPOINT_WAIT_MARKER_PREFIX = "<!--dsh-learning/checkpoint-wait@1:";
 		const CHECKPOINT_WAIT_QUESTION_ID_PREFIX = "dsh-learning/checkpoint-wait@1:";
 		const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -4884,71 +4302,6 @@ window.__ModuleLoader__.load({
 			}
 			try {
 				return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
-			} catch {
-				return;
-			}
-		}
-		function decodeEnvelope(value) {
-			const json = decodeBase64Url(value);
-			if (json === void 0) return void 0;
-			try {
-				const parsed = JSON.parse(json);
-				if (parsed.transport !== "dsh-learning/transport@1" || typeof parsed.activityId !== "string" || parsed.activityId === "") return void 0;
-				return {
-					transport: TRANSPORT_PROTOCOL,
-					activityId: parsed.activityId,
-					activity: parseLearningActivity(parsed.activity)
-				};
-			} catch {
-				return;
-			}
-		}
-		/** Decode and revalidate a package-owned question id. */
-		function decodeLearningQuestionId(value) {
-			if (typeof value !== "string" || !value.startsWith(QUESTION_ID_PREFIX)) return void 0;
-			return decodeEnvelope(value.slice(25));
-		}
-		/** Decode and revalidate a package-owned question detail; ordinary questions return undefined. */
-		function decodeLearningDetail(detail) {
-			if (typeof detail !== "string" || !detail.startsWith(MARKER_PREFIX)) return void 0;
-			const end = detail.indexOf(MARKER_SUFFIX, 29);
-			if (end < 0) return void 0;
-			return decodeEnvelope(detail.slice(29, end));
-		}
-		/** V2 ids contain only an opaque reference, never the phase payload. */
-		function learningWaitQuestionId(waitId) {
-			if (!/^[A-Za-z0-9_-]{1,128}$/.test(waitId)) throw new Error("waitId must be a URL-safe opaque token");
-			return `${WAIT_QUESTION_ID_PREFIX}${waitId}`;
-		}
-		function decodeLearningWaitQuestionId(value) {
-			if (typeof value !== "string" || !value.startsWith(WAIT_QUESTION_ID_PREFIX)) return void 0;
-			const waitId = value.slice(20);
-			return /^[A-Za-z0-9_-]{1,128}$/.test(waitId) ? waitId : void 0;
-		}
-		function decodeLearningWaitDetail(detail) {
-			if (typeof detail !== "string" || !detail.startsWith(WAIT_MARKER_PREFIX)) return void 0;
-			const end = detail.indexOf(MARKER_SUFFIX, 24);
-			if (end < 0) return void 0;
-			const json = decodeBase64Url(detail.slice(24, end));
-			if (json === void 0) return void 0;
-			try {
-				const parsed = JSON.parse(json);
-				if (parsed.transport !== "dsh-learning/wait@2" || typeof parsed.waitId !== "string" || decodeLearningWaitQuestionId(learningWaitQuestionId(parsed.waitId)) === void 0 || typeof parsed.activityId !== "string" || parsed.activityId === "" || parsed.callId !== void 0 && (typeof parsed.callId !== "string" || parsed.callId === "") || typeof parsed.lessonToken !== "string" || parsed.lessonToken === "" || typeof parsed.roundToken !== "string" || parsed.roundToken === "" || typeof parsed.seq !== "number" || !Number.isInteger(parsed.seq) || parsed.seq < 0 || parsed.phase !== "question" && parsed.phase !== "reveal") return void 0;
-				const activity = parseLearningActivityV2(parsed.activity);
-				if (activity.phase !== parsed.phase || activity.seq !== parsed.seq) return void 0;
-				if (activity.phase === "reveal" && (activity.lessonToken !== parsed.lessonToken || activity.roundToken !== parsed.roundToken)) return void 0;
-				if (activity.phase === "question" && activity.lessonToken !== void 0 && activity.lessonToken !== parsed.lessonToken) return void 0;
-				return {
-					transport: TRANSPORT_PROTOCOL_V2,
-					waitId: parsed.waitId,
-					activityId: parsed.activityId,
-					...parsed.callId === void 0 ? {} : { callId: parsed.callId },
-					lessonToken: parsed.lessonToken,
-					roundToken: parsed.roundToken,
-					seq: parsed.seq,
-					phase: parsed.phase,
-					activity
-				};
 			} catch {
 				return;
 			}
@@ -5004,7 +4357,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningActivity.module.css.mjs
-		const css$17 = "._7ar4Xq_inlineActivity{gap:var(--lx-space-xl);min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);flex-direction:column;line-height:28px;display:flex}._7ar4Xq_scaffold{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);align-self:flex-start}._7ar4Xq_scaffold summary{cursor:pointer}._7ar4Xq_activityActions{align-items:center;gap:var(--lx-space-lg);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);margin-top:-6px;display:flex}._7ar4Xq_error{color:var(--lx-label-error);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_activityContent,._7ar4Xq_controls,._7ar4Xq_answerField,._7ar4Xq_stepFocus,._7ar4Xq_prediction{flex-direction:column;display:flex}._7ar4Xq_activityContent{gap:var(--lx-space-xl);container:_7ar4Xq_learning-activity/inline-size}._7ar4Xq_prompt{color:var(--lx-label-primary);font-size:var(--lx-text-md);margin:0;font-weight:400;line-height:28px}._7ar4Xq_explorer{gap:var(--lx-space-xl);flex-direction:column;min-width:0;display:flex}._7ar4Xq_controls{gap:var(--lx-space-lg) var(--lx-space-3xl);grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));display:grid}._7ar4Xq_rangeField{min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_rangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);margin-bottom:6px;display:flex}._7ar4Xq_rangeHeader label{color:var(--lx-label-primary);font-weight:500}._7ar4Xq_rangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-base);font-variant-numeric:tabular-nums;font-weight:650}._7ar4Xq_rangeControl{grid-template-rows:30px 16px;grid-template-columns:28px minmax(0,1fr) 28px;align-items:center;column-gap:9px;display:grid}._7ar4Xq_stepButton{appearance:none;border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-xs);width:28px;height:28px;color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-lg);line-height:var(--lx-leading-lg);cursor:pointer;background:0 0;padding:0}._7ar4Xq_stepButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._7ar4Xq_stepButton:disabled{cursor:default;opacity:.35}._7ar4Xq_rangeInput{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-border-strongest) 0 var(--range-low), var(--lx-accent) var(--range-low) var(--range-high), var(--lx-border-strongest) var(--range-high) 100%);cursor:pointer;width:100%;height:4px}._7ar4Xq_rangeInput:disabled{cursor:default;opacity:.55}._7ar4Xq_rangeInput::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_rangeInput::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}._7ar4Xq_rangeInput::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_rangeInput::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}._7ar4Xq_rangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-2xs);grid-column:2;justify-content:space-between;display:flex;position:relative}._7ar4Xq_rangeZero{position:absolute;transform:translate(-50%)}._7ar4Xq_chartRegion{min-width:0}._7ar4Xq_chart{width:100%;height:auto;display:block;overflow:visible}._7ar4Xq_plotFrame{fill:var(--lx-surface-base);stroke:var(--lx-border-strong);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_gridLine{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_zeroAxis{stroke:var(--lx-border-strongest);stroke-width:1.25px}._7ar4Xq_tickLabel{fill:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._7ar4Xq_axisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:500}._7ar4Xq_curve{fill:none;stroke:var(--lx-accent);stroke-width:3px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}._7ar4Xq_curve[data-curve=\"1\"]{stroke:var(--lx-success);stroke-dasharray:9 5}._7ar4Xq_curve[data-curve=\"2\"]{stroke:var(--lx-warn);stroke-dasharray:2 6}._7ar4Xq_legend{gap:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);flex-wrap:wrap;margin:0 0 5px 64px;padding:0;list-style:none;display:flex}._7ar4Xq_legend li:before{content:\"\";border-top:3px solid var(--lx-accent);vertical-align:middle;width:18px;height:0;margin-right:5px;display:inline-block}._7ar4Xq_legend li[data-curve=\"1\"]:before{border-top-color:var(--lx-success);border-top-style:dashed}._7ar4Xq_legend li[data-curve=\"2\"]:before{border-top-color:var(--lx-warn);border-top-style:dotted}._7ar4Xq_answerField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_answerField textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0;border-radius:0;line-height:1.5}._7ar4Xq_primaryRow,._7ar4Xq_navigation{gap:var(--lx-space-sm);display:flex}._7ar4Xq_primaryRow{justify-content:flex-start}._7ar4Xq_navigation{justify-content:space-between}._7ar4Xq_primaryButton,._7ar4Xq_ghostButton,._7ar4Xq_revealButton,._7ar4Xq_textButton{min-height:var(--lx-control-height-md);appearance:none;border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-md);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;transition:background var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);justify-content:center;align-items:center;display:inline-flex}._7ar4Xq_primaryButton:hover:not(:disabled),._7ar4Xq_revealButton:hover:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 88%, var(--lx-label-primary))}._7ar4Xq_ghostButton:hover:not(:disabled),._7ar4Xq_textButton:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._7ar4Xq_primaryButton,._7ar4Xq_revealButton{border:1px solid var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent,white)}._7ar4Xq_ghostButton{border:1px solid var(--lx-border-default);color:var(--lx-label-secondary);background:0 0}._7ar4Xq_textButton{color:var(--lx-label-tertiary);background:0 0;border:1px solid #0000}._7ar4Xq_primaryButton:disabled,._7ar4Xq_ghostButton:disabled,._7ar4Xq_revealButton:disabled,._7ar4Xq_textButton:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._7ar4Xq_stepMeta{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);justify-content:space-between;align-items:center;display:flex}._7ar4Xq_processMap{grid-template-columns:repeat(var(--process-step-count), minmax(0, 1fr));margin:0;padding:0;list-style:none;display:grid}._7ar4Xq_processStep{min-width:0;position:relative}._7ar4Xq_processStep:not(:last-child):after{z-index:0;background:var(--lx-border-default);content:\"\";height:2px;position:absolute;top:13px;left:calc(50% + 16px);right:calc(16px - 50%)}._7ar4Xq_processStep[data-connector-complete]:after{background:var(--lx-accent)}._7ar4Xq_processStepButton{z-index:1;align-items:center;gap:var(--lx-space-xs);width:100%;min-width:0;padding:0 var(--lx-space-2xs);color:var(--lx-label-tertiary);text-align:center;font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;background:0 0;border:0;flex-direction:column;display:flex;position:relative}._7ar4Xq_processStepButton:disabled{cursor:default}._7ar4Xq_processNode{box-sizing:border-box;border:1px solid var(--lx-border-strongest);border-radius:var(--lx-radius-circle);background:var(--lx-surface-base);width:28px;height:28px;color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);font-variant-numeric:tabular-nums;place-items:center;line-height:1;display:grid}._7ar4Xq_processTitle{-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;display:-webkit-box;overflow:hidden}._7ar4Xq_processStep[data-state=current] ._7ar4Xq_processNode{border-color:var(--lx-accent);background:var(--lx-accent-soft);color:var(--lx-accent)}._7ar4Xq_processStep[data-state=current] ._7ar4Xq_processTitle{color:var(--lx-label-primary);font-weight:500}._7ar4Xq_processStep[data-state=complete] ._7ar4Xq_processNode{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-inverted)}._7ar4Xq_processStep[data-state=complete] ._7ar4Xq_processTitle{color:var(--lx-label-secondary)}._7ar4Xq_processMapVertical{grid-template-columns:1fr}._7ar4Xq_processMapVertical ._7ar4Xq_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}._7ar4Xq_processMapVertical ._7ar4Xq_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}._7ar4Xq_processMapVertical ._7ar4Xq_processNode{flex:none}._7ar4Xq_processMapVertical ._7ar4Xq_processTitle{-webkit-line-clamp:3;padding-top:4px}._7ar4Xq_stepFocus{gap:var(--lx-space-lg);border-left:2px solid var(--lx-accent);padding-left:16px}._7ar4Xq_stepFocus h3,._7ar4Xq_prediction p{margin:0}._7ar4Xq_stepFocus h3{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:500;line-height:var(--lx-leading-md)}._7ar4Xq_stepFocus>._7ar4Xq_revealButton{align-self:flex-start}._7ar4Xq_prediction{gap:var(--lx-space-md);border:0;margin:0;padding:0}._7ar4Xq_prediction legend{color:var(--lx-accent);font-size:var(--lx-text-xs);margin-bottom:8px;font-weight:500}._7ar4Xq_prediction textarea{box-sizing:border-box;resize:vertical;border:0;border-bottom:1px solid var(--lx-border-default);min-height:52px;padding:var(--lx-space-xs) 0;color:var(--lx-label-primary);font:inherit;background:0 0}._7ar4Xq_predictionOptions{grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0 18px;display:grid}._7ar4Xq_option{gap:var(--lx-space-sm);border-bottom:1px solid var(--lx-border-subtle);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);cursor:pointer;align-items:flex-start;display:flex}._7ar4Xq_option[data-selected]{color:var(--lx-label-primary)}._7ar4Xq_option input{accent-color:var(--lx-accent);margin-top:3px}._7ar4Xq_revealed{color:var(--lx-label-secondary);line-height:1.6}._7ar4Xq_compareHeader,._7ar4Xq_compareRow{grid-template-columns:minmax(0,1fr) minmax(16px,36px) 24px minmax(16px,36px) minmax(0,1fr);align-items:center;display:grid}._7ar4Xq_compareHeader{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);padding-bottom:4px}._7ar4Xq_compareHeader strong{min-width:0;font-weight:500}._7ar4Xq_compareHeader strong[data-side=left]{text-align:right;grid-column:1}._7ar4Xq_compareHeader strong[data-side=right]{text-align:left;grid-column:5}._7ar4Xq_compareHeaderLink{color:var(--lx-label-tertiary);text-align:center;grid-column:3}._7ar4Xq_compareRows{min-width:0}._7ar4Xq_compareRow{min-width:0;padding:var(--lx-space-lg) 0;cursor:pointer;background:0 0;position:relative}._7ar4Xq_compareRow+._7ar4Xq_compareRow{border-top:1px solid var(--lx-border-default)}._7ar4Xq_compareLine{background:var(--lx-border-strong);height:1px}._7ar4Xq_compareRow[data-selected] ._7ar4Xq_compareLine{background:var(--lx-accent);height:2px}._7ar4Xq_compareSelector{place-items:center;display:grid}._7ar4Xq_compareSelector input{width:16px;height:16px;accent-color:var(--lx-accent);margin:0}._7ar4Xq_compareItem{min-width:0;padding:0 var(--lx-space-xs);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:1.5}._7ar4Xq_compareItem[data-side=left]{text-align:right}._7ar4Xq_compareItem[data-side=right]{text-align:left}._7ar4Xq_compareItem strong{font-weight:500}._7ar4Xq_compareRow[data-selected] ._7ar4Xq_compareItem strong{color:var(--lx-accent)}._7ar4Xq_compareItem p{color:var(--lx-label-tertiary);margin:4px 0 0}._7ar4Xq_emptyCell{padding:0 var(--lx-space-xs);color:var(--lx-label-tertiary)}._7ar4Xq_emptyCell[data-side=left]{text-align:right}._7ar4Xq_emptyCell[data-side=right]{text-align:left}._7ar4Xq_rowPrompt{max-width:80%;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);text-align:center;grid-column:1/6;justify-self:center;margin-top:6px}._7ar4Xq_inlineStatus{align-items:center;gap:var(--lx-space-sm);width:max-content;max-width:100%;color:var(--lx-label-tertiary);text-align:left;font:inherit;font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);background:0 0;border:0;margin:0;padding:0;display:flex}._7ar4Xq_runningDot{border-radius:var(--lx-radius-circle);background:var(--lx-accent);flex:none;width:6px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_pulse}._7ar4Xq_skeletonLine{border-radius:var(--lx-radius-pill);background:var(--lx-border-default);width:64px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_skeletonPulse}._7ar4Xq_inlineResult{align-items:baseline;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex-wrap:wrap;margin:0;display:flex}._7ar4Xq_inlineFallback{gap:var(--lx-space-xs);border-left:2px solid var(--lx-danger);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 6%, transparent);flex-direction:column;display:flex}._7ar4Xq_fallbackReason{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0}._7ar4Xq_fallbackText{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._7ar4Xq_resultMark{color:var(--lx-success)}._7ar4Xq_errorMark{color:var(--lx-label-error)}._7ar4Xq_resultEvidence{color:var(--lx-label-secondary);font-variant-numeric:tabular-nums}._7ar4Xq_resultAnswer{color:var(--lx-label-tertiary)}._7ar4Xq_legacyReveal{gap:var(--lx-space-2xs);color:var(--lx-label-secondary);font-size:var(--lx-text-base);line-height:var(--lx-leading-md);display:grid}._7ar4Xq_legacyReveal strong{color:var(--lx-label-primary);font-weight:550}._7ar4Xq_srOnly{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}._7ar4Xq_checkpoint{gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-lg);flex-direction:column;display:flex;container:_7ar4Xq_learning-checkpoint/inline-size}._7ar4Xq_checkpointHeader,._7ar4Xq_checkpointForm,._7ar4Xq_checkpointField{flex-direction:column;min-width:0;display:flex}._7ar4Xq_checkpointHeader{gap:var(--lx-space-xs)}._7ar4Xq_checkpointForm{gap:var(--lx-space-md)}._7ar4Xq_checkpointField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_checkpointEyebrow{border-radius:var(--lx-radius-pill);width:max-content;padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-accent-soft);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-xs)}._7ar4Xq_checkpointHeader h2{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._7ar4Xq_checkpointHeader p{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_checkpointInput{box-sizing:border-box;resize:vertical;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-primary);font:inherit;background:0 0;line-height:1.5}._7ar4Xq_checkpointCode{font-family:var(--lx-font-mono)}._7ar4Xq_checkpointChoices{gap:var(--lx-space-xs);border:0;margin:0;padding:0;display:grid}._7ar4Xq_checkpointChoices legend{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);margin-bottom:3px;padding:0}._7ar4Xq_checkpointOption{align-items:flex-start;gap:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);cursor:pointer;display:flex}._7ar4Xq_checkpointOption input{accent-color:var(--lx-accent);margin:4px 0 0}._7ar4Xq_checkpointActions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}@container _7ar4Xq_learning-checkpoint (width<=360px){._7ar4Xq_checkpointActions>button{flex:auto}._7ar4Xq_checkpointActions>._7ar4Xq_textButton{flex-basis:100%}}._7ar4Xq_checkpointHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);margin:0}._7ar4Xq_learningVisual{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;margin:4px 0 10px;display:flex}._7ar4Xq_visualDescription,._7ar4Xq_visualTextFallback{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_visualControls{gap:var(--lx-space-lg) 28px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));display:grid}._7ar4Xq_visualRange{gap:var(--lx-space-3xs);cursor:pointer;grid-template-rows:auto 18px 14px;min-width:0;display:grid}._7ar4Xq_visualRangeHeader{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);display:flex}._7ar4Xq_visualRangeHeader output{color:var(--lx-accent);font-size:var(--lx-text-sm);font-variant-numeric:tabular-nums;font-weight:600}._7ar4Xq_visualRange input{appearance:none;border-radius:var(--lx-radius-pill);background:linear-gradient(to right, var(--lx-accent) 0 var(--visual-range-progress), var(--lx-border-default) var(--visual-range-progress) 100%);cursor:pointer;align-self:center;width:100%;height:4px}._7ar4Xq_visualRange input::-webkit-slider-runnable-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_visualRange input::-webkit-slider-thumb{appearance:none;border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:16px;height:16px;box-shadow:0 0 0 1px var(--lx-accent);margin-top:-6px}._7ar4Xq_visualRange input::-moz-range-track{border-radius:var(--lx-radius-pill);background:0 0;height:4px}._7ar4Xq_visualRange input::-moz-range-thumb{border:3px solid var(--lx-surface-base);border-radius:var(--lx-radius-circle);background:var(--lx-accent);width:10px;height:10px;box-shadow:0 0 0 1px var(--lx-accent)}._7ar4Xq_visualRangeEnds{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;line-height:var(--lx-leading-micro);justify-content:space-between;display:flex}._7ar4Xq_visualMetrics{gap:var(--lx-space-sm) var(--lx-space-2xl);color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm);flex-wrap:wrap;display:flex}._7ar4Xq_visualMetrics>span{align-items:baseline;gap:var(--lx-space-sm);display:inline-flex}._7ar4Xq_visualMetrics output{color:var(--lx-accent);font-variant-numeric:tabular-nums;font-weight:550}._7ar4Xq_visualChartRegion{min-width:0}._7ar4Xq_visualLegend{gap:var(--lx-space-sm) var(--lx-space-xl);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);flex-wrap:wrap;margin:3px 0 0 64px;padding:0;list-style:none;display:flex}._7ar4Xq_visualLegend li{--visual-tone:var(--lx-accent);--visual-tone-text:color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue);align-items:center;gap:var(--lx-space-xs);display:inline-flex}._7ar4Xq_visualLegend li>span{border-top:2.5px solid var(--visual-tone);width:18px;height:0;display:inline-block}._7ar4Xq_visualLegend li[data-series-type=points]>span{border-radius:var(--lx-radius-circle);background:var(--visual-tone);border:0;width:8px;height:8px}._7ar4Xq_visualLegend li[data-stroke=dashed]>span{border-top-style:dashed}._7ar4Xq_visualLegend li[data-stroke=dotted]>span{border-top-style:dotted}._7ar4Xq_visualChart{width:100%;height:auto;display:block;overflow:visible}._7ar4Xq_visualPlot{fill:var(--lx-surface-card);stroke:var(--lx-border-default);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_visualGrid{stroke:var(--lx-border-subtle);stroke-width:1px;vector-effect:non-scaling-stroke}._7ar4Xq_visualTick{fill:var(--lx-label-tertiary);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._7ar4Xq_visualAxisLabel{fill:var(--lx-label-secondary);font-size:var(--lx-text-2xs)}._7ar4Xq_visualCurve{--visual-tone:var(--lx-accent);--visual-tone-text:color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue);fill:none;stroke:var(--visual-tone);stroke-width:2.5px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}._7ar4Xq_visualCurve[data-stroke=dashed]{stroke-dasharray:8 5}._7ar4Xq_visualCurve[data-stroke=dotted]{stroke-dasharray:2 5}._7ar4Xq_visualPoint{--visual-tone:var(--lx-accent);--visual-tone-text:color-mix(in srgb, var(--lx-accent) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue);fill:var(--visual-tone);stroke:var(--lx-surface-base);stroke-width:1.5px;vector-effect:non-scaling-stroke}._7ar4Xq_round{gap:var(--lx-space-lg);min-width:0;color:var(--lx-label-primary);flex-direction:column;display:flex}._7ar4Xq_roundHeader{gap:var(--lx-space-2xs);flex-direction:column;display:flex}._7ar4Xq_roundHeader span{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}._7ar4Xq_roundHeader h2,._7ar4Xq_roundProcess h3,._7ar4Xq_roundStructure h3,._7ar4Xq_roundFeedback p{margin:0}._7ar4Xq_roundHeader h2{font-size:var(--lx-text-lg);font-weight:500;line-height:var(--lx-leading-lg)}._7ar4Xq_roundProcess{gap:var(--lx-space-md);border-left:2px solid var(--lx-accent);padding:var(--lx-space-md) 0 var(--lx-space-md) var(--lx-space-lg);grid-template-columns:30px minmax(0,1fr);display:grid}._7ar4Xq_roundNode{border:1px solid var(--lx-accent);border-radius:var(--lx-radius-circle);width:28px;height:28px;color:var(--lx-accent);font-size:var(--lx-text-xs);place-items:center;display:grid}._7ar4Xq_roundProcess[data-final] ._7ar4Xq_roundNode{background:var(--lx-accent);color:var(--lx-label-inverted)}._7ar4Xq_roundParameter,._7ar4Xq_roundParameterValues,._7ar4Xq_roundCurveList{gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._7ar4Xq_roundParameter{flex-direction:column}._7ar4Xq_roundParameterValues span,._7ar4Xq_roundCurveList span{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-pill);padding:var(--lx-space-2xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-sm)}._7ar4Xq_roundStructure{gap:var(--lx-space-sm) var(--lx-space-lg);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._7ar4Xq_roundStructure h3{font-size:var(--lx-text-sm);font-weight:500}._7ar4Xq_roundAlignment{gap:var(--lx-space-sm);border-top:1px solid var(--lx-border-default);padding:var(--lx-space-sm) 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm);cursor:pointer;grid-column:1/3;grid-template-columns:20px 1fr 1fr;display:grid}._7ar4Xq_roundAlignment input{accent-color:var(--lx-accent);margin-top:3px}._7ar4Xq_roundAlignment small{color:var(--lx-label-tertiary);grid-column:2/4}._7ar4Xq_roundAlignment[data-selected]{color:var(--lx-accent)}._7ar4Xq_roundFeedback{gap:var(--lx-space-sm);color:var(--lx-label-secondary);display:grid}._7ar4Xq_completedRound{min-width:0}._7ar4Xq_revealTransition{animation:.7s both _7ar4Xq_revealCurrentFrame}._7ar4Xq_round[data-round-state=completed] ._7ar4Xq_revealTransition,._7ar4Xq_round[data-round-state=ready_to_continue] ._7ar4Xq_revealTransition,._7ar4Xq_round[data-round-state=ack_submitting] ._7ar4Xq_revealTransition{animation:none}@keyframes _7ar4Xq_revealCurrentFrame{0%{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes _7ar4Xq_pulse{0%,to{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}@keyframes _7ar4Xq_skeletonPulse{0%,to{opacity:.35}50%{opacity:.75}}@container _7ar4Xq_learning-activity (width<=560px){._7ar4Xq_processMap{grid-template-columns:1fr}._7ar4Xq_processMap ._7ar4Xq_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}._7ar4Xq_processMap ._7ar4Xq_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}._7ar4Xq_processMap ._7ar4Xq_processNode{flex:none}._7ar4Xq_processMap ._7ar4Xq_processTitle{-webkit-line-clamp:3;padding-top:4px}._7ar4Xq_compareHeader,._7ar4Xq_compareRow{grid-template-columns:minmax(0,1fr) 12px 22px 12px minmax(0,1fr)}._7ar4Xq_rowPrompt{max-width:100%}}@container _7ar4Xq_learning-activity (width<=360px){._7ar4Xq_legend{margin-left:56px}._7ar4Xq_visualLegend{margin-left:54px}._7ar4Xq_stepFocus{padding-left:12px}}@media (prefers-reduced-motion:reduce){._7ar4Xq_runningDot,._7ar4Xq_skeletonLine,._7ar4Xq_revealTransition{animation:none}}";
+		const css$17 = "._7ar4Xq_error{color:var(--lx-label-error);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_inlineStatus{align-items:center;gap:var(--lx-space-sm);width:max-content;max-width:100%;color:var(--lx-label-tertiary);text-align:left;font:inherit;font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);background:0 0;border:0;margin:0;padding:0;display:flex}._7ar4Xq_runningDot{border-radius:var(--lx-radius-circle);background:var(--lx-accent);flex:none;width:6px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_pulse}._7ar4Xq_skeletonLine{border-radius:var(--lx-radius-pill);background:var(--lx-border-default);width:64px;height:6px;animation:1.2s ease-in-out infinite _7ar4Xq_skeletonPulse}._7ar4Xq_inlineResult{align-items:baseline;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);flex-wrap:wrap;margin:0;display:flex}._7ar4Xq_inlineFallback{gap:var(--lx-space-xs);border-left:2px solid var(--lx-danger);border-radius:0 var(--lx-radius-sm) var(--lx-radius-sm) 0;padding:var(--lx-space-md) var(--lx-space-lg);background:color-mix(in srgb, var(--lx-danger) 6%, transparent);flex-direction:column;display:flex}._7ar4Xq_fallbackReason{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0}._7ar4Xq_fallbackText{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._7ar4Xq_resultMark{color:var(--lx-success)}._7ar4Xq_errorMark{color:var(--lx-label-error)}._7ar4Xq_resultEvidence{color:var(--lx-label-secondary);font-variant-numeric:tabular-nums}._7ar4Xq_resultAnswer{color:var(--lx-label-tertiary)}._7ar4Xq_checkpoint{gap:var(--lx-space-lg);min-width:0;margin:var(--lx-space-sm) 0 var(--lx-space-xl);border:var(--lx-card-border);border-radius:var(--lx-card-radius);padding:var(--lx-card-padding);background:var(--lx-card-background);color:var(--lx-label-primary);box-shadow:var(--lx-shadow-lg);flex-direction:column;display:flex;container:_7ar4Xq_learning-checkpoint/inline-size}._7ar4Xq_checkpointHeader,._7ar4Xq_checkpointForm,._7ar4Xq_checkpointField{flex-direction:column;min-width:0;display:flex}._7ar4Xq_checkpointHeader{gap:var(--lx-space-xs)}._7ar4Xq_checkpointForm{gap:var(--lx-space-md)}._7ar4Xq_checkpointField{gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._7ar4Xq_checkpointEyebrow{border-radius:var(--lx-radius-pill);width:max-content;padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-accent-soft);color:var(--lx-accent);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);line-height:var(--lx-leading-xs)}._7ar4Xq_checkpointHeader h2{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._7ar4Xq_checkpointHeader p{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base);margin:0}._7ar4Xq_checkpointInput{box-sizing:border-box;resize:vertical;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);width:100%;min-height:36px;padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-primary);font:inherit;background:0 0;line-height:1.5}._7ar4Xq_checkpointCode{font-family:var(--lx-font-mono)}._7ar4Xq_checkpointChoices{gap:var(--lx-space-xs);border:0;margin:0;padding:0;display:grid}._7ar4Xq_checkpointChoices legend{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);margin-bottom:3px;padding:0}._7ar4Xq_checkpointOption{align-items:flex-start;gap:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-base);line-height:var(--lx-leading-base);cursor:pointer;display:flex}._7ar4Xq_checkpointOption input{accent-color:var(--lx-accent);margin:4px 0 0}._7ar4Xq_checkpointActions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}@container _7ar4Xq_learning-checkpoint (width<=360px){._7ar4Xq_checkpointActions>button{flex:auto}._7ar4Xq_checkpointActions>._7ar4Xq_textButton{flex-basis:100%}}._7ar4Xq_checkpointHint{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);margin:0}@keyframes _7ar4Xq_revealCurrentFrame{0%{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes _7ar4Xq_pulse{0%,to{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}@keyframes _7ar4Xq_skeletonPulse{0%,to{opacity:.35}50%{opacity:.75}}@container _7ar4Xq_learning-activity (width<=560px){._7ar4Xq_processMap{grid-template-columns:1fr}._7ar4Xq_processMap ._7ar4Xq_processStep:not(:last-child):after{width:2px;height:auto;inset:29px auto -1px 13px}._7ar4Xq_processMap ._7ar4Xq_processStepButton{align-items:flex-start;gap:var(--lx-space-md);padding:var(--lx-space-2xs) 0 var(--lx-space-md);text-align:left;flex-direction:row}._7ar4Xq_processMap ._7ar4Xq_processNode{flex:none}._7ar4Xq_processMap ._7ar4Xq_processTitle{-webkit-line-clamp:3;padding-top:4px}._7ar4Xq_compareHeader,._7ar4Xq_compareRow{grid-template-columns:minmax(0,1fr) 12px 22px 12px minmax(0,1fr)}._7ar4Xq_rowPrompt{max-width:100%}}@container _7ar4Xq_learning-activity (width<=360px){._7ar4Xq_legend{margin-left:56px}._7ar4Xq_stepFocus{padding-left:12px}}@media (prefers-reduced-motion:reduce){._7ar4Xq_runningDot,._7ar4Xq_skeletonLine,._7ar4Xq_revealTransition{animation:none}}";
 		const tagId$17 = "@dsh-portable/interactive-learning/LearningActivity.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$17) + "]") === null) {
 			const tag = document.createElement("style");
@@ -5014,12 +4367,6 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var LearningActivity_module_css_default = {
-			"activityActions": "_7ar4Xq_activityActions",
-			"activityContent": "_7ar4Xq_activityContent",
-			"answerField": "_7ar4Xq_answerField",
-			"axisLabel": "_7ar4Xq_axisLabel",
-			"chart": "_7ar4Xq_chart",
-			"chartRegion": "_7ar4Xq_chartRegion",
 			"checkpoint": "_7ar4Xq_checkpoint",
 			"checkpointActions": "_7ar4Xq_checkpointActions",
 			"checkpointChoices": "_7ar4Xq_checkpointChoices",
@@ -5032,122 +4379,38 @@ window.__ModuleLoader__.load({
 			"checkpointInput": "_7ar4Xq_checkpointInput",
 			"checkpointOption": "_7ar4Xq_checkpointOption",
 			"compareHeader": "_7ar4Xq_compareHeader",
-			"compareHeaderLink": "_7ar4Xq_compareHeaderLink",
-			"compareItem": "_7ar4Xq_compareItem",
-			"compareLine": "_7ar4Xq_compareLine",
 			"compareRow": "_7ar4Xq_compareRow",
-			"compareRows": "_7ar4Xq_compareRows",
-			"compareSelector": "_7ar4Xq_compareSelector",
-			"completedRound": "_7ar4Xq_completedRound",
-			"controls": "_7ar4Xq_controls",
-			"curve": "_7ar4Xq_curve",
-			"emptyCell": "_7ar4Xq_emptyCell",
 			"error": "_7ar4Xq_error",
 			"errorMark": "_7ar4Xq_errorMark",
-			"explorer": "_7ar4Xq_explorer",
 			"fallbackReason": "_7ar4Xq_fallbackReason",
 			"fallbackText": "_7ar4Xq_fallbackText",
-			"ghostButton": "_7ar4Xq_ghostButton",
-			"gridLine": "_7ar4Xq_gridLine",
-			"inlineActivity": "_7ar4Xq_inlineActivity",
 			"inlineFallback": "_7ar4Xq_inlineFallback",
 			"inlineResult": "_7ar4Xq_inlineResult",
 			"inlineStatus": "_7ar4Xq_inlineStatus",
 			"learning-activity": "_7ar4Xq_learning-activity",
 			"learning-checkpoint": "_7ar4Xq_learning-checkpoint",
-			"learningVisual": "_7ar4Xq_learningVisual",
-			"legacyReveal": "_7ar4Xq_legacyReveal",
 			"legend": "_7ar4Xq_legend",
-			"navigation": "_7ar4Xq_navigation",
-			"option": "_7ar4Xq_option",
-			"plotFrame": "_7ar4Xq_plotFrame",
-			"prediction": "_7ar4Xq_prediction",
-			"predictionOptions": "_7ar4Xq_predictionOptions",
-			"primaryButton": "_7ar4Xq_primaryButton",
-			"primaryRow": "_7ar4Xq_primaryRow",
 			"processMap": "_7ar4Xq_processMap",
-			"processMapVertical": "_7ar4Xq_processMapVertical",
 			"processNode": "_7ar4Xq_processNode",
 			"processStep": "_7ar4Xq_processStep",
 			"processStepButton": "_7ar4Xq_processStepButton",
 			"processTitle": "_7ar4Xq_processTitle",
-			"prompt": "_7ar4Xq_prompt",
 			"pulse": "_7ar4Xq_pulse",
-			"rangeControl": "_7ar4Xq_rangeControl",
-			"rangeEnds": "_7ar4Xq_rangeEnds",
-			"rangeField": "_7ar4Xq_rangeField",
-			"rangeHeader": "_7ar4Xq_rangeHeader",
-			"rangeInput": "_7ar4Xq_rangeInput",
-			"rangeZero": "_7ar4Xq_rangeZero",
 			"resultAnswer": "_7ar4Xq_resultAnswer",
 			"resultEvidence": "_7ar4Xq_resultEvidence",
 			"resultMark": "_7ar4Xq_resultMark",
-			"revealButton": "_7ar4Xq_revealButton",
 			"revealCurrentFrame": "_7ar4Xq_revealCurrentFrame",
 			"revealTransition": "_7ar4Xq_revealTransition",
-			"revealed": "_7ar4Xq_revealed",
-			"round": "_7ar4Xq_round",
-			"roundAlignment": "_7ar4Xq_roundAlignment",
-			"roundCurveList": "_7ar4Xq_roundCurveList",
-			"roundFeedback": "_7ar4Xq_roundFeedback",
-			"roundHeader": "_7ar4Xq_roundHeader",
-			"roundNode": "_7ar4Xq_roundNode",
-			"roundParameter": "_7ar4Xq_roundParameter",
-			"roundParameterValues": "_7ar4Xq_roundParameterValues",
-			"roundProcess": "_7ar4Xq_roundProcess",
-			"roundStructure": "_7ar4Xq_roundStructure",
 			"rowPrompt": "_7ar4Xq_rowPrompt",
 			"runningDot": "_7ar4Xq_runningDot",
-			"scaffold": "_7ar4Xq_scaffold",
 			"skeletonLine": "_7ar4Xq_skeletonLine",
 			"skeletonPulse": "_7ar4Xq_skeletonPulse",
-			"srOnly": "_7ar4Xq_srOnly",
-			"stepButton": "_7ar4Xq_stepButton",
 			"stepFocus": "_7ar4Xq_stepFocus",
-			"stepMeta": "_7ar4Xq_stepMeta",
-			"textButton": "_7ar4Xq_textButton",
-			"tickLabel": "_7ar4Xq_tickLabel",
-			"visualAxisLabel": "_7ar4Xq_visualAxisLabel",
-			"visualChart": "_7ar4Xq_visualChart",
-			"visualChartRegion": "_7ar4Xq_visualChartRegion",
-			"visualControls": "_7ar4Xq_visualControls",
-			"visualCurve": "_7ar4Xq_visualCurve",
-			"visualDescription": "_7ar4Xq_visualDescription",
-			"visualGrid": "_7ar4Xq_visualGrid",
-			"visualLegend": "_7ar4Xq_visualLegend",
-			"visualMetrics": "_7ar4Xq_visualMetrics",
-			"visualPlot": "_7ar4Xq_visualPlot",
-			"visualPoint": "_7ar4Xq_visualPoint",
-			"visualRange": "_7ar4Xq_visualRange",
-			"visualRangeEnds": "_7ar4Xq_visualRangeEnds",
-			"visualRangeHeader": "_7ar4Xq_visualRangeHeader",
-			"visualTextFallback": "_7ar4Xq_visualTextFallback",
-			"visualTick": "_7ar4Xq_visualTick",
-			"zeroAxis": "_7ar4Xq_zeroAxis"
-		};
-		//#endregion
-		//#region src/client/markdown-labels.ts
-		/** Localized chrome required by the alpha.1 MarkdownText contract. */
-		function markdownLabels(t) {
-			return {
-				code: {
-					copyLabel: t("markdownCopy"),
-					copiedLabel: t("markdownCopied")
-				},
-				footnotes: t("markdownFootnotes")
-			};
-		}
-		/** Stable fallback for visual renderers that intentionally have no locale seat. */
-		const DEFAULT_MARKDOWN_LABELS = {
-			code: {
-				copyLabel: "复制",
-				copiedLabel: "已复制"
-			},
-			footnotes: "脚注"
+			"textButton": "_7ar4Xq_textButton"
 		};
 		//#endregion
 		//#region \0dsh-css:src/client/tokens.module.css.mjs
-		const css$16 = "[data-learning-scope]{--lx-text-micro:11px;--lx-leading-micro:16px;--lx-text-2xs:12px;--lx-leading-2xs:17px;--lx-text-xs:13px;--lx-leading-xs:20px;--lx-text-sm:14px;--lx-leading-sm:21px;--lx-text-base:15px;--lx-leading-base:23px;--lx-text-md:16px;--lx-leading-md:25px;--lx-text-lg:18px;--lx-leading-lg:27px;--lx-text-xl:clamp(18px, 4cqi, 22px);--lx-leading-xl:1.5;--lx-text-formula:clamp(16px, 3cqi, 20px);--lx-leading-formula:27px;--lx-glyph-xs:9px;--lx-weight-regular:400;--lx-weight-medium:550;--lx-weight-strong:650;--lx-tracking-eyebrow:.08em;--lx-font-mono:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Consolas, monospace);--lx-space-3xs:2px;--lx-space-2xs:4px;--lx-space-xs:6px;--lx-space-sm:8px;--lx-space-md:10px;--lx-space-lg:12px;--lx-space-xl:16px;--lx-space-2xl:20px;--lx-space-3xl:24px;--lx-radius-xs:6px;--lx-radius-sm:8px;--lx-radius-md:10px;--lx-radius-lg:12px;--lx-radius-xl:16px;--lx-radius-pill:999px;--lx-radius-circle:50%;--lx-host-bg:var(--dsw-alias-bg-layer-1,Canvas);--lx-host-label:var(--dsw-alias-label-primary,CanvasText);--lx-host-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--lx-host-accent-soft:var(--dsw-alias-state-business-tertiary,color-mix(in srgb, var(--lx-host-accent) 14%, transparent));--lx-surface-base:var(--lx-host-bg);--lx-surface-card:color-mix(in srgb, var(--lx-host-bg) 96%, transparent);--lx-surface-raised:color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);--lx-surface-sunken:color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));--lx-surface-accent:color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);--lx-border-subtle:var(--dsw-alias-border-l1,color-mix(in srgb, var(--lx-host-label) 12%, transparent));--lx-border-default:var(--dsw-alias-border-l2,color-mix(in srgb, var(--lx-host-label) 18%, transparent));--lx-border-strong:var(--dsw-alias-border-l3,color-mix(in srgb, var(--lx-host-label) 28%, transparent));--lx-border-strongest:var(--dsw-alias-border-l4,color-mix(in srgb, var(--lx-host-label) 38%, transparent));--lx-label-primary:var(--lx-host-label);--lx-label-secondary:var(--dsw-alias-label-secondary,color-mix(in srgb, var(--lx-host-label) 76%, transparent));--lx-label-tertiary:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--lx-label-on-accent:var(--dsw-alias-label-on-primary,white);--lx-accent:var(--lx-host-accent);--lx-accent-soft:var(--lx-host-accent-soft);--lx-success:var(--dsw-alias-state-success-primary,#2f9e5f);--lx-warn:var(--dsw-alias-state-warn-primary,#d1741f);--lx-danger:var(--dsw-alias-state-error-primary,#df4f4f);--lx-label-error:var(--dsw-alias-label-error,var(--lx-danger));--lx-label-inverted:var(--dsw-alias-label-primary-inverted,var(--lx-surface-base));--lx-card-border:1px solid var(--lx-border-default);--lx-card-radius:var(--lx-radius-xl);--lx-card-padding:clamp(16px, 2.8cqi, 22px);--lx-card-background:var(--lx-surface-card);--lx-shadow-sm:0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-md:0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-lg:0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);--lx-focus-color:var(--lx-accent);--lx-focus-width:2px;--lx-focus-offset:3px;--lx-control-height-sm:30px;--lx-control-height-md:34px;--lx-control-padding-sm:var(--lx-space-2xs) var(--lx-space-md);--lx-control-padding-md:var(--lx-space-xs) var(--lx-space-lg);--lx-control-disabled-opacity:.42;--lx-motion-fast:.14s;--lx-motion-base:.2s;--lx-easing:cubic-bezier(.16, 1, .3, 1);--lx-spring-easing:cubic-bezier(.16, 1, .3, 1);--lx-tone-keep-blue:100%;--lx-tone-keep-red:100%;--lx-tone-keep-orange:100%;--lx-tone-keep-green:80%;--lx-tone-keep-purple:72%;--lx-tone-keep-gray:72%;--lx-tone-blue:var(--lx-accent);--lx-tone-red:var(--lx-danger);--lx-tone-orange:var(--lx-warn);--lx-tone-green:color-mix(in srgb, var(--lx-success) var(--lx-tone-keep-green), var(--lx-label-primary));--lx-tone-purple:color-mix(in srgb, color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger)) var(--lx-tone-keep-purple), var(--lx-label-primary));--lx-tone-gray:color-mix(in srgb, var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent)) var(--lx-tone-keep-gray), var(--lx-label-primary));--lx-tone-dash-blue:none;--lx-tone-dash-red:10 5;--lx-tone-dash-green:2 4;--lx-tone-dash-orange:12 4 2 4;--lx-tone-dash-purple:6 4;--lx-tone-dash-gray:1 4;--visual-tone-dash:var(--lx-tone-dash-blue);--visual-tone:var(--lx-tone-blue);--visual-tone-glow:color-mix(in srgb, var(--visual-tone) 24%, transparent);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--lx-tone-text-keep:70%;--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state]{--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state=current]{--lx-vs-alpha:1;--lx-vs-ring:1;--lx-vs-lift:1}[data-learning-scope] [data-visual-state=selected]{--lx-vs-alpha:1;--lx-vs-ring:1}[data-learning-scope] [data-visual-state=related]{--lx-vs-alpha:.92}[data-learning-scope] [data-visual-state=visited]{--lx-vs-alpha:.78}[data-learning-scope] [data-visual-state=context]{--lx-vs-alpha:.62}[data-learning-scope] [data-visual-state=inactive]{--lx-vs-alpha:.55}[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:.38;pointer-events:none}[data-learning-scope] [data-tone=blue]{--visual-tone:var(--lx-tone-blue);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue)}[data-learning-scope] [data-tone=green]{--visual-tone:var(--lx-tone-green);--visual-tone-text:color-mix(in srgb, var(--lx-tone-green) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-green)}[data-learning-scope] [data-tone=red]{--visual-tone:var(--lx-tone-red);--visual-tone-text:color-mix(in srgb, var(--lx-tone-red) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-red)}[data-learning-scope] [data-tone=orange]{--visual-tone:var(--lx-tone-orange);--visual-tone-text:color-mix(in srgb, var(--lx-tone-orange) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-orange)}[data-learning-scope] [data-tone=purple]{--visual-tone:var(--lx-tone-purple);--visual-tone-text:color-mix(in srgb, var(--lx-tone-purple) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-purple)}[data-learning-scope] [data-tone=gray]{--visual-tone:var(--lx-tone-gray);--visual-tone-text:color-mix(in srgb, var(--lx-tone-gray) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-gray)}[data-learning-scope] :focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}@media (prefers-reduced-motion:reduce){[data-learning-scope]{--lx-motion-fast:0s;--lx-motion-base:0s}}@media (forced-colors:active){[data-learning-scope] [data-visual-state],[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:1}}";
+		const css$16 = "[data-learning-scope]{--lx-text-micro:11px;--lx-leading-micro:16px;--lx-text-2xs:12px;--lx-leading-2xs:17px;--lx-text-xs:13px;--lx-leading-xs:20px;--lx-text-sm:14px;--lx-leading-sm:21px;--lx-text-base:15px;--lx-leading-base:23px;--lx-text-md:16px;--lx-leading-md:25px;--lx-text-lg:18px;--lx-leading-lg:27px;--lx-text-xl:clamp(18px, 4cqi, 22px);--lx-leading-xl:1.5;--lx-text-formula:clamp(16px, 3cqi, 20px);--lx-leading-formula:27px;--lx-glyph-xs:9px;--lx-weight-regular:400;--lx-weight-medium:550;--lx-weight-strong:650;--lx-tracking-eyebrow:.08em;--lx-font-mono:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Consolas, monospace);--lx-space-3xs:2px;--lx-space-2xs:4px;--lx-space-xs:6px;--lx-space-sm:8px;--lx-space-md:10px;--lx-space-lg:12px;--lx-space-xl:16px;--lx-space-2xl:20px;--lx-space-3xl:24px;--lx-radius-xs:6px;--lx-radius-sm:8px;--lx-radius-md:10px;--lx-radius-lg:12px;--lx-radius-xl:16px;--lx-radius-pill:999px;--lx-radius-circle:50%;--lx-host-bg:var(--dsw-alias-bg-layer-1,Canvas);--lx-host-label:var(--dsw-alias-label-primary,CanvasText);--lx-host-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--lx-host-accent-soft:var(--dsw-alias-state-business-tertiary,color-mix(in srgb, var(--lx-host-accent) 14%, transparent));--lx-surface-base:var(--lx-host-bg);--lx-surface-card:color-mix(in srgb, var(--lx-host-bg) 96%, transparent);--lx-surface-raised:color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);--lx-surface-sunken:color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));--lx-surface-accent:color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);--lx-border-subtle:var(--dsw-alias-border-l1,color-mix(in srgb, var(--lx-host-label) 12%, transparent));--lx-border-default:var(--dsw-alias-border-l2,color-mix(in srgb, var(--lx-host-label) 18%, transparent));--lx-border-strong:var(--dsw-alias-border-l3,color-mix(in srgb, var(--lx-host-label) 28%, transparent));--lx-border-strongest:var(--dsw-alias-border-l4,color-mix(in srgb, var(--lx-host-label) 38%, transparent));--lx-label-primary:var(--lx-host-label);--lx-label-secondary:var(--dsw-alias-label-secondary,color-mix(in srgb, var(--lx-host-label) 76%, transparent));--lx-label-tertiary:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--lx-label-on-accent:var(--dsw-alias-label-on-primary,white);--lx-accent:var(--lx-host-accent);--lx-accent-soft:var(--lx-host-accent-soft);--lx-success:var(--dsw-alias-state-success-primary,#2f9e5f);--lx-warn:var(--dsw-alias-state-warn-primary,#d1741f);--lx-danger:var(--dsw-alias-state-error-primary,#df4f4f);--lx-label-error:var(--dsw-alias-label-error,var(--lx-danger));--lx-label-inverted:var(--dsw-alias-label-primary-inverted,var(--lx-surface-base));--lx-card-border:1px solid var(--lx-border-default);--lx-card-radius:var(--lx-radius-xl);--lx-card-padding:clamp(16px, 2.8cqi, 22px);--lx-card-background:var(--lx-surface-card);--lx-card-radius-compact:var(--lx-radius-lg);--lx-card-padding-compact:var(--lx-space-lg) var(--lx-space-xl);--lx-shadow-sm:0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-md:0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-lg:0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);--lx-focus-color:var(--lx-accent);--lx-focus-width:2px;--lx-focus-offset:3px;--lx-control-height-sm:30px;--lx-control-height-md:34px;--lx-control-padding-sm:var(--lx-space-2xs) var(--lx-space-md);--lx-control-padding-md:var(--lx-space-xs) var(--lx-space-lg);--lx-control-disabled-opacity:.42;--lx-motion-fast:.14s;--lx-motion-base:.2s;--lx-easing:cubic-bezier(.16, 1, .3, 1);--lx-spring-easing:cubic-bezier(.16, 1, .3, 1);--lx-tone-keep-blue:100%;--lx-tone-keep-red:100%;--lx-tone-keep-orange:100%;--lx-tone-keep-green:80%;--lx-tone-keep-purple:72%;--lx-tone-keep-gray:72%;--lx-tone-blue:var(--lx-accent);--lx-tone-red:var(--lx-danger);--lx-tone-orange:var(--lx-warn);--lx-tone-green:color-mix(in srgb, var(--lx-success) var(--lx-tone-keep-green), var(--lx-label-primary));--lx-tone-purple:color-mix(in srgb, color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger)) var(--lx-tone-keep-purple), var(--lx-label-primary));--lx-tone-gray:color-mix(in srgb, var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent)) var(--lx-tone-keep-gray), var(--lx-label-primary));--lx-tone-dash-blue:none;--lx-tone-dash-red:10 5;--lx-tone-dash-green:2 4;--lx-tone-dash-orange:12 4 2 4;--lx-tone-dash-purple:6 4;--lx-tone-dash-gray:1 4;--visual-tone-dash:var(--lx-tone-dash-blue);--visual-tone:var(--lx-tone-blue);--visual-tone-glow:color-mix(in srgb, var(--visual-tone) 24%, transparent);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--lx-tone-text-keep:70%;--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state]{--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state=current]{--lx-vs-alpha:1;--lx-vs-ring:1;--lx-vs-lift:1}[data-learning-scope] [data-visual-state=selected]{--lx-vs-alpha:1;--lx-vs-ring:1}[data-learning-scope] [data-visual-state=related]{--lx-vs-alpha:.92}[data-learning-scope] [data-visual-state=visited]{--lx-vs-alpha:.78}[data-learning-scope] [data-visual-state=context]{--lx-vs-alpha:.62}[data-learning-scope] [data-visual-state=inactive]{--lx-vs-alpha:.55}[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:.38;pointer-events:none}[data-learning-scope] [data-tone=blue]{--visual-tone:var(--lx-tone-blue);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue)}[data-learning-scope] [data-tone=green]{--visual-tone:var(--lx-tone-green);--visual-tone-text:color-mix(in srgb, var(--lx-tone-green) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-green)}[data-learning-scope] [data-tone=red]{--visual-tone:var(--lx-tone-red);--visual-tone-text:color-mix(in srgb, var(--lx-tone-red) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-red)}[data-learning-scope] [data-tone=orange]{--visual-tone:var(--lx-tone-orange);--visual-tone-text:color-mix(in srgb, var(--lx-tone-orange) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-orange)}[data-learning-scope] [data-tone=purple]{--visual-tone:var(--lx-tone-purple);--visual-tone-text:color-mix(in srgb, var(--lx-tone-purple) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-purple)}[data-learning-scope] [data-tone=gray]{--visual-tone:var(--lx-tone-gray);--visual-tone-text:color-mix(in srgb, var(--lx-tone-gray) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-gray)}[data-learning-scope] :focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}@media (prefers-reduced-motion:reduce){[data-learning-scope]{--lx-motion-fast:0s;--lx-motion-base:0s}}@media (forced-colors:active){[data-learning-scope] [data-visual-state],[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:1}}[data-learning-scope] [data-lx-control]{box-sizing:border-box;min-height:var(--lx-control-height-md);appearance:none;border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-md);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);cursor:pointer;transition:background var(--lx-motion-fast) var(--lx-easing), border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing);background:0 0;border:1px solid #0000;justify-content:center;align-items:center;display:inline-flex}[data-learning-scope] [data-lx-control]:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}[data-learning-scope] [data-lx-control=primary]{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent);font-weight:var(--lx-weight-medium)}[data-learning-scope] [data-lx-control=primary]:hover:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 86%, var(--lx-label-primary))}[data-learning-scope] [data-lx-control=secondary]{border-color:var(--lx-border-default);color:var(--lx-label-secondary)}[data-learning-scope] [data-lx-control=quiet]{color:var(--lx-label-tertiary)}[data-learning-scope] [data-lx-control=secondary]:hover:not(:disabled),[data-learning-scope] [data-lx-control=quiet]:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}[data-learning-scope] [data-lx-control=danger]{border-color:color-mix(in srgb, var(--lx-danger) 45%, transparent);color:var(--lx-danger)}[data-learning-scope] [data-lx-control=danger]:hover:not(:disabled){border-color:var(--lx-danger)}[data-learning-scope] [data-lx-control=spend]{border-color:var(--lx-accent);color:var(--lx-accent);font-weight:var(--lx-weight-medium)}[data-learning-scope] [data-lx-control=spend]:hover:not(:disabled){background:var(--lx-surface-accent)}[data-learning-scope] [data-lx-control=chip]{min-height:var(--lx-control-height-sm);border-color:var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary)}[data-learning-scope] [data-lx-control=chip]:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}[data-learning-scope] [data-lx-control][data-lx-density=compact]{min-height:var(--lx-control-height-sm);padding:var(--lx-control-padding-sm);font-size:var(--lx-text-2xs)}[data-learning-scope] [data-lx-control][data-lx-state=done]{border-color:color-mix(in srgb, var(--lx-success) 42%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}";
 		const tagId$16 = "@dsh-portable/interactive-learning/tokens.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$16) + "]") === null) {
 			const tag = document.createElement("style");
@@ -5159,1545 +4422,6 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/tokens.ts
 		const learningScope = { "data-learning-scope": "" };
-		//#endregion
-		//#region src/client/ActivityFrame.tsx
-		function ActivityFrame({ activityId, activity, busy, error, children, onSkip, onCancel, t }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: LearningActivity_module_css_default.inlineActivity,
-				...learningScope,
-				"aria-label": activity.title,
-				"data-learning-activity": activity.kind,
-				"data-learning-activity-id": activityId,
-				"data-learning-surface": "inline",
-				children: [
-					children,
-					activity.scaffold === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-						className: LearningActivity_module_css_default.scaffold,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("scaffold") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-							text: activity.scaffold,
-							labels: markdownLabels(t)
-						})]
-					}),
-					error === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.error,
-						role: "alert",
-						children: error
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.activityActions,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.textButton,
-							type: "button",
-							disabled: busy,
-							onClick: onSkip,
-							children: t("skip")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.textButton,
-							type: "button",
-							disabled: busy,
-							onClick: onCancel,
-							children: t("cancel")
-						})]
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region src/math-expression.ts
-		/**
-		* Compile a closed AST into a small closure tree once, so sampling a curve
-		* does not repeatedly dispatch through every AST node. This intentionally
-		* uses ordinary closures instead of `new Function`: the model payload remains
-		* data-only while the hot render path still gets one function call per sample.
-		*/
-		function compileMathExpression(expression) {
-			switch (expression.op) {
-				case "constant": return () => expression.value;
-				case "variable": return (bindings) => bindings[expression.name] ?? NaN;
-				case "add": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => left(bindings) + right(bindings);
-				}
-				case "sub": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => left(bindings) - right(bindings);
-				}
-				case "mul": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => left(bindings) * right(bindings);
-				}
-				case "div": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => left(bindings) / right(bindings);
-				}
-				case "pow": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => left(bindings) ** right(bindings);
-				}
-				case "min": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => Math.min(left(bindings), right(bindings));
-				}
-				case "max": {
-					const left = compileMathExpression(expression.left);
-					const right = compileMathExpression(expression.right);
-					return (bindings) => Math.max(left(bindings), right(bindings));
-				}
-				case "neg": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => -value(bindings);
-				}
-				case "abs": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.abs(value(bindings));
-				}
-				case "sqrt": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.sqrt(value(bindings));
-				}
-				case "sin": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.sin(value(bindings));
-				}
-				case "cos": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.cos(value(bindings));
-				}
-				case "tan": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.tan(value(bindings));
-				}
-				case "atan": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.atan(value(bindings));
-				}
-				case "exp": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.exp(value(bindings));
-				}
-				case "log": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.log(value(bindings));
-				}
-				case "sigmoid": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => {
-						const result = value(bindings);
-						if (result >= 0) return 1 / (1 + Math.exp(-result));
-						const exponential = Math.exp(result);
-						return exponential / (1 + exponential);
-					};
-				}
-				case "relu": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.max(0, value(bindings));
-				}
-				case "leaky_relu": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => {
-						const result = value(bindings);
-						return result >= 0 ? result : result * .01;
-					};
-				}
-				case "step": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => value(bindings) >= 0 ? 1 : 0;
-				}
-				case "normpdf": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => {
-						const result = value(bindings);
-						return Math.exp(-.5 * result * result) / Math.sqrt(2 * Math.PI);
-					};
-				}
-				case "floor": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.floor(value(bindings));
-				}
-				case "ceil": {
-					const value = compileMathExpression(expression.value);
-					return (bindings) => Math.ceil(value(bindings));
-				}
-			}
-		}
-		/**
-		* Evaluate the protocol's closed mathematical AST. The protocol validator
-		* bounds its depth and node count; this evaluator never executes source text.
-		*/
-		function evaluateMathExpression(expression, bindings) {
-			switch (expression.op) {
-				case "constant": return expression.value;
-				case "variable": return bindings[expression.name] ?? NaN;
-				case "add": return evaluateMathExpression(expression.left, bindings) + evaluateMathExpression(expression.right, bindings);
-				case "sub": return evaluateMathExpression(expression.left, bindings) - evaluateMathExpression(expression.right, bindings);
-				case "mul": return evaluateMathExpression(expression.left, bindings) * evaluateMathExpression(expression.right, bindings);
-				case "div": return evaluateMathExpression(expression.left, bindings) / evaluateMathExpression(expression.right, bindings);
-				case "pow": return evaluateMathExpression(expression.left, bindings) ** evaluateMathExpression(expression.right, bindings);
-				case "min": return Math.min(evaluateMathExpression(expression.left, bindings), evaluateMathExpression(expression.right, bindings));
-				case "max": return Math.max(evaluateMathExpression(expression.left, bindings), evaluateMathExpression(expression.right, bindings));
-				case "neg": return -evaluateMathExpression(expression.value, bindings);
-				case "abs": return Math.abs(evaluateMathExpression(expression.value, bindings));
-				case "sqrt": return Math.sqrt(evaluateMathExpression(expression.value, bindings));
-				case "sin": return Math.sin(evaluateMathExpression(expression.value, bindings));
-				case "cos": return Math.cos(evaluateMathExpression(expression.value, bindings));
-				case "tan": return Math.tan(evaluateMathExpression(expression.value, bindings));
-				case "atan": return Math.atan(evaluateMathExpression(expression.value, bindings));
-				case "exp": return Math.exp(evaluateMathExpression(expression.value, bindings));
-				case "log": return Math.log(evaluateMathExpression(expression.value, bindings));
-				case "sigmoid": {
-					const value = evaluateMathExpression(expression.value, bindings);
-					if (value >= 0) return 1 / (1 + Math.exp(-value));
-					const exponential = Math.exp(value);
-					return exponential / (1 + exponential);
-				}
-				case "relu": return Math.max(0, evaluateMathExpression(expression.value, bindings));
-				case "leaky_relu": {
-					const value = evaluateMathExpression(expression.value, bindings);
-					return value >= 0 ? value : value * .01;
-				}
-				case "step": return evaluateMathExpression(expression.value, bindings) >= 0 ? 1 : 0;
-				case "normpdf": {
-					const value = evaluateMathExpression(expression.value, bindings);
-					return Math.exp(-.5 * value * value) / Math.sqrt(2 * Math.PI);
-				}
-				case "floor": return Math.floor(evaluateMathExpression(expression.value, bindings));
-				case "ceil": return Math.ceil(evaluateMathExpression(expression.value, bindings));
-			}
-		}
-		//#endregion
-		//#region src/client/ParameterExplorer.tsx
-		const MAX_RENDERABLE_VALUE = 0xe8d4a51000;
-		const MAX_PARAMETER_DOMAIN_SAMPLES = 33;
-		function formatNumber$2(value) {
-			return Number.isInteger(value) ? String(value) : String(Number(value.toPrecision(6)));
-		}
-		function uniqueNumbers(values) {
-			return [...new Set(values.map((value) => Number(value.toPrecision(12))))];
-		}
-		function parameterCandidates(parameter) {
-			const discreteSteps = Math.max(1, Math.ceil((parameter.max - parameter.min) / parameter.step));
-			const sampleCount = Math.min(discreteSteps + 1, MAX_PARAMETER_DOMAIN_SAMPLES);
-			return uniqueNumbers([
-				...Array.from({ length: sampleCount }, (_, index) => {
-					const stepIndex = sampleCount === 1 ? 0 : Math.round(index * discreteSteps / (sampleCount - 1));
-					return Math.min(parameter.max, parameter.min + stepIndex * parameter.step);
-				}),
-				parameter.min,
-				parameter.max,
-				parameter.initial,
-				...parameter.min <= 0 && parameter.max >= 0 ? [0] : []
-			]);
-		}
-		function parameterStates(payload) {
-			return payload.parameters.reduce((states, parameter) => {
-				const candidates = parameterCandidates(parameter);
-				return states.flatMap((state) => candidates.map((value) => ({
-					...state,
-					[parameter.id]: value
-				})));
-			}, [{}]);
-		}
-		function niceStep$2(rawStep) {
-			if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
-			const power = 10 ** Math.floor(Math.log10(rawStep));
-			const normalized = rawStep / power;
-			return (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * power;
-		}
-		function paddedYDomain(min, max) {
-			if (min === max) {
-				const radius = Math.max(Math.abs(min) * .2, 1);
-				return {
-					min: min - radius,
-					max: max + radius
-				};
-			}
-			const span = max - min;
-			const padding = span * .08;
-			const step = niceStep$2((span + padding * 2) / 5);
-			let domainMin = Math.floor((min - padding) / step) * step;
-			let domainMax = Math.ceil((max + padding) / step) * step;
-			if (domainMin === domainMax) {
-				domainMin -= step;
-				domainMax += step;
-			}
-			return {
-				min: domainMin,
-				max: domainMax
-			};
-		}
-		function stableYDomain(payload) {
-			const samples = Math.min(payload.xAxis.samples ?? 96, 96);
-			let min = 0;
-			let max = 0;
-			let found = false;
-			for (const values of parameterStates(payload)) for (let index = 0; index < samples; index += 1) {
-				const x = payload.xAxis.min + (payload.xAxis.max - payload.xAxis.min) * index / (samples - 1);
-				for (const curve of payload.curves) {
-					const y = evaluateMathExpression(curve.expression, {
-						...values,
-						x
-					});
-					if (!Number.isFinite(y) || Math.abs(y) > MAX_RENDERABLE_VALUE) continue;
-					min = found ? Math.min(min, y) : Math.min(0, y);
-					max = found ? Math.max(max, y) : Math.max(0, y);
-					found = true;
-				}
-			}
-			if (!found) return {
-				min: -1,
-				max: 1
-			};
-			return paddedYDomain(min, max);
-		}
-		function yDomainForState(payload, values, stable) {
-			const samples = payload.xAxis.samples ?? 96;
-			let min = stable.min;
-			let max = stable.max;
-			let expanded = false;
-			for (let index = 0; index < samples; index += 1) {
-				const x = payload.xAxis.min + (payload.xAxis.max - payload.xAxis.min) * index / (samples - 1);
-				for (const curve of payload.curves) {
-					const y = evaluateMathExpression(curve.expression, {
-						...values,
-						x
-					});
-					if (!Number.isFinite(y) || Math.abs(y) > MAX_RENDERABLE_VALUE) continue;
-					if (y < min) {
-						min = y;
-						expanded = true;
-					}
-					if (y > max) {
-						max = y;
-						expanded = true;
-					}
-				}
-			}
-			return expanded ? paddedYDomain(min, max) : stable;
-		}
-		function ticksFor(domain, targetCount = 5) {
-			const step = niceStep$2((domain.max - domain.min) / targetCount);
-			const first = Math.ceil(domain.min / step) * step;
-			const ticks = [];
-			for (let value = first; value <= domain.max + step * 1e-8; value += step) ticks.push(Number(value.toPrecision(12)));
-			return ticks;
-		}
-		function chartGeometry$1(width) {
-			const safeWidth = Math.max(280, Math.round(width));
-			const height = safeWidth < 480 ? 260 : 300;
-			const left = safeWidth < 360 ? 56 : 64;
-			const right = 18;
-			const top = 18;
-			const bottom = 40;
-			return {
-				width: safeWidth,
-				height,
-				left,
-				right,
-				top,
-				bottom,
-				plotWidth: safeWidth - left - right,
-				plotHeight: height - top - bottom
-			};
-		}
-		function scaleX$2(value, domain, geometry) {
-			return geometry.left + (value - domain.min) / (domain.max - domain.min) * geometry.plotWidth;
-		}
-		function scaleY$2(value, domain, geometry) {
-			return geometry.top + (domain.max - value) / (domain.max - domain.min) * geometry.plotHeight;
-		}
-		function pathsFor(payload, values, yDomain, geometry) {
-			const samples = payload.xAxis.samples ?? 96;
-			const xDomain = {
-				min: payload.xAxis.min,
-				max: payload.xAxis.max
-			};
-			const series = payload.curves.map(() => []);
-			for (let index = 0; index < samples; index += 1) {
-				const x = payload.xAxis.min + (payload.xAxis.max - payload.xAxis.min) * index / (samples - 1);
-				for (const [curveIndex, curve] of payload.curves.entries()) series[curveIndex]?.push({
-					x,
-					y: evaluateMathExpression(curve.expression, {
-						...values,
-						x
-					})
-				});
-			}
-			return series.map((points) => {
-				let open = false;
-				let previousY = null;
-				return points.map((point) => {
-					if (!Number.isFinite(point.y) || Math.abs(point.y) > MAX_RENDERABLE_VALUE) {
-						open = false;
-						previousY = null;
-						return "";
-					}
-					const px = scaleX$2(point.x, xDomain, geometry);
-					const py = scaleY$2(point.y, yDomain, geometry);
-					if (previousY !== null && Math.abs(py - previousY) > geometry.plotHeight * 1.5) open = false;
-					const command = open ? "L" : "M";
-					open = true;
-					previousY = py;
-					return `${command}${px.toFixed(2)},${py.toFixed(2)}`;
-				}).filter(Boolean).join(" ");
-			});
-		}
-		function rangeStyle$1(parameter, value) {
-			const span = parameter.max - parameter.min;
-			const valuePercent = (value - parameter.min) / span * 100;
-			const anchorPercent = ((parameter.min <= 0 && parameter.max >= 0 ? 0 : parameter.min) - parameter.min) / span * 100;
-			return {
-				"--range-low": `${Math.min(valuePercent, anchorPercent)}%`,
-				"--range-high": `${Math.max(valuePercent, anchorPercent)}%`
-			};
-		}
-		function shiftedValue(parameter, current, direction) {
-			const shifted = current + parameter.step * direction;
-			const clamped = Math.min(parameter.max, Math.max(parameter.min, shifted));
-			return Number(clamped.toPrecision(12));
-		}
-		/** V2 current-frame parameter visual. It deliberately owns no teaching prompt or answer. */
-		function ParameterRoundVisual({ payload, disabled, t }) {
-			const chartId = (0, react.useId)();
-			const [values, setValues] = (0, react.useState)(() => Object.fromEntries(payload.parameters.map((parameter) => [parameter.id, parameter.initial])));
-			const fullPayload = payload;
-			const stableDomain = (0, react.useMemo)(() => stableYDomain(fullPayload), [fullPayload]);
-			const yDomain = (0, react.useMemo)(() => yDomainForState(fullPayload, values, stableDomain), [
-				fullPayload,
-				stableDomain,
-				values
-			]);
-			const geometry = (0, react.useMemo)(() => chartGeometry$1(640), []);
-			const paths = (0, react.useMemo)(() => pathsFor(fullPayload, values, yDomain, geometry), [
-				fullPayload,
-				geometry,
-				values,
-				yDomain
-			]);
-			const description = t("chartDescription", {
-				parameters: payload.parameters.map((parameter) => `${parameter.label} ${formatNumber$2(values[parameter.id] ?? parameter.initial)}`).join("; "),
-				xAxis: `${payload.xAxis.label ?? "x"} ${formatNumber$2(payload.xAxis.min)}–${formatNumber$2(payload.xAxis.max)}`,
-				yAxis: `y ${formatNumber$2(yDomain.min)}–${formatNumber$2(yDomain.max)}`,
-				curves: payload.curves.map((curve) => curve.label).join("; ")
-			});
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: LearningActivity_module_css_default.explorer,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: LearningActivity_module_css_default.controls,
-					children: payload.parameters.map((parameter) => {
-						const value = values[parameter.id] ?? parameter.initial;
-						const inputId = `${chartId}-${parameter.id}`;
-						return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: LearningActivity_module_css_default.rangeField,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: LearningActivity_module_css_default.rangeHeader,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-									htmlFor: inputId,
-									children: parameter.label
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("output", {
-									htmlFor: inputId,
-									"aria-live": "polite",
-									children: formatNumber$2(value)
-								})]
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-								id: inputId,
-								className: LearningActivity_module_css_default.rangeInput,
-								style: rangeStyle$1(parameter, value),
-								type: "range",
-								min: parameter.min,
-								max: parameter.max,
-								step: parameter.step,
-								value,
-								disabled,
-								onChange: (event) => setValues((current) => ({
-									...current,
-									[parameter.id]: Number(event.target.value)
-								}))
-							})]
-						}, parameter.id);
-					})
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: LearningActivity_module_css_default.chartRegion,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-						className: LearningActivity_module_css_default.legend,
-						children: payload.curves.map((curve, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-							"data-curve": index,
-							children: curve.label
-						}, curve.id))
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
-						className: LearningActivity_module_css_default.chart,
-						viewBox: `0 0 ${geometry.width} ${geometry.height}`,
-						role: "img",
-						"aria-labelledby": `${chartId}-title ${chartId}-description`,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("title", {
-								id: `${chartId}-title`,
-								children: t("chartLabel")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("desc", {
-								id: `${chartId}-description`,
-								children: description
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-								className: LearningActivity_module_css_default.plotFrame,
-								x: geometry.left,
-								y: geometry.top,
-								width: geometry.plotWidth,
-								height: geometry.plotHeight,
-								rx: "6"
-							}),
-							paths.map((path, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
-								className: LearningActivity_module_css_default.curve,
-								"data-curve": index,
-								d: path
-							}, payload.curves[index]?.id))
-						]
-					})]
-				})]
-			});
-		}
-		function ParameterExplorer({ activity, busy, onSubmit, t }) {
-			const payload = activity.payload;
-			const chartId = (0, react.useId)();
-			const chartContainer = (0, react.useRef)(null);
-			const [chartWidth, setChartWidth] = (0, react.useState)(640);
-			const [values, setValues] = (0, react.useState)(() => Object.fromEntries(payload.parameters.map((parameter) => [parameter.id, parameter.initial])));
-			const [answer, setAnswer] = (0, react.useState)("");
-			const stableDomain = (0, react.useMemo)(() => stableYDomain(payload), [payload]);
-			const yDomain = (0, react.useMemo)(() => yDomainForState(payload, values, stableDomain), [
-				payload,
-				stableDomain,
-				values
-			]);
-			const geometry = (0, react.useMemo)(() => chartGeometry$1(chartWidth), [chartWidth]);
-			const xDomain = (0, react.useMemo)(() => ({
-				min: payload.xAxis.min,
-				max: payload.xAxis.max
-			}), [payload.xAxis.max, payload.xAxis.min]);
-			const xTicks = (0, react.useMemo)(() => ticksFor(xDomain), [xDomain]);
-			const yTicks = (0, react.useMemo)(() => ticksFor(yDomain), [yDomain]);
-			const paths = (0, react.useMemo)(() => pathsFor(payload, values, yDomain, geometry), [
-				geometry,
-				payload,
-				values,
-				yDomain
-			]);
-			const chartDescription = t("chartDescription", {
-				parameters: payload.parameters.map((parameter) => `${parameter.label} ${formatNumber$2(values[parameter.id] ?? parameter.initial)} (${formatNumber$2(parameter.min)}–${formatNumber$2(parameter.max)})`).join("; "),
-				xAxis: `${payload.xAxis.label ?? "x"} ${formatNumber$2(xDomain.min)}–${formatNumber$2(xDomain.max)}`,
-				yAxis: `y ${formatNumber$2(yDomain.min)}–${formatNumber$2(yDomain.max)}`,
-				curves: payload.curves.map((curve) => curve.label).join("; ")
-			});
-			(0, react.useEffect)(() => {
-				const container = chartContainer.current;
-				if (!container) return;
-				const updateWidth = (width) => {
-					if (width >= 280) setChartWidth((current) => Math.abs(current - width) < 1 ? current : width);
-				};
-				updateWidth(container.getBoundingClientRect().width);
-				if (typeof ResizeObserver === "undefined") return;
-				const observer = new ResizeObserver((entries) => {
-					const entry = entries[0];
-					if (entry) updateWidth(entry.contentRect.width);
-				});
-				observer.observe(container);
-				return () => observer.disconnect();
-			}, []);
-			const setParameter = (parameter, value) => {
-				setValues((current) => ({
-					...current,
-					[parameter.id]: value
-				}));
-			};
-			const submit = () => {
-				const parameters = { ...values };
-				onSubmit({
-					answer: {
-						parameters,
-						explanation: answer.trim()
-					},
-					interactionState: { parameters }
-				});
-			};
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: LearningActivity_module_css_default.activityContent,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.prompt,
-						children: payload.question ?? activity.prompt
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.explorer,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: LearningActivity_module_css_default.controls,
-							children: payload.parameters.map((parameter) => {
-								const value = values[parameter.id] ?? parameter.initial;
-								const inputId = `${chartId}-${parameter.id}`;
-								const zeroPercent = (0 - parameter.min) / (parameter.max - parameter.min) * 100;
-								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: LearningActivity_module_css_default.rangeField,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: LearningActivity_module_css_default.rangeHeader,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-											htmlFor: inputId,
-											children: parameter.label
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("output", {
-											htmlFor: inputId,
-											"aria-live": "polite",
-											children: formatNumber$2(value)
-										})]
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: LearningActivity_module_css_default.rangeControl,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												className: LearningActivity_module_css_default.stepButton,
-												type: "button",
-												disabled: busy || value <= parameter.min,
-												"aria-label": t("decreaseParameter", { label: parameter.label }),
-												onClick: () => setParameter(parameter, shiftedValue(parameter, value, -1)),
-												children: "−"
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-												id: inputId,
-												className: LearningActivity_module_css_default.rangeInput,
-												style: rangeStyle$1(parameter, value),
-												type: "range",
-												min: parameter.min,
-												max: parameter.max,
-												step: parameter.step,
-												value,
-												disabled: busy,
-												"aria-valuetext": formatNumber$2(value),
-												onChange: (event) => setParameter(parameter, Number(event.target.value))
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												className: LearningActivity_module_css_default.stepButton,
-												type: "button",
-												disabled: busy || value >= parameter.max,
-												"aria-label": t("increaseParameter", { label: parameter.label }),
-												onClick: () => setParameter(parameter, shiftedValue(parameter, value, 1)),
-												children: "+"
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: LearningActivity_module_css_default.rangeEnds,
-												"aria-hidden": "true",
-												children: [
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: formatNumber$2(parameter.min) }),
-													parameter.min < 0 && parameter.max > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: LearningActivity_module_css_default.rangeZero,
-														style: { left: `${zeroPercent}%` },
-														children: "0"
-													}) : null,
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: formatNumber$2(parameter.max) })
-												]
-											})
-										]
-									})]
-								}, parameter.id);
-							})
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: LearningActivity_module_css_default.chartRegion,
-							ref: chartContainer,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-								className: LearningActivity_module_css_default.legend,
-								children: payload.curves.map((curve, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-									"data-curve": index,
-									children: curve.label
-								}, curve.id))
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
-								className: LearningActivity_module_css_default.chart,
-								viewBox: `0 0 ${geometry.width} ${geometry.height}`,
-								role: "img",
-								"aria-labelledby": `${chartId}-title ${chartId}-description`,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("title", {
-										id: `${chartId}-title`,
-										children: t("chartLabel")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("desc", {
-										id: `${chartId}-description`,
-										children: chartDescription
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("clipPath", {
-										id: `${chartId}-clip`,
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-											x: geometry.left,
-											y: geometry.top,
-											width: geometry.plotWidth,
-											height: geometry.plotHeight
-										})
-									}) }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-										className: LearningActivity_module_css_default.plotFrame,
-										x: geometry.left,
-										y: geometry.top,
-										width: geometry.plotWidth,
-										height: geometry.plotHeight,
-										rx: "6"
-									}),
-									yTicks.map((tick) => {
-										const y = scaleY$2(tick, yDomain, geometry);
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-											className: tick === 0 ? `${LearningActivity_module_css_default.gridLine} ${LearningActivity_module_css_default.zeroAxis}` : LearningActivity_module_css_default.gridLine,
-											x1: geometry.left,
-											x2: geometry.left + geometry.plotWidth,
-											y1: y,
-											y2: y
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-											className: LearningActivity_module_css_default.tickLabel,
-											x: geometry.left - 9,
-											y,
-											textAnchor: "end",
-											dominantBaseline: "middle",
-											children: formatNumber$2(tick)
-										})] }, `y-${tick}`);
-									}),
-									xTicks.map((tick) => {
-										const x = scaleX$2(tick, xDomain, geometry);
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-											className: tick === 0 ? `${LearningActivity_module_css_default.gridLine} ${LearningActivity_module_css_default.zeroAxis}` : LearningActivity_module_css_default.gridLine,
-											x1: x,
-											x2: x,
-											y1: geometry.top,
-											y2: geometry.top + geometry.plotHeight
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-											className: LearningActivity_module_css_default.tickLabel,
-											x,
-											y: geometry.top + geometry.plotHeight + 20,
-											textAnchor: "middle",
-											children: formatNumber$2(tick)
-										})] }, `x-${tick}`);
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										className: LearningActivity_module_css_default.axisLabel,
-										"data-axis": "y",
-										x: geometry.left,
-										y: geometry.top - 7,
-										textAnchor: "start",
-										children: "y"
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										className: LearningActivity_module_css_default.axisLabel,
-										"data-axis": "x",
-										x: geometry.left + geometry.plotWidth,
-										y: geometry.height - 5,
-										textAnchor: "end",
-										children: payload.xAxis.label ?? "x"
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("g", {
-										clipPath: `url(#${chartId}-clip)`,
-										children: paths.map((path, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
-											className: LearningActivity_module_css_default.curve,
-											"data-curve": index,
-											d: path
-										}, payload.curves[index]?.id))
-									})
-								]
-							})]
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className: LearningActivity_module_css_default.answerField,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("answer") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
-							value: answer,
-							disabled: busy,
-							placeholder: t("answerPlaceholder"),
-							onChange: (event) => setAnswer(event.target.value)
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: LearningActivity_module_css_default.primaryRow,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.primaryButton,
-							type: "button",
-							disabled: busy || answer.trim() === "",
-							onClick: submit,
-							children: busy ? t("submitting") : t("submit")
-						})
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region src/client/ProcessStepper.tsx
-		function ProcessStepper({ activity, busy, onSubmit, t }) {
-			const { steps } = activity.payload;
-			const headingId = (0, react.useId)();
-			const [index, setIndex] = (0, react.useState)(0);
-			const [furthest, setFurthest] = (0, react.useState)(0);
-			const [answers, setAnswers] = (0, react.useState)({});
-			const [revealed, setRevealed] = (0, react.useState)(() => new Set(steps.filter((step) => step.checkpoint === void 0).map((step) => step.id)));
-			const step = steps[index];
-			const isRevealed = revealed.has(step.id);
-			const prediction = answers[step.id] ?? "";
-			const canReveal = step.checkpoint === void 0 || prediction.trim() !== "";
-			const reveal = () => setRevealed((current) => /* @__PURE__ */ new Set([...current, step.id]));
-			const restart = () => {
-				setIndex(0);
-				setFurthest(0);
-				setAnswers({});
-				setRevealed(new Set(steps.filter((item) => item.checkpoint === void 0).map((item) => item.id)));
-			};
-			const advance = () => {
-				const next = Math.min(index + 1, steps.length - 1);
-				setIndex(next);
-				setFurthest((current) => Math.max(current, next));
-			};
-			const submit = () => {
-				onSubmit({
-					answer: { checkpoints: steps.filter((item) => item.checkpoint !== void 0).map((item) => ({
-						stepId: item.id,
-						answer: answers[item.id] ?? ""
-					})) },
-					interactionState: {
-						currentStep: index,
-						revealed: [...revealed]
-					}
-				});
-			};
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: LearningActivity_module_css_default.activityContent,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.prompt,
-						children: activity.payload.question ?? activity.prompt
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.stepMeta,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("step", {
-							current: index + 1,
-							total: steps.length
-						}) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.textButton,
-							type: "button",
-							disabled: busy,
-							onClick: restart,
-							children: t("restart")
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ol", {
-						className: `${LearningActivity_module_css_default.processMap} ${steps.length > 6 ? LearningActivity_module_css_default.processMapVertical : ""}`,
-						style: { "--process-step-count": steps.length },
-						"aria-label": t("processMap"),
-						"data-process-map": "true",
-						children: steps.map((item, itemIndex) => {
-							const state = itemIndex === index ? "current" : itemIndex <= furthest ? "complete" : "upcoming";
-							const connectorComplete = itemIndex < furthest || itemIndex === index && revealed.has(item.id);
-							return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-								className: LearningActivity_module_css_default.processStep,
-								"data-state": state,
-								"data-connector-complete": connectorComplete || void 0,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-									className: LearningActivity_module_css_default.processStepButton,
-									type: "button",
-									disabled: busy || itemIndex > furthest,
-									"aria-current": itemIndex === index ? "step" : void 0,
-									onClick: () => setIndex(itemIndex),
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: LearningActivity_module_css_default.processNode,
-										"aria-hidden": "true",
-										children: state === "complete" ? "✓" : itemIndex + 1
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: LearningActivity_module_css_default.processTitle,
-										children: item.title
-									})]
-								})
-							}, item.id);
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-						className: LearningActivity_module_css_default.stepFocus,
-						"aria-labelledby": headingId,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
-								id: headingId,
-								children: step.title
-							}),
-							step.checkpoint === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("fieldset", {
-								className: LearningActivity_module_css_default.prediction,
-								disabled: busy || isRevealed,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("legend", { children: t("predict") }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.checkpoint.question }),
-									step.checkpoint.options === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
-										"aria-label": step.checkpoint.question,
-										value: prediction,
-										onChange: (event) => setAnswers((current) => ({
-											...current,
-											[step.id]: event.target.value
-										}))
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: LearningActivity_module_css_default.predictionOptions,
-										children: step.checkpoint.options.map((option) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-											className: LearningActivity_module_css_default.option,
-											"data-selected": prediction === option || void 0,
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-												type: "radio",
-												name: `prediction-${step.id}`,
-												value: option,
-												checked: prediction === option,
-												onChange: () => setAnswers((current) => ({
-													...current,
-													[step.id]: option
-												}))
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: option })]
-										}, option))
-									})
-								]
-							}),
-							!isRevealed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: LearningActivity_module_css_default.revealButton,
-								type: "button",
-								disabled: busy || !canReveal,
-								onClick: reveal,
-								children: t("reveal")
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: LearningActivity_module_css_default.revealed,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-									text: step.content,
-									labels: markdownLabels(t)
-								})
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.navigation,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.ghostButton,
-							type: "button",
-							disabled: busy || index === 0,
-							onClick: () => setIndex((current) => current - 1),
-							children: t("previous")
-						}), index < steps.length - 1 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.primaryButton,
-							type: "button",
-							disabled: busy || !isRevealed,
-							onClick: advance,
-							children: t("next")
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.primaryButton,
-							type: "button",
-							disabled: busy || !isRevealed,
-							onClick: submit,
-							children: busy ? t("submitting") : t("submit")
-						})]
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region src/client/StructureCompare.tsx
-		function Item({ item, side, labels }) {
-			if (item === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: LearningActivity_module_css_default.emptyCell,
-				"data-side": side,
-				children: "—"
-			});
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: LearningActivity_module_css_default.compareItem,
-				"data-side": side,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: item.label }), item.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-					text: item.detail,
-					labels
-				})]
-			});
-		}
-		function StructureCompare({ activity, busy, onSubmit, t }) {
-			const payload = activity.payload;
-			const [selected, setSelected] = (0, react.useState)(() => /* @__PURE__ */ new Set());
-			const [answer, setAnswer] = (0, react.useState)("");
-			const left = new Map(payload.left.items.map((item) => [item.id, item]));
-			const right = new Map(payload.right.items.map((item) => [item.id, item]));
-			const labels = markdownLabels(t);
-			const toggle = (id) => setSelected((current) => {
-				const next = new Set(current);
-				if (next.has(id)) next.delete(id);
-				else next.add(id);
-				return next;
-			});
-			const submit = () => {
-				const selectedDifferences = [...selected];
-				onSubmit({
-					answer: {
-						selectedDifferences,
-						explanation: answer.trim()
-					},
-					interactionState: { selectedDifferences }
-				});
-			};
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: LearningActivity_module_css_default.activityContent,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.prompt,
-						children: payload.question ?? activity.prompt
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.compareHeader,
-						"aria-hidden": "true",
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", {
-								"data-side": "left",
-								children: payload.left.title
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: LearningActivity_module_css_default.compareHeaderLink,
-								children: "↔"
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", {
-								"data-side": "right",
-								children: payload.right.title
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: LearningActivity_module_css_default.compareRows,
-						role: "group",
-						"aria-label": t("compareMap"),
-						"data-structure-map": "true",
-						children: payload.alignments.map((alignment) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: LearningActivity_module_css_default.compareRow,
-							"data-alignment-id": alignment.id,
-							"data-selected": selected.has(alignment.id) || void 0,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Item, {
-									item: alignment.leftId === void 0 ? void 0 : left.get(alignment.leftId),
-									side: "left",
-									labels
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: LearningActivity_module_css_default.compareLine,
-									"aria-hidden": "true"
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: LearningActivity_module_css_default.compareSelector,
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										type: "checkbox",
-										checked: selected.has(alignment.id),
-										disabled: busy,
-										"aria-label": alignment.prompt ?? alignment.id,
-										onChange: () => toggle(alignment.id)
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: LearningActivity_module_css_default.compareLine,
-									"aria-hidden": "true"
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Item, {
-									item: alignment.rightId === void 0 ? void 0 : right.get(alignment.rightId),
-									side: "right",
-									labels
-								}),
-								alignment.prompt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: LearningActivity_module_css_default.rowPrompt,
-									children: alignment.prompt
-								})
-							]
-						}, alignment.id))
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className: LearningActivity_module_css_default.answerField,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("answer") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
-							value: answer,
-							disabled: busy,
-							placeholder: t("answerPlaceholder"),
-							onChange: (event) => setAnswer(event.target.value)
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: LearningActivity_module_css_default.primaryRow,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.primaryButton,
-							type: "button",
-							disabled: busy || selected.size === 0 || answer.trim() === "",
-							onClick: submit,
-							children: busy ? t("submitting") : t("submit")
-						})
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region src/client/ActivityRenderer.tsx
-		/**
-		* Dispatch table for trusted, package-supplied React components. Extending the
-		* protocol means registering another compiled component here, never accepting
-		* model-provided HTML or JavaScript.
-		*/
-		var ActivityRendererRegistry = class {
-			#renderers = /* @__PURE__ */ new Map();
-			register(kind, renderer) {
-				if (this.#renderers.has(kind)) throw new Error(`learning renderer already registered: ${kind}`);
-				this.#renderers.set(kind, renderer);
-				return () => {
-					if (this.#renderers.get(kind) === renderer) this.#renderers.delete(kind);
-				};
-			}
-			resolve(kind) {
-				return this.#renderers.get(kind);
-			}
-			kinds() {
-				return [...this.#renderers.keys()];
-			}
-		};
-		const activityRendererRegistry = new ActivityRendererRegistry();
-		activityRendererRegistry.register("parameter_explorer", ParameterExplorer);
-		activityRendererRegistry.register("process_stepper", ProcessStepper);
-		activityRendererRegistry.register("structure_compare", StructureCompare);
-		function ActivityRenderer(props) {
-			const Renderer = activityRendererRegistry.resolve(props.activity.kind);
-			return Renderer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Renderer, { ...props });
-		}
-		//#endregion
-		//#region src/client/roundState.ts
-		function initialRoundState(phase, completed = false) {
-			if (completed) return {
-				status: "completed",
-				error: null
-			};
-			return {
-				status: phase === "question" ? "awaiting_input" : "animating",
-				error: null
-			};
-		}
-		/**
-		* The round lifecycle is deliberately explicit. UI animation events may move a
-		* reveal to `ready_to_continue`, but only the Host response acknowledgement can
-		* mark it completed.
-		*/
-		function roundReducer(state, event) {
-			switch (event.type) {
-				case "SUBMIT_ANSWER": return state.status === "awaiting_input" ? {
-					status: "submitting_answer",
-					error: null
-				} : state;
-				case "ANSWER_ACCEPTED": return state.status === "submitting_answer" ? {
-					status: "answer_accepted",
-					error: null
-				} : state;
-				case "WAIT_FOR_REVEAL": return state.status === "answer_accepted" ? {
-					status: "awaiting_model_reveal",
-					error: null
-				} : state;
-				case "START_REVEAL": return state.status === "awaiting_model_reveal" ? {
-					status: "animating",
-					error: null
-				} : state;
-				case "ANIMATION_FINISHED": return state.status === "animating" ? {
-					status: "ready_to_continue",
-					error: null
-				} : state;
-				case "SUBMIT_CONTINUE": return state.status === "ready_to_continue" ? {
-					status: "ack_submitting",
-					error: null
-				} : state;
-				case "ACK_ACCEPTED": return state.status === "ack_submitting" ? {
-					status: "completed",
-					error: null
-				} : state;
-				case "SUBMISSION_FAILED":
-					if (state.status === "submitting_answer") return {
-						status: "awaiting_input",
-						error: event.message
-					};
-					if (state.status === "ack_submitting") return {
-						status: "ready_to_continue",
-						error: event.message
-					};
-					return state;
-			}
-		}
-		//#endregion
-		//#region src/client/lifecycle.ts
-		const listeners = /* @__PURE__ */ new Set();
-		/**
-		* Per-call dedup keys, bounded so a long session cannot grow this module-level
-		* set without limit. Insertion order is eviction order: the oldest calls in a
-		* conversation are also the ones that can no longer emit a first event.
-		*/
-		const MAX_TRACKED_CALLS = 512;
-		const emittedCallEvents = /* @__PURE__ */ new Set();
-		function subscribeLearningUiLifecycle(listener) {
-			listeners.add(listener);
-			return () => listeners.delete(listener);
-		}
-		function emitLearningUiLifecycle(event) {
-			const projected = {
-				...event,
-				at: Date.now()
-			};
-			for (const listener of listeners) listener(projected);
-		}
-		function emitLearningCallLifecycle(name, projection) {
-			if (projection.callId === void 0) return;
-			const key = `${name}:${projection.callId}`;
-			if (emittedCallEvents.has(key)) return;
-			emittedCallEvents.add(key);
-			while (emittedCallEvents.size > MAX_TRACKED_CALLS) {
-				const oldest = emittedCallEvents.values().next().value;
-				if (oldest === void 0) break;
-				emittedCallEvents.delete(oldest);
-			}
-			emitLearningUiLifecycle({
-				name,
-				...projection
-			});
-		}
-		//#endregion
-		//#region src/client/RoundActivity.tsx
-		function readStoredRound(storageKey) {
-			if (storageKey === void 0 || typeof sessionStorage === "undefined") return {};
-			try {
-				return JSON.parse(sessionStorage.getItem(`dsh-learning/round@2:${storageKey}`) ?? "{}");
-			} catch {
-				return {};
-			}
-		}
-		function writeStoredRound(storageKey, update) {
-			if (storageKey === void 0 || typeof sessionStorage === "undefined") return;
-			const key = `dsh-learning/round@2:${storageKey}`;
-			sessionStorage.setItem(key, JSON.stringify({
-				...readStoredRound(storageKey),
-				...update
-			}));
-		}
-		function ProcessVisual({ activity, final, labels }) {
-			if (activity.visual?.kind !== "process") return null;
-			const frame = activity.phase === "question" ? activity.visual.frame : final ? activity.visual.after : activity.visual.before;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: LearningActivity_module_css_default.roundProcess,
-				"data-final": final || void 0,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: LearningActivity_module_css_default.roundNode,
-					children: activity.seq + 1
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: frame.title }), frame.content === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-					text: frame.content,
-					labels
-				})] })]
-			});
-		}
-		function ParameterVisual({ activity, t }) {
-			if (activity.visual?.kind !== "parameter") return null;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ParameterRoundVisual, {
-				payload: activity.visual,
-				disabled: activity.phase === "reveal",
-				t
-			});
-		}
-		function StructureVisual({ activity }) {
-			if (activity.visual?.kind !== "structure") return null;
-			const [selected, setSelected] = (0, react.useState)(() => /* @__PURE__ */ new Set());
-			const left = new Map(activity.visual.left.items.map((item) => [item.id, item]));
-			const right = new Map(activity.visual.right.items.map((item) => [item.id, item]));
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: LearningActivity_module_css_default.roundStructure,
-				"aria-label": `${activity.visual.left.title} / ${activity.visual.right.title}`,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: activity.visual.left.title }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: activity.visual.right.title }),
-					activity.visual.alignments.map((alignment) => {
-						const leftItem = alignment.leftId === void 0 ? void 0 : left.get(alignment.leftId);
-						const rightItem = alignment.rightId === void 0 ? void 0 : right.get(alignment.rightId);
-						const label = alignment.prompt ?? `${leftItem?.label ?? "—"} / ${rightItem?.label ?? "—"}`;
-						return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: LearningActivity_module_css_default.roundAlignment,
-							"data-selected": selected.has(alignment.id) || void 0,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-									type: "checkbox",
-									checked: selected.has(alignment.id),
-									disabled: activity.phase === "reveal",
-									onChange: () => setSelected((current) => {
-										const next = new Set(current);
-										if (next.has(alignment.id)) next.delete(alignment.id);
-										else next.add(alignment.id);
-										return next;
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: leftItem?.label ?? "—" }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: rightItem?.label ?? "—" }),
-								alignment.prompt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("small", { children: label })
-							]
-						}, alignment.id);
-					})
-				]
-			});
-		}
-		function CurrentVisual({ activity, final, t, labels }) {
-			if (activity.visual === void 0) return null;
-			if (activity.visual.kind === "process") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProcessVisual, {
-				activity,
-				final,
-				labels
-			});
-			if (activity.visual.kind === "parameter") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ParameterVisual, {
-				activity,
-				t
-			});
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StructureVisual, { activity });
-		}
-		function QuestionInput({ activity, disabled, answer, setAnswer }) {
-			if (activity.input.kind === "single_choice") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("fieldset", {
-				className: LearningActivity_module_css_default.prediction,
-				disabled,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("legend", { children: activity.prompt }), activity.input.options.map((option) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-					className: LearningActivity_module_css_default.option,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-						type: "radio",
-						name: `learning-round-${activity.seq}`,
-						value: option.id,
-						checked: answer === option.id,
-						onChange: () => setAnswer(option.id)
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: option.label })]
-				}, option.id))]
-			});
-			if (activity.input.kind === "number") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-				className: LearningActivity_module_css_default.answerField,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: activity.prompt }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-					type: "number",
-					value: answer,
-					min: activity.input.min,
-					max: activity.input.max,
-					step: activity.input.step,
-					disabled,
-					onChange: (event) => setAnswer(event.target.value)
-				})]
-			});
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-				className: LearningActivity_module_css_default.answerField,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: activity.prompt }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
-					value: answer,
-					placeholder: activity.input.placeholder,
-					maxLength: activity.input.maxLength,
-					disabled,
-					onChange: (event) => setAnswer(event.target.value)
-				})]
-			});
-		}
-		function RoundActivity({ activity, completed = false, initialAnswer, storageKey, t, onSubmitAnswer, onContinue, onCancel }) {
-			const stored = (0, react.useRef)(readStoredRound(storageKey)).current;
-			const labels = markdownLabels(t);
-			const [state, dispatch] = (0, react.useReducer)(roundReducer, void 0, () => {
-				if (completed || stored.completed === true) return initialRoundState(activity.phase, true);
-				if (activity.phase === "reveal" && stored.animationComplete === true) return {
-					status: "ready_to_continue",
-					error: null
-				};
-				return initialRoundState(activity.phase);
-			});
-			const [answer, setAnswer] = (0, react.useState)(() => stored.draft ?? (typeof initialAnswer === "string" || typeof initialAnswer === "number" ? String(initialAnswer) : ""));
-			const ackStarted = (0, react.useRef)(false);
-			const cancelStarted = (0, react.useRef)(false);
-			const lifecycleStarted = (0, react.useRef)(false);
-			const revealElement = (0, react.useRef)(null);
-			const reducedMotion = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-			(0, react.useEffect)(() => {
-				emitLearningUiLifecycle({
-					name: "learning.ui.presented",
-					phase: activity.phase,
-					seq: activity.seq,
-					storageKey
-				});
-			}, [
-				activity.phase,
-				activity.seq,
-				storageKey
-			]);
-			(0, react.useEffect)(() => {
-				if (activity.phase === "reveal" && state.status === "animating" && !lifecycleStarted.current) {
-					lifecycleStarted.current = true;
-					emitLearningUiLifecycle({
-						name: "learning.animation.started",
-						phase: activity.phase,
-						seq: activity.seq,
-						storageKey
-					});
-				}
-			}, [
-				activity.phase,
-				activity.seq,
-				state.status,
-				storageKey
-			]);
-			(0, react.useEffect)(() => {
-				if (activity.phase === "reveal" && state.status === "animating" && reducedMotion) {
-					emitLearningUiLifecycle({
-						name: "learning.animation.finished",
-						phase: activity.phase,
-						seq: activity.seq,
-						storageKey
-					});
-					writeStoredRound(storageKey, { animationComplete: true });
-					dispatch({ type: "ANIMATION_FINISHED" });
-				}
-			}, [
-				activity.phase,
-				activity.seq,
-				reducedMotion,
-				state.status,
-				storageKey
-			]);
-			(0, react.useEffect)(() => {
-				if (activity.phase === "question" && state.status === "awaiting_input") writeStoredRound(storageKey, { draft: answer });
-			}, [
-				activity.phase,
-				answer,
-				state.status,
-				storageKey
-			]);
-			(0, react.useEffect)(() => {
-				if (activity.phase === "reveal" && state.status === "ready_to_continue") writeStoredRound(storageKey, { animationComplete: true });
-				if (state.status === "completed") writeStoredRound(storageKey, { completed: true });
-			}, [
-				activity.phase,
-				state.status,
-				storageKey
-			]);
-			const finishAnimation = () => {
-				if (state.status === "animating") {
-					emitLearningUiLifecycle({
-						name: "learning.animation.finished",
-						phase: activity.phase,
-						seq: activity.seq,
-						storageKey
-					});
-					writeStoredRound(storageKey, { animationComplete: true });
-					dispatch({ type: "ANIMATION_FINISHED" });
-				}
-			};
-			(0, react.useEffect)(() => {
-				const element = revealElement.current;
-				if (element === null || activity.phase !== "reveal" || state.status !== "animating") return;
-				element.addEventListener("animationend", finishAnimation);
-				return () => element.removeEventListener("animationend", finishAnimation);
-			}, [
-				activity.phase,
-				state.status,
-				storageKey
-			]);
-			const submitAnswer = () => {
-				if (activity.phase !== "question" || onSubmitAnswer === void 0 || answer.trim() === "") return;
-				dispatch({ type: "SUBMIT_ANSWER" });
-				const value = activity.input.kind === "number" ? Number(answer) : answer;
-				onSubmitAnswer(value, { answer: value }).then(() => {
-					dispatch({ type: "ANSWER_ACCEPTED" });
-					dispatch({ type: "WAIT_FOR_REVEAL" });
-				}).catch((cause) => dispatch({
-					type: "SUBMISSION_FAILED",
-					message: cause instanceof Error ? cause.message : String(cause)
-				}));
-			};
-			const submitContinue = () => {
-				if (activity.phase !== "reveal" || onContinue === void 0 || state.status !== "ready_to_continue" || ackStarted.current) return;
-				ackStarted.current = true;
-				dispatch({ type: "SUBMIT_CONTINUE" });
-				onContinue({
-					completed: true,
-					reducedMotion: reducedMotion || void 0
-				}).then(() => {
-					dispatch({ type: "ACK_ACCEPTED" });
-					emitLearningUiLifecycle({
-						name: "learning.continue.accepted",
-						phase: activity.phase,
-						seq: activity.seq,
-						storageKey
-					});
-				}).catch((cause) => dispatch({
-					type: "SUBMISSION_FAILED",
-					message: cause instanceof Error ? cause.message : String(cause)
-				})).finally(() => {
-					ackStarted.current = false;
-				});
-			};
-			const final = activity.phase === "reveal" && state.status !== "animating";
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: LearningActivity_module_css_default.round,
-				...learningScope,
-				"data-round-state": state.status,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
-						className: LearningActivity_module_css_default.roundHeader,
-						children: [activity.focus.progress === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("roundProgress", {
-							current: activity.focus.progress.current,
-							total: activity.focus.progress.total ?? "?"
-						}) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", { children: activity.focus.title })]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						ref: revealElement,
-						className: activity.phase === "reveal" ? LearningActivity_module_css_default.revealTransition : void 0,
-						"data-reveal-transition": activity.phase === "reveal" || void 0,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CurrentVisual, {
-							activity,
-							final,
-							t,
-							labels
-						})
-					}),
-					activity.phase === "question" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(QuestionInput, {
-							activity,
-							disabled: state.status !== "awaiting_input",
-							answer,
-							setAnswer
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: LearningActivity_module_css_default.primaryButton,
-							type: "button",
-							disabled: state.status !== "awaiting_input" || answer.trim() === "",
-							onClick: submitAnswer,
-							children: state.status === "submitting_answer" ? t("submitting") : t("submitAnswer")
-						}),
-						state.status === "awaiting_model_reveal" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							role: "status",
-							children: t("awaitingReveal")
-						}) : null
-					] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-						className: LearningActivity_module_css_default.roundFeedback,
-						"data-verdict": activity.feedback.verdict,
-						children: [
-							activity.feedback.learnerEcho === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: activity.feedback.learnerEcho }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-								text: activity.feedback.explanation,
-								labels
-							}),
-							activity.feedback.answer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: activity.feedback.answer })
-						]
-					}), state.status === "completed" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: LearningActivity_module_css_default.primaryButton,
-						type: "button",
-						disabled: state.status !== "ready_to_continue",
-						onClick: submitContinue,
-						children: activity.advance.label ?? t("continue")
-					})] }),
-					state.error === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.error,
-						role: "alert",
-						children: state.error
-					}),
-					state.status === "completed" || onCancel === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: LearningActivity_module_css_default.textButton,
-						type: "button",
-						disabled: cancelStarted.current || state.status === "submitting_answer" || state.status === "ack_submitting",
-						onClick: () => {
-							if (cancelStarted.current) return;
-							cancelStarted.current = true;
-							onCancel().catch((cause) => dispatch({
-								type: "SUBMISSION_FAILED",
-								message: cause instanceof Error ? cause.message : String(cause)
-							})).finally(() => {
-								cancelStarted.current = false;
-							});
-						},
-						children: t("cancel")
-					})
-				]
-			});
-		}
 		//#endregion
 		//#region src/client/LearningCheckpoint.tsx
 		const STORAGE_PREFIX = "dsh-learning/checkpoint@1:";
@@ -6854,20 +4578,20 @@ window.__ModuleLoader__.load({
 							className: LearningActivity_module_css_default.checkpointActions,
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: LearningActivity_module_css_default.primaryButton,
+									"data-lx-control": "primary",
 									type: "submit",
 									disabled: busy || !canSubmit,
 									children: busy ? t("submitting") : t("submit")
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: LearningActivity_module_css_default.ghostButton,
+									"data-lx-control": "secondary",
 									type: "button",
 									disabled: busy,
 									onClick: () => void finish(onSkip),
 									children: t("skip")
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: LearningActivity_module_css_default.textButton,
+									"data-lx-control": "quiet",
 									type: "button",
 									disabled: busy,
 									onClick: () => void finish(onCancel),
@@ -6892,18 +4616,14 @@ window.__ModuleLoader__.load({
 			const question = wait.questions[0];
 			if (question === void 0) return void 0;
 			const checkpoint = decodeLearningCheckpointDetail(question.detail);
-			if (checkpoint !== void 0 && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId) return checkpoint;
-			const v2 = decodeLearningWaitDetail(question.detail);
-			if (v2 !== void 0 && decodeLearningWaitQuestionId(question.id) === v2.waitId) return v2;
-			return decodeLearningQuestionId(question.id) ?? decodeLearningDetail(question.detail);
+			return checkpoint !== void 0 && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId ? checkpoint : void 0;
 		}
 		/** Pure composer-chain selector: only package-owned question envelopes are claimed. */
 		function selectLearningActivity({ pendingInteraction, session }) {
 			const currentSessionId = session?.sessionId;
 			if (!isPendingQuestion(pendingInteraction) || currentSessionId === void 0 || String(pendingInteraction.sessionId) !== String(currentSessionId)) return null;
 			const envelope = envelopeOf(pendingInteraction);
-			if (envelope === void 0) return null;
-			if ("checkpoint" in envelope && envelope.sessionId !== String(currentSessionId)) return null;
+			if (envelope === void 0 || envelope.sessionId !== String(currentSessionId)) return null;
 			return pendingInteraction;
 		}
 		function LearningComposer({ matched, t }) {
@@ -6944,8 +4664,8 @@ window.__ModuleLoader__.load({
 				responseInFlight.current = pending;
 				return pending;
 			};
-			if ("checkpoint" in envelope) {
-				if (envelope.sessionId !== String(matched.sessionId)) return null;
+			if (envelope.sessionId !== String(matched.sessionId)) return null;
+			{
 				const common = {
 					protocol: CHECKPOINT_RESULT_PROTOCOL,
 					checkpointId: envelope.checkpointId,
@@ -6984,435 +4704,41 @@ window.__ModuleLoader__.load({
 					t
 				});
 			}
-			if ("waitId" in envelope) {
-				const stableReceiptId = `receipt_${envelope.waitId}`;
-				const common = {
-					protocol: RESPONSE_PROTOCOL_V2$1,
-					activityId: envelope.activityId,
-					lessonToken: envelope.lessonToken,
-					roundToken: envelope.roundToken,
-					seq: envelope.seq
-				};
-				const storageKey = `${envelope.waitId}:${envelope.activityId}:${envelope.phase}:${envelope.seq}`;
-				const submitAnswer = async (answer, interactionState) => {
-					await send({
-						...common,
-						phase: "question",
-						action: "submit",
-						answer,
-						interactionState,
-						receiptId: stableReceiptId
-					});
-				};
-				const continueReveal = async (animation) => {
-					await send({
-						...common,
-						phase: "reveal",
-						action: "continue",
-						animation,
-						receiptId: stableReceiptId
-					});
-				};
-				const cancelRound = async () => {
-					await send(envelope.phase === "question" ? {
-						...common,
-						phase: "question",
-						action: "cancel",
-						receiptId: stableReceiptId
-					} : {
-						...common,
-						phase: "reveal",
-						action: "cancel",
-						animation: { completed: false },
-						receiptId: stableReceiptId
-					});
-				};
-				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RoundActivity, {
-					activity: envelope.activity,
-					storageKey,
-					onSubmitAnswer: envelope.phase === "question" ? submitAnswer : void 0,
-					onContinue: envelope.phase === "reveal" ? continueReveal : void 0,
-					onCancel: cancelRound,
-					t
-				});
-			}
-			const respond = (response) => {
-				if (matched.questions[0] === void 0) return;
-				setBusy(true);
-				setError(null);
-				send(response).catch(() => {});
-			};
-			const submit = ({ answer, interactionState }) => respond({
-				protocol: RESPONSE_PROTOCOL$1,
-				activityId: envelope.activityId,
-				action: "submit",
-				answer,
-				interactionState
-			});
-			const skip = () => respond({
-				protocol: RESPONSE_PROTOCOL$1,
-				activityId: envelope.activityId,
-				action: "skip"
-			});
-			const cancel = () => {
-				setBusy(true);
-				setError(null);
-				matched.cancel().catch((cause) => {
-					setBusy(false);
-					setError(t("error", { message: cause instanceof Error ? cause.message : String(cause) }));
-				});
-			};
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityFrame, {
-				activityId: envelope.activityId,
-				activity: envelope.activity,
-				busy,
-				error,
-				onSkip: skip,
-				onCancel: cancel,
-				t,
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityRenderer, {
-					activity: envelope.activity,
-					busy,
-					onSubmit: submit,
-					t
-				})
-			}, matched.key);
 		}
 		//#endregion
-		//#region src/client/LearningVisual.tsx
-		const DEFAULT_TONES$1 = [
-			"blue",
-			"red",
-			"green",
-			"orange",
-			"purple",
-			"gray"
-		];
-		function formatNumber$1(value, digits) {
-			if (!Number.isFinite(value)) return "—";
-			if (digits !== void 0) return value.toFixed(digits);
-			if (Number.isInteger(value)) return String(value);
-			return String(Number(value.toPrecision(6)));
+		//#region src/client/lifecycle.ts
+		const listeners = /* @__PURE__ */ new Set();
+		/**
+		* Per-call dedup keys, bounded so a long session cannot grow this module-level
+		* set without limit. Insertion order is eviction order: the oldest calls in a
+		* conversation are also the ones that can no longer emit a first event.
+		*/
+		const MAX_TRACKED_CALLS = 512;
+		const emittedCallEvents = /* @__PURE__ */ new Set();
+		function subscribeLearningUiLifecycle(listener) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
 		}
-		function niceStep$1(rawStep) {
-			if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
-			const power = 10 ** Math.floor(Math.log10(rawStep));
-			const normalized = rawStep / power;
-			return (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * power;
-		}
-		function normalizedPosition$1(value, min, max) {
-			const span = max - min;
-			if (Number.isFinite(span) && span > 0) return (value - min) / span;
-			const scale = Math.max(Math.abs(value), Math.abs(min), Math.abs(max));
-			if (!Number.isFinite(scale) || scale === 0) return 0;
-			return (value / scale - min / scale) / (max / scale - min / scale);
-		}
-		function interpolate$1(min, max, ratio) {
-			if (ratio <= 0) return min;
-			if (ratio >= 1) return max;
-			return min * (1 - ratio) + max * ratio;
-		}
-		function ticks$1(min, max, target = 6) {
-			const step = niceStep$1(max / target - min / target);
-			const first = Math.ceil(min / step) * step;
-			if (!Number.isFinite(step) || step <= 0 || !Number.isFinite(first)) return [min, max];
-			const result = [];
-			const limit = Math.max(4, target * 4);
-			let previous;
-			for (let index = 0; index < limit; index += 1) {
-				const value = first + step * index;
-				if (!Number.isFinite(value) || value > max) break;
-				if (value === previous) break;
-				result.push(Number(value.toPrecision(12)));
-				previous = value;
-			}
-			return result.length > 0 ? result : [min, max];
-		}
-		function geometryFor(width) {
-			const safeWidth = Math.max(300, Math.round(width));
-			const compact = safeWidth < 520;
-			const height = compact ? 270 : 330;
-			const left = compact ? 54 : 64;
-			const right = 18;
-			const top = 18;
-			const bottom = compact ? 48 : 54;
-			return {
-				width: safeWidth,
-				height,
-				left,
-				right,
-				top,
-				bottom,
-				plotWidth: safeWidth - left - right,
-				plotHeight: height - top - bottom
+		function emitLearningUiLifecycle(event) {
+			const projected = {
+				...event,
+				at: Date.now()
 			};
+			for (const listener of listeners) listener(projected);
 		}
-		function scaleX$1(value, visual, geometry) {
-			return geometry.left + normalizedPosition$1(value, visual.xAxis.min, visual.xAxis.max) * geometry.plotWidth;
-		}
-		function scaleY$1(value, visual, geometry) {
-			return geometry.top + (1 - normalizedPosition$1(value, visual.yAxis.min, visual.yAxis.max)) * geometry.plotHeight;
-		}
-		function curvePath$1(curve, visual, values, geometry) {
-			const samples = visual.xAxis.samples ?? 128;
-			const commands = [];
-			let drawing = false;
-			let previousY;
-			for (let index = 0; index < samples; index += 1) {
-				const x = interpolate$1(visual.xAxis.min, visual.xAxis.max, index / Math.max(1, samples - 1));
-				const y = evaluateMathExpression(curve.expression, {
-					...values,
-					x
-				});
-				if (!Number.isFinite(y) || Math.abs(y) > 0xe8d4a51000) {
-					drawing = false;
-					previousY = void 0;
-					continue;
-				}
-				const px = scaleX$1(x, visual, geometry);
-				const py = scaleY$1(y, visual, geometry);
-				if (previousY !== void 0 && Math.abs(previousY - py) > geometry.plotHeight * 2) drawing = false;
-				commands.push(`${drawing ? "L" : "M"}${px.toFixed(2)},${py.toFixed(2)}`);
-				drawing = true;
-				previousY = py;
+		function emitLearningCallLifecycle(name, projection) {
+			if (projection.callId === void 0) return;
+			const key = `${name}:${projection.callId}`;
+			if (emittedCallEvents.has(key)) return;
+			emittedCallEvents.add(key);
+			while (emittedCallEvents.size > MAX_TRACKED_CALLS) {
+				const oldest = emittedCallEvents.values().next().value;
+				if (oldest === void 0) break;
+				emittedCallEvents.delete(oldest);
 			}
-			return commands.join(" ");
-		}
-		function toneOf(series, index) {
-			return series.tone ?? DEFAULT_TONES$1[index % DEFAULT_TONES$1.length] ?? "blue";
-		}
-		function rangeStyle(parameter, value) {
-			return { "--visual-range-progress": `${normalizedPosition$1(value, parameter.min, parameter.max) * 100}%` };
-		}
-		function initialValues(visual, storageKey) {
-			const defaults = Object.fromEntries(visual.parameters.map((parameter) => [parameter.id, parameter.initial]));
-			if (storageKey === void 0 || typeof sessionStorage === "undefined") return defaults;
-			try {
-				const stored = JSON.parse(sessionStorage.getItem(`dsh-learning/visual@3:${storageKey}`) ?? "{}");
-				for (const parameter of visual.parameters) {
-					const candidate = stored[parameter.id];
-					if (typeof candidate === "number" && Number.isFinite(candidate) && candidate >= parameter.min && candidate <= parameter.max) defaults[parameter.id] = candidate;
-				}
-			} catch {}
-			return defaults;
-		}
-		function LearningVisual({ visual, storageKey }) {
-			const chartId = (0, react.useId)();
-			const chartContainer = (0, react.useRef)(null);
-			const [chartWidth, setChartWidth] = (0, react.useState)(760);
-			const [values, setValues] = (0, react.useState)(() => initialValues(visual, storageKey));
-			const geometry = (0, react.useMemo)(() => geometryFor(chartWidth), [chartWidth]);
-			const xTicks = (0, react.useMemo)(() => ticks$1(visual.xAxis.min, visual.xAxis.max), [visual.xAxis.max, visual.xAxis.min]);
-			const yTicks = (0, react.useMemo)(() => ticks$1(visual.yAxis.min, visual.yAxis.max), [visual.yAxis.max, visual.yAxis.min]);
-			const curves = (0, react.useMemo)(() => visual.series.flatMap((series, index) => series.type === "curve" ? [{
-				series,
-				index,
-				path: curvePath$1(series, visual, values, geometry)
-			}] : []), [
-				geometry,
-				values,
-				visual
-			]);
-			(0, react.useEffect)(() => {
-				const container = chartContainer.current;
-				if (container === null) return;
-				const update = (width) => {
-					if (width >= 280) setChartWidth((current) => Math.abs(current - width) < 1 ? current : width);
-				};
-				update(container.getBoundingClientRect().width);
-				if (typeof ResizeObserver === "undefined") return;
-				const observer = new ResizeObserver((entries) => {
-					const entry = entries[0];
-					if (entry !== void 0) update(entry.contentRect.width);
-				});
-				observer.observe(container);
-				return () => observer.disconnect();
-			}, []);
-			(0, react.useEffect)(() => {
-				if (storageKey === void 0 || typeof sessionStorage === "undefined") return;
-				try {
-					sessionStorage.setItem(`dsh-learning/visual@3:${storageKey}`, JSON.stringify(values));
-				} catch {}
-			}, [storageKey, values]);
-			const description = [
-				visual.description,
-				visual.parameters.map((parameter) => `${parameter.label} ${formatNumber$1(values[parameter.id] ?? parameter.initial)}`).join(", "),
-				`${visual.xAxis.label ?? "x"} ${formatNumber$1(visual.xAxis.min)} to ${formatNumber$1(visual.xAxis.max)}`,
-				`${visual.yAxis.label ?? "y"} ${formatNumber$1(visual.yAxis.min)} to ${formatNumber$1(visual.yAxis.max)}`,
-				visual.series.map((series) => series.label).join(", ")
-			].filter(Boolean).join(". ");
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: LearningActivity_module_css_default.learningVisual,
-				...learningScope,
-				"data-learning-visual": "parameter_chart",
-				"aria-labelledby": `${chartId}-title`,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
-						className: LearningActivity_module_css_default.srOnly,
-						id: `${chartId}-title`,
-						children: visual.title
-					}),
-					visual.description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: LearningActivity_module_css_default.visualDescription,
-						children: visual.description
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: LearningActivity_module_css_default.visualControls,
-						children: visual.parameters.map((parameter) => {
-							const value = values[parameter.id] ?? parameter.initial;
-							const inputId = `${chartId}-${parameter.id}`;
-							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-								className: LearningActivity_module_css_default.visualRange,
-								htmlFor: inputId,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-										className: LearningActivity_module_css_default.visualRangeHeader,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: parameter.label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("output", {
-											htmlFor: inputId,
-											"aria-live": "polite",
-											children: formatNumber$1(value)
-										})]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										id: inputId,
-										type: "range",
-										min: parameter.min,
-										max: parameter.max,
-										step: parameter.step,
-										value,
-										"aria-label": parameter.label,
-										style: rangeStyle(parameter, value),
-										onChange: (event) => setValues((current) => ({
-											...current,
-											[parameter.id]: Number(event.target.value)
-										}))
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-										className: LearningActivity_module_css_default.visualRangeEnds,
-										"aria-hidden": "true",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: formatNumber$1(parameter.min) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: formatNumber$1(parameter.max) })]
-									})
-								]
-							}, parameter.id);
-						})
-					}),
-					visual.metrics === void 0 || visual.metrics.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: LearningActivity_module_css_default.visualMetrics,
-						children: visual.metrics.map((metric) => {
-							const value = evaluateMathExpression(metric.expression, values);
-							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: metric.label }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("output", { children: [formatNumber$1(value, metric.digits), metric.suffix ?? ""] })] }, metric.id);
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: LearningActivity_module_css_default.visualChartRegion,
-						ref: chartContainer,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
-							className: LearningActivity_module_css_default.visualChart,
-							viewBox: `0 0 ${geometry.width} ${geometry.height}`,
-							role: "img",
-							"aria-labelledby": `${chartId}-title`,
-							"aria-describedby": `${chartId}-description`,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("desc", {
-									id: `${chartId}-description`,
-									children: description
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("clipPath", {
-									id: `${chartId}-clip`,
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-										x: geometry.left,
-										y: geometry.top,
-										width: geometry.plotWidth,
-										height: geometry.plotHeight
-									})
-								}) }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-									className: LearningActivity_module_css_default.visualPlot,
-									x: geometry.left,
-									y: geometry.top,
-									width: geometry.plotWidth,
-									height: geometry.plotHeight
-								}),
-								yTicks.map((value) => {
-									const y = scaleY$1(value, visual, geometry);
-									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-										className: LearningActivity_module_css_default.visualGrid,
-										x1: geometry.left,
-										x2: geometry.left + geometry.plotWidth,
-										y1: y,
-										y2: y
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										className: LearningActivity_module_css_default.visualTick,
-										x: geometry.left - 9,
-										y,
-										textAnchor: "end",
-										dominantBaseline: "middle",
-										children: formatNumber$1(value)
-									})] }, `y-${String(value)}`);
-								}),
-								xTicks.map((value) => {
-									const x = scaleX$1(value, visual, geometry);
-									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-										className: LearningActivity_module_css_default.visualGrid,
-										x1: x,
-										x2: x,
-										y1: geometry.top,
-										y2: geometry.top + geometry.plotHeight
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										className: LearningActivity_module_css_default.visualTick,
-										x,
-										y: geometry.top + geometry.plotHeight + 21,
-										textAnchor: "middle",
-										children: formatNumber$1(value)
-									})] }, `x-${String(value)}`);
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-									clipPath: `url(#${chartId}-clip)`,
-									children: [curves.map(({ series, index, path }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
-										className: LearningActivity_module_css_default.visualCurve,
-										"data-tone": toneOf(series, index),
-										"data-stroke": series.stroke ?? "solid",
-										d: path
-									}, series.id)), visual.series.map((series, index) => series.type !== "points" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("g", {
-										"data-series": series.id,
-										children: series.points.map((point, pointIndex) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
-											className: LearningActivity_module_css_default.visualPoint,
-											"data-tone": toneOf(series, index),
-											cx: scaleX$1(point.x, visual, geometry),
-											cy: scaleY$1(point.y, visual, geometry),
-											r: "5.5",
-											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("title", { children: point.label ?? `${series.label}: (${formatNumber$1(point.x)}, ${formatNumber$1(point.y)})` })
-										}, `${series.id}-${String(pointIndex)}`))
-									}, series.id))]
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-									className: LearningActivity_module_css_default.visualAxisLabel,
-									x: geometry.left + geometry.plotWidth / 2,
-									y: geometry.height - 5,
-									textAnchor: "middle",
-									children: visual.xAxis.label ?? "x"
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-									className: LearningActivity_module_css_default.visualAxisLabel,
-									x: 15,
-									y: geometry.top + geometry.plotHeight / 2,
-									textAnchor: "middle",
-									transform: `rotate(-90 15 ${geometry.top + geometry.plotHeight / 2})`,
-									children: visual.yAxis.label ?? "y"
-								})
-							]
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-							className: LearningActivity_module_css_default.visualLegend,
-							"aria-label": visual.title,
-							children: visual.series.map((series, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
-								"data-series-type": series.type,
-								"data-tone": toneOf(series, index),
-								"data-stroke": series.type === "curve" ? series.stroke ?? "solid" : void 0,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { "aria-hidden": "true" }), series.label]
-							}, series.id))
-						})]
-					})
-				]
+			emitLearningUiLifecycle({
+				name,
+				...projection
 			});
 		}
 		//#endregion
@@ -7833,6 +5159,199 @@ window.__ModuleLoader__.load({
 			if (relatedIds.some((related) => related !== void 0 && focus.currentIds.has(related))) return "related";
 			if (focus.visitedIds.has(id)) return "visited";
 			return "context";
+		}
+		//#endregion
+		//#region src/math-expression.ts
+		/**
+		* Compile a closed AST into a small closure tree once, so sampling a curve
+		* does not repeatedly dispatch through every AST node. This intentionally
+		* uses ordinary closures instead of `new Function`: the model payload remains
+		* data-only while the hot render path still gets one function call per sample.
+		*/
+		function compileAst(expression) {
+			switch (expression.op) {
+				case "constant": return () => expression.value;
+				case "variable": return (bindings) => bindings[expression.name] ?? NaN;
+				case "add": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => left(bindings) + right(bindings);
+				}
+				case "sub": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => left(bindings) - right(bindings);
+				}
+				case "mul": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => left(bindings) * right(bindings);
+				}
+				case "div": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => left(bindings) / right(bindings);
+				}
+				case "pow": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => left(bindings) ** right(bindings);
+				}
+				case "min": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => Math.min(left(bindings), right(bindings));
+				}
+				case "max": {
+					const left = compileAst(expression.left);
+					const right = compileAst(expression.right);
+					return (bindings) => Math.max(left(bindings), right(bindings));
+				}
+				case "neg": {
+					const value = compileAst(expression.value);
+					return (bindings) => -value(bindings);
+				}
+				case "abs": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.abs(value(bindings));
+				}
+				case "sqrt": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.sqrt(value(bindings));
+				}
+				case "sin": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.sin(value(bindings));
+				}
+				case "cos": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.cos(value(bindings));
+				}
+				case "tan": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.tan(value(bindings));
+				}
+				case "atan": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.atan(value(bindings));
+				}
+				case "exp": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.exp(value(bindings));
+				}
+				case "log": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.log(value(bindings));
+				}
+				case "sigmoid": {
+					const value = compileAst(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						if (result >= 0) return 1 / (1 + Math.exp(-result));
+						const exponential = Math.exp(result);
+						return exponential / (1 + exponential);
+					};
+				}
+				case "relu": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.max(0, value(bindings));
+				}
+				case "leaky_relu": {
+					const value = compileAst(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						return result >= 0 ? result : result * .01;
+					};
+				}
+				case "step": {
+					const value = compileAst(expression.value);
+					return (bindings) => value(bindings) >= 0 ? 1 : 0;
+				}
+				case "normpdf": {
+					const value = compileAst(expression.value);
+					return (bindings) => {
+						const result = value(bindings);
+						return Math.exp(-.5 * result * result) / Math.sqrt(2 * Math.PI);
+					};
+				}
+				case "floor": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.floor(value(bindings));
+				}
+				case "ceil": {
+					const value = compileAst(expression.value);
+					return (bindings) => Math.ceil(value(bindings));
+				}
+			}
+		}
+		/**
+		* Evaluate the protocol's closed mathematical AST. The protocol validator
+		* bounds its depth and node count; this evaluator never executes source text.
+		*/
+		function evaluateAst(expression, bindings) {
+			switch (expression.op) {
+				case "constant": return expression.value;
+				case "variable": return bindings[expression.name] ?? NaN;
+				case "add": return evaluateAst(expression.left, bindings) + evaluateAst(expression.right, bindings);
+				case "sub": return evaluateAst(expression.left, bindings) - evaluateAst(expression.right, bindings);
+				case "mul": return evaluateAst(expression.left, bindings) * evaluateAst(expression.right, bindings);
+				case "div": return evaluateAst(expression.left, bindings) / evaluateAst(expression.right, bindings);
+				case "pow": return evaluateAst(expression.left, bindings) ** evaluateAst(expression.right, bindings);
+				case "min": return Math.min(evaluateAst(expression.left, bindings), evaluateAst(expression.right, bindings));
+				case "max": return Math.max(evaluateAst(expression.left, bindings), evaluateAst(expression.right, bindings));
+				case "neg": return -evaluateAst(expression.value, bindings);
+				case "abs": return Math.abs(evaluateAst(expression.value, bindings));
+				case "sqrt": return Math.sqrt(evaluateAst(expression.value, bindings));
+				case "sin": return Math.sin(evaluateAst(expression.value, bindings));
+				case "cos": return Math.cos(evaluateAst(expression.value, bindings));
+				case "tan": return Math.tan(evaluateAst(expression.value, bindings));
+				case "atan": return Math.atan(evaluateAst(expression.value, bindings));
+				case "exp": return Math.exp(evaluateAst(expression.value, bindings));
+				case "log": return Math.log(evaluateAst(expression.value, bindings));
+				case "sigmoid": {
+					const value = evaluateAst(expression.value, bindings);
+					if (value >= 0) return 1 / (1 + Math.exp(-value));
+					const exponential = Math.exp(value);
+					return exponential / (1 + exponential);
+				}
+				case "relu": return Math.max(0, evaluateAst(expression.value, bindings));
+				case "leaky_relu": {
+					const value = evaluateAst(expression.value, bindings);
+					return value >= 0 ? value : value * .01;
+				}
+				case "step": return evaluateAst(expression.value, bindings) >= 0 ? 1 : 0;
+				case "normpdf": {
+					const value = evaluateAst(expression.value, bindings);
+					return Math.exp(-.5 * value * value) / Math.sqrt(2 * Math.PI);
+				}
+				case "floor": return Math.floor(evaluateAst(expression.value, bindings));
+				case "ceil": return Math.ceil(evaluateAst(expression.value, bindings));
+			}
+		}
+		/**
+		* Parse once, then compile.
+		*
+		* A malformed expression yields a constant NaN rather than throwing: one bad
+		* curve should leave the rest of the visual on screen. The validator has
+		* already reported the real error by the time anything renders.
+		*/
+		function astOf(source) {
+			try {
+				return parseMathExpression(source);
+			} catch {
+				return {
+					op: "constant",
+					value: NaN
+				};
+			}
+		}
+		/** Compile one payload expression into a closure over its bindings. */
+		function compileMathExpression(source) {
+			return compileAst(astOf(source));
+		}
+		/** Evaluate one payload expression against a single set of bindings. */
+		function evaluateMathExpression(source, bindings) {
+			return evaluateAst(astOf(source), bindings);
 		}
 		//#endregion
 		//#region src/client/visuals/core/types.ts
@@ -10771,6 +8290,26 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
+		//#endregion
+		//#region src/client/markdown-labels.ts
+		/** Localized chrome required by the alpha.1 MarkdownText contract. */
+		function markdownLabels(t) {
+			return {
+				code: {
+					copyLabel: t("markdownCopy"),
+					copiedLabel: t("markdownCopied")
+				},
+				footnotes: t("markdownFootnotes")
+			};
+		}
+		/** Stable fallback for visual renderers that intentionally have no locale seat. */
+		const DEFAULT_MARKDOWN_LABELS = {
+			code: {
+				copyLabel: "复制",
+				copiedLabel: "已复制"
+			},
+			footnotes: "脚注"
+		};
 		//#endregion
 		//#region \0dsh-css:src/client/visuals/styles/formula.module.css.mjs
 		const css$10 = "._8Y0KAW_formulaMeta{justify-content:space-between;align-items:center;gap:var(--lx-space-lg);min-width:0;color:var(--lx-accent);font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-2xs);display:flex}._8Y0KAW_formulaMeta code{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-xs);padding:var(--lx-space-3xs) var(--lx-space-sm);background:var(--lx-surface-sunken);color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-regular);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._8Y0KAW_formulaSteps{gap:0;margin:0;padding:0;list-style:none;display:grid}._8Y0KAW_formulaSteps>li{min-width:0;opacity:var(--lx-vs-alpha)}._8Y0KAW_formulaStepCard{gap:var(--lx-space-md);border:1px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));border-radius:var(--lx-radius-md);min-width:0;padding:var(--lx-space-md);background:color-mix(in srgb, var(--visual-tone) 7%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);grid-template-columns:30px minmax(0,1fr);align-items:start;display:grid}._8Y0KAW_formulaSteps>li[data-visual-state=current] ._8Y0KAW_formulaStepCard{border-width:2px;border-color:var(--visual-tone);box-shadow:0 0 10px color-mix(in srgb, var(--visual-tone) 30%, transparent)}._8Y0KAW_formulaStepCard>span{border-radius:var(--lx-radius-circle);background:color-mix(in srgb, var(--visual-tone) 16%, var(--lx-surface-base));width:28px;height:28px;color:var(--visual-tone-text);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);place-items:center;display:grid}._8Y0KAW_formulaStepCard>div{gap:var(--lx-space-2xs);min-width:0;display:grid}._8Y0KAW_formulaExpression{padding:var(--lx-space-sm) 0;color:var(--lx-label-primary);font-size:var(--lx-text-formula);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-formula);scrollbar-width:thin;overflow:auto hidden}._8Y0KAW_formulaExpression>div{min-width:max-content}._8Y0KAW_formulaExpression .katex-display{text-align:left;margin:2px 0}._8Y0KAW_formulaStepCard strong{color:var(--visual-tone-text);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._8Y0KAW_formulaStepCard p{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}._8Y0KAW_formulaRule{gap:var(--lx-space-xs) var(--lx-space-md);border-left:2px solid color-mix(in srgb, var(--visual-tone) 32%, var(--lx-border-subtle));min-height:44px;padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);grid-template-columns:30px auto minmax(0,1fr);align-items:center;margin-left:14px;display:grid}._8Y0KAW_formulaRule>span:first-child{color:var(--visual-tone-text);font-size:var(--lx-text-lg);text-align:center}._8Y0KAW_formulaRule strong{color:var(--visual-tone-text);font-size:var(--lx-text-micro);letter-spacing:.04em;text-transform:uppercase}._8Y0KAW_formulaUnknown{gap:var(--lx-space-md);padding:var(--lx-space-3xs) var(--lx-space-md);color:var(--lx-label-tertiary);grid-template-columns:30px minmax(0,1fr);align-items:center;display:grid}._8Y0KAW_formulaUnknown>span:first-child{color:var(--visual-tone-text);font-size:var(--lx-text-lg);text-align:center}._8Y0KAW_formulaUnknown>span:last-child{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-md);min-height:38px;padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);align-items:center;display:flex}._8Y0KAW_formulaConclusion{gap:var(--lx-space-3xs);border:1px solid var(--lx-border-subtle);border-left:3.5px solid var(--lx-success);border-radius:var(--lx-radius-md);padding:var(--lx-space-sm) var(--lx-space-md);background:color-mix(in srgb, var(--lx-success) 10%, var(--lx-surface-base));box-shadow:var(--lx-shadow-sm);display:grid}._8Y0KAW_formulaConclusion span{color:var(--lx-success);font-size:var(--lx-text-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._8Y0KAW_formulaConclusion strong{color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm)}@container _8Y0KAW_learning-visual-v4 (width<=360px){._8Y0KAW_formulaStepCard{padding:var(--lx-space-sm);grid-template-columns:24px minmax(0,1fr)}._8Y0KAW_formulaStepCard>span{width:23px;height:23px}._8Y0KAW_formulaRule{grid-template-columns:24px minmax(0,1fr)}._8Y0KAW_formulaRule strong,._8Y0KAW_formulaRule>span:last-child{grid-column:2}}";
@@ -14115,45 +11654,6 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/LearningToolView.tsx
-		function legacyPendingInteraction(useSession, sessionId) {
-			if (useSession === void 0) return void 0;
-			const pending = useSession((snapshot) => snapshot.pending);
-			if (!Array.isArray(pending)) return void 0;
-			for (const value of pending) {
-				if (isPendingQuestion(value)) {
-					if (String(value.sessionId) === sessionId) return value;
-					continue;
-				}
-				const legacy = value;
-				if (legacy.kind !== "question" || typeof legacy.key !== "string" || String(legacy.sessionId) !== sessionId || !Array.isArray(legacy.payload?.questions) || typeof legacy.respond !== "function") continue;
-				const respond = legacy.respond;
-				const settle = async (request) => {
-					const receipt = await respond(request);
-					if (receipt?.accepted === false) throw new Error(String(receipt.reason ?? "pending interaction was rejected"));
-				};
-				return {
-					kind: "question",
-					key: legacy.key,
-					sessionId: legacy.sessionId,
-					questions: legacy.payload.questions,
-					answer: (answer) => settle({
-						ok: true,
-						value: {
-							sessionId: legacy.sessionId,
-							answer
-						}
-					}),
-					cancel: () => settle({
-						ok: false,
-						error: {
-							code: "cancelled",
-							message: "the learner cancelled this activity",
-							details: {}
-						}
-					})
-				};
-			}
-		}
 		const MAX_PARSEABLE_ARGS_BYTES = 65536;
 		const MAX_FALLBACK_MARKDOWN_LENGTH = 8e3;
 		const VISUAL_LABEL_KEYS = {
@@ -14328,7 +11828,7 @@ window.__ModuleLoader__.load({
 					protocol: CHECKPOINT_PROTOCOL
 				};
 			}
-			if (protocol !== "dsh-learning/visual@4" && protocol !== "dsh-learning/visual@3") return void 0;
+			if (protocol !== "dsh-learning/visual@4") return void 0;
 			const title = boundedText(parsed.title, 200);
 			const description = boundedText(parsed.description, 1e3);
 			const markdown = typeof parsed.fallbackMarkdown === "string" && parsed.fallbackMarkdown.trim() !== "" && parsed.fallbackMarkdown.length <= MAX_FALLBACK_MARKDOWN_LENGTH ? parsed.fallbackMarkdown : void 0;
@@ -14381,8 +11881,7 @@ window.__ModuleLoader__.load({
 				return streamingTitle === void 0 ? {} : { streamingTitle };
 			}
 			try {
-				const protocol = parsed.protocol;
-				return { definition: protocol === "dsh-learning/checkpoint@1" ? parseLearningCheckpointV1(parsed) : protocol === "dsh-learning/visual@4" ? parseLearningVisualV4(parsed) : protocol === "dsh-learning/visual@3" ? parseLearningVisualV3(parsed) : protocol === "dsh-learning/activity@2" ? parseLearningActivityV2(parsed) : parseLearningActivity(parsed) };
+				return { definition: parsed.protocol === "dsh-learning/checkpoint@1" ? parseLearningCheckpointV1(parsed) : parseLearningVisualV4(parsed) };
 			} catch (cause) {
 				const fallback = textFallbackOf(parsed);
 				return {
@@ -14396,8 +11895,8 @@ window.__ModuleLoader__.load({
 			if (text === "") return void 0;
 			try {
 				const parsed = JSON.parse(text);
-				if (parsed.protocol === "dsh-learning/checkpoint-result@1") return parseLearningCheckpointResultV1(parsed, definition?.protocol === "dsh-learning/checkpoint@1" ? { checkpoint: definition } : {});
-				return parsed.protocol === "dsh-learning/response@2" ? parseLearningResponseV2(parsed) : parseLearningResponse(parsed);
+				if (parsed.protocol !== "dsh-learning/checkpoint-result@1") return void 0;
+				return parseLearningCheckpointResultV1(parsed, definition?.protocol === "dsh-learning/checkpoint@1" ? { checkpoint: definition } : {});
 			} catch {
 				return;
 			}
@@ -14407,7 +11906,7 @@ window.__ModuleLoader__.load({
 			if (text === "") return void 0;
 			try {
 				const parsed = JSON.parse(text);
-				return parsed.protocol === "dsh-learning/visual-result@4" ? parseLearningVisualResultV4(parsed) : parseLearningVisualResultV3(parsed);
+				return parsed.protocol === "dsh-learning/visual-result@4" ? parseLearningVisualResultV4(parsed) : void 0;
 			} catch {
 				return;
 			}
@@ -14416,59 +11915,8 @@ window.__ModuleLoader__.load({
 			if (activity === void 0) return void 0;
 			if (!isPendingQuestion(interaction) || String(interaction.sessionId) !== sessionId) return void 0;
 			const envelope = envelopeOf(interaction);
-			if (activity.protocol === "dsh-learning/visual@3" || activity.protocol === "dsh-learning/visual@4") return void 0;
-			if (activity.protocol === "dsh-learning/checkpoint@1") return envelope !== void 0 && "checkpoint" in envelope && envelope.sessionId === sessionId && envelope.callId === callId ? interaction : void 0;
-			if (activity.protocol === "dsh-learning/activity@2") return envelope !== void 0 && "phase" in envelope && (envelope.callId === void 0 || envelope.callId === callId) && envelope.phase === activity.phase && envelope.seq === activity.seq && envelope.activityId !== "" && envelope.waitId !== "" ? interaction : void 0;
-			const canonical = JSON.stringify(activity);
-			return envelope !== void 0 && "activity" in envelope && JSON.stringify(envelope.activity) === canonical ? interaction : void 0;
-		}
-		function explanationOf(response) {
-			if (response?.action !== "submit" || typeof response.answer !== "object" || response.answer === null || Array.isArray(response.answer)) return void 0;
-			const explanation = response.answer.explanation;
-			return typeof explanation === "string" && explanation.trim() !== "" ? explanation.trim() : void 0;
-		}
-		function compactAnswer(answer) {
-			if (answer === void 0 || answer === null) return void 0;
-			if (typeof answer === "string" || typeof answer === "number" || typeof answer === "boolean") return String(answer);
-			if (!Array.isArray(answer)) for (const key of [
-				"text",
-				"explanation",
-				"answer"
-			]) {
-				const candidate = answer[key];
-				if (typeof candidate === "string" || typeof candidate === "number") return String(candidate);
-			}
-			try {
-				return JSON.stringify(answer);
-			} catch {
-				return;
-			}
-		}
-		function answerRecord(response) {
-			if (response?.action !== "submit" || typeof response.answer !== "object" || response.answer === null || Array.isArray(response.answer)) return void 0;
-			return response.answer;
-		}
-		function evidenceOf(activity, response, t) {
-			const answer = answerRecord(response);
-			if (answer === void 0) return void 0;
-			if (activity.kind === "parameter_explorer") {
-				const parameters = answer.parameters;
-				if (typeof parameters !== "object" || parameters === null || Array.isArray(parameters)) return void 0;
-				const values = activity.payload.parameters.flatMap((parameter) => {
-					const value = parameters[parameter.id];
-					return typeof value === "number" ? [t("rangeValue", {
-						label: parameter.label,
-						value
-					})] : [];
-				});
-				return values.length === 0 ? void 0 : values.join(" · ");
-			}
-			if (activity.kind === "process_stepper") {
-				const checkpoints = answer.checkpoints;
-				return Array.isArray(checkpoints) && checkpoints.length > 0 ? t("processEvidence", { count: checkpoints.length }) : void 0;
-			}
-			const selected = answer.selectedDifferences;
-			return Array.isArray(selected) ? t("structureEvidence", { count: selected.length }) : void 0;
+			if (activity.protocol !== "dsh-learning/checkpoint@1") return void 0;
+			return envelope !== void 0 && "checkpoint" in envelope && envelope.sessionId === sessionId && envelope.callId === callId ? interaction : void 0;
 		}
 		function checkpointAnswerOf(activity, result) {
 			if (result.status !== "submitted") return void 0;
@@ -14569,7 +12017,7 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
-		function LearningToolView({ block, inspect, t, useSessionPendingInteraction, sessionId, useSession }) {
+		function LearningToolView({ block, inspect, t, useSessionPendingInteraction, sessionId }) {
 			const done = "kind" in block;
 			const raw = argsRawOf(block);
 			const resultText = resultTextOf(block);
@@ -14579,15 +12027,11 @@ window.__ModuleLoader__.load({
 			const result = (0, react.useMemo)(() => parseLearningResult(resultText, definition), [resultText, definition]);
 			const visualResult = (0, react.useMemo)(() => parseVisualResult(resultText), [resultText]);
 			const labels = (0, react.useMemo)(() => visualLabelsOf(t), [t]);
-			const matched = pendingActivity(typeof useSessionPendingInteraction === "function" ? useSessionPendingInteraction((snapshot) => snapshot.get(sessionId)) : legacyPendingInteraction(useSession, String(sessionId)), String(sessionId), definition, callId);
+			const matched = pendingActivity(typeof useSessionPendingInteraction === "function" ? useSessionPendingInteraction((snapshot) => snapshot.get(sessionId)) : void 0, String(sessionId), definition, callId);
 			(0, react.useEffect)(() => {
 				if (done || raw === void 0 || raw === "") return;
 				if (definition === void 0) emitLearningCallLifecycle("learning.call.stream_started", { callId });
-				else emitLearningCallLifecycle("learning.call.args_completed", {
-					callId,
-					phase: definition.protocol === "dsh-learning/activity@2" ? definition.phase : void 0,
-					seq: definition.protocol === "dsh-learning/activity@2" ? definition.seq : void 0
-				});
+				else emitLearningCallLifecycle("learning.call.args_completed", { callId });
 			}, [
 				definition,
 				callId,
@@ -14657,65 +12101,7 @@ window.__ModuleLoader__.load({
 					}
 				});
 			}
-			if (definition.protocol === "dsh-learning/visual@3") {
-				if (done && (isError || visualResult?.protocol !== "dsh-learning/visual-result@3")) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningFallback, {
-					headline: t("visualFailed"),
-					text: definition.description ?? definition.title,
-					state: "error",
-					protocol: "visual-v3",
-					t
-				});
-				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningVisual, {
-					visual: definition,
-					storageKey: `${String(sessionId)}:${callId ?? "visual"}`
-				});
-			}
-			if (definition.protocol === "dsh-learning/activity@2") {
-				if (!done) return matched === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningRunning, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningInteraction, {
-					matched,
-					t
-				});
-				const v2Response = result?.protocol === "dsh-learning/response@2" ? result : void 0;
-				if (v2Response === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningFallback, {
-					headline: t("invalidResult"),
-					markdown: definition.fallbackMarkdown,
-					state: "error",
-					protocol: ACTIVITY_PROTOCOL_V2$1,
-					t
-				});
-				if (definition.phase === "question") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningReceipt, {
-					state: v2Response.action,
-					status: v2Response.action === "submit" ? t("completed") : v2Response.action === "skip" ? t("skipped") : t("cancelled"),
-					answer: v2Response.phase === "question" ? compactAnswer(v2Response.answer) : void 0
-				});
-				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: LearningActivity_module_css_default.legacyReveal,
-					...learningScope,
-					"data-learning-result": v2Response.action,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
-						text: definition.feedback.explanation,
-						labels: markdownLabels(t)
-					}), definition.feedback.answer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: definition.feedback.answer })]
-				});
-			}
-			if (!done) return matched === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningRunning, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningInteraction, {
-				matched,
-				t
-			});
-			if (result === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningFallback, {
-				headline: t("invalidResult"),
-				markdown: definition.fallbackMarkdown,
-				state: "unknown",
-				protocol: RESPONSE_PROTOCOL$1,
-				t
-			});
-			const legacyResponse = result.protocol === "dsh-learning/response@1" ? result : void 0;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningReceipt, {
-				state: legacyResponse?.action ?? "unknown",
-				status: legacyResponse?.action === "submit" ? t("completed") : legacyResponse?.action === "skip" ? t("skipped") : legacyResponse?.action === "cancel" ? t("cancelled") : t("invalidResult"),
-				evidence: evidenceOf(definition, legacyResponse, t),
-				answer: explanationOf(legacyResponse)
-			});
+			return null;
 		}
 		//#endregion
 		//#region src/learning-boundary.ts
@@ -14740,7 +12126,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningNotes.module.css.mjs
-		const css$2 = "._3YTW7W_notes{box-sizing:border-box;width:100%;margin-top:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._3YTW7W_summary{cursor:pointer;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-medium);letter-spacing:.01em}._3YTW7W_body{gap:var(--lx-space-md) var(--lx-space-xl);margin-top:var(--lx-space-sm);padding:var(--lx-space-md) var(--lx-space-lg);border:var(--lx-card-border);border-radius:var(--lx-radius-md);background:var(--lx-surface-sunken);grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));display:grid}._3YTW7W_section{min-width:0}._3YTW7W_section h3{margin:0 0 var(--lx-space-2xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_section p,._3YTW7W_section ul{margin:0}._3YTW7W_section ul{gap:var(--lx-space-2xs);padding-left:var(--lx-space-xl);display:grid}._3YTW7W_objective{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);margin-top:var(--lx-space-2xs)!important}._3YTW7W_result{gap:var(--lx-space-2xs);border-inline-start:2px solid var(--lx-accent);grid-column:1/-1;padding-inline-start:var(--lx-space-md);display:grid}._3YTW7W_result h3{margin:0 0 var(--lx-space-2xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_result p{margin:0}._3YTW7W_resultNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs)}._3YTW7W_actions{align-items:center;gap:var(--lx-space-xs);padding-top:var(--lx-space-xs);border-top:1px solid var(--lx-border-subtle);flex-wrap:wrap;grid-column:1/-1;display:flex}._3YTW7W_actions button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;background:0 0}._3YTW7W_actions button:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._3YTW7W_actions button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._3YTW7W_actions ._3YTW7W_endAction{border-color:var(--lx-border-default);color:var(--lx-label-tertiary);margin-left:auto}._3YTW7W_viewRoot{gap:var(--lx-space-xl);box-sizing:border-box;width:min(900px,100%);padding:var(--lx-space-2xl) var(--lx-space-3xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;margin:0 auto;display:flex;container-type:inline-size}._3YTW7W_viewHeader{justify-content:space-between;align-items:flex-start;gap:var(--lx-space-xl);display:flex}._3YTW7W_viewHeader h1,._3YTW7W_emptyView h1{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._3YTW7W_viewEyebrow,._3YTW7W_cardEyebrow{margin:0 0 var(--lx-space-xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_viewIntro,._3YTW7W_emptyView p,._3YTW7W_cardMuted,._3YTW7W_viewError{margin:var(--lx-space-xs) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}._3YTW7W_viewIntro{max-width:58ch}._3YTW7W_viewStatusActive,._3YTW7W_viewStatusDone{border:1px solid color-mix(in srgb, var(--lx-accent) 42%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:2px var(--lx-space-md);color:var(--lx-accent);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);white-space:nowrap;flex:none}._3YTW7W_viewStatusDone{border-color:color-mix(in srgb, var(--lx-success) 42%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._3YTW7W_goalCard,._3YTW7W_noteCard,._3YTW7W_resultView,._3YTW7W_emptyView{border:var(--lx-card-border);border-radius:var(--lx-card-radius);background:var(--lx-surface-card);box-shadow:var(--lx-shadow-sm)}._3YTW7W_goalCard{padding:var(--lx-space-2xl) var(--lx-space-3xl)}._3YTW7W_goalText{max-width:62ch;font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);margin:0}._3YTW7W_routeText{margin:var(--lx-space-md) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs)}._3YTW7W_noteGrid{gap:var(--lx-space-lg);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._3YTW7W_noteCard{min-width:0;padding:var(--lx-space-xl)}._3YTW7W_cardHeading{align-items:center;gap:var(--lx-space-sm);margin-bottom:var(--lx-space-lg);display:flex}._3YTW7W_cardHeading h2{min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-medium);flex:1;margin:0}._3YTW7W_cardCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);min-width:20px;padding:1px var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);text-align:center;flex:none}._3YTW7W_cardBody{color:var(--lx-label-primary);font-size:var(--lx-text-xs);margin:0}._3YTW7W_evidenceList,._3YTW7W_routeList{gap:var(--lx-space-sm);margin:0;padding:0;list-style:none;display:grid}._3YTW7W_evidenceList li,._3YTW7W_routeList li{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);padding-inline-start:var(--lx-space-xl);position:relative}._3YTW7W_evidenceList li:before,._3YTW7W_routeList li:before{background:var(--lx-accent);content:\"\";border-radius:50%;width:6px;height:6px;position:absolute;inset-block-start:7px;inset-inline-start:2px}._3YTW7W_routeList{margin-top:var(--lx-space-lg);counter-reset:route-step}._3YTW7W_routeList li{counter-increment:route-step;color:var(--lx-label-secondary)}._3YTW7W_routeList li:before{border:1px solid var(--lx-border-default);background:var(--lx-surface-sunken);width:16px;height:16px;color:var(--lx-label-tertiary);content:counter(route-step);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);justify-content:center;align-items:center;display:inline-flex;inset-block-start:1px}._3YTW7W_routeList li[data-complete=true]{color:var(--lx-label-primary)}._3YTW7W_routeList li[data-complete=true]:before{border-color:color-mix(in srgb, var(--lx-success) 48%, transparent);background:color-mix(in srgb, var(--lx-success) 12%, transparent);color:var(--lx-success)}._3YTW7W_progressTrack{height:6px;margin-top:var(--lx-space-lg);border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);overflow:hidden}._3YTW7W_progressFill{border-radius:inherit;background:var(--lx-accent);transform-origin:0;width:100%;height:100%;transition:transform var(--lx-motion-base) var(--lx-easing);display:block}._3YTW7W_resultView{gap:var(--lx-space-xs);border-inline-start:3px solid var(--lx-success);padding:var(--lx-space-xl) var(--lx-space-2xl);display:grid}._3YTW7W_resultView p{margin:0}._3YTW7W_viewActions{align-items:center;gap:var(--lx-space-sm);padding-top:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);flex-wrap:wrap;display:flex}._3YTW7W_viewActions button{box-sizing:border-box;min-height:var(--lx-control-height-md);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;background:0 0}._3YTW7W_viewActions button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._3YTW7W_viewActions button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._3YTW7W_viewActions ._3YTW7W_actionQuiet{border-color:var(--lx-border-default);color:var(--lx-label-tertiary)}._3YTW7W_viewActions ._3YTW7W_actionPrimary{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent);margin-inline-start:auto}._3YTW7W_viewActions ._3YTW7W_actionPrimary:hover:not(:disabled){background:color-mix(in srgb, var(--lx-accent) 86%, var(--lx-label-primary));color:var(--lx-label-on-accent)}._3YTW7W_viewActions ._3YTW7W_actionSaved{border-color:color-mix(in srgb, var(--lx-success) 42%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success);margin-inline-start:auto}._3YTW7W_viewError{color:var(--lx-danger)}._3YTW7W_emptyView{max-width:620px;margin:var(--lx-space-3xl) auto;padding:var(--lx-space-3xl)}@container (width<=640px){._3YTW7W_viewRoot{padding-inline:var(--lx-space-lg)}._3YTW7W_viewHeader{flex-direction:column}._3YTW7W_noteGrid{grid-template-columns:minmax(0,1fr)}._3YTW7W_viewActions ._3YTW7W_actionPrimary,._3YTW7W_viewActions ._3YTW7W_actionSaved{margin-inline-start:0}}";
+		const css$2 = "._3YTW7W_notes{box-sizing:border-box;width:100%;margin-top:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-base)}._3YTW7W_summary{cursor:pointer;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-medium);letter-spacing:.01em}._3YTW7W_body{gap:var(--lx-space-md) var(--lx-space-xl);margin-top:var(--lx-space-sm);padding:var(--lx-space-md) var(--lx-space-lg);border:var(--lx-card-border);border-radius:var(--lx-radius-md);background:var(--lx-surface-sunken);grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));display:grid}._3YTW7W_section{min-width:0}._3YTW7W_section h3{margin:0 0 var(--lx-space-2xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_section p,._3YTW7W_section ul{margin:0}._3YTW7W_section ul{gap:var(--lx-space-2xs);padding-left:var(--lx-space-xl);display:grid}._3YTW7W_objective{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);margin-top:var(--lx-space-2xs)!important}._3YTW7W_result{gap:var(--lx-space-2xs);border-inline-start:2px solid var(--lx-accent);grid-column:1/-1;padding-inline-start:var(--lx-space-md);display:grid}._3YTW7W_result h3{margin:0 0 var(--lx-space-2xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_result p{margin:0}._3YTW7W_resultNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs)}._3YTW7W_actions{align-items:center;gap:var(--lx-space-xs);padding-top:var(--lx-space-xs);border-top:1px solid var(--lx-border-subtle);flex-wrap:wrap;grid-column:1/-1;display:flex}._3YTW7W_actions button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-strong);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;background:0 0}._3YTW7W_actions button:hover:not(:disabled){border-color:var(--lx-accent);color:var(--lx-accent)}._3YTW7W_actions button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._3YTW7W_actions ._3YTW7W_endAction{border-color:var(--lx-border-default);color:var(--lx-label-tertiary);margin-left:auto}._3YTW7W_viewRoot{gap:var(--lx-space-xl);box-sizing:border-box;width:min(900px,100%);padding:var(--lx-space-2xl) var(--lx-space-3xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;margin:0 auto;display:flex;container-type:inline-size}._3YTW7W_viewHeader{justify-content:space-between;align-items:flex-start;gap:var(--lx-space-xl);display:flex}._3YTW7W_viewHeader h1,._3YTW7W_emptyView h1{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._3YTW7W_viewEyebrow,._3YTW7W_cardEyebrow{margin:0 0 var(--lx-space-xs);color:var(--lx-accent);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._3YTW7W_viewIntro,._3YTW7W_emptyView p,._3YTW7W_cardMuted,._3YTW7W_viewError{margin:var(--lx-space-xs) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs)}._3YTW7W_viewIntro{max-width:58ch}._3YTW7W_viewStatusActive,._3YTW7W_viewStatusDone{border:1px solid color-mix(in srgb, var(--lx-accent) 42%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:2px var(--lx-space-md);color:var(--lx-accent);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);white-space:nowrap;flex:none}._3YTW7W_viewStatusDone{border-color:color-mix(in srgb, var(--lx-success) 42%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._3YTW7W_goalCard,._3YTW7W_noteCard,._3YTW7W_resultView,._3YTW7W_emptyView{border:var(--lx-card-border);border-radius:var(--lx-card-radius);background:var(--lx-card-background);box-shadow:var(--lx-shadow-sm)}._3YTW7W_goalCard{padding:var(--lx-space-2xl) var(--lx-space-3xl)}._3YTW7W_goalText{max-width:62ch;font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);margin:0}._3YTW7W_noteGrid{gap:var(--lx-space-lg);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._3YTW7W_noteCard{min-width:0;padding:var(--lx-space-xl)}._3YTW7W_cardHeading{align-items:center;gap:var(--lx-space-sm);margin-bottom:var(--lx-space-lg);display:flex}._3YTW7W_cardHeading h2{min-width:0;color:var(--lx-label-secondary);font-size:var(--lx-text-xs);font-weight:var(--lx-weight-medium);flex:1;margin:0}._3YTW7W_cardCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);min-width:20px;padding:1px var(--lx-space-xs);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);text-align:center;flex:none}._3YTW7W_cardBody{color:var(--lx-label-primary);font-size:var(--lx-text-xs);margin:0}._3YTW7W_evidenceList,._3YTW7W_routeList{gap:var(--lx-space-sm);margin:0;padding:0;list-style:none;display:grid}._3YTW7W_evidenceList li,._3YTW7W_routeList li{color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);padding-inline-start:var(--lx-space-xl);position:relative}._3YTW7W_evidenceList li:before,._3YTW7W_routeList li:before{background:var(--lx-accent);content:\"\";border-radius:50%;width:6px;height:6px;position:absolute;inset-block-start:7px;inset-inline-start:2px}._3YTW7W_routeList{margin-top:var(--lx-space-lg);counter-reset:route-step}._3YTW7W_routeList li{counter-increment:route-step;color:var(--lx-label-secondary)}._3YTW7W_routeList li:before{border:1px solid var(--lx-border-default);background:var(--lx-surface-sunken);width:16px;height:16px;color:var(--lx-label-tertiary);content:counter(route-step);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);justify-content:center;align-items:center;display:inline-flex;inset-block-start:1px}._3YTW7W_routeList li[data-complete=true]{color:var(--lx-label-primary)}._3YTW7W_routeList li[data-complete=true]:before{border-color:color-mix(in srgb, var(--lx-success) 48%, transparent);background:color-mix(in srgb, var(--lx-success) 12%, transparent);color:var(--lx-success)}._3YTW7W_progressTrack{height:6px;margin-top:var(--lx-space-lg);border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);overflow:hidden}._3YTW7W_progressFill{border-radius:inherit;background:var(--lx-accent);transform-origin:0;width:100%;height:100%;transition:transform var(--lx-motion-base) var(--lx-easing);display:block}._3YTW7W_resultView{gap:var(--lx-space-xs);border-inline-start:3px solid var(--lx-success);padding:var(--lx-space-xl) var(--lx-space-2xl);display:grid}._3YTW7W_resultView p{margin:0}._3YTW7W_viewActions{align-items:center;gap:var(--lx-space-sm);padding-top:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);flex-wrap:wrap;display:flex}._3YTW7W_viewActions ._3YTW7W_actionEnd,._3YTW7W_viewActions ._3YTW7W_actionSave{margin-inline-start:auto}._3YTW7W_viewError{color:var(--lx-danger)}._3YTW7W_emptyView{max-width:620px;margin:var(--lx-space-3xl) auto;padding:var(--lx-space-3xl)}@container (width<=640px){._3YTW7W_viewRoot{padding-inline:var(--lx-space-lg)}._3YTW7W_viewHeader{flex-direction:column}._3YTW7W_noteGrid{grid-template-columns:minmax(0,1fr)}._3YTW7W_viewActions ._3YTW7W_actionEnd,._3YTW7W_viewActions ._3YTW7W_actionSave{margin-inline-start:0}}";
 		const tagId$2 = "@dsh-portable/interactive-learning/LearningNotes.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$2) + "]") === null) {
 			const tag = document.createElement("style");
@@ -14750,9 +12136,8 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var LearningNotes_module_css_default = {
-			"actionPrimary": "_3YTW7W_actionPrimary",
-			"actionQuiet": "_3YTW7W_actionQuiet",
-			"actionSaved": "_3YTW7W_actionSaved",
+			"actionEnd": "_3YTW7W_actionEnd",
+			"actionSave": "_3YTW7W_actionSave",
 			"actions": "_3YTW7W_actions",
 			"body": "_3YTW7W_body",
 			"cardBody": "_3YTW7W_cardBody",
@@ -14775,7 +12160,6 @@ window.__ModuleLoader__.load({
 			"resultNote": "_3YTW7W_resultNote",
 			"resultView": "_3YTW7W_resultView",
 			"routeList": "_3YTW7W_routeList",
-			"routeText": "_3YTW7W_routeText",
 			"section": "_3YTW7W_section",
 			"summary": "_3YTW7W_summary",
 			"viewActions": "_3YTW7W_viewActions",
@@ -14984,7 +12368,10 @@ window.__ModuleLoader__.load({
 			const nodes = contentNodes(session);
 			const calls = allLearningCalls(session);
 			const evidence = [];
+			/** The model's recorded goal, and the fallbacks used when it never records one. */
 			let goal = null;
+			let requestGoal = null;
+			let correctedGoal = null;
 			let phase = null;
 			let plan = null;
 			let latestTitle = null;
@@ -14994,12 +12381,14 @@ window.__ModuleLoader__.load({
 			for (const { call, order } of calls) {
 				const args = parseJson(call.argsRaw);
 				if (args === void 0) continue;
-				if (goal === null) goal = precedingUserGoal(nodes, order) ?? null;
+				if (requestGoal === null) requestGoal = precedingUserGoal(nodes, order) ?? null;
 				if (call.name === "learning_state_update") {
 					const action = textOf(args.action, 30);
 					if (action === "reset") {
 						closed = true;
 						goal = null;
+						requestGoal = null;
+						correctedGoal = null;
 						phase = null;
 						plan = null;
 						evidence.length = 0;
@@ -15012,9 +12401,13 @@ window.__ModuleLoader__.load({
 					const eventType = textOf(event?.type, 60);
 					const eventGoal = textOf(event?.goal);
 					const correctionGoal = typeof correction?.goal === "string" ? textOf(correction.goal) : void 0;
-					if (eventGoal !== void 0 && (goal === null || goal === eventGoal)) goal = eventGoal;
-					if (correctionGoal !== void 0) goal = correctionGoal;
-					if (correction?.goal === null) goal = null;
+					if (eventGoal !== void 0 && goal === null) goal = eventGoal;
+					if (correctionGoal !== void 0) correctedGoal = correctionGoal;
+					if (correction?.goal === null) {
+						correctedGoal = null;
+						goal = null;
+						requestGoal = null;
+					}
 					if (eventType === "learner_evidence_observed") {
 						addEvidence(evidence, recordOf(event?.evidence)?.summary);
 						if (isVerifiedTransfer(event?.evidence)) verifiedTransfer = true;
@@ -15028,15 +12421,12 @@ window.__ModuleLoader__.load({
 					}
 					const objective = textOf(event?.objective);
 					const steps = stepsOf(event?.steps);
-					if (eventType === "plan_observed" && objective !== void 0 && steps.length > 0) {
-						plan = {
-							objective,
-							steps,
-							activeStepId: textOf(event?.activeStepId, 80),
-							completedStepIds: /* @__PURE__ */ new Set()
-						};
-						if (goal === null) goal = objective;
-					}
+					if (eventType === "plan_observed" && objective !== void 0 && steps.length > 0) plan = {
+						objective,
+						steps,
+						activeStepId: textOf(event?.activeStepId, 80),
+						completedStepIds: /* @__PURE__ */ new Set()
+					};
 					if (eventType === "plan_step_evidenced" && plan !== null) {
 						const stepId = textOf(event?.stepId, 80);
 						if (stepId !== void 0) plan = {
@@ -15062,10 +12452,6 @@ window.__ModuleLoader__.load({
 				learningMoves += 1;
 				const title = textOf(args.title) ?? textOf(recordOf(args.focus)?.title) ?? textOf(args.prompt);
 				if (title !== void 0) latestTitle = title;
-				if (goal === null) {
-					const visualGoal = textOf(args.description) ?? title;
-					if (visualGoal !== void 0) goal = visualGoal;
-				}
 				const result = resultAnswer(call.content);
 				if (result !== void 0) addEvidence(evidence, result);
 				const resultRecord = parseJson(nodeContentText(call.content));
@@ -15079,11 +12465,11 @@ window.__ModuleLoader__.load({
 				const text = index > latestLearningOrder ? userNodeText(node) : void 0;
 				return text !== void 0 && isExplicitLearningBoundary(text);
 			})) closed = true;
-			if (goal === null && latestTitle !== null) goal = latestTitle;
+			const headline = correctedGoal ?? requestGoal ?? goal ?? plan?.objective ?? latestTitle;
 			return {
 				visible: calls.length > 0,
 				active: calls.length > 0 && !closed,
-				goal,
+				goal: headline ?? null,
 				evidence,
 				phase,
 				plan,
@@ -15210,20 +12596,13 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 						className: LearningNotes_module_css_default.goalCard,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningNotes_module_css_default.cardEyebrow,
-								children: t("learningNotesGoal")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningNotes_module_css_default.goalText,
-								children: notes.goal ?? t("learningNotesUnknown")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: LearningNotes_module_css_default.routeText,
-								children: routeProgress(notes, t)
-							})
-						]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: LearningNotes_module_css_default.cardEyebrow,
+							children: t("learningNotesGoal")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: LearningNotes_module_css_default.goalText,
+							children: notes.goal ?? t("learningNotesUnknown")
+						})]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: LearningNotes_module_css_default.noteGrid,
@@ -15296,6 +12675,7 @@ window.__ModuleLoader__.load({
 							notes.active && bridge !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
+									"data-lx-control": "secondary",
 									disabled,
 									"data-learning-segment-action": "deepen",
 									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningNotesDeepenPrompt")),
@@ -15303,6 +12683,7 @@ window.__ModuleLoader__.load({
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
+									"data-lx-control": "secondary",
 									disabled,
 									"data-learning-segment-action": "rephrase",
 									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningNotesRephrasePrompt")),
@@ -15310,23 +12691,46 @@ window.__ModuleLoader__.load({
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
-									className: LearningNotes_module_css_default.actionQuiet,
+									className: LearningNotes_module_css_default.actionEnd,
+									"data-lx-control": "quiet",
 									disabled,
 									"data-learning-segment-action": "end",
 									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningNotesEndPrompt")),
 									children: t("learningNotesEnd")
 								})
 							] }),
-							!notes.active && bridge !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								disabled,
-								"data-learning-result-action": "practice",
-								onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningResultPracticePrompt")),
-								children: t("learningResultPractice")
-							}),
+							!notes.active && bridge !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									"data-lx-control": "secondary",
+									disabled,
+									"data-learning-result-action": "practice",
+									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningResultPracticePrompt")),
+									children: t("learningResultPractice")
+								}),
+								notes.verifiedTransfer && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									"data-lx-control": "secondary",
+									disabled,
+									"data-learning-result-action": "card",
+									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningResultCardPrompt")),
+									children: t("learningResultCard")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: LearningNotes_module_css_default.actionEnd,
+									"data-lx-control": "quiet",
+									disabled,
+									"data-learning-result-action": "new-topic",
+									onClick: () => sendIntent(bridge.inputActions, bridge.input, t("learningResultNewTopicPrompt")),
+									children: t("learningResultNewTopic")
+								})
+							] }),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: saved ? LearningNotes_module_css_default.actionSaved : LearningNotes_module_css_default.actionPrimary,
+								className: LearningNotes_module_css_default.actionSave,
+								"data-lx-control": "primary",
+								...saved ? { "data-lx-state": "done" } : {},
 								disabled: saving || saved || cwd === void 0 || cwd === "",
 								"data-learning-save": "session-note",
 								onClick: save,
@@ -15475,7 +12879,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/LearningSurface.module.css.mjs
-		const css$1 = "._7yM2JG_root{box-sizing:border-box;align-items:center;gap:var(--lx-space-sm);width:100%;min-width:0;padding:0 var(--lx-space-xl) 0 calc(var(--lx-space-xl) + 16px);color:var(--lx-label-secondary);order:2;margin:0 auto;display:flex;container-type:inline-size}._7yM2JG_quickLabel{color:var(--lx-accent);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;flex:none;margin:0}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;min-width:0;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing);background:0 0}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_state_update]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_map]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_read]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_search]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_material_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_recall]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_concept_propose]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_visual_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=learning_checkpoint_select]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@container (width<=520px){._7yM2JG_root{align-items:flex-start;gap:var(--lx-space-xs);flex-direction:column}}";
+		const css$1 = "._7yM2JG_root{box-sizing:border-box;align-items:center;gap:var(--lx-space-sm);width:100%;min-width:0;padding:0 var(--lx-space-xl) 0 calc(var(--lx-space-xl) + 16px);color:var(--lx-label-secondary);order:2;margin:0 auto;display:flex;container-type:inline-size}._7yM2JG_quickLabel{color:var(--lx-accent);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;flex:none;margin:0}._7yM2JG_choices{gap:var(--lx-space-xs);flex-wrap:wrap;min-width:0;display:flex}._7yM2JG_choices button{min-height:var(--lx-control-height-sm);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;transition:border-color var(--lx-motion-fast) var(--lx-easing), color var(--lx-motion-fast) var(--lx-easing), background var(--lx-motion-fast) var(--lx-easing);background:0 0}._7yM2JG_choices button:hover:not(:disabled){border-color:var(--lx-accent);background:var(--lx-surface-accent);color:var(--lx-accent)}._7yM2JG_choices button:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=context],html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool^=learning_]:not([data-tool=learning_visual]):not([data-tool=learning_checkpoint])),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:has([data-tool=view_image]),html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-chat-flow-kind=tool-call]:not(:has([data-slot=\"tool.call.toolview\"]>*)){display:none!important}html[data-learning-surface=true] [data-slot=conversation]>[data-phase]:has([role=tablist]>[role=tab]:first-child[aria-selected=true]) [data-slot=\"conversation.composer.dock\"]>:not([data-learning-notes=session]):not(:has([data-learning-notes=session])){display:none!important}@container (width<=520px){._7yM2JG_root{align-items:flex-start;gap:var(--lx-space-xs);flex-direction:column}}";
 		const tagId$1 = "@dsh-portable/interactive-learning/LearningSurface.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
@@ -15533,6 +12937,7 @@ window.__ModuleLoader__.load({
 					className: LearningSurface_module_css_default.choices,
 					children: QUICK_STARTS.map(({ key, prompt }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
+						"data-lx-control": "chip",
 						disabled,
 						"data-learning-start-choice": key,
 						onClick: () => inputActions.setDraft(t(prompt)),
@@ -15543,7 +12948,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/VaultView.module.css.mjs
-		const css = "._jzLeq_root{gap:var(--lx-space-xl);padding:var(--lx-space-xl) var(--lx-space-2xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;display:flex;container-type:inline-size}._jzLeq_state{gap:var(--lx-space-sm);padding:var(--lx-space-3xl) var(--lx-space-2xl);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;align-items:flex-start;display:flex}._jzLeq_stateTitle{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-md);margin:0}._jzLeq_stateBody{max-width:62ch;margin:0}._jzLeq_stateNext{align-items:baseline;gap:var(--lx-space-sm);margin:var(--lx-space-xs) 0 0;border-inline-start:2px solid var(--lx-accent);color:var(--lx-label-primary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);padding-inline-start:var(--lx-space-md);display:flex}._jzLeq_stateNext>span{color:var(--lx-accent);font-family:var(--lx-font-mono)}._jzLeq_stateActions{gap:var(--lx-space-sm);flex-wrap:wrap;margin-block-start:var(--lx-space-xs);display:flex}._jzLeq_head{gap:var(--lx-space-md);flex-direction:column;display:flex}._jzLeq_headRow{align-items:baseline;gap:var(--lx-space-lg);flex-wrap:wrap;display:flex}._jzLeq_headActions{justify-content:flex-end;align-items:center;gap:var(--lx-space-md);flex:auto;min-width:0;display:flex}._jzLeq_title{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_counts{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_count,._jzLeq_countDue,._jzLeq_countWarn{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap}._jzLeq_countDue{border-color:color-mix(in srgb, var(--lx-warn) 45%, transparent);color:var(--lx-warn);font-weight:var(--lx-weight-medium)}._jzLeq_countWarn{border-color:color-mix(in srgb, var(--lx-warn) 35%, transparent);color:var(--lx-warn)}._jzLeq_search{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-sm)}._jzLeq_searchRow{align-items:stretch;gap:var(--lx-space-sm);display:flex}._jzLeq_searchRow ._jzLeq_search{flex:auto;min-width:0}._jzLeq_searchClear{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-raised);padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);cursor:pointer;flex:none}._jzLeq_searchClear:hover{color:var(--lx-label-primary);border-color:var(--lx-border-strong)}._jzLeq_searchClear:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_searchStatus{min-height:var(--lx-leading-micro);margin:calc(var(--lx-space-xs) * -1) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}._jzLeq_search::placeholder{color:var(--lx-label-tertiary)}._jzLeq_search:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_local{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_headerButton{box-sizing:border-box;min-height:var(--lx-control-height-md);border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-pill);padding:var(--lx-control-padding-md);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);cursor:pointer;background:0 0;flex:none}._jzLeq_headerButton:hover{border-color:var(--lx-border-strong);background:var(--lx-surface-sunken)}._jzLeq_headerButton:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_sources{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_card{gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-card);padding:var(--lx-space-lg) var(--lx-space-xl);flex-direction:column;display:flex}._jzLeq_cardHead{align-items:baseline;gap:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_cardIdentity{gap:var(--lx-space-2xs);flex-direction:column;min-width:0;display:flex}._jzLeq_cardTitle{font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}._jzLeq_cardStatus{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}._jzLeq_meta,._jzLeq_metaRight{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-variant-numeric:tabular-nums}._jzLeq_metaRight{margin-inline-start:auto}._jzLeq_sourceDetails{border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md)}._jzLeq_sourceDetails>summary{border-radius:var(--lx-radius-xs);width:fit-content;padding:var(--lx-space-2xs) var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);cursor:pointer;list-style:none}._jzLeq_sourceDetails>summary::-webkit-details-marker{display:none}._jzLeq_sourceDetails>summary:before{width:5px;height:5px;content:\"\";transition:transform var(--lx-motion-fast) var(--lx-easing);border-block-end:1px solid;border-inline-end:1px solid;margin-inline-end:var(--lx-space-sm);display:inline-block;transform:rotate(-45deg)translate(-1px,-1px)}._jzLeq_sourceDetails[open]>summary:before{transform:rotate(45deg)translate(-1px,-1px)}._jzLeq_sourceDetails>summary:hover{color:var(--lx-label-primary)}._jzLeq_sourceMeta{gap:var(--lx-space-sm) var(--lx-space-xl);margin:var(--lx-space-md) 0 0;padding:var(--lx-space-md) var(--lx-space-lg);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._jzLeq_sourceMeta>div{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;display:flex}._jzLeq_sourceMeta dt{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_sourceMeta dd{color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;text-align:end;margin:0}._jzLeq_sourceMetaWide{grid-column:1/-1}._jzLeq_coverage{gap:var(--lx-space-xs);flex-direction:column;display:flex}._jzLeq_coverageHead,._jzLeq_coverageLegend{align-items:center;gap:var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;display:flex}._jzLeq_coverageHead{color:var(--lx-label-secondary);font-weight:var(--lx-weight-medium)}._jzLeq_coverageTotal{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;font-weight:var(--lx-weight-regular)}._jzLeq_coverageLegend{gap:var(--lx-space-lg)}._jzLeq_coverageLegend>span{align-items:center;gap:var(--lx-space-xs);display:inline-flex}._jzLeq_coverageLegend i{border-radius:var(--lx-radius-pill);width:18px;height:6px;display:inline-block}._jzLeq_coverageKeyReady{background:color-mix(in srgb, var(--lx-accent) 68%, transparent)}._jzLeq_coverageKeyWarn{background:var(--lx-warn)}._jzLeq_strip{border-radius:var(--lx-radius-xs);background:var(--lx-border-subtle);gap:1px;height:12px;display:flex;overflow:hidden}._jzLeq_segment{background:color-mix(in srgb, var(--lx-accent) 68%, transparent);min-width:1px;display:block}._jzLeq_segmentDegraded{background:var(--lx-warn)}._jzLeq_segmentThin{background:color-mix(in srgb, var(--lx-accent) 22%, transparent)}._jzLeq_stripEmpty{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-xs);padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_chips{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_chipWarn{border:1px solid color-mix(in srgb, var(--lx-warn) 42%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-warn) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-warn);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 2px)}._jzLeq_cardFoot{align-items:center;gap:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_button{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-raised);padding:var(--lx-control-padding-sm);min-height:var(--lx-control-height-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);cursor:pointer}._jzLeq_button:hover{color:var(--lx-label-primary);border-color:var(--lx-border-strong)}._jzLeq_button:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_path{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere;user-select:text}._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:auto}._jzLeq_tree{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}._jzLeq_treeRow{align-items:baseline;gap:var(--lx-space-sm);border-radius:var(--lx-radius-xs);width:100%;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_treeRow:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_treeRow:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_treeRowOpen{background:var(--lx-surface-accent);color:var(--lx-label-primary)}._jzLeq_treeLabel{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}._jzLeq_treeFlag{color:var(--lx-warn);font-size:var(--lx-text-micro);flex:none}._jzLeq_treeMeta{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;flex:none}._jzLeq_reading{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);margin:var(--lx-space-sm) 0 var(--lx-space-md) var(--lx-space-sm);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_readingHead{justify-content:space-between;align-items:flex-start;gap:var(--lx-space-md);display:flex}._jzLeq_readingEyebrow{margin:0 0 var(--lx-space-3xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._jzLeq_readingTitle{color:var(--lx-label-primary);font-size:var(--lx-text-sm);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-sm);margin:0}._jzLeq_readingPage{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;flex:none}._jzLeq_readingCrumbs{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_readingBody{max-width:74ch;max-height:min(52vh,520px);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;scroll-padding-block-end:var(--lx-space-xl);overflow:auto}._jzLeq_readingBody:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_readingNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_results{gap:var(--lx-space-2xl);flex-direction:column;display:flex}._jzLeq_resultsState{padding:var(--lx-space-2xl) 0;color:var(--lx-label-secondary);font-size:var(--lx-text-sm)}._jzLeq_searchSummary{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0}._jzLeq_group{gap:var(--lx-space-sm);flex-direction:column;display:flex}._jzLeq_groupTitle{align-items:center;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;margin:0;display:flex}._jzLeq_groupCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);padding:0 var(--lx-space-sm);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;letter-spacing:0}._jzLeq_hits{gap:var(--lx-space-sm);flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._jzLeq_hit{display:block}._jzLeq_hitButton,._jzLeq_hitStatic{gap:var(--lx-space-3xs);border:0;border-inline-start:2px solid var(--lx-border-default);width:100%;padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-lg);color:inherit;font:inherit;text-align:start;background:0 0;border-radius:0;flex-direction:column;display:flex}._jzLeq_hitButton{cursor:pointer}._jzLeq_hitButton:hover{border-inline-start-color:var(--lx-accent);background:var(--lx-surface-sunken)}._jzLeq_hitButton:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_hitHead{align-items:baseline;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_hitTitle{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}._jzLeq_hitSection,._jzLeq_hitPage{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._jzLeq_hitExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere}._jzLeq_hitMark{border-radius:var(--lx-radius-xs);background:color-mix(in srgb, var(--lx-accent) 22%, transparent);color:var(--lx-label-primary);padding-inline:1px}._jzLeq_hitPath{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-glyph-xs);overflow-wrap:anywhere}._jzLeq_foot{align-items:baseline;gap:var(--lx-space-xs);margin:var(--lx-space-sm) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;display:flex}@container (width<=560px){._jzLeq_root{padding-inline:var(--lx-space-lg)}._jzLeq_metaRight,._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:0}}._jzLeq_body{gap:var(--lx-space-xl);grid-template-columns:168px minmax(0,1fr);align-items:start;display:grid}._jzLeq_rail{gap:var(--lx-space-3xs);border-inline-end:1px solid var(--lx-border-subtle);flex-direction:column;padding-inline-end:var(--lx-space-md);display:flex;position:sticky;top:0}._jzLeq_railItem,._jzLeq_railItemOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border-radius:var(--lx-radius-sm);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_railItem:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_railItemOn{background:var(--lx-surface-accent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}._jzLeq_railItem:focus-visible,._jzLeq_railItemOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_railCount,._jzLeq_railDue{font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;color:var(--lx-label-tertiary)}._jzLeq_railDue{border-radius:var(--lx-radius-pill);background:var(--lx-warn);padding:0 var(--lx-space-xs);color:var(--lx-surface-base);font-weight:var(--lx-weight-strong)}._jzLeq_pane{min-width:0}._jzLeq_masteryUnseen,._jzLeq_masteryEmerging,._jzLeq_masteryTransfer{align-items:baseline;gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap;display:inline-flex}._jzLeq_masteryUnseen{color:var(--lx-label-tertiary)}._jzLeq_masteryEmerging{border-color:color-mix(in srgb, var(--lx-accent) 40%, transparent);color:var(--lx-accent)}._jzLeq_masteryTransfer{border-color:color-mix(in srgb, var(--lx-success) 45%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._jzLeq_basis{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_explanation{border-inline-start:2px solid var(--lx-border-strong);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0;padding-inline-start:var(--lx-space-lg)}._jzLeq_anchorRow{gap:var(--lx-space-xs);flex-direction:column;display:flex}._jzLeq_chipLabel{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;align-self:center}._jzLeq_chipAnchor{border:1px solid color-mix(in srgb, var(--lx-accent) 35%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:1px var(--lx-space-md);color:var(--lx-accent);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px)}._jzLeq_chipStale{border:1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-danger) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-danger);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px);text-decoration:line-through}._jzLeq_staleNote,._jzLeq_systemNote,._jzLeq_hint,._jzLeq_notice{font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);max-width:68ch;margin:0}._jzLeq_staleNote{color:var(--lx-danger)}._jzLeq_systemNote,._jzLeq_hint{color:var(--lx-label-tertiary)}._jzLeq_notice{color:var(--lx-success)}._jzLeq_editor{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-md) var(--lx-space-lg);color:var(--lx-label-primary);font-family:var(--lx-font-mono);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);resize:vertical;scroll-margin-block-end:140px}._jzLeq_editor:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_actions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_buttonPrimary{border:1px solid var(--lx-accent);border-radius:var(--lx-radius-sm);background:var(--lx-accent);padding:var(--lx-control-padding-sm);min-height:var(--lx-control-height-sm);color:var(--lx-label-on-accent);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);cursor:pointer}._jzLeq_buttonPrimary:disabled{opacity:var(--lx-control-disabled-opacity);cursor:default}._jzLeq_buttonPrimary:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_buttonCorrect{border:1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-sm);min-height:var(--lx-control-height-sm);color:var(--lx-danger);font:inherit;font-size:var(--lx-text-2xs);cursor:pointer;background:0 0;margin-inline-start:auto}._jzLeq_buttonCorrect:disabled{opacity:var(--lx-control-disabled-opacity);cursor:default}._jzLeq_buttonCorrect:hover:enabled{background:color-mix(in srgb, var(--lx-danger) 10%, transparent)}._jzLeq_buttonCorrect:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_deferGroup{align-items:center;gap:var(--lx-space-2xs);display:inline-flex}._jzLeq_deferInput{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:56px;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._jzLeq_deferInput:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_deck{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_deckProgress{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;margin:0}._jzLeq_deckCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-strong);border-radius:var(--lx-card-radius);background:var(--lx-surface-raised);padding:var(--lx-space-2xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex}._jzLeq_deckLabel{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_deckPrompt{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}@container (width<=640px){._jzLeq_body{grid-template-columns:minmax(0,1fr)}._jzLeq_rail{border-inline-end:0;border-block-end:1px solid var(--lx-border-subtle);flex-direction:row;padding-block-end:var(--lx-space-sm);padding-inline-end:0;position:static;overflow-x:auto}._jzLeq_buttonCorrect{margin-inline-start:0}}._jzLeq_noteExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;max-width:76ch;margin:0}._jzLeq_keepSheet{z-index:1100;box-sizing:border-box;gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-card);width:min(520px,100vw - 24px);max-height:calc(100vh - 24px);padding:var(--lx-space-lg) var(--lx-space-xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex;position:fixed;overflow-y:auto}._jzLeq_keepTitleInput,._jzLeq_keepEditor{box-sizing:border-box;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-xl);background:var(--lx-surface-raised);width:100%;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-md);line-height:var(--lx-leading-md)}._jzLeq_keepTitleInput{min-height:40px;padding:4px var(--lx-space-lg) 4px var(--lx-space-xl)}._jzLeq_keepEditor{min-height:180px;padding:var(--lx-space-md) var(--lx-space-lg) var(--lx-space-md) var(--lx-space-xl);resize:vertical}._jzLeq_keepTitleInput::placeholder,._jzLeq_keepEditor::placeholder{color:var(--lx-label-tertiary)}._jzLeq_keepTitleInput:focus-visible,._jzLeq_keepEditor:focus-visible{border-color:var(--lx-border-strong);outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_keepAction{--keep-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--keep-surface:var(--dsw-alias-bg-layer-1,Canvas);--keep-label:var(--dsw-alias-label-primary,CanvasText);--keep-muted:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--keep-label) 58%, transparent));width:28px;height:28px;color:var(--keep-muted);cursor:pointer;transition:background var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), color var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), box-shadow var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1));background:0 0;border:0;border-radius:28px;justify-content:center;align-items:center;padding:6px;display:inline-flex}._jzLeq_keepAction:hover,._jzLeq_keepAction[aria-expanded=true]{background:color-mix(in srgb, var(--keep-accent) 18%, var(--keep-surface));color:var(--keep-accent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--keep-accent) 48%, transparent)}._jzLeq_keepAction:active{background:color-mix(in srgb, var(--keep-accent) 26%, var(--keep-surface))}._jzLeq_keepAction:focus-visible{outline:var(--lx-focus-width,2px) solid var(--keep-accent);outline-offset:var(--lx-focus-offset,3px)}._jzLeq_reparse{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_buttonSpend{border:1px solid var(--lx-accent);border-radius:var(--lx-radius-sm);padding:var(--lx-control-padding-sm);min-height:var(--lx-control-height-sm);color:var(--lx-accent);font:inherit;font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium);cursor:pointer;background:0 0}._jzLeq_buttonSpend:hover:enabled{background:var(--lx-surface-accent)}._jzLeq_buttonSpend:disabled{opacity:var(--lx-control-disabled-opacity);cursor:default}._jzLeq_buttonSpend:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_spendMark{border:1px solid color-mix(in srgb, var(--lx-warn) 45%, transparent);border-radius:var(--lx-radius-pill);padding:1px var(--lx-space-md);color:var(--lx-warn);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);white-space:nowrap}._jzLeq_rosterRoot{width:100%;position:relative}._jzLeq_rosterRootRail{width:36px}._jzLeq_rosterTrigger{box-sizing:border-box;width:calc(100% + 4px);height:42px;color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-size:14px;line-height:22px;display:flex;overflow:hidden}._jzLeq_rosterTrigger:hover{background:var(--dsw-alias-interactive-bg-hover,var(--lx-surface-sunken))}._jzLeq_rosterTriggerRail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}._jzLeq_rosterTrigger:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_rosterMark{font-size:var(--lx-text-sm);flex:none;line-height:1;display:inline-flex}._jzLeq_rosterLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._jzLeq_rosterSheet{z-index:20;gap:var(--lx-space-sm);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-raised);min-width:260px;max-width:340px;max-height:60vh;padding:var(--lx-space-lg);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex;position:absolute;inset-block-end:calc(100% + var(--lx-space-sm));inset-inline-start:0;overflow-y:auto}._jzLeq_rosterList{gap:var(--lx-space-2xs);flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._jzLeq_rosterRow{justify-content:space-between;align-items:center;gap:var(--lx-space-md);border-radius:var(--lx-radius-sm);width:100%;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_rosterRow:hover:enabled{background:var(--lx-surface-sunken)}._jzLeq_rosterRow:disabled{opacity:var(--lx-control-disabled-opacity);cursor:default}._jzLeq_rosterRow:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_rosterName{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._jzLeq_rosterCounts{align-items:center;gap:var(--lx-space-xs);flex-shrink:0;display:inline-flex}._jzLeq_rosterNote{margin:0 0 0 var(--lx-space-sm);color:var(--lx-warn);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}._jzLeq_libraryOverlay{z-index:1000;justify-content:center;align-items:center;display:flex;position:fixed;inset:0}._jzLeq_libraryMask{background:var(--dsw-alias-bg-mask-1,#0000003d);backdrop-filter:blur(3px);position:absolute;inset:0}._jzLeq_libraryPanel{z-index:1;border:1px solid var(--lx-border-subtle);background:color-mix(in srgb, var(--lx-host-bg) 96%, var(--lx-host-label) 4%);width:min(1080px,100vw - 48px);height:min(760px,100vh - 48px);box-shadow:var(--lx-shadow-lg);border-radius:24px;display:flex;position:relative;overflow:hidden}._jzLeq_libraryNav{gap:var(--lx-space-lg);box-sizing:border-box;border-inline-end:1px solid var(--lx-border-subtle);flex-direction:column;flex:none;width:220px;padding:22px 12px 16px;display:flex}._jzLeq_libraryNavTitle{align-items:center;gap:var(--lx-space-sm);color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);padding:0 12px;display:flex}._jzLeq_libraryNavMeta{margin:calc(var(--lx-space-md) * -1) 12px 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_libraryTopicList{gap:var(--lx-space-2xs);flex-direction:column;min-height:0;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{align-items:stretch;gap:var(--lx-space-2xs);box-sizing:border-box;width:100%;min-height:48px;padding:var(--lx-space-sm) 12px;color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:0;border-radius:12px;flex-direction:column;display:flex}._jzLeq_libraryTopic:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryTopicOn{background:var(--lx-surface-accent);font-weight:var(--lx-weight-medium)}._jzLeq_libraryTopic:focus-visible,._jzLeq_libraryTopicOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_libraryTopicName{text-overflow:ellipsis;white-space:nowrap;font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow:hidden}._jzLeq_libraryTopicMeta{align-items:center;gap:var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-regular);display:flex}._jzLeq_libraryMain{flex-direction:column;flex:1;min-width:0;display:flex}._jzLeq_libraryHeader{box-sizing:border-box;border-bottom:1px solid var(--lx-border-subtle);flex:none;justify-content:space-between;align-items:center;height:54px;padding:10px 14px 8px 24px;display:flex}._jzLeq_libraryHeaderTitle{text-overflow:ellipsis;white-space:nowrap;color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);overflow:hidden}._jzLeq_libraryClose{width:28px;height:28px;color:var(--lx-label-primary);cursor:pointer;background:0 0;border:0;border-radius:50%;flex:none;justify-content:center;align-items:center;display:inline-flex}._jzLeq_libraryClose:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryClose:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_libraryScroll{flex:1;min-height:0;overflow-y:auto}@media (width<=760px){._jzLeq_libraryPanel{flex-direction:column;width:calc(100vw - 24px);height:calc(100vh - 24px)}._jzLeq_libraryNav{border-inline-end:0;border-bottom:1px solid var(--lx-border-subtle);width:auto;max-height:176px;padding:16px 12px 12px}._jzLeq_libraryTopicList{flex-direction:row;overflow:auto hidden}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{flex:0 0 180px}}";
+		const css = "._jzLeq_root{gap:var(--lx-space-xl);padding:var(--lx-space-xl) var(--lx-space-2xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;display:flex;container-type:inline-size}._jzLeq_state{gap:var(--lx-space-sm);padding:var(--lx-space-3xl) var(--lx-space-2xl);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;align-items:flex-start;display:flex}._jzLeq_stateTitle{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-md);margin:0}._jzLeq_stateBody{max-width:62ch;margin:0}._jzLeq_stateActions{gap:var(--lx-space-sm);flex-wrap:wrap;margin-block-start:var(--lx-space-xs);display:flex}._jzLeq_stateDetails{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin-block-start:var(--lx-space-xs)}._jzLeq_stateDetails>summary{cursor:pointer;user-select:none}._jzLeq_stateDetails>summary:focus-visible{outline:2px solid var(--lx-accent);outline-offset:2px;border-radius:var(--lx-radius-sm)}._jzLeq_stateDetails>._jzLeq_path{margin-block-start:var(--lx-space-2xs);display:block}._jzLeq_head{gap:var(--lx-space-md);flex-direction:column;display:flex}._jzLeq_headRow{align-items:baseline;gap:var(--lx-space-lg);flex-wrap:wrap;display:flex}._jzLeq_headActions{justify-content:flex-end;align-items:center;gap:var(--lx-space-md);flex:auto;min-width:0;display:flex}._jzLeq_title{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_counts{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_count,._jzLeq_countDue,._jzLeq_countWarn{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap}._jzLeq_countDue{border-color:color-mix(in srgb, var(--lx-warn) 45%, transparent);color:var(--lx-warn);font-weight:var(--lx-weight-medium)}._jzLeq_countWarn{border-color:color-mix(in srgb, var(--lx-warn) 35%, transparent);color:var(--lx-warn)}._jzLeq_search{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-sm)}._jzLeq_search::placeholder{color:var(--lx-label-tertiary)}._jzLeq_search:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_local{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_sources{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_card{gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-card-radius-compact);background:var(--lx-card-background);padding:var(--lx-card-padding-compact);flex-direction:column;display:flex}._jzLeq_cardHead{align-items:baseline;gap:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_cardIdentity{gap:var(--lx-space-2xs);flex-direction:column;min-width:0;display:flex}._jzLeq_cardTitle{font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}._jzLeq_cardStatus{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}._jzLeq_metaRight{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-variant-numeric:tabular-nums;margin-inline-start:auto}._jzLeq_sourceDetails{border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md)}._jzLeq_sourceDetails>summary{border-radius:var(--lx-radius-xs);width:fit-content;padding:var(--lx-space-2xs) var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);cursor:pointer;list-style:none}._jzLeq_sourceDetails>summary::-webkit-details-marker{display:none}._jzLeq_sourceDetails>summary:before{width:5px;height:5px;content:\"\";transition:transform var(--lx-motion-fast) var(--lx-easing);border-block-end:1px solid;border-inline-end:1px solid;margin-inline-end:var(--lx-space-sm);display:inline-block;transform:rotate(-45deg)translate(-1px,-1px)}._jzLeq_sourceDetails[open]>summary:before{transform:rotate(45deg)translate(-1px,-1px)}._jzLeq_sourceDetails>summary:hover{color:var(--lx-label-primary)}._jzLeq_sourceMeta{gap:var(--lx-space-sm) var(--lx-space-xl);margin:var(--lx-space-md) 0 0;padding:var(--lx-space-md) var(--lx-space-lg);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._jzLeq_sourceMeta>div{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;display:flex}._jzLeq_sourceMeta dt{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_sourceMeta dd{color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;text-align:end;margin:0}._jzLeq_sourceMetaWide{grid-column:1/-1}._jzLeq_strip{border-radius:var(--lx-radius-xs);background:var(--lx-border-subtle);gap:1px;height:12px;display:flex;overflow:hidden}._jzLeq_segment{background:color-mix(in srgb, var(--lx-accent) 68%, transparent);min-width:1px;display:block}._jzLeq_segmentDegraded{background:var(--lx-warn)}._jzLeq_segmentThin{background:color-mix(in srgb, var(--lx-accent) 22%, transparent)}._jzLeq_stripEmpty{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-xs);padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_chips{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_chipWarn{border:1px solid color-mix(in srgb, var(--lx-warn) 42%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-warn) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-warn);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 2px)}._jzLeq_cardFoot{align-items:center;gap:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_path{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere;user-select:text}._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:auto}._jzLeq_tree{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}._jzLeq_treeRow{align-items:baseline;gap:var(--lx-space-sm);border-radius:var(--lx-radius-xs);width:100%;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_treeRow:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_treeRow:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_treeRowOpen{background:var(--lx-surface-accent);color:var(--lx-label-primary)}._jzLeq_treeLabel{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}._jzLeq_treeFlag{color:var(--lx-warn);font-size:var(--lx-text-micro);flex:none}._jzLeq_treeMeta{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;flex:none}._jzLeq_reading{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);margin:var(--lx-space-sm) 0 var(--lx-space-md) var(--lx-space-sm);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_readingCrumbs{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_readingBody{max-width:74ch;max-height:min(52vh,520px);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;scroll-padding-block-end:var(--lx-space-xl);overflow:auto}._jzLeq_readingBody:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_readingNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_results{gap:var(--lx-space-2xl);flex-direction:column;display:flex}._jzLeq_group{gap:var(--lx-space-sm);flex-direction:column;display:flex}._jzLeq_groupTitle{align-items:center;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;margin:0;display:flex}._jzLeq_groupCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);padding:0 var(--lx-space-sm);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;letter-spacing:0}._jzLeq_hits{gap:var(--lx-space-sm);flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._jzLeq_hit{display:block}._jzLeq_hitButton,._jzLeq_hitStatic{gap:var(--lx-space-3xs);border:0;border-inline-start:2px solid var(--lx-border-default);width:100%;padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-lg);color:inherit;font:inherit;text-align:start;background:0 0;border-radius:0;flex-direction:column;display:flex}._jzLeq_hitButton{cursor:pointer}._jzLeq_hitButton:hover{border-inline-start-color:var(--lx-accent);background:var(--lx-surface-sunken)}._jzLeq_hitButton:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_hitHead{align-items:baseline;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_hitTitle{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}._jzLeq_hitSection,._jzLeq_hitPage{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._jzLeq_hitExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere}._jzLeq_hitPath{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-glyph-xs);overflow-wrap:anywhere}._jzLeq_foot{align-items:baseline;gap:var(--lx-space-xs);margin:var(--lx-space-sm) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;display:flex}@container (width<=560px){._jzLeq_root{padding-inline:var(--lx-space-lg)}._jzLeq_metaRight,._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:0}}._jzLeq_body{gap:var(--lx-space-xl);grid-template-columns:168px minmax(0,1fr);align-items:start;display:grid}._jzLeq_rail{gap:var(--lx-space-3xs);border-inline-end:1px solid var(--lx-border-subtle);flex-direction:column;padding-inline-end:var(--lx-space-md);display:flex;position:sticky;top:0}._jzLeq_railItem,._jzLeq_railItemOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border-radius:var(--lx-radius-sm);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_railItem:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_railItemOn{background:var(--lx-surface-accent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}._jzLeq_railItem:focus-visible,._jzLeq_railItemOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_railCount,._jzLeq_railDue{font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;color:var(--lx-label-tertiary)}._jzLeq_railDue{border-radius:var(--lx-radius-pill);background:var(--lx-warn);padding:0 var(--lx-space-xs);color:var(--lx-surface-base);font-weight:var(--lx-weight-strong)}._jzLeq_pane{min-width:0}._jzLeq_masteryUnseen,._jzLeq_masteryEmerging,._jzLeq_masteryTransfer{align-items:baseline;gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap;display:inline-flex}._jzLeq_masteryUnseen{color:var(--lx-label-tertiary)}._jzLeq_masteryEmerging{border-color:color-mix(in srgb, var(--lx-accent) 40%, transparent);color:var(--lx-accent)}._jzLeq_masteryTransfer{border-color:color-mix(in srgb, var(--lx-success) 45%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._jzLeq_basis{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_explanation{border-inline-start:2px solid var(--lx-border-strong);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0;padding-inline-start:var(--lx-space-lg)}._jzLeq_anchorRow{gap:var(--lx-space-xs);flex-direction:column;display:flex}._jzLeq_chipLabel{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;align-self:center}._jzLeq_chipAnchor{border:1px solid color-mix(in srgb, var(--lx-accent) 35%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:1px var(--lx-space-md);color:var(--lx-accent);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px)}._jzLeq_chipStale{border:1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-danger) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-danger);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px);text-decoration:line-through}._jzLeq_staleNote,._jzLeq_systemNote,._jzLeq_hint,._jzLeq_notice{font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);max-width:68ch;margin:0}._jzLeq_staleNote{color:var(--lx-danger)}._jzLeq_systemNote,._jzLeq_hint{color:var(--lx-label-tertiary)}._jzLeq_notice{color:var(--lx-success)}._jzLeq_editor{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-md) var(--lx-space-lg);color:var(--lx-label-primary);font-family:var(--lx-font-mono);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);resize:vertical;scroll-margin-block-end:140px}._jzLeq_editor:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_actions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_deferGroup{align-items:center;gap:var(--lx-space-2xs);display:inline-flex}._jzLeq_deferInput{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:56px;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._jzLeq_deferInput:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_deck{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_deckProgress{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;margin:0}._jzLeq_deckCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-strong);border-radius:var(--lx-card-radius);background:var(--lx-surface-raised);padding:var(--lx-space-2xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex}._jzLeq_deckLabel{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_deckPrompt{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}@container (width<=640px){._jzLeq_body{grid-template-columns:minmax(0,1fr)}._jzLeq_rail{border-inline-end:0;border-block-end:1px solid var(--lx-border-subtle);flex-direction:row;padding-block-end:var(--lx-space-sm);padding-inline-end:0;position:static;overflow-x:auto}}._jzLeq_noteExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;max-width:76ch;margin:0}._jzLeq_keepSheet{z-index:1100;box-sizing:border-box;gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-card);width:min(520px,100vw - 24px);max-height:calc(100vh - 24px);padding:var(--lx-space-lg) var(--lx-space-xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex;position:fixed;overflow-y:auto}._jzLeq_keepTitleInput,._jzLeq_keepEditor{box-sizing:border-box;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-xl);background:var(--lx-surface-raised);width:100%;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-md);line-height:var(--lx-leading-md)}._jzLeq_keepTitleInput{min-height:40px;padding:4px var(--lx-space-lg) 4px var(--lx-space-xl)}._jzLeq_keepEditor{min-height:180px;padding:var(--lx-space-md) var(--lx-space-lg) var(--lx-space-md) var(--lx-space-xl);resize:vertical}._jzLeq_keepTitleInput::placeholder,._jzLeq_keepEditor::placeholder{color:var(--lx-label-tertiary)}._jzLeq_keepTitleInput:focus-visible,._jzLeq_keepEditor:focus-visible{border-color:var(--lx-border-strong);outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_keepAction{--keep-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--keep-surface:var(--dsw-alias-bg-layer-1,Canvas);--keep-label:var(--dsw-alias-label-primary,CanvasText);--keep-muted:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--keep-label) 58%, transparent));width:28px;height:28px;color:var(--keep-muted);cursor:pointer;transition:background var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), color var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), box-shadow var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1));background:0 0;border:0;border-radius:28px;justify-content:center;align-items:center;padding:6px;display:inline-flex}._jzLeq_keepAction:hover,._jzLeq_keepAction[aria-expanded=true]{background:color-mix(in srgb, var(--keep-accent) 18%, var(--keep-surface));color:var(--keep-accent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--keep-accent) 48%, transparent)}._jzLeq_keepAction:active{background:color-mix(in srgb, var(--keep-accent) 26%, var(--keep-surface))}._jzLeq_keepAction:focus-visible{outline:var(--lx-focus-width,2px) solid var(--keep-accent);outline-offset:var(--lx-focus-offset,3px)}._jzLeq_reparse{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_spendMark{border:1px solid color-mix(in srgb, var(--lx-warn) 45%, transparent);border-radius:var(--lx-radius-pill);padding:1px var(--lx-space-md);color:var(--lx-warn);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);white-space:nowrap}._jzLeq_rosterRoot{width:100%;position:relative}._jzLeq_rosterRootRail{width:36px}._jzLeq_rosterTrigger{box-sizing:border-box;width:calc(100% + 4px);height:42px;color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-size:14px;line-height:22px;display:flex;overflow:hidden}._jzLeq_rosterTrigger:hover{background:var(--dsw-alias-interactive-bg-hover,var(--lx-surface-sunken))}._jzLeq_rosterTriggerRail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}._jzLeq_rosterTrigger:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_rosterMark{font-size:var(--lx-text-sm);flex:none;line-height:1;display:inline-flex}._jzLeq_rosterLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._jzLeq_libraryOverlay{z-index:1000;justify-content:center;align-items:center;display:flex;position:fixed;inset:0}._jzLeq_libraryMask{background:var(--dsw-alias-bg-mask-1,#0000003d);backdrop-filter:blur(3px);position:absolute;inset:0}._jzLeq_libraryPanel{z-index:1;border:1px solid var(--lx-border-subtle);background:color-mix(in srgb, var(--lx-host-bg) 96%, var(--lx-host-label) 4%);width:min(1080px,100vw - 48px);height:min(760px,100vh - 48px);box-shadow:var(--lx-shadow-lg);border-radius:24px;display:flex;position:relative;overflow:hidden}._jzLeq_libraryNavMeta{margin:calc(var(--lx-space-md) * -1) 12px 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_libraryTopicList{gap:var(--lx-space-2xs);flex-direction:column;min-height:0;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-radius:var(--lx-radius-sm);width:100%;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_libraryTopic:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryTopicOn{background:var(--lx-surface-accent);font-weight:var(--lx-weight-medium)}._jzLeq_libraryTopic:focus-visible,._jzLeq_libraryTopicOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_libraryTopicName{text-overflow:ellipsis;white-space:nowrap;font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow:hidden}._jzLeq_libraryTopicGroup{gap:var(--lx-space-3xs);border-bottom:1px solid var(--lx-border-subtle);flex-direction:column;margin-block-end:var(--lx-space-md);padding-block-end:var(--lx-space-md);display:flex}._jzLeq_libraryTopicHeading{margin:0 0 var(--lx-space-2xs);padding-inline:var(--lx-space-sm);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._jzLeq_libraryMain{flex-direction:column;flex:1;min-width:0;display:flex}._jzLeq_libraryHeader{align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-bottom:1px solid var(--lx-border-subtle);flex:none;height:54px;padding:10px 14px 8px 24px;display:flex}._jzLeq_libraryHeaderTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);flex:1;overflow:hidden}._jzLeq_libraryClose{width:28px;height:28px;color:var(--lx-label-primary);cursor:pointer;background:0 0;border:0;border-radius:50%;flex:none;justify-content:center;align-items:center;display:inline-flex}._jzLeq_libraryClose:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryClose:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_libraryScroll{flex:1;min-height:0;overflow-y:auto}@media (width<=760px){._jzLeq_libraryPanel{flex-direction:column;width:calc(100vw - 24px);height:calc(100vh - 24px)}._jzLeq_libraryTopicList{flex-direction:row;overflow:auto hidden}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{flex:0 0 180px}}";
 		const tagId = "@dsh-portable/interactive-learning/VaultView.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -15557,10 +12962,6 @@ window.__ModuleLoader__.load({
 			"anchorRow": "_jzLeq_anchorRow",
 			"basis": "_jzLeq_basis",
 			"body": "_jzLeq_body",
-			"button": "_jzLeq_button",
-			"buttonCorrect": "_jzLeq_buttonCorrect",
-			"buttonPrimary": "_jzLeq_buttonPrimary",
-			"buttonSpend": "_jzLeq_buttonSpend",
 			"card": "_jzLeq_card",
 			"cardFoot": "_jzLeq_cardFoot",
 			"cardHead": "_jzLeq_cardHead",
@@ -15576,12 +12977,6 @@ window.__ModuleLoader__.load({
 			"countDue": "_jzLeq_countDue",
 			"countWarn": "_jzLeq_countWarn",
 			"counts": "_jzLeq_counts",
-			"coverage": "_jzLeq_coverage",
-			"coverageHead": "_jzLeq_coverageHead",
-			"coverageKeyReady": "_jzLeq_coverageKeyReady",
-			"coverageKeyWarn": "_jzLeq_coverageKeyWarn",
-			"coverageLegend": "_jzLeq_coverageLegend",
-			"coverageTotal": "_jzLeq_coverageTotal",
 			"deck": "_jzLeq_deck",
 			"deckCard": "_jzLeq_deckCard",
 			"deckLabel": "_jzLeq_deckLabel",
@@ -15598,13 +12993,11 @@ window.__ModuleLoader__.load({
 			"head": "_jzLeq_head",
 			"headActions": "_jzLeq_headActions",
 			"headRow": "_jzLeq_headRow",
-			"headerButton": "_jzLeq_headerButton",
 			"hint": "_jzLeq_hint",
 			"hit": "_jzLeq_hit",
 			"hitButton": "_jzLeq_hitButton",
 			"hitExcerpt": "_jzLeq_hitExcerpt",
 			"hitHead": "_jzLeq_hitHead",
-			"hitMark": "_jzLeq_hitMark",
 			"hitPage": "_jzLeq_hitPage",
 			"hitPath": "_jzLeq_hitPath",
 			"hitSection": "_jzLeq_hitSection",
@@ -15620,22 +13013,20 @@ window.__ModuleLoader__.load({
 			"libraryHeaderTitle": "_jzLeq_libraryHeaderTitle",
 			"libraryMain": "_jzLeq_libraryMain",
 			"libraryMask": "_jzLeq_libraryMask",
-			"libraryNav": "_jzLeq_libraryNav",
 			"libraryNavMeta": "_jzLeq_libraryNavMeta",
-			"libraryNavTitle": "_jzLeq_libraryNavTitle",
 			"libraryOverlay": "_jzLeq_libraryOverlay",
 			"libraryPanel": "_jzLeq_libraryPanel",
 			"libraryScroll": "_jzLeq_libraryScroll",
 			"libraryTopic": "_jzLeq_libraryTopic",
+			"libraryTopicGroup": "_jzLeq_libraryTopicGroup",
+			"libraryTopicHeading": "_jzLeq_libraryTopicHeading",
 			"libraryTopicList": "_jzLeq_libraryTopicList",
-			"libraryTopicMeta": "_jzLeq_libraryTopicMeta",
 			"libraryTopicName": "_jzLeq_libraryTopicName",
 			"libraryTopicOn": "_jzLeq_libraryTopicOn",
 			"local": "_jzLeq_local",
 			"masteryEmerging": "_jzLeq_masteryEmerging",
 			"masteryTransfer": "_jzLeq_masteryTransfer",
 			"masteryUnseen": "_jzLeq_masteryUnseen",
-			"meta": "_jzLeq_meta",
 			"metaRight": "_jzLeq_metaRight",
 			"noteExcerpt": "_jzLeq_noteExcerpt",
 			"notice": "_jzLeq_notice",
@@ -15649,32 +13040,17 @@ window.__ModuleLoader__.load({
 			"reading": "_jzLeq_reading",
 			"readingBody": "_jzLeq_readingBody",
 			"readingCrumbs": "_jzLeq_readingCrumbs",
-			"readingEyebrow": "_jzLeq_readingEyebrow",
-			"readingHead": "_jzLeq_readingHead",
 			"readingNote": "_jzLeq_readingNote",
-			"readingPage": "_jzLeq_readingPage",
-			"readingTitle": "_jzLeq_readingTitle",
 			"reparse": "_jzLeq_reparse",
 			"results": "_jzLeq_results",
-			"resultsState": "_jzLeq_resultsState",
 			"root": "_jzLeq_root",
-			"rosterCounts": "_jzLeq_rosterCounts",
 			"rosterLabel": "_jzLeq_rosterLabel",
-			"rosterList": "_jzLeq_rosterList",
 			"rosterMark": "_jzLeq_rosterMark",
-			"rosterName": "_jzLeq_rosterName",
-			"rosterNote": "_jzLeq_rosterNote",
 			"rosterRoot": "_jzLeq_rosterRoot",
 			"rosterRootRail": "_jzLeq_rosterRootRail",
-			"rosterRow": "_jzLeq_rosterRow",
-			"rosterSheet": "_jzLeq_rosterSheet",
 			"rosterTrigger": "_jzLeq_rosterTrigger",
 			"rosterTriggerRail": "_jzLeq_rosterTriggerRail",
 			"search": "_jzLeq_search",
-			"searchClear": "_jzLeq_searchClear",
-			"searchRow": "_jzLeq_searchRow",
-			"searchStatus": "_jzLeq_searchStatus",
-			"searchSummary": "_jzLeq_searchSummary",
 			"segment": "_jzLeq_segment",
 			"segmentDegraded": "_jzLeq_segmentDegraded",
 			"segmentThin": "_jzLeq_segmentThin",
@@ -15687,7 +13063,7 @@ window.__ModuleLoader__.load({
 			"state": "_jzLeq_state",
 			"stateActions": "_jzLeq_stateActions",
 			"stateBody": "_jzLeq_stateBody",
-			"stateNext": "_jzLeq_stateNext",
+			"stateDetails": "_jzLeq_stateDetails",
 			"stateTitle": "_jzLeq_stateTitle",
 			"strip": "_jzLeq_strip",
 			"stripEmpty": "_jzLeq_stripEmpty",
@@ -15860,7 +13236,8 @@ window.__ModuleLoader__.load({
 							className: VaultView_module_css_default.metaRight,
 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setOpen(false);
 								},
@@ -15892,7 +13269,8 @@ window.__ModuleLoader__.load({
 							className: VaultView_module_css_default.actions,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonPrimary,
+								"data-lx-control": "primary",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: () => {
 									keep("note");
@@ -15900,7 +13278,8 @@ window.__ModuleLoader__.load({
 								children: busy ? t("vaultSaving") : t("vaultKeepAsNote")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: () => {
 									keep("pending-concept");
@@ -16122,7 +13501,8 @@ window.__ModuleLoader__.load({
 							className: VaultView_module_css_default.actions,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonPrimary,
+								"data-lx-control": "primary",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: () => {
 									apply("concepts/save", { body: draft }, () => {
@@ -16132,7 +13512,8 @@ window.__ModuleLoader__.load({
 								children: busy ? t("vaultSaving") : t("vaultSave")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setDraft(concept.body);
 									setEditing(false);
@@ -16145,7 +13526,8 @@ window.__ModuleLoader__.load({
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setEditing(true);
 								},
@@ -16153,7 +13535,8 @@ window.__ModuleLoader__.load({
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									if (file !== void 0) {
 										setFile(void 0);
@@ -16185,7 +13568,8 @@ window.__ModuleLoader__.load({
 									}
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
-									className: VaultView_module_css_default.button,
+									"data-lx-control": "secondary",
+									"data-lx-density": "compact",
 									disabled: busy,
 									onClick: () => {
 										const days = Number(deferDays);
@@ -16202,7 +13586,8 @@ window.__ModuleLoader__.load({
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonCorrect,
+								"data-lx-control": "danger",
+								"data-lx-density": "compact",
 								disabled: busy || concept.mastery === "unseen",
 								title: t("vaultCorrectHint"),
 								onClick: () => {
@@ -16389,7 +13774,8 @@ window.__ModuleLoader__.load({
 									className: VaultView_module_css_default.actions,
 									children: RATINGS.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 										type: "button",
-										className: entry.rating === "mastered" ? VaultView_module_css_default.buttonPrimary : VaultView_module_css_default.button,
+										"data-lx-control": entry.rating === "mastered" ? "primary" : "secondary",
+										"data-lx-density": "compact",
 										disabled: busy,
 										onClick: () => {
 											rate(entry.rating);
@@ -16401,7 +13787,8 @@ window.__ModuleLoader__.load({
 								className: VaultView_module_css_default.actions,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
-									className: VaultView_module_css_default.button,
+									"data-lx-control": "secondary",
+									"data-lx-density": "compact",
 									onClick: () => {
 										setShown(true);
 									},
@@ -16629,13 +14016,15 @@ window.__ModuleLoader__.load({
 							className: VaultView_module_css_default.actions,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonPrimary,
+								"data-lx-control": "primary",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: save,
 								children: busy ? t("vaultSaving") : t("vaultSave")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setDraft(note.body);
 									setTarget(note.conceptSlug ?? "");
@@ -16653,7 +14042,8 @@ window.__ModuleLoader__.load({
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setEditing(true);
 								},
@@ -16661,7 +14051,8 @@ window.__ModuleLoader__.load({
 							}),
 							note.kind === "pending-concept" && note.gate === "ready" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonPrimary,
+								"data-lx-control": "primary",
+								"data-lx-density": "compact",
 								disabled: busy,
 								title: t("vaultNotePromoteHint"),
 								onClick: promote,
@@ -16669,20 +14060,23 @@ window.__ModuleLoader__.load({
 							}),
 							confirming ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonCorrect,
+								"data-lx-control": "danger",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: remove,
 								children: t("vaultNoteDeleteConfirm")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.button,
+								"data-lx-control": "secondary",
+								"data-lx-density": "compact",
 								onClick: () => {
 									setConfirming(false);
 								},
 								children: t("vaultCancel")
 							})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonCorrect,
+								"data-lx-control": "danger",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: () => {
 									setConfirming(true);
@@ -16778,13 +14172,15 @@ window.__ModuleLoader__.load({
 						className: VaultView_module_css_default.actions,
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: VaultView_module_css_default.buttonPrimary,
+							"data-lx-control": "primary",
+							"data-lx-density": "compact",
 							disabled: busy,
 							onClick: create,
 							children: busy ? t("vaultSaving") : t("vaultSave")
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: VaultView_module_css_default.button,
+							"data-lx-control": "secondary",
+							"data-lx-density": "compact",
 							onClick: () => {
 								setComposing(false);
 							},
@@ -16800,7 +14196,8 @@ window.__ModuleLoader__.load({
 				className: VaultView_module_css_default.actions,
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 					type: "button",
-					className: VaultView_module_css_default.button,
+					"data-lx-control": "secondary",
+					"data-lx-density": "compact",
 					onClick: () => {
 						setFailure("");
 						setComposing(true);
@@ -16966,7 +14363,8 @@ window.__ModuleLoader__.load({
 			if (!degraded && result === void 0) return null;
 			if (!asked) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				type: "button",
-				className: VaultView_module_css_default.button,
+				"data-lx-control": "secondary",
+				"data-lx-density": "compact",
 				onClick: () => {
 					setFailure("");
 					setAsked(true);
@@ -16991,7 +14389,8 @@ window.__ModuleLoader__.load({
 							className: VaultView_module_css_default.actions,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								type: "button",
-								className: VaultView_module_css_default.buttonSpend,
+								"data-lx-control": "spend",
+								"data-lx-density": "compact",
 								disabled: busy,
 								onClick: run,
 								children: busy ? t("vaultReparseRunning", { count: String(info.pages.length) }) : t("vaultReparseRun", {
@@ -17239,7 +14638,8 @@ window.__ModuleLoader__.load({
 						className: VaultView_module_css_default.cardFoot,
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: VaultView_module_css_default.button,
+							"data-lx-control": "secondary",
+							"data-lx-density": "compact",
 							"aria-expanded": expanded,
 							onClick: () => {
 								setExpanded((value) => !value);
@@ -17396,7 +14796,7 @@ window.__ModuleLoader__.load({
 		* per section, because the rail badges the due count — the number has to be
 		* right before anyone clicks "review" to find out.
 		*/
-		function VaultLibrary({ cwd, call, t, onClose }) {
+		function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }) {
 			const [phase, setPhase] = (0, react.useState)("loading");
 			const [failure, setFailure] = (0, react.useState)("");
 			const [section, setSection] = (0, react.useState)("material");
@@ -17603,13 +15003,32 @@ window.__ModuleLoader__.load({
 			if (phase === "error") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				...learningScope,
 				className: VaultView_module_css_default.state,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-					className: VaultView_module_css_default.stateTitle,
-					children: t("vaultFailed")
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-					className: VaultView_module_css_default.stateBody,
-					children: failure
-				})]
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: VaultView_module_css_default.stateTitle,
+						children: t("vaultFailed")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: VaultView_module_css_default.stateBody,
+						children: t("vaultFailedBody")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: VaultView_module_css_default.stateActions,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							"data-lx-control": "secondary",
+							type: "button",
+							onClick: reload,
+							children: t("vaultRetry")
+						})
+					}),
+					failure !== "" && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+						className: VaultView_module_css_default.stateDetails,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("vaultFailedDetails") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
+							className: VaultView_module_css_default.path,
+							children: failure
+						})]
+					})
+				]
 			});
 			if (phase === "no-vault") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				...learningScope,
@@ -17688,7 +15107,7 @@ window.__ModuleLoader__.load({
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: VaultView_module_css_default.headRow,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+							children: [!embedded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
 								className: VaultView_module_css_default.title,
 								children: summary?.title ?? ""
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -17696,14 +15115,6 @@ window.__ModuleLoader__.load({
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("ul", {
 									className: VaultView_module_css_default.counts,
 									children: [
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-											className: VaultView_module_css_default.count,
-											children: t("vaultCountSources", { count: String(summary?.sources ?? 0) })
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-											className: VaultView_module_css_default.count,
-											children: t("vaultConceptCount", { count: String(counts.concepts) })
-										}),
 										counts.review > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
 											className: VaultView_module_css_default.countDue,
 											children: t("vaultCountDue", { count: String(counts.review) })
@@ -17723,7 +15134,7 @@ window.__ModuleLoader__.load({
 									]
 								}), onClose !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
-									className: VaultView_module_css_default.headerButton,
+									"data-lx-control": "secondary",
 									onClick: onClose,
 									children: t("vaultLibraryOpenSession")
 								})]
@@ -17774,10 +15185,10 @@ window.__ModuleLoader__.load({
 					] })
 				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: VaultView_module_css_default.body,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("nav", {
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
 						className: VaultView_module_css_default.rail,
 						"aria-label": t("vaultTab"),
-						children: SECTIONS.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						children: [topics, SECTIONS.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
 							className: entry.id === section ? VaultView_module_css_default.railItemOn : VaultView_module_css_default.railItem,
 							"aria-current": entry.id === section ? "page" : void 0,
@@ -17788,7 +15199,7 @@ window.__ModuleLoader__.load({
 								className: entry.id === "review" && counts.review > 0 ? VaultView_module_css_default.railDue : VaultView_module_css_default.railCount,
 								children: counts[entry.id]
 							})]
-						}, entry.id))
+						}, entry.id))]
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: VaultView_module_css_default.pane,
 						children: [
@@ -17990,76 +15401,72 @@ window.__ModuleLoader__.load({
 						onClick: () => {
 							setOpen(false);
 						}
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: VaultView_module_css_default.libraryPanel,
 						role: "dialog",
 						"aria-modal": "true",
 						"aria-label": t("vaultRosterTitle"),
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
-							className: VaultView_module_css_default.libraryNav,
-							"aria-label": t("vaultRosterTitle"),
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: VaultView_module_css_default.libraryNavTitle,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, { size: 16 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("vaultRosterTitle") })]
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: VaultView_module_css_default.libraryNavMeta,
-									children: t("vaultLibraryTopics", { count: String(roster.vaults.length) })
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-									className: VaultView_module_css_default.libraryTopicList,
-									children: roster.vaults.map((vault) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-										type: "button",
-										className: vault.cwd === selected.cwd ? VaultView_module_css_default.libraryTopicOn : VaultView_module_css_default.libraryTopic,
-										"aria-current": vault.cwd === selected.cwd ? "page" : void 0,
-										onClick: () => {
-											setSelectedCwd(vault.cwd);
-										},
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: VaultView_module_css_default.libraryTopicName,
-											children: vault.title
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-											className: VaultView_module_css_default.libraryTopicMeta,
-											children: [vault.due > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: VaultView_module_css_default.railDue,
-												children: String(vault.due)
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("vaultRosterRow", {
-												concepts: String(vault.concepts),
-												notes: String(vault.notes)
-											}) })]
-										})]
-									}) }, vault.cwd))
-								})
-							]
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 							className: VaultView_module_css_default.libraryMain,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: VaultView_module_css_default.libraryHeader,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: VaultView_module_css_default.libraryHeaderTitle,
-									children: selected.title
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: VaultView_module_css_default.libraryClose,
-									"aria-label": t("vaultKeepClose"),
-									onClick: () => {
-										setOpen(false);
-									},
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, { size: 14 })
-								})]
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, { size: 16 }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: VaultView_module_css_default.libraryHeaderTitle,
+										children: selected.title
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: VaultView_module_css_default.libraryNavMeta,
+										children: t("vaultLibraryTopics", { count: String(roster.vaults.length) })
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: VaultView_module_css_default.libraryClose,
+										"aria-label": t("vaultKeepClose"),
+										onClick: () => {
+											setOpen(false);
+										},
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, { size: 14 })
+									})
+								]
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 								className: VaultView_module_css_default.libraryScroll,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(VaultLibrary, {
 									cwd: selected.cwd,
 									call,
 									t,
+									embedded: true,
 									onClose: () => {
 										setOpen(false);
-									}
+									},
+									topics: roster.vaults.length < 2 ? void 0 : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: VaultView_module_css_default.libraryTopicGroup,
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+											className: VaultView_module_css_default.libraryTopicHeading,
+											children: t("vaultRosterTitle")
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+											className: VaultView_module_css_default.libraryTopicList,
+											children: roster.vaults.map((vault) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+												type: "button",
+												className: vault.cwd === selected.cwd ? VaultView_module_css_default.libraryTopicOn : VaultView_module_css_default.libraryTopic,
+												"aria-current": vault.cwd === selected.cwd ? "page" : void 0,
+												onClick: () => {
+													setSelectedCwd(vault.cwd);
+												},
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+													className: VaultView_module_css_default.libraryTopicName,
+													children: vault.title
+												}), vault.due > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+													className: VaultView_module_css_default.railDue,
+													children: String(vault.due)
+												})]
+											}) }, vault.cwd))
+										})]
+									})
 								})
 							})]
-						})]
+						})
 					})]
 				}), document.body)]
 			});
@@ -18080,40 +15487,27 @@ window.__ModuleLoader__.load({
 			completed: "已提交你的回答",
 			skipped: "已跳过",
 			cancelled: "已结束",
-			noResponse: "未记录回答",
 			invalidResult: "互动已结束，但结果无法恢复",
-			processEvidence: "完成了 {count} 个检查点",
-			structureEvidence: "选择了 {count} 项差异",
 			answer: "你的解释",
-			answerPlaceholder: "用一两句话解释你观察到的关系…",
 			predict: "先预测",
 			reveal: "揭示这一步",
 			previous: "上一步",
 			next: "下一步",
 			restart: "重新开始",
 			step: "第 {current} / {total} 步",
-			processMap: "流程步骤",
-			compareMap: "结构对应关系",
-			rangeValue: "{label}：{value}",
-			decreaseParameter: "减小{label}",
-			increaseParameter: "增大{label}",
-			chartLabel: "参数变化曲线",
 			chartDescription: "参数：{parameters}。横轴：{xAxis}。纵轴：{yAxis}。曲线：{curves}。",
 			invalidActivity: "该互动活动无法安全显示；如有文字说明，已在下方保留。",
 			invalidReason: "原因：{reason}",
 			visualFailed: "交互图未能完成，已保留文字说明",
 			error: "提交失败：{message}",
-			submitAnswer: "提交回答",
-			awaitingReveal: "回答已提交，正在等待讲解…",
 			continue: "继续",
-			roundProgress: "第 {current} / {total} 轮",
 			learningNotesTitle: "学习笔记",
 			learningNotesTab: "笔记",
 			learningNotesViewIntro: "这里只记录这次对话里的目标、证据和路线，不会替你建立永久画像。",
 			learningNotesStatusActive: "学习中",
 			learningNotesStatusDone: "本段已结束",
 			learningNotesEmptyTitle: "这次学习还没有笔记",
-			learningNotesEmptyBody: "先在对话里提出一个问题；当学习过程开始后，目标、证据和路线会自动出现在这里。",
+			learningNotesEmptyBody: "先在对话里提出一个问题，或用 @ 附上一份材料；当学习过程开始后，目标、证据和路线会自动出现在这里。",
 			learningNotesViewActions: "学习笔记操作",
 			learningNotesSave: "保存到学习库",
 			learningNotesSaving: "正在保存…",
@@ -18134,7 +15528,6 @@ window.__ModuleLoader__.load({
 			learningNotesPhaseRepair: "纠正",
 			learningNotesPhaseTransfer: "迁移",
 			learningNotesPhaseComplete: "已完成",
-			learningNotesActions: "片段操作",
 			learningNotesDeepen: "继续深挖",
 			learningNotesRephrase: "换种讲法",
 			learningNotesEnd: "结束本片段",
@@ -18147,19 +15540,18 @@ window.__ModuleLoader__.load({
 			learningStartMaterial: "学习一份材料",
 			learningStartConceptPrompt: "我想真正理解一个概念：",
 			learningStartQuestionPrompt: "我有一个疑惑，帮我定位我卡在哪里：",
-			learningStartMaterialPrompt: "我想学习一份材料，请带我按真实章节逐步读懂它。",
+			learningStartMaterialPrompt: "我想学习这份材料，请带我按真实章节逐步读懂：@",
 			learningResultTitle: "本段学习结果",
 			learningResultComplete: "当前练习已完成。",
 			learningResultEnded: "当前学习片段已结束。",
 			learningResultTransfer: "已在新的例子中验证了这次理解。",
 			learningResultTransferPending: "新的例子还未验证；如果要确认能迁移，可以继续做一个。",
 			learningResultEvidenceNote: "这不是分数或永久标签，而是这次对话里留下的证据。",
-			learningResultActions: "下一步",
 			learningResultPractice: "再做一个新例子",
-			learningResultCard: "整理成学习卡片",
+			learningResultCard: "整理成概念卡",
 			learningResultNewTopic: "换一个新主题",
 			learningResultPracticePrompt: "请给我一个新的例子，先让我作答，再根据我的回答判断是否真的能迁移。",
-			learningResultCardPrompt: "请根据本段已验证的内容，提出一张学习卡片草案，先让我确认再保存。",
+			learningResultCardPrompt: "请根据本段已验证的内容，提出一张概念卡草案，先让我确认再保存。",
 			learningResultNewTopicPrompt: "我想换一个新主题继续学习，请先帮我定位起点。",
 			checkpointEyebrow: "学习检查点",
 			checkpointEvidenceAttempt: "试着作答",
@@ -18311,12 +15703,13 @@ window.__ModuleLoader__.load({
 			vaultTab: "学习库",
 			vaultLoading: "正在读取这个学习库…",
 			vaultFailed: "读取学习库时出错",
+			vaultFailedBody: "这一次读取没有完成，通常重试一次就能恢复。",
+			vaultRetry: "重试",
+			vaultFailedDetails: "技术细节",
 			vaultNoneTitle: "这个文件夹还不是学习库",
 			vaultNoneBody: "在这次对话里用 @ 附上一份材料（PDF、Markdown、docx、pptx 或纯文本），系统会就地建立学习库并解析它。原件会被复制进 sources/，永不修改。",
 			vaultEmptyTitle: "学习库是空的",
 			vaultEmptyBody: "还没有任何材料。用 @ 附上一份文件，解析结果和它的章节结构会出现在这里。",
-			vaultCountSources: "{count} 份材料",
-			vaultCountConcepts: "{count} 张概念卡",
 			vaultCountDue: "{count} 张今天到期",
 			vaultCountDegraded: "{count} 份材料只读到一部分",
 			vaultSearchPlaceholder: "在材料、概念卡和笔记里搜索…",
@@ -18347,7 +15740,7 @@ window.__ModuleLoader__.load({
 			vaultNavConcepts: "概念卡",
 			vaultNavReview: "复习",
 			vaultConceptsEmptyTitle: "还没有概念卡",
-			vaultConceptsEmptyBody: "暂无概念卡。完成一次独立迁移后，系统会提出创建建议。",
+			vaultConceptsEmptyBody: "暂无概念卡。在对话里说一声就能存一张；完成一次独立迁移后助手也会主动提议。",
 			vaultMasteryUnseen: "未见",
 			vaultMasteryEmerging: "初成",
 			vaultMasteryTransfer: "迁移",
@@ -18366,7 +15759,7 @@ window.__ModuleLoader__.load({
 			vaultSave: "保存",
 			vaultCancel: "取消",
 			vaultSaving: "正在保存…",
-			vaultSystemFieldsNote: "掌握度、排期和引用由系统维护，这里只能编辑正文。",
+			vaultSystemFieldsNote: "掌握度、排期和引用会随复习自动更新，这里只编辑正文。",
 			vaultCorrect: "标记为需要复习",
 			vaultCorrectHint: "将掌握度降低一级，并安排今天复习；掌握度只能在对话中再次验证后提升。",
 			vaultCorrectDone: "已降为{mastery}，并排进今天的复习",
@@ -18386,14 +15779,13 @@ window.__ModuleLoader__.load({
 			vaultRateRevealedHint: "不重新排期，这张卡今天还会再出现。",
 			vaultReviewDone: "今天的复习做完了。",
 			vaultReviewNextDue: "下次 {date}",
-			vaultConceptCount: "{count} 张概念卡",
 			vaultStaleCount: "{count} 张引用失效",
 			vaultNavNotes: "已保存",
 			vaultPendingCount: "{count} 张待确认",
 			vaultNotesEmptyTitle: "还没有笔记",
 			vaultNotesEmptyBody: "在任何一条模型回答上点「留到库里」，它就会变成这个文件夹里的一个 Markdown 文件——关掉会话也还在。你也可以在这里直接新建一条。",
 			vaultNotesPendingTitle: "待确认概念卡",
-			vaultNotesPendingHint: "完成一次独立迁移后，系统会提出创建概念卡；在此之前，草稿不会进入复习。",
+			vaultNotesPendingHint: "想现在就存成概念卡，在对话里说一声即可；否则草稿先留在这里，不进入复习。",
 			vaultNotesReadyTitle: "可并入概念卡",
 			vaultNotesReadyHint: "这些草稿对应的概念卡已经存在了——你可以把这段文字并进那张卡，作为一条新的观察记录。",
 			vaultNotesPlainTitle: "笔记",
@@ -18412,14 +15804,14 @@ window.__ModuleLoader__.load({
 			vaultNoteBlocked: "「{concept}」还没有概念卡，先在对话里练到能独立用对它。",
 			vaultNoteDelete: "删除",
 			vaultNoteDeleteConfirm: "确认删除文件",
-			vaultKeep: "添加该回答作为笔记概念",
-			vaultKeepHint: "添加该回答作为笔记概念",
+			vaultKeep: "把这段回答留到学习库",
+			vaultKeepHint: "把这段回答留到学习库",
 			vaultKeepTitle: "留到库里",
 			vaultKeepClose: "收起",
 			vaultKeepBody: "要保存的正文",
 			vaultKeepAsNote: "存为笔记",
 			vaultKeepAsPending: "存为待确认概念卡",
-			vaultKeepAsCardHint: "概念卡需在对话中完成一次独立迁移后才能创建；此处可先保存为待确认草稿。",
+			vaultKeepAsCardHint: "在对话里说一声就能存成概念卡；也可以先留在这里作为草稿。",
 			vaultKeptAsNote: "已存为笔记。",
 			vaultKeptAsPending: "已存为待确认概念卡。",
 			vaultKeptWhere: "文件就在学习库文件夹里，在「学习库 · 笔记」里可以随时改。",
@@ -18446,7 +15838,6 @@ window.__ModuleLoader__.load({
 			vaultReparsePageRenderFailed: "第 {page} 页 渲染失败",
 			vaultReparseStale: "有 {count} 处引用在这次重排后失效了。",
 			vaultRosterTitle: "学习库",
-			vaultRosterRow: "{concepts} 概念卡 · {notes} 已保存",
 			vaultLibraryTopics: "{count} 个主题库",
 			vaultLibraryOpenSession: "回到对话",
 			vaultSourceDetails: "材料详情",
@@ -18470,40 +15861,27 @@ window.__ModuleLoader__.load({
 			completed: "Response submitted",
 			skipped: "Skipped",
 			cancelled: "Ended",
-			noResponse: "No response recorded",
 			invalidResult: "The interaction ended, but its result could not be restored",
-			processEvidence: "{count} checkpoints completed",
-			structureEvidence: "{count} differences selected",
 			answer: "Your explanation",
-			answerPlaceholder: "Explain the relationship you noticed in one or two sentences…",
 			predict: "Predict first",
 			reveal: "Reveal this step",
 			previous: "Previous",
 			next: "Next",
 			restart: "Restart",
 			step: "Step {current} / {total}",
-			processMap: "Process steps",
-			compareMap: "Structural relationships",
-			rangeValue: "{label}: {value}",
-			decreaseParameter: "Decrease {label}",
-			increaseParameter: "Increase {label}",
-			chartLabel: "Parameter relationship chart",
 			chartDescription: "Parameters: {parameters}. X axis: {xAxis}. Y axis: {yAxis}. Curves: {curves}.",
 			invalidActivity: "This activity could not be displayed safely; any available text explanation is preserved below.",
 			invalidReason: "Reason: {reason}",
 			visualFailed: "The interactive visual could not complete; the text explanation is preserved",
 			error: "Submission failed: {message}",
-			submitAnswer: "Submit answer",
-			awaitingReveal: "Answer submitted. Waiting for the reveal…",
 			continue: "Continue",
-			roundProgress: "Round {current} / {total}",
 			learningNotesTitle: "Learning notes",
 			learningNotesTab: "Notes",
 			learningNotesViewIntro: "This page keeps the goal, evidence and route from this conversation; it does not create a permanent profile.",
 			learningNotesStatusActive: "In progress",
 			learningNotesStatusDone: "Segment ended",
 			learningNotesEmptyTitle: "No notes from this session yet",
-			learningNotesEmptyBody: "Ask a question in the conversation first. Once learning begins, the goal, evidence and route appear here.",
+			learningNotesEmptyBody: "Ask a question in the conversation, or attach material with @. Once learning begins, the goal, evidence and route appear here.",
 			learningNotesViewActions: "Learning notes actions",
 			learningNotesSave: "Save to vault",
 			learningNotesSaving: "Saving…",
@@ -18524,7 +15902,6 @@ window.__ModuleLoader__.load({
 			learningNotesPhaseRepair: "Repair",
 			learningNotesPhaseTransfer: "Transfer",
 			learningNotesPhaseComplete: "Complete",
-			learningNotesActions: "Segment actions",
 			learningNotesDeepen: "Explore further",
 			learningNotesRephrase: "Explain another way",
 			learningNotesEnd: "End this segment",
@@ -18537,14 +15914,13 @@ window.__ModuleLoader__.load({
 			learningStartMaterial: "Study a piece of material",
 			learningStartConceptPrompt: "I want to really understand a concept:",
 			learningStartQuestionPrompt: "I am confused about something. Help me locate the gap:",
-			learningStartMaterialPrompt: "I want to study a piece of material. Guide me through its real sections step by step.",
+			learningStartMaterialPrompt: "I want to study this material. Guide me through its real sections step by step: @",
 			learningResultTitle: "Learning result",
 			learningResultComplete: "The current practice is complete.",
 			learningResultEnded: "This learning segment has ended.",
 			learningResultTransfer: "Your understanding was checked in a fresh case.",
 			learningResultTransferPending: "A fresh case has not been checked yet; do one if you want to verify transfer.",
 			learningResultEvidenceNote: "This is not a score or permanent label—only evidence from this conversation.",
-			learningResultActions: "Next steps",
 			learningResultPractice: "Try a fresh case",
 			learningResultCard: "Make a concept card",
 			learningResultNewTopic: "Start a new topic",
@@ -18701,12 +16077,13 @@ window.__ModuleLoader__.load({
 			vaultTab: "Vault",
 			vaultLoading: "Reading this vault…",
 			vaultFailed: "The vault could not be read",
+			vaultFailedBody: "This read did not complete. Retrying usually recovers it.",
+			vaultRetry: "Retry",
+			vaultFailedDetails: "Technical detail",
 			vaultNoneTitle: "This folder is not a vault yet",
 			vaultNoneBody: "Attach material to this conversation with @ (PDF, Markdown, docx, pptx or plain text). The vault is created here and the file is parsed; the original is copied into sources/ and never modified.",
 			vaultEmptyTitle: "This vault is empty",
 			vaultEmptyBody: "No material yet. Attach a file with @ and its parsed text and section structure appear here.",
-			vaultCountSources: "{count} sources",
-			vaultCountConcepts: "{count} concept cards",
 			vaultCountDue: "{count} due today",
 			vaultCountDegraded: "{count} partly read",
 			vaultSearchPlaceholder: "Search material, concept cards and notes…",
@@ -18737,7 +16114,7 @@ window.__ModuleLoader__.load({
 			vaultNavConcepts: "Concept cards",
 			vaultNavReview: "Review",
 			vaultConceptsEmptyTitle: "No concept cards yet",
-			vaultConceptsEmptyBody: "No concept cards yet. After an independent transfer, the system will propose creating one.",
+			vaultConceptsEmptyBody: "No concept cards yet. Ask for one in the conversation, or an independent transfer will prompt the suggestion.",
 			vaultMasteryUnseen: "Unseen",
 			vaultMasteryEmerging: "Emerging",
 			vaultMasteryTransfer: "Transfer",
@@ -18756,7 +16133,7 @@ window.__ModuleLoader__.load({
 			vaultSave: "Save",
 			vaultCancel: "Cancel",
 			vaultSaving: "Saving…",
-			vaultSystemFieldsNote: "Mastery, scheduling and citations are maintained by the system; only the text is editable here.",
+			vaultSystemFieldsNote: "Mastery, scheduling and citations update as you review; edit the text here.",
 			vaultCorrect: "Mark for review",
 			vaultCorrectHint: "Lowers mastery one step and schedules it for today; mastery rises only after another verified response in conversation.",
 			vaultCorrectDone: "Lowered to {mastery} and scheduled for today",
@@ -18776,14 +16153,13 @@ window.__ModuleLoader__.load({
 			vaultRateRevealedHint: "Not rescheduled — this card comes back again today.",
 			vaultReviewDone: "Today's review is finished.",
 			vaultReviewNextDue: "Next {date}",
-			vaultConceptCount: "{count} concept cards",
 			vaultStaleCount: "{count} with stale citations",
 			vaultNavNotes: "Saved",
 			vaultPendingCount: "{count} pending",
 			vaultNotesEmptyTitle: "No notes yet",
 			vaultNotesEmptyBody: "Press \"Keep in vault\" on any answer and it becomes a Markdown file in this folder — still there after the session closes. You can also write one here directly.",
 			vaultNotesPendingTitle: "Pending concept cards",
-			vaultNotesPendingHint: "After an independent transfer, the system will propose creating a concept card; until then, the draft stays out of review.",
+			vaultNotesPendingHint: "Ask in the conversation to save this as a concept card now; otherwise the draft stays here and out of review.",
 			vaultNotesReadyTitle: "Ready to merge",
 			vaultNotesReadyHint: "A concept card already exists for these drafts — you can attach this text to that card as one more observation.",
 			vaultNotesPlainTitle: "Notes",
@@ -18802,14 +16178,14 @@ window.__ModuleLoader__.load({
 			vaultNoteBlocked: "“{concept}” has no concept card yet. Work with it in conversation until you can use it unaided.",
 			vaultNoteDelete: "Delete",
 			vaultNoteDeleteConfirm: "Delete the file",
-			vaultKeep: "Add this answer as a note concept",
-			vaultKeepHint: "Add this answer as a note concept",
+			vaultKeep: "Keep this answer in the vault",
+			vaultKeepHint: "Keep this answer in the vault",
 			vaultKeepTitle: "Keep in vault",
 			vaultKeepClose: "Close",
 			vaultKeepBody: "Text to keep",
 			vaultKeepAsNote: "Keep as note",
 			vaultKeepAsPending: "Keep as pending card",
-			vaultKeepAsCardHint: "A concept card can be created after an independent transfer in conversation; keep it here as a pending draft for now.",
+			vaultKeepAsCardHint: "Ask in the conversation to save it as a concept card, or leave it here as a draft.",
 			vaultKeptAsNote: "Kept as a note.",
 			vaultKeptAsPending: "Kept as a pending concept card.",
 			vaultKeptWhere: "The file is in the vault folder, and editable any time under Vault · Notes.",
@@ -18836,7 +16212,6 @@ window.__ModuleLoader__.load({
 			vaultReparsePageRenderFailed: "p.{page} render failed",
 			vaultReparseStale: "{count} citation(s) went stale in this rebuild.",
 			vaultRosterTitle: "Vault",
-			vaultRosterRow: "{concepts} concept cards · {notes} saved",
 			vaultLibraryTopics: "{count} topic vaults",
 			vaultLibraryOpenSession: "Back to conversation",
 			vaultSourceDetails: "Material details",
@@ -18873,10 +16248,7 @@ window.__ModuleLoader__.load({
 		const LEARNING_TOOL_VIEW_KEYS = [
 			"learning_visual",
 			"learning_checkpoint",
-			"learning_state_update",
-			"learning_activity",
-			"learning_question",
-			"learning_reveal"
+			"learning_state_update"
 		];
 		/** Learner-state writes are internal bookkeeping and never produce a card. */
 		function LearningStateUpdateToolView() {
@@ -19005,7 +16377,6 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		exports.ActivityRendererRegistry = ActivityRendererRegistry;
 		exports.LEARNING_PRESET_ID = LEARNING_PRESET_ID;
 		exports.LEARNING_TOOL_VIEW_KEYS = LEARNING_TOOL_VIEW_KEYS;
 		exports.LearningStateUpdateToolView = LearningStateUpdateToolView;
@@ -19013,7 +16384,6 @@ window.__ModuleLoader__.load({
 		exports.VaultLibrary = VaultLibrary;
 		exports.VaultRosterAction = VaultRosterAction;
 		exports.VaultView = VaultView;
-		exports.activityRendererRegistry = activityRendererRegistry;
 		exports.apply = apply;
 		exports.candidateFolders = candidateFolders;
 		exports.inject = inject;
