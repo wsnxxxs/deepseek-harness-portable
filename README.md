@@ -58,7 +58,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 - Minimal mode uses WSL Bash on Windows and the native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandbox-capable modes use bwrap or fail-closed Landlock according to the upstream policy.
 - Preinstalled, removable plugin marketplace with paginated GitHub search, one-click installation, update management, and agent-facing market tools.
 - Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, and GIF files through the kernel attachment and model services. It can automatically select a configured image-capable model—including the official `deepseek-v4-flash-vision-exp` catalog entry—or pin one in plugin settings, with no separate endpoint or API key.
-- The conversation input keeps image attachments as image data and represents ordinary local documents as `@file` path references. Document bytes are not uploaded or parsed by the desktop attachment layer; the model can use the existing shell/file-reference tools to read an accessible path.
+- The conversation input keeps image attachments as image data and uploads text/Office files through the kernel Session Remote. Upstream `@file` path references remain available, while desktop file attachments reject dropped objects whose local path cannot be resolved.
 - Learning mode provides material-grounded teaching with session notes, source anchors, concept reviews, learner memory, non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Durable content lives in the separate Learning Library; teaching state advances from learner evidence and survives refresh, resume, and message compaction.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
@@ -69,7 +69,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 | Release | DeepSeek Harness Desktop **v1.5.6** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.5.6)) |
 | Distribution | 1.5.6 |
 | Desktop shell | 0.1.0-shell.2 |
-| Kernel | 0.1.1-rc.2 |
+| Kernel | 0.1.2-alpha.1 (`dsh-v0.1.2-alpha.1`) |
 
 Read the [English release notes](RELEASE_NOTES.md) or open **Release Notes** from the desktop tray menu.
 

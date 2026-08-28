@@ -1,4 +1,4 @@
-id: code
+id: ptc
 baseConfig: agent.cordis.yml
 
 contract:
@@ -38,7 +38,7 @@ contract:
   compaction: enabled
   filesystem: policy-mediated
   sandbox: workspace-write
-  presentation: code-sdk
+  presentation: ptc-sdk
 
 variants:
   - id: posix-bash

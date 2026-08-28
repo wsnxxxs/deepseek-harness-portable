@@ -32,7 +32,7 @@ import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment';
 import { interactiveLearningPresetRoot } from '@dsh-portable/interactive-learning/preset';
 import { collectCapabilityReport } from './capability-report.js';
-import { compileModeCatalog, measuredModeSupport, } from './mode-catalog.js';
+import { compileModeCatalog, canonicalModeId, measuredModeSupport, } from './mode-catalog.js';
 import { openBrowser } from './open-browser.js';
 import { ensureMarketplacePreinstalled, materializeMarketplaceSeed, MARKETPLACE_PACKAGE, } from './marketplace-bootstrap.js';
 import { createProfileFirstPackageJsonResolver } from './profile-module-resolver.js';
@@ -222,16 +222,19 @@ function homePatchPath() {
  * shipped-root overlay, then the telemetry switch.
  * @returns the profile, its bundle layers, and the composed row index.
  */
-function composeProfile(shippedPresetRoot, virtualRuntime) {
+async function composeProfile(shippedPresetRoot, virtualRuntime) {
     const profileDir = resolveProfileDir(PROFILE_NAME);
-    initProfile(profileDir, PROFILE_TEMPLATES[PROFILE_NAME] ?? []);
+    const template = PROFILE_TEMPLATES[PROFILE_NAME];
+    if (template === undefined)
+        throw new Error(`${NAME}: missing ${PROFILE_NAME} profile template`);
+    initProfile(profileDir, template.bundles, template.patchReload);
     const bundledMarketplace = marketplaceSourceDir();
     const marketplaceSeed = materializeMarketplaceSeed({
         homeDir: resolveDshHome(),
         bundledSourceDir: bundledMarketplace,
     });
     let marketplace;
-    const profile = composeAfterManagedFallback({
+    const profile = await composeAfterManagedFallback({
         virtualRuntime,
         installAnchor: INSTALL_ANCHOR,
         mutate: () => {
@@ -356,7 +359,7 @@ function isLauncherFlag(arg) {
 }
 /** The browser shell cannot activate until these graph entries exist. */
 const REQUIRED_CLIENT_ENTRIES = [
-    '@deepseek-ai/dsh-client-runtime',
+    '@deepseek-ai/dsh-client-ui-session',
     '@deepseek-ai/dsh-client-ui-layout',
     '@dsh-portable/interactive-learning',
     '@dsh-portable/vision-bridge',
@@ -512,8 +515,8 @@ function installRuntimeEvidenceSurface(ctx, state) {
     }
     const appendTrace = (agent, requestedPreset) => {
         const presets = ctx.get('agentPresets');
-        const presetId = requestedPreset ?? presets?.composedPreset(agent.ctx) ?? agent.session.header.agentPreset;
-        if (presetId === undefined)
+        const presetId = canonicalModeId(requestedPreset ?? presets?.composedPreset(agent.ctx) ?? agent.session.header.agentPreset ?? '');
+        if (presetId === '')
             return;
         const trace = state.modeCatalog.modes[presetId]?.trace;
         if (trace === undefined)
@@ -575,7 +578,7 @@ async function main() {
     webArgs.push('--no-open');
     const virtualRuntime = Boolean(process.pkg);
     const presetState = await materializeShippedPresetRoot();
-    const composed = composeProfile(presetState.root, virtualRuntime);
+    const composed = await composeProfile(presetState.root, virtualRuntime);
     if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
         console.log(encodeRuntimeEvent({
             protocolVersion: RUNTIME_PROTOCOL_VERSION,

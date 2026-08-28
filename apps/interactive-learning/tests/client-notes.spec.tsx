@@ -2,9 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentType } from 'react'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { LearningSessionNotes, projectLearningNotes } from '../src/client/LearningNotes.tsx'
+import { LearningSessionNotes, projectLearningNotes, type LearningNotesSource } from '../src/client/LearningNotes.tsx'
 import { LearningSurface } from '../src/client/LearningSurface.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -30,7 +29,7 @@ function resultNode(name: string, args: Record<string, unknown>, result?: unknow
   }
 }
 
-function sessionWithLearningNotes(): ConversationSnapshot {
+function sessionWithLearningNotes(): LearningNotesSource {
   return {
     nodes: [
       resultNode('learning_state_update', {
@@ -61,7 +60,7 @@ function sessionWithLearningNotes(): ConversationSnapshot {
     ],
     runningCalls: [],
     chat: { nodes: { values: () => [] } },
-  } as unknown as ConversationSnapshot
+  } as unknown as LearningNotesSource
 }
 
 afterEach(() => cleanup())
@@ -82,6 +81,7 @@ describe('session learning notes', () => {
     render(
       <Notes
         session={sessionWithLearningNotes()}
+        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: sessionWithLearningNotes() })}
         input={{ phase: 'plain' }}
         inputActions={{ setDraft, submit }}
         t={t}
@@ -118,10 +118,11 @@ describe('session learning notes', () => {
           content: [{ type: 'text', text: 'Done.' }],
         },
       ],
-    } as ConversationSnapshot
+    } as LearningNotesSource
     render(
       <Notes
         session={session}
+        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: session })}
         input={{ phase: 'plain' }}
         inputActions={{ setDraft: vi.fn(), submit: vi.fn() }}
         t={t}
@@ -160,7 +161,7 @@ describe('session learning notes', () => {
           event: { type: 'progress_observed', nextMove: 'complete', phase: 'complete' },
         }),
       ],
-    } as ConversationSnapshot
+    } as LearningNotesSource
 
     const notes = projectLearningNotes(session)
     expect(notes.goal).toBe('Understand queue ordering.')
@@ -172,6 +173,7 @@ describe('session learning notes', () => {
     render(
       <Notes
         session={session}
+        useChat={(select: (value: { legacy: LearningNotesSource }) => unknown) => select({ legacy: session })}
         input={{ phase: 'plain' }}
         inputActions={{ setDraft, submit }}
         t={t}
@@ -201,7 +203,7 @@ describe('session learning notes', () => {
       ],
       runningCalls: [],
       chat: { nodes: { values: () => [] } },
-    } as unknown as ConversationSnapshot
+    } as unknown as LearningNotesSource
 
     expect(projectLearningNotes(session).goal).toBe('我想理解二叉搜索树为什么查找快。')
   })
@@ -216,7 +218,7 @@ describe('session learning notes', () => {
       blank: true,
       running: false,
       removed: false,
-    } as ConversationSnapshot
+    } as LearningNotesSource
 
     render(
       <Surface

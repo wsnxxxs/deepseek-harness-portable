@@ -3,7 +3,7 @@
  * Connects SettingsScope<VisionSettings> to the React view model.
  * @module @dsh-portable/vision-bridge/client/vision-card-controller
  */
-import { createSnapshotStore, } from '@deepseek-ai/dsh-client-runtime/client';
+import { createSnapshotStore, } from '@deepseek-ai/dsh-client-store';
 import { describeVisionRoute } from "./vision-route.js";
 /** Field defaults mirroring the host schema, so an unset value renders the same on both sides. */
 const DEFAULTS = {

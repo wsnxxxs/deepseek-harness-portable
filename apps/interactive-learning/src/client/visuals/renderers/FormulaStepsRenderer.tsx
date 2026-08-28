@@ -1,6 +1,7 @@
 /** `formula_steps`: a derivation revealed one justified transformation at a time. */
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DEFAULT_MARKDOWN_LABELS } from '../../markdown-labels.ts'
 import { labelTemplate, useVisualLabels } from '../core/labels.ts'
 import { displayMath, toneAt } from '../core/format.ts'
 import { EmptyFigure } from '../core/shell-parts.tsx'
@@ -66,7 +67,7 @@ export function FormulaStepsRenderer({ content, focus, storageKey }: RendererPro
             <div className={css.formulaStepCard}>
               <span>{index + 1}</span>
               <div>
-                <div className={css.formulaExpression} aria-label={step.expression}><MarkdownText text={displayMath(step.expression)} /></div>
+                <div className={css.formulaExpression} aria-label={step.expression}><MarkdownText text={displayMath(step.expression)} labels={DEFAULT_MARKDOWN_LABELS} /></div>
                 {step.label === undefined ? null : <strong>{step.label}</strong>}
                 {step.detail === undefined ? null : <p>{step.detail}</p>}
               </div>

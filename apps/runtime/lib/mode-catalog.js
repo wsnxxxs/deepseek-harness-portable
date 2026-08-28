@@ -5,6 +5,10 @@ import { createRequire } from 'node:module';
 import { resolveVariant, } from './mode-resolver.js';
 const require = createRequire(import.meta.url);
 const yaml = require('js-yaml');
+/** One-time compatibility mapping for sessions persisted by the old portable catalog. */
+export function canonicalModeId(modeId) {
+    return modeId === 'code' ? 'ptc' : modeId;
+}
 function stringArray(value, path) {
     if (!Array.isArray(value) || value.some(item => typeof item !== 'string' || item.length === 0)) {
         throw new Error(`${path} must be an array of non-empty strings`);

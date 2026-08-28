@@ -21,10 +21,10 @@ test('legacy compose-before-heal reproduces code 1 first and success only after 
   assert.equal(legacyLaunch(), 0)
 })
 
-test('marketplace mutation is followed by fallback heal before the first loadProfile', () => {
+test('marketplace mutation is followed by fallback heal before the first loadProfile', async () => {
   const events: string[] = []
   let fallbackPresent = true
-  const result = composeAfterManagedFallback({
+  const result = await composeAfterManagedFallback({
     virtualRuntime: false,
     installAnchor: 'C:\\release\\resources\\app\\package.json',
     mutate: () => {
@@ -45,9 +45,9 @@ test('marketplace mutation is followed by fallback heal before the first loadPro
   assert.deepEqual(events, ['marketplace', 'heal', 'loadProfile'])
 })
 
-test('single-file virtual runtime composes without writing filesystem fallbacks', () => {
+test('single-file virtual runtime composes without writing filesystem fallbacks', async () => {
   let healed = false
-  assert.equal(composeAfterManagedFallback({
+  assert.equal(await composeAfterManagedFallback({
     virtualRuntime: true,
     installAnchor: '/virtual/package.json',
     mutate: () => {},

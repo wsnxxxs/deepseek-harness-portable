@@ -1,5 +1,8 @@
 export const zh = {
   scaffold: '提示',
+  markdownCopy: '复制',
+  markdownCopied: '已复制',
+  markdownFootnotes: '脚注',
   submit: '提交回答',
   skip: '先跳过',
   cancel: '结束这里',
@@ -388,6 +391,9 @@ export const zh = {
 
 export const en: typeof zh = {
   scaffold: 'Hint',
+  markdownCopy: 'Copy',
+  markdownCopied: 'Copied',
+  markdownFootnotes: 'Footnotes',
   submit: 'Submit response',
   skip: 'Skip for now',
   cancel: 'End here',

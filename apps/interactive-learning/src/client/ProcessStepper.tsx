@@ -3,6 +3,7 @@ import { useId, useState, type CSSProperties } from 'react'
 import type { LearningJson } from '../protocol-current.ts'
 import type { ActivityRendererProps } from './types.ts'
 import css from './LearningActivity.module.css'
+import { markdownLabels } from './markdown-labels.ts'
 
 type ProcessActivity = Extract<ActivityRendererProps['activity'], { kind: 'process_stepper' }>
 
@@ -111,7 +112,7 @@ export function ProcessStepper({ activity, busy, onSubmit, t }: ActivityRenderer
         {!isRevealed ? (
           <button className={css.revealButton} type="button" disabled={busy || !canReveal} onClick={reveal}>{t('reveal')}</button>
         ) : (
-          <div className={css.revealed}><MarkdownText text={step.content} /></div>
+          <div className={css.revealed}><MarkdownText text={step.content} labels={markdownLabels(t)} /></div>
         )}
       </section>
       <div className={css.navigation}>

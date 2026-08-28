@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LearningActivityV1 } from '../protocol-current.ts'
 import css from './LearningActivity.module.css'
+import { markdownLabels } from './markdown-labels.ts'
 import { learningScope } from './tokens.ts'
 
 export function ActivityFrame({
@@ -30,7 +31,7 @@ export function ActivityFrame({
       {activity.scaffold === undefined ? null : (
         <details className={css.scaffold}>
           <summary>{t('scaffold')}</summary>
-          <MarkdownText text={activity.scaffold} />
+          <MarkdownText text={activity.scaffold} labels={markdownLabels(t)} />
         </details>
       )}
       {error === null ? null : <p className={css.error} role="alert">{error}</p>}

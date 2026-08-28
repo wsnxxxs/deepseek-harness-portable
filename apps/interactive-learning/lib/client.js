@@ -5126,6 +5126,26 @@ window.__ModuleLoader__.load({
 			"zeroAxis": "_7ar4Xq_zeroAxis"
 		};
 		//#endregion
+		//#region src/client/markdown-labels.ts
+		/** Localized chrome required by the alpha.1 MarkdownText contract. */
+		function markdownLabels(t) {
+			return {
+				code: {
+					copyLabel: t("markdownCopy"),
+					copiedLabel: t("markdownCopied")
+				},
+				footnotes: t("markdownFootnotes")
+			};
+		}
+		/** Stable fallback for visual renderers that intentionally have no locale seat. */
+		const DEFAULT_MARKDOWN_LABELS = {
+			code: {
+				copyLabel: "复制",
+				copiedLabel: "已复制"
+			},
+			footnotes: "脚注"
+		};
+		//#endregion
 		//#region \0dsh-css:src/client/tokens.module.css.mjs
 		const css$16 = "[data-learning-scope]{--lx-text-micro:11px;--lx-leading-micro:16px;--lx-text-2xs:12px;--lx-leading-2xs:17px;--lx-text-xs:13px;--lx-leading-xs:20px;--lx-text-sm:14px;--lx-leading-sm:21px;--lx-text-base:15px;--lx-leading-base:23px;--lx-text-md:16px;--lx-leading-md:25px;--lx-text-lg:18px;--lx-leading-lg:27px;--lx-text-xl:clamp(18px, 4cqi, 22px);--lx-leading-xl:1.5;--lx-text-formula:clamp(16px, 3cqi, 20px);--lx-leading-formula:27px;--lx-glyph-xs:9px;--lx-weight-regular:400;--lx-weight-medium:550;--lx-weight-strong:650;--lx-tracking-eyebrow:.08em;--lx-font-mono:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Consolas, monospace);--lx-space-3xs:2px;--lx-space-2xs:4px;--lx-space-xs:6px;--lx-space-sm:8px;--lx-space-md:10px;--lx-space-lg:12px;--lx-space-xl:16px;--lx-space-2xl:20px;--lx-space-3xl:24px;--lx-radius-xs:6px;--lx-radius-sm:8px;--lx-radius-md:10px;--lx-radius-lg:12px;--lx-radius-xl:16px;--lx-radius-pill:999px;--lx-radius-circle:50%;--lx-host-bg:var(--dsw-alias-bg-layer-1,Canvas);--lx-host-label:var(--dsw-alias-label-primary,CanvasText);--lx-host-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--lx-host-accent-soft:var(--dsw-alias-state-business-tertiary,color-mix(in srgb, var(--lx-host-accent) 14%, transparent));--lx-surface-base:var(--lx-host-bg);--lx-surface-card:color-mix(in srgb, var(--lx-host-bg) 96%, transparent);--lx-surface-raised:color-mix(in srgb, var(--lx-host-bg) 88%, var(--lx-host-label) 3%);--lx-surface-sunken:color-mix(in srgb, var(--lx-host-label) 3.5%, var(--lx-host-bg));--lx-surface-accent:color-mix(in srgb, var(--lx-host-accent-soft) 30%, transparent);--lx-border-subtle:var(--dsw-alias-border-l1,color-mix(in srgb, var(--lx-host-label) 12%, transparent));--lx-border-default:var(--dsw-alias-border-l2,color-mix(in srgb, var(--lx-host-label) 18%, transparent));--lx-border-strong:var(--dsw-alias-border-l3,color-mix(in srgb, var(--lx-host-label) 28%, transparent));--lx-border-strongest:var(--dsw-alias-border-l4,color-mix(in srgb, var(--lx-host-label) 38%, transparent));--lx-label-primary:var(--lx-host-label);--lx-label-secondary:var(--dsw-alias-label-secondary,color-mix(in srgb, var(--lx-host-label) 76%, transparent));--lx-label-tertiary:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent));--lx-label-on-accent:var(--dsw-alias-label-on-primary,white);--lx-accent:var(--lx-host-accent);--lx-accent-soft:var(--lx-host-accent-soft);--lx-success:var(--dsw-alias-state-success-primary,#2f9e5f);--lx-warn:var(--dsw-alias-state-warn-primary,#d1741f);--lx-danger:var(--dsw-alias-state-error-primary,#df4f4f);--lx-label-error:var(--dsw-alias-label-error,var(--lx-danger));--lx-label-inverted:var(--dsw-alias-label-primary-inverted,var(--lx-surface-base));--lx-card-border:1px solid var(--lx-border-default);--lx-card-radius:var(--lx-radius-xl);--lx-card-padding:clamp(16px, 2.8cqi, 22px);--lx-card-background:var(--lx-surface-card);--lx-shadow-sm:0 1px 3px color-mix(in srgb, var(--lx-host-label) 6%, transparent), 0 1px 2px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-md:0 4px 12px -2px color-mix(in srgb, var(--lx-host-label) 8%, transparent), 0 2px 6px -1px color-mix(in srgb, var(--lx-host-label) 4%, transparent);--lx-shadow-lg:0 10px 24px -4px color-mix(in srgb, var(--lx-host-label) 10%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--lx-host-label) 5%, transparent);--lx-focus-color:var(--lx-accent);--lx-focus-width:2px;--lx-focus-offset:3px;--lx-control-height-sm:30px;--lx-control-height-md:34px;--lx-control-padding-sm:var(--lx-space-2xs) var(--lx-space-md);--lx-control-padding-md:var(--lx-space-xs) var(--lx-space-lg);--lx-control-disabled-opacity:.42;--lx-motion-fast:.14s;--lx-motion-base:.2s;--lx-easing:cubic-bezier(.16, 1, .3, 1);--lx-spring-easing:cubic-bezier(.16, 1, .3, 1);--lx-tone-keep-blue:100%;--lx-tone-keep-red:100%;--lx-tone-keep-orange:100%;--lx-tone-keep-green:80%;--lx-tone-keep-purple:72%;--lx-tone-keep-gray:72%;--lx-tone-blue:var(--lx-accent);--lx-tone-red:var(--lx-danger);--lx-tone-orange:var(--lx-warn);--lx-tone-green:color-mix(in srgb, var(--lx-success) var(--lx-tone-keep-green), var(--lx-label-primary));--lx-tone-purple:color-mix(in srgb, color-mix(in srgb, var(--lx-accent) 58%, var(--lx-danger)) var(--lx-tone-keep-purple), var(--lx-label-primary));--lx-tone-gray:color-mix(in srgb, var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--lx-host-label) 58%, transparent)) var(--lx-tone-keep-gray), var(--lx-label-primary));--lx-tone-dash-blue:none;--lx-tone-dash-red:10 5;--lx-tone-dash-green:2 4;--lx-tone-dash-orange:12 4 2 4;--lx-tone-dash-purple:6 4;--lx-tone-dash-gray:1 4;--visual-tone-dash:var(--lx-tone-dash-blue);--visual-tone:var(--lx-tone-blue);--visual-tone-glow:color-mix(in srgb, var(--visual-tone) 24%, transparent);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--lx-tone-text-keep:70%;--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state]{--lx-vs-alpha:1;--lx-vs-ring:0;--lx-vs-lift:0}[data-learning-scope] [data-visual-state=current]{--lx-vs-alpha:1;--lx-vs-ring:1;--lx-vs-lift:1}[data-learning-scope] [data-visual-state=selected]{--lx-vs-alpha:1;--lx-vs-ring:1}[data-learning-scope] [data-visual-state=related]{--lx-vs-alpha:.92}[data-learning-scope] [data-visual-state=visited]{--lx-vs-alpha:.78}[data-learning-scope] [data-visual-state=context]{--lx-vs-alpha:.62}[data-learning-scope] [data-visual-state=inactive]{--lx-vs-alpha:.55}[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:.38;pointer-events:none}[data-learning-scope] [data-tone=blue]{--visual-tone:var(--lx-tone-blue);--visual-tone-text:color-mix(in srgb, var(--lx-tone-blue) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-blue)}[data-learning-scope] [data-tone=green]{--visual-tone:var(--lx-tone-green);--visual-tone-text:color-mix(in srgb, var(--lx-tone-green) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-green)}[data-learning-scope] [data-tone=red]{--visual-tone:var(--lx-tone-red);--visual-tone-text:color-mix(in srgb, var(--lx-tone-red) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-red)}[data-learning-scope] [data-tone=orange]{--visual-tone:var(--lx-tone-orange);--visual-tone-text:color-mix(in srgb, var(--lx-tone-orange) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-orange)}[data-learning-scope] [data-tone=purple]{--visual-tone:var(--lx-tone-purple);--visual-tone-text:color-mix(in srgb, var(--lx-tone-purple) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-purple)}[data-learning-scope] [data-tone=gray]{--visual-tone:var(--lx-tone-gray);--visual-tone-text:color-mix(in srgb, var(--lx-tone-gray) var(--lx-tone-text-keep), var(--lx-label-primary));--visual-tone-dash:var(--lx-tone-dash-gray)}[data-learning-scope] :focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}@media (prefers-reduced-motion:reduce){[data-learning-scope]{--lx-motion-fast:0s;--lx-motion-base:0s}}@media (forced-colors:active){[data-learning-scope] [data-visual-state],[data-learning-scope] [data-visual-state=disabled]{--lx-vs-alpha:1}}";
 		const tagId$16 = "@dsh-portable/interactive-learning/tokens.module.css";
@@ -5153,7 +5173,10 @@ window.__ModuleLoader__.load({
 					children,
 					activity.scaffold === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
 						className: LearningActivity_module_css_default.scaffold,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("scaffold") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: activity.scaffold })]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("scaffold") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+							text: activity.scaffold,
+							labels: markdownLabels(t)
+						})]
 					}),
 					error === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: LearningActivity_module_css_default.error,
@@ -6035,7 +6058,10 @@ window.__ModuleLoader__.load({
 								children: t("reveal")
 							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 								className: LearningActivity_module_css_default.revealed,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: step.content })
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+									text: step.content,
+									labels: markdownLabels(t)
+								})
 							})
 						]
 					}),
@@ -6066,7 +6092,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/StructureCompare.tsx
-		function Item({ item, side }) {
+		function Item({ item, side, labels }) {
 			if (item === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: LearningActivity_module_css_default.emptyCell,
 				"data-side": side,
@@ -6075,7 +6101,10 @@ window.__ModuleLoader__.load({
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: LearningActivity_module_css_default.compareItem,
 				"data-side": side,
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: item.label }), item.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: item.detail })]
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: item.label }), item.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+					text: item.detail,
+					labels
+				})]
 			});
 		}
 		function StructureCompare({ activity, busy, onSubmit, t }) {
@@ -6084,6 +6113,7 @@ window.__ModuleLoader__.load({
 			const [answer, setAnswer] = (0, react.useState)("");
 			const left = new Map(payload.left.items.map((item) => [item.id, item]));
 			const right = new Map(payload.right.items.map((item) => [item.id, item]));
+			const labels = markdownLabels(t);
 			const toggle = (id) => setSelected((current) => {
 				const next = new Set(current);
 				if (next.has(id)) next.delete(id);
@@ -6137,7 +6167,8 @@ window.__ModuleLoader__.load({
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Item, {
 									item: alignment.leftId === void 0 ? void 0 : left.get(alignment.leftId),
-									side: "left"
+									side: "left",
+									labels
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: LearningActivity_module_css_default.compareLine,
@@ -6159,7 +6190,8 @@ window.__ModuleLoader__.load({
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Item, {
 									item: alignment.rightId === void 0 ? void 0 : right.get(alignment.rightId),
-									side: "right"
+									side: "right",
+									labels
 								}),
 								alignment.prompt === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: LearningActivity_module_css_default.rowPrompt,
@@ -6334,7 +6366,7 @@ window.__ModuleLoader__.load({
 				...update
 			}));
 		}
-		function ProcessVisual({ activity, final }) {
+		function ProcessVisual({ activity, final, labels }) {
 			if (activity.visual?.kind !== "process") return null;
 			const frame = activity.phase === "question" ? activity.visual.frame : final ? activity.visual.after : activity.visual.before;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
@@ -6343,7 +6375,10 @@ window.__ModuleLoader__.load({
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: LearningActivity_module_css_default.roundNode,
 					children: activity.seq + 1
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: frame.title }), frame.content === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: frame.content })] })]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: frame.title }), frame.content === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+					text: frame.content,
+					labels
+				})] })]
 			});
 		}
 		function ParameterVisual({ activity, t }) {
@@ -6393,11 +6428,12 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
-		function CurrentVisual({ activity, final, t }) {
+		function CurrentVisual({ activity, final, t, labels }) {
 			if (activity.visual === void 0) return null;
 			if (activity.visual.kind === "process") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProcessVisual, {
 				activity,
-				final
+				final,
+				labels
 			});
 			if (activity.visual.kind === "parameter") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ParameterVisual, {
 				activity,
@@ -6445,6 +6481,7 @@ window.__ModuleLoader__.load({
 		}
 		function RoundActivity({ activity, completed = false, initialAnswer, storageKey, t, onSubmitAnswer, onContinue, onCancel }) {
 			const stored = (0, react.useRef)(readStoredRound(storageKey)).current;
+			const labels = markdownLabels(t);
 			const [state, dispatch] = (0, react.useReducer)(roundReducer, void 0, () => {
 				if (completed || stored.completed === true) return initialRoundState(activity.phase, true);
 				if (activity.phase === "reveal" && stored.animationComplete === true) return {
@@ -6597,7 +6634,8 @@ window.__ModuleLoader__.load({
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CurrentVisual, {
 							activity,
 							final,
-							t
+							t,
+							labels
 						})
 					}),
 					activity.phase === "question" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
@@ -6623,7 +6661,10 @@ window.__ModuleLoader__.load({
 						"data-verdict": activity.feedback.verdict,
 						children: [
 							activity.feedback.learnerEcho === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: activity.feedback.learnerEcho }),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: activity.feedback.explanation }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+								text: activity.feedback.explanation,
+								labels
+							}),
 							activity.feedback.answer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: activity.feedback.answer })
 						]
 					}), state.status === "completed" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -6840,9 +6881,15 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/LearningComposer.tsx
+		/** Runtime-safe public-client narrowing; alpha.1 exports the carrier as a type. */
+		function isPendingQuestion(value) {
+			if (value === void 0 || !("questions" in value)) return false;
+			const candidate = value;
+			return Array.isArray(candidate.questions) && typeof candidate.answer === "function" && typeof candidate.cancel === "function";
+		}
 		function envelopeOf(wait) {
-			if (wait.payload.questions.length !== 1) return void 0;
-			const question = wait.payload.questions[0];
+			if (wait.questions.length !== 1) return void 0;
+			const question = wait.questions[0];
 			if (question === void 0) return void 0;
 			const checkpoint = decodeLearningCheckpointDetail(question.detail);
 			if (checkpoint !== void 0 && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId) return checkpoint;
@@ -6851,18 +6898,13 @@ window.__ModuleLoader__.load({
 			return decodeLearningQuestionId(question.id) ?? decodeLearningDetail(question.detail);
 		}
 		/** Pure composer-chain selector: only package-owned question envelopes are claimed. */
-		function selectLearningActivity({ interactions, session }) {
+		function selectLearningActivity({ pendingInteraction, session }) {
 			const currentSessionId = session?.sessionId;
-			for (const interaction of interactions) {
-				if (interaction.kind !== "question") continue;
-				const wait = interaction;
-				if (currentSessionId === void 0 || String(wait.sessionId) !== String(currentSessionId)) continue;
-				const envelope = envelopeOf(wait);
-				if (envelope === void 0) continue;
-				if ("checkpoint" in envelope && envelope.sessionId !== String(currentSessionId)) continue;
-				return wait;
-			}
-			return null;
+			if (!isPendingQuestion(pendingInteraction) || currentSessionId === void 0 || String(pendingInteraction.sessionId) !== String(currentSessionId)) return null;
+			const envelope = envelopeOf(pendingInteraction);
+			if (envelope === void 0) return null;
+			if ("checkpoint" in envelope && envelope.sessionId !== String(currentSessionId)) return null;
+			return pendingInteraction;
 		}
 		function LearningComposer({ matched, t }) {
 			return null;
@@ -6879,26 +6921,20 @@ window.__ModuleLoader__.load({
 			if (envelope === void 0) return null;
 			const send = (response, checkpointMeta) => {
 				if (responseInFlight.current !== null) return responseInFlight.current;
-				const question = matched.payload.questions[0];
+				const question = matched.questions[0];
 				if (question === void 0) return Promise.resolve();
 				const pending = Promise.resolve().then(async () => {
 					setBusy(true);
 					setError(null);
-					const accepted = await matched.respond({
-						ok: true,
-						value: {
-							sessionId: matched.sessionId,
-							answer: { answers: [{
-								id: question.id,
-								selected: [],
-								custom: JSON.stringify(checkpointMeta === void 0 ? response : {
-									checkpointResult: response,
-									clientMeta: checkpointMeta
-								})
-							}] }
-						}
-					});
-					if (!accepted.accepted) throw new Error(accepted.reason);
+					const answer = { answers: [{
+						id: question.id,
+						selected: [],
+						custom: JSON.stringify(checkpointMeta === void 0 ? response : {
+							checkpointResult: response,
+							clientMeta: checkpointMeta
+						})
+					}] };
+					await matched.answer(answer);
 				}).catch((cause) => {
 					responseInFlight.current = null;
 					setBusy(false);
@@ -7001,7 +7037,7 @@ window.__ModuleLoader__.load({
 				});
 			}
 			const respond = (response) => {
-				if (matched.payload.questions[0] === void 0) return;
+				if (matched.questions[0] === void 0) return;
 				setBusy(true);
 				setError(null);
 				send(response).catch(() => {});
@@ -7021,16 +7057,7 @@ window.__ModuleLoader__.load({
 			const cancel = () => {
 				setBusy(true);
 				setError(null);
-				matched.respond({
-					ok: false,
-					error: {
-						code: "cancelled",
-						message: "the learner cancelled this activity",
-						details: {}
-					}
-				}).then((receipt) => {
-					if (!receipt.accepted) throw new Error(receipt.reason);
-				}).catch((cause) => {
+				matched.cancel().catch((cause) => {
 					setBusy(false);
 					setError(t("error", { message: cause instanceof Error ? cause.message : String(cause) }));
 				});
@@ -10847,7 +10874,10 @@ window.__ModuleLoader__.load({
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 										className: formula_module_css_default.formulaExpression,
 										"aria-label": step.expression,
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: displayMath(step.expression) })
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+											text: displayMath(step.expression),
+											labels: DEFAULT_MARKDOWN_LABELS
+										})
 									}),
 									step.label === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: step.label }),
 									step.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: step.detail })
@@ -14085,6 +14115,45 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/LearningToolView.tsx
+		function legacyPendingInteraction(useSession, sessionId) {
+			if (useSession === void 0) return void 0;
+			const pending = useSession((snapshot) => snapshot.pending);
+			if (!Array.isArray(pending)) return void 0;
+			for (const value of pending) {
+				if (isPendingQuestion(value)) {
+					if (String(value.sessionId) === sessionId) return value;
+					continue;
+				}
+				const legacy = value;
+				if (legacy.kind !== "question" || typeof legacy.key !== "string" || String(legacy.sessionId) !== sessionId || !Array.isArray(legacy.payload?.questions) || typeof legacy.respond !== "function") continue;
+				const respond = legacy.respond;
+				const settle = async (request) => {
+					const receipt = await respond(request);
+					if (receipt?.accepted === false) throw new Error(String(receipt.reason ?? "pending interaction was rejected"));
+				};
+				return {
+					kind: "question",
+					key: legacy.key,
+					sessionId: legacy.sessionId,
+					questions: legacy.payload.questions,
+					answer: (answer) => settle({
+						ok: true,
+						value: {
+							sessionId: legacy.sessionId,
+							answer
+						}
+					}),
+					cancel: () => settle({
+						ok: false,
+						error: {
+							code: "cancelled",
+							message: "the learner cancelled this activity",
+							details: {}
+						}
+					})
+				};
+			}
+		}
 		const MAX_PARSEABLE_ARGS_BYTES = 65536;
 		const MAX_FALLBACK_MARKDOWN_LENGTH = 8e3;
 		const VISUAL_LABEL_KEYS = {
@@ -14343,27 +14412,15 @@ window.__ModuleLoader__.load({
 				return;
 			}
 		}
-		function pendingActivity(interactions, sessionId, activity, callId) {
+		function pendingActivity(interaction, sessionId, activity, callId) {
 			if (activity === void 0) return void 0;
+			if (!isPendingQuestion(interaction) || String(interaction.sessionId) !== sessionId) return void 0;
+			const envelope = envelopeOf(interaction);
 			if (activity.protocol === "dsh-learning/visual@3" || activity.protocol === "dsh-learning/visual@4") return void 0;
-			if (activity.protocol === "dsh-learning/checkpoint@1") return interactions.find((interaction) => {
-				if (interaction.kind !== "question" || String(interaction.sessionId) !== sessionId) return false;
-				const envelope = envelopeOf(interaction);
-				return envelope !== void 0 && "checkpoint" in envelope && envelope.sessionId === sessionId && envelope.callId === callId;
-			});
-			if (activity.protocol === "dsh-learning/activity@2") return interactions.find((interaction) => {
-				if (interaction.kind !== "question" || String(interaction.sessionId) !== sessionId) return false;
-				const envelope = envelopeOf(interaction);
-				if (envelope === void 0 || !("phase" in envelope)) return false;
-				if (envelope.callId !== void 0 && envelope.callId !== callId) return false;
-				return envelope.phase === activity.phase && envelope.seq === activity.seq && envelope.activityId !== "" && envelope.waitId !== "";
-			});
+			if (activity.protocol === "dsh-learning/checkpoint@1") return envelope !== void 0 && "checkpoint" in envelope && envelope.sessionId === sessionId && envelope.callId === callId ? interaction : void 0;
+			if (activity.protocol === "dsh-learning/activity@2") return envelope !== void 0 && "phase" in envelope && (envelope.callId === void 0 || envelope.callId === callId) && envelope.phase === activity.phase && envelope.seq === activity.seq && envelope.activityId !== "" && envelope.waitId !== "" ? interaction : void 0;
 			const canonical = JSON.stringify(activity);
-			return interactions.find((interaction) => {
-				if (interaction.kind !== "question" || String(interaction.sessionId) !== sessionId) return false;
-				const envelope = envelopeOf(interaction);
-				return envelope !== void 0 && "activity" in envelope && JSON.stringify(envelope.activity) === canonical;
-			});
+			return envelope !== void 0 && "activity" in envelope && JSON.stringify(envelope.activity) === canonical ? interaction : void 0;
 		}
 		function explanationOf(response) {
 			if (response?.action !== "submit" || typeof response.answer !== "object" || response.answer === null || Array.isArray(response.answer)) return void 0;
@@ -14476,7 +14533,10 @@ window.__ModuleLoader__.load({
 						children: plain
 					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: LearningActivity_module_css_default.fallbackText,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: body })
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+							text: body,
+							labels: markdownLabels(t)
+						})
 					})
 				]
 			});
@@ -14509,7 +14569,7 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
-		function LearningToolView({ block, inspect, t, useSession, sessionId }) {
+		function LearningToolView({ block, inspect, t, useSessionPendingInteraction, sessionId, useSession }) {
 			const done = "kind" in block;
 			const raw = argsRawOf(block);
 			const resultText = resultTextOf(block);
@@ -14519,7 +14579,7 @@ window.__ModuleLoader__.load({
 			const result = (0, react.useMemo)(() => parseLearningResult(resultText, definition), [resultText, definition]);
 			const visualResult = (0, react.useMemo)(() => parseVisualResult(resultText), [resultText]);
 			const labels = (0, react.useMemo)(() => visualLabelsOf(t), [t]);
-			const matched = pendingActivity(useSession((snapshot) => snapshot.pending), String(sessionId), definition, callId);
+			const matched = pendingActivity(typeof useSessionPendingInteraction === "function" ? useSessionPendingInteraction((snapshot) => snapshot.get(sessionId)) : legacyPendingInteraction(useSession, String(sessionId)), String(sessionId), definition, callId);
 			(0, react.useEffect)(() => {
 				if (done || raw === void 0 || raw === "") return;
 				if (definition === void 0) emitLearningCallLifecycle("learning.call.stream_started", { callId });
@@ -14632,7 +14692,10 @@ window.__ModuleLoader__.load({
 					className: LearningActivity_module_css_default.legacyReveal,
 					...learningScope,
 					"data-learning-result": v2Response.action,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, { text: definition.feedback.explanation }), definition.feedback.answer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: definition.feedback.answer })]
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+						text: definition.feedback.explanation,
+						labels: markdownLabels(t)
+					}), definition.feedback.answer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: definition.feedback.answer })]
 				});
 			}
 			if (!done) return matched === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningRunning, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningInteraction, {
@@ -14867,13 +14930,7 @@ window.__ModuleLoader__.load({
 			return item?.kind === "transfer" && item.transferContext === "fresh" && item.correctness === "correct" && item.independence === "independent" && (item.confidence === "medium" || item.confidence === "high");
 		}
 		function contentNodes(session) {
-			if (Array.isArray(session.nodes) && session.nodes.length > 0) return session.nodes;
-			try {
-				const nodes = session.chat.nodes.values();
-				return nodes.length > 0 ? nodes : Array.isArray(session.nodes) ? session.nodes : [];
-			} catch {
-				return Array.isArray(session.nodes) ? session.nodes : [];
-			}
+			return session.nodes;
 		}
 		function allLearningCalls(session) {
 			const calls = contentNodes(session).flatMap((node, index) => {
@@ -15080,9 +15137,9 @@ window.__ModuleLoader__.load({
 		* the header reads `对话 / 轨迹 / 笔记`; the composer only remains responsible
 		* for entering the next learner message.
 		*/
-		function LearningNotesView({ useSession, sessionId, cwd, call, t }) {
+		function LearningNotesView({ useSession, useChat, sessionId, cwd, call, t }) {
 			const session = useSession((state) => state);
-			const notes = projectLearningNotes(session);
+			const notes = projectLearningNotes(useChat((state) => state.legacy));
 			const bridge = useLearningInputBridge(sessionId);
 			const [saving, setSaving] = (0, react.useState)(false);
 			const [saved, setSaved] = (0, react.useState)(false);
@@ -15332,7 +15389,7 @@ window.__ModuleLoader__.load({
 		* @returns true when the preset alone settles it.
 		*/
 		function wantsVaultTabByPreset(row) {
-			return row?.agentPreset === LEARNING_PRESET_ID;
+			return row?.projectionValues?.agentPreset === LEARNING_PRESET_ID;
 		}
 		/**
 		* Start gating the vault surfaces on the active session.
@@ -15450,7 +15507,10 @@ window.__ModuleLoader__.load({
 		];
 		/** The learner-facing quick-start row and the presentation boundary for a learning session. */
 		function LearningSurface({ session, input, inputActions, sessionId, useSessions, t }) {
-			const isLearningSession = useSessions((state) => state.byId[sessionId]?.agentPreset === LEARNING_PRESET_ID);
+			const isLearningSession = useSessions((state) => {
+				const row = state.byId[sessionId];
+				return row?.projectionValues?.agentPreset === "learning" || row?.agentPreset === "learning";
+			});
 			(0, react.useEffect)(() => {
 				if (typeof document === "undefined") return;
 				const root = document.documentElement;
@@ -15700,8 +15760,8 @@ window.__ModuleLoader__.load({
 		* tab decides this button, because an action that writes into a topic vault is
 		* meaningless in a session that has no vault to write into.
 		*/
-		function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t }) {
-			const text = useSession((snapshot) => messageText(snapshot.nodes, messageId));
+		function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }) {
+			const text = useChat((snapshot) => messageText(snapshot.legacy.nodes, messageId));
 			const [open, setOpen] = (0, react.useState)(false);
 			const [title, setTitle] = (0, react.useState)("");
 			const [body, setBody] = (0, react.useState)("");
@@ -18008,6 +18068,9 @@ window.__ModuleLoader__.load({
 		//#region src/client/locales.ts
 		const zh = {
 			scaffold: "提示",
+			markdownCopy: "复制",
+			markdownCopied: "已复制",
+			markdownFootnotes: "脚注",
 			submit: "提交回答",
 			skip: "先跳过",
 			cancel: "结束这里",
@@ -18395,6 +18458,9 @@ window.__ModuleLoader__.load({
 		};
 		const en = {
 			scaffold: "Hint",
+			markdownCopy: "Copy",
+			markdownCopied: "Copied",
+			markdownFootnotes: "Footnotes",
 			submit: "Submit response",
 			skip: "Skip for now",
 			cancel: "End here",

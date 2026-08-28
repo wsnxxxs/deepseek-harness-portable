@@ -27,22 +27,22 @@ test('normalizes a trailing listening slash to the exact settings RPC route', ()
 test('client readiness requires the portable feature rows', () => {
   const shellOnly = {
     entries: [
-      { id: '@deepseek-ai/dsh-client-runtime', inject: [] },
-      { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-runtime'] },
+      { id: '@deepseek-ai/dsh-client-ui-session', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
   }
   assert.equal(hasRequiredClientGraph(shellOnly), false)
   assert.equal(hasRequiredClientGraph({
     entries: [
       ...shellOnly.entries,
-      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-runtime'] },
+      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
   }), false)
   assert.equal(hasRequiredClientGraph({
     entries: [
       ...shellOnly.entries,
-      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-runtime'] },
-      { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-runtime'] },
+      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+      { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
   }), true)
 })
@@ -62,11 +62,11 @@ test('waits for onboarding and the complete client graph instead of trusting the
       const entries = indexAttempts < 3
         ? []
         : [
-            { id: '@deepseek-ai/dsh-client-runtime', inject: ['@deepseek-ai/dsh-client-connection'] },
+            { id: '@deepseek-ai/dsh-client-ui-session', inject: ['@deepseek-ai/dsh-client-connection'] },
             { id: '@deepseek-ai/dsh-client-connection', inject: [] },
-            { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-runtime'] },
-            { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-runtime'] },
-            { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-runtime'] },
+            { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+            { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+            { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
           ]
       response.writeHead(200, { 'content-type': 'text/html' })
       response.end(`<html><head><script>window.__DSH_BOOT__ = ${JSON.stringify({ entries })}</script></head></html>`)

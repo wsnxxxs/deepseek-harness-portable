@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PendingWait } from '@deepseek-ai/dsh-client-runtime/client'
+import type { PendingQuestion, QuestionAnswer } from '@deepseek-ai/dsh-client-ui-user-questions/client'
 import {
   CHECKPOINT_RESULT_PROTOCOL,
   RESPONSE_PROTOCOL,
@@ -28,11 +28,20 @@ import type { ActivitySubmission } from './types.ts'
 import { RoundActivity } from './RoundActivity.tsx'
 import { LearningCheckpoint } from './LearningCheckpoint.tsx'
 
-export type LearningQuestionWait = PendingWait<'question'>
+export type LearningQuestionWait = PendingQuestion
+
+/** Runtime-safe public-client narrowing; alpha.1 exports the carrier as a type. */
+export function isPendingQuestion(value: ComposerChainProps['pendingInteraction']): value is PendingQuestion {
+  if (value === undefined || !('questions' in value)) return false
+  const candidate = value as Partial<PendingQuestion>
+  return Array.isArray(candidate.questions)
+    && typeof candidate.answer === 'function'
+    && typeof candidate.cancel === 'function'
+}
 
 export function envelopeOf(wait: LearningQuestionWait): LearningActivityEnvelopeV1 | LearningWaitEnvelopeV2 | LearningCheckpointWaitEnvelopeV1 | undefined {
-  if (wait.payload.questions.length !== 1) return undefined
-  const question = wait.payload.questions[0]
+  if (wait.questions.length !== 1) return undefined
+  const question = wait.questions[0]
   if (question === undefined) return undefined
   const checkpoint = decodeLearningCheckpointDetail(question.detail)
   if (checkpoint !== undefined && decodeLearningCheckpointQuestionId(question.id) === checkpoint.waitId) {
@@ -44,20 +53,15 @@ export function envelopeOf(wait: LearningQuestionWait): LearningActivityEnvelope
 }
 
 /** Pure composer-chain selector: only package-owned question envelopes are claimed. */
-export function selectLearningActivity({ interactions, session }: ComposerChainProps): LearningQuestionWait | null {
+export function selectLearningActivity({ pendingInteraction, session }: ComposerChainProps): LearningQuestionWait | null {
   const currentSessionId = session?.sessionId
-  for (const interaction of interactions) {
-    if (interaction.kind !== 'question') continue
-    const wait = interaction as LearningQuestionWait
-    // A pending wait belongs to one live session. This explicit lineage guard
-    // prevents a fork from claiming an ancestor's unresolved interaction.
-    if (currentSessionId === undefined || String(wait.sessionId) !== String(currentSessionId)) continue
-    const envelope = envelopeOf(wait)
-    if (envelope === undefined) continue
-    if ('checkpoint' in envelope && envelope.sessionId !== String(currentSessionId)) continue
-    return wait
-  }
-  return null
+  if (!isPendingQuestion(pendingInteraction)
+    || currentSessionId === undefined
+    || String(pendingInteraction.sessionId) !== String(currentSessionId)) return null
+  const envelope = envelopeOf(pendingInteraction)
+  if (envelope === undefined) return null
+  if ('checkpoint' in envelope && envelope.sessionId !== String(currentSessionId)) return null
+  return pendingInteraction
 }
 
 type LearningComposerProps =
@@ -92,25 +96,21 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
     // Share the exact promise so a double click, repeated keyboard event, or
     // StrictMode replay cannot submit two terminal receipts for one wait.
     if (responseInFlight.current !== null) return responseInFlight.current
-    const question = matched.payload.questions[0]
+    const question = matched.questions[0]
     if (question === undefined) return Promise.resolve()
     const pending = Promise.resolve().then(async (): Promise<void> => {
       setBusy(true)
       setError(null)
-      const accepted = await matched.respond({
-        ok: true,
-        value: {
-          sessionId: matched.sessionId,
-          answer: { answers: [{
-            id: question.id,
-            selected: [],
-            custom: JSON.stringify(checkpointMeta === undefined
-              ? response
-              : { checkpointResult: response, clientMeta: checkpointMeta }),
-          }] },
-        },
-      })
-      if (!accepted.accepted) throw new Error(accepted.reason)
+      const answer: QuestionAnswer = {
+        answers: [{
+          id: question.id,
+          selected: [],
+          custom: JSON.stringify(checkpointMeta === undefined
+            ? response
+            : { checkpointResult: response, clientMeta: checkpointMeta }),
+        }],
+      }
+      await matched.answer(answer)
     }).catch((cause: unknown) => {
         responseInFlight.current = null
         setBusy(false)
@@ -188,7 +188,7 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
   }
 
   const respond = (response: LearningResponseV1): void => {
-    const question = matched.payload.questions[0]
+    const question = matched.questions[0]
     if (question === undefined) return
     setBusy(true)
     setError(null)
@@ -212,12 +212,7 @@ export function LearningInteraction({ matched, t }: LearningComposerProps) {
   const cancel = (): void => {
     setBusy(true)
     setError(null)
-    void matched.respond({
-      ok: false,
-      error: { code: 'cancelled', message: 'the learner cancelled this activity', details: {} },
-    }).then(receipt => {
-      if (!receipt.accepted) throw new Error(receipt.reason)
-    }).catch((cause: unknown) => {
+    void matched.cancel().catch((cause: unknown) => {
       setBusy(false)
       setError(t('error', { message: cause instanceof Error ? cause.message : String(cause) }))
     })

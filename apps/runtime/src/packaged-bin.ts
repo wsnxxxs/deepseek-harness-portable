@@ -52,6 +52,7 @@ import { interactiveLearningPresetRoot } from '@dsh-portable/interactive-learnin
 import { collectCapabilityReport } from './capability-report.js'
 import {
   compileModeCatalog,
+  canonicalModeId,
   measuredModeSupport,
   type RuntimeModeCatalog,
   type RuntimeModeTrace,
@@ -288,22 +289,24 @@ function homePatchPath(): string {
  * shipped-root overlay, then the telemetry switch.
  * @returns the profile, its bundle layers, and the composed row index.
  */
-function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean): {
+async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean): Promise<{
   profile: Profile
   bundlePatches: PatchOptions[]
   homePatches: PatchOptions[]
   overlays: PatchOptions[]
   marketplaceDiagnostic?: MarketplaceBootstrapDiagnostic
-} {
+}> {
   const profileDir = resolveProfileDir(PROFILE_NAME)
-  initProfile(profileDir, PROFILE_TEMPLATES[PROFILE_NAME] ?? [])
+  const template = PROFILE_TEMPLATES[PROFILE_NAME]
+  if (template === undefined) throw new Error(`${NAME}: missing ${PROFILE_NAME} profile template`)
+  initProfile(profileDir, template.bundles, template.patchReload)
   const bundledMarketplace = marketplaceSourceDir()
   const marketplaceSeed = materializeMarketplaceSeed({
     homeDir: resolveDshHome(),
     bundledSourceDir: bundledMarketplace,
   })
   let marketplace!: MarketplaceBootstrapResult
-  const profile = composeAfterManagedFallback({
+  const profile = await composeAfterManagedFallback({
     virtualRuntime,
     installAnchor: INSTALL_ANCHOR,
     mutate: () => {
@@ -425,7 +428,7 @@ function isLauncherFlag(arg: string): arg is '--no-open' | '--open' {
 
 /** The browser shell cannot activate until these graph entries exist. */
 const REQUIRED_CLIENT_ENTRIES = [
-  '@deepseek-ai/dsh-client-runtime',
+  '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-layout',
   '@dsh-portable/interactive-learning',
   '@dsh-portable/vision-bridge',
@@ -606,8 +609,8 @@ function installRuntimeEvidenceSurface(ctx: Context, state: MaterializedPresetSt
   }
   const appendTrace = (agent: RuntimeAgent, requestedPreset?: string): void => {
     const presets = ctx.get('agentPresets') as { composedPreset(agentCtx: Context): string | undefined } | undefined
-    const presetId = requestedPreset ?? presets?.composedPreset(agent.ctx) ?? agent.session.header.agentPreset
-    if (presetId === undefined) return
+    const presetId = canonicalModeId(requestedPreset ?? presets?.composedPreset(agent.ctx) ?? agent.session.header.agentPreset ?? '')
+    if (presetId === '') return
     const trace = state.modeCatalog.modes[presetId]?.trace
     if (trace === undefined) return
     let previous: RuntimeModeTrace | undefined
@@ -667,7 +670,7 @@ async function main(): Promise<void> {
 
   const virtualRuntime = Boolean((process as NodeJS.Process & { pkg?: unknown }).pkg)
   const presetState = await materializeShippedPresetRoot()
-  const composed = composeProfile(presetState.root, virtualRuntime)
+  const composed = await composeProfile(presetState.root, virtualRuntime)
   if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
     console.log(encodeRuntimeEvent({
       protocolVersion: RUNTIME_PROTOCOL_VERSION,

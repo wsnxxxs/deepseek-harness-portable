@@ -2,7 +2,8 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { useEffect, useMemo } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
-import type { PendingInteraction, ToolCallBlock } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { SessionPendingInteraction } from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   parseLearningCheckpointV1,
   parseLearningCheckpointResultV1,
@@ -38,15 +39,71 @@ import {
   parseLearningResponse,
   parseLearningResponseV2,
 } from '../legacy-protocol.ts'
-import { envelopeOf, LearningInteraction, type LearningQuestionWait } from './LearningComposer.tsx'
+import { envelopeOf, isPendingQuestion, LearningInteraction, type LearningQuestionWait } from './LearningComposer.tsx'
 import css from './LearningActivity.module.css'
 import { learningScope } from './tokens.ts'
 import { emitLearningCallLifecycle, emitLearningUiLifecycle } from './lifecycle.ts'
 import { LearningVisual } from './LearningVisual.tsx'
 import { LearningVisualV4, type LearningVisualV4Labels } from './visuals/index.tsx'
 import type { LearningLocaleKey } from './locales.ts'
+import { markdownLabels } from './markdown-labels.ts'
 
 type LearningToolViewProps = ToolCallViewProps & PropsLocale<'interactive-learning'>
+
+/** Compatibility shape for the standalone browser fixtures from the rc line. */
+type LegacySessionHook = (selector: (snapshot: { pending?: readonly unknown[] }) => unknown) => unknown
+
+function legacyPendingInteraction(
+  useSession: LegacySessionHook | undefined,
+  sessionId: string,
+): SessionPendingInteraction | undefined {
+  if (useSession === undefined) return undefined
+  const pending = useSession(snapshot => snapshot.pending)
+  if (!Array.isArray(pending)) return undefined
+  for (const value of pending) {
+    if (isPendingQuestion(value)) {
+      if (String(value.sessionId) === sessionId) return value as SessionPendingInteraction
+      continue
+    }
+
+    // Standalone rc fixtures expose the pre-alpha carrier. Keep this narrow
+    // adapter local to the compatibility path; the live client uses the
+    // alpha.1 PendingQuestion instance directly.
+    const legacy = value as {
+      kind?: unknown
+      key?: unknown
+      sessionId?: unknown
+      payload?: { questions?: readonly unknown[] }
+      respond?: (request: unknown) => unknown
+    }
+    if (legacy.kind !== 'question'
+      || typeof legacy.key !== 'string'
+      || String(legacy.sessionId) !== sessionId
+      || !Array.isArray(legacy.payload?.questions)
+      || typeof legacy.respond !== 'function') continue
+
+    const respond = legacy.respond
+    const settle = async (request: unknown): Promise<void> => {
+      const receipt = await respond(request) as { accepted?: unknown; reason?: unknown } | undefined
+      if (receipt?.accepted === false) throw new Error(String(receipt.reason ?? 'pending interaction was rejected'))
+    }
+    return {
+      kind: 'question',
+      key: legacy.key,
+      sessionId: legacy.sessionId as string,
+      questions: legacy.payload.questions as never,
+      answer: (answer: unknown) => settle({
+        ok: true,
+        value: { sessionId: legacy.sessionId, answer },
+      }),
+      cancel: () => settle({
+        ok: false,
+        error: { code: 'cancelled', message: 'the learner cancelled this activity', details: {} },
+      }),
+    } as unknown as SessionPendingInteraction
+  }
+  return undefined
+}
 
 /** Every payload shape this view can render, live or from durable replay. */
 type LearningCallDefinition =
@@ -376,41 +433,32 @@ function parseVisualResult(text: string): LearningVisualResultV3 | LearningVisua
   } catch { return undefined }
 }
 function pendingActivity(
-  interactions: readonly PendingInteraction[],
+  interaction: SessionPendingInteraction | undefined,
   sessionId: string,
   activity: LearningCallDefinition | undefined,
   callId: string | undefined,
 ): LearningQuestionWait | undefined {
   if (activity === undefined) return undefined
+  if (!isPendingQuestion(interaction) || String(interaction.sessionId) !== sessionId) return undefined
+  const envelope = envelopeOf(interaction)
   if (activity.protocol === VISUAL_PROTOCOL_V3 || activity.protocol === VISUAL_PROTOCOL_V4) return undefined
   if (activity.protocol === CHECKPOINT_PROTOCOL) {
-    return interactions.find((interaction): interaction is LearningQuestionWait => {
-      if (interaction.kind !== 'question' || String(interaction.sessionId) !== sessionId) return false
-      const envelope = envelopeOf(interaction)
-      return envelope !== undefined
-        && 'checkpoint' in envelope
-        && envelope.sessionId === sessionId
-        && envelope.callId === callId
-    })
+    return envelope !== undefined
+      && 'checkpoint' in envelope
+      && envelope.sessionId === sessionId
+      && envelope.callId === callId ? interaction : undefined
   }
   if (activity.protocol === ACTIVITY_PROTOCOL_V2) {
-    return interactions.find((interaction): interaction is LearningQuestionWait => {
-      if (interaction.kind !== 'question' || String(interaction.sessionId) !== sessionId) return false
-      const envelope = envelopeOf(interaction)
-      if (envelope === undefined || !('phase' in envelope)) return false
-      if (envelope.callId !== undefined && envelope.callId !== callId) return false
-      return envelope.phase === activity.phase
-        && envelope.seq === activity.seq
-        && envelope.activityId !== ''
-        && envelope.waitId !== ''
-    })
+    return envelope !== undefined && 'phase' in envelope
+      && (envelope.callId === undefined || envelope.callId === callId)
+      && envelope.phase === activity.phase
+      && envelope.seq === activity.seq
+      && envelope.activityId !== ''
+      && envelope.waitId !== '' ? interaction : undefined
   }
   const canonical = JSON.stringify(activity)
-  return interactions.find((interaction): interaction is LearningQuestionWait => {
-    if (interaction.kind !== 'question' || String(interaction.sessionId) !== sessionId) return false
-    const envelope = envelopeOf(interaction)
-    return envelope !== undefined && 'activity' in envelope && JSON.stringify(envelope.activity) === canonical
-  })
+  return envelope !== undefined && 'activity' in envelope && JSON.stringify(envelope.activity) === canonical
+    ? interaction : undefined
 }
 
 function explanationOf(response: LearningResponseV1 | undefined): string | undefined {
@@ -543,7 +591,7 @@ function LearningFallback({
       {reason === undefined ? null : <p className={css.fallbackReason}>{reason}</p>}
       {body === undefined
         ? (plain === undefined || plain === '' ? null : <p className={css.visualTextFallback}>{plain}</p>)
-        : <div className={css.fallbackText}><MarkdownText text={body} /></div>}
+        : <div className={css.fallbackText}><MarkdownText text={body} labels={markdownLabels(t)} /></div>}
     </div>
   )
 }
@@ -570,7 +618,9 @@ function LearningReceipt({
   )
 }
 
-export function LearningToolView({ block, inspect, t, useSession, sessionId }: LearningToolViewProps) {
+export function LearningToolView({
+  block, inspect, t, useSessionPendingInteraction, sessionId, useSession,
+}: LearningToolViewProps & { useSession?: LegacySessionHook }) {
   void inspect
   const done = 'kind' in block
   const raw = argsRawOf(block)
@@ -587,8 +637,10 @@ export function LearningToolView({ block, inspect, t, useSession, sessionId }: L
   const visualResult = useMemo(() => parseVisualResult(resultText), [resultText])
   const labels = useMemo(() => visualLabelsOf(t), [t])
 
-  const interactions = useSession(snapshot => snapshot.pending)
-  const matched = pendingActivity(interactions, String(sessionId), definition, callId)
+  const pendingInteraction = typeof useSessionPendingInteraction === 'function'
+    ? useSessionPendingInteraction(snapshot => snapshot.get(sessionId))
+    : legacyPendingInteraction(useSession, String(sessionId))
+  const matched = pendingActivity(pendingInteraction, String(sessionId), definition, callId)
 
   useEffect(() => {
     if (done || raw === undefined || raw === '') return
@@ -729,7 +781,7 @@ export function LearningToolView({ block, inspect, t, useSession, sessionId }: L
     }
     return (
       <div className={css.legacyReveal} {...learningScope} data-learning-result={v2Response.action}>
-        <MarkdownText text={definition.feedback.explanation} />
+        <MarkdownText text={definition.feedback.explanation} labels={markdownLabels(t)} />
         {definition.feedback.answer === undefined ? null : <strong>{definition.feedback.answer}</strong>}
       </div>
     )

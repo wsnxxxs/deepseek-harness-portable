@@ -2,7 +2,7 @@
 
 import {
   contentHasImage,
-  OFFLOADED_IMAGE_TEXT,
+  offloadedImageText,
   type ContentBlock,
   type GenerateOptions,
   type Message,
@@ -171,7 +171,7 @@ export function replaceImagesWithEvidence(
   let emittedEvidence = false
   return messages.map((message) => {
     const isCurrentTurn = turnIds.has(String(message.id))
-    const content = replaceBlocks(message.content, () => {
+    const content = replaceBlocks(message.content, (block) => {
       if (isCurrentTurn && !emittedEvidence) {
         emittedEvidence = true
         return { type: 'text', text: evidenceText }
@@ -180,7 +180,7 @@ export function replaceImagesWithEvidence(
         type: 'text',
         text: isCurrentTurn
           ? '[additional image represented by the visual evidence above]'
-          : OFFLOADED_IMAGE_TEXT,
+          : offloadedImageText(block.attachment),
       }
     })
     return content === message.content ? message : { ...message, content }

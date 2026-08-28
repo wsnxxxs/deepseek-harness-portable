@@ -14,7 +14,7 @@ import { interactiveLearningPresetRoot } from '../src/preset.ts'
 
 const repositoryRoot = resolve(import.meta.dirname, '../../..')
 const pinnedRoot = join(repositoryRoot, 'vendor/deepseek-harness')
-const configRoot = join(pinnedRoot, 'apps/cli/config')
+const configRoot = join(pinnedRoot, 'packages/preset/agent-presets/presets')
 const basePatch = join(pinnedRoot, 'packages/bundle/base/cordis.patch.yml')
 const webPatch = join(pinnedRoot, 'packages/bundle/web-app/cordis.patch.yml')
 // A workspace install always materializes this package and its dependency
@@ -38,6 +38,7 @@ async function bootCatalogHost(): Promise<Context> {
     { id: 'session-telemetry-otel', disabled: true },
     { id: 'modules', disabled: true },
     { id: 'connection', disabled: true },
+    { id: 'session-log-download', disabled: true },
     { id: 'client-hmr', disabled: true },
     { id: 'directory-picker', disabled: true },
     { insert: [
@@ -49,14 +50,14 @@ async function bootCatalogHost(): Promise<Context> {
       config: {
         default: 'standard',
         roots: [
-          { path: join(configRoot, 'agent-presets'), trust: 'system' },
+          { path: configRoot, trust: 'system' },
           { path: interactiveLearningPresetRoot, trust: 'system' },
         ],
         includeUserRoot: false,
       },
     },
   ]
-  healProfilesModuleFallback(installAnchor, temporaryRoot)
+  await healProfilesModuleFallback({ installAnchor, home: temporaryRoot })
   const profile = join(temporaryRoot, 'profiles', 'isolation')
   await mkdir(profile, { recursive: true })
   const rootConfig = join(profile, 'cordis.yml')
@@ -104,8 +105,8 @@ describe('exact non-Learning catalog isolation', () => {
     expect(manifest.dependencies?.['@dsh-portable/interactive-learning']).toBe('workspace:^')
   })
 
-  it('leaves Standard, Code, Minimal, and Cordis tool schemas and assembled prompts byte-equivalent', async () => {
-    const handles = await Promise.all(['standard', 'code', 'minimal', 'cordis'].map(createAgent))
+  it('leaves Standard, PTC, Minimal, and Cordis tool schemas and assembled prompts byte-equivalent', async () => {
+    const handles = await Promise.all(['standard', 'ptc', 'minimal', 'cordis'].map(createAgent))
     try {
       const before = await Promise.all(handles.map(handle => catalog(handle.agent)))
       const globalToolsBefore = ctx.tools.schemas().map(tool => tool.name)

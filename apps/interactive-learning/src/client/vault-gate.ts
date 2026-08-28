@@ -38,7 +38,7 @@ export const LEARNING_PRESET_ID = 'learning'
 /** The session-row fields the gate reads; a subset of the runtime's SessionSummary. */
 export interface GateSessionRow {
   readonly cwd?: string
-  readonly agentPreset?: string
+  readonly projectionValues?: { readonly agentPreset?: string | null }
   /** Advances when anything happens in the session; re-probes a negative result. */
   readonly updatedAt?: number
 }
@@ -76,7 +76,7 @@ export interface VaultGateOptions {
  * @returns true when the preset alone settles it.
  */
 export function wantsVaultTabByPreset(row: GateSessionRow | undefined): boolean {
-  return row?.agentPreset === LEARNING_PRESET_ID
+  return row?.projectionValues?.agentPreset === LEARNING_PRESET_ID
 }
 
 /**

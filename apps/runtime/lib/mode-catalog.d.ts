@@ -21,6 +21,8 @@ export interface RuntimeModeResolution {
         remediation?: string;
     }[];
 }
+/** One-time compatibility mapping for sessions persisted by the old portable catalog. */
+export declare function canonicalModeId(modeId: string): string;
 export interface RuntimeModeCatalog {
     readonly schemaVersion: 1;
     readonly target: CapabilityReport['target'];

@@ -27,7 +27,7 @@ const commonNativeAssets = (platform: BuildPlatform, arch: BuildArchitecture): N
 
 const commonModes = (minimal: ModeExpectation): ModeExpectation[] => [
   { mode: 'standard', minimum: 'native' },
-  { mode: 'code', minimum: 'native' },
+  { mode: 'ptc', minimum: 'native' },
   { mode: 'cordis', minimum: 'native' },
   minimal,
 ]

@@ -13,10 +13,13 @@ const RELATIVE_JS_REFERENCE = /["'](\.{1,2}\/[^"']+\.js)["']/g
 const SOURCE_MAP_REFERENCE = /\/\/# sourceMappingURL=([^\s]+)/g
 
 export const EXPECTED_WEB_CLIENT_INJECT = Object.freeze([
-  '@deepseek-ai/dsh-client-runtime',
   '@deepseek-ai/dsh-client-locale',
+  '@deepseek-ai/dsh-client-ui-chat',
   '@deepseek-ai/dsh-client-ui-conversation',
+  '@deepseek-ai/dsh-client-ui-renderer',
+  '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-tool',
+  '@deepseek-ai/dsh-client-ui-user-questions',
   '@deepseek-ai/dsh-api-remotes',
 ])
 

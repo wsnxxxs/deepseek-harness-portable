@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-runtime/client");
+		let _deepseek_ai_dsh_client_store = require("@deepseek-ai/dsh-client-store");
 		//#region src/client/locales.ts
 		/**
 		* Localization strings for vision-bridge client components.
@@ -404,7 +404,7 @@ window.__ModuleLoader__.load({
 			failed = false;
 			constructor(scope) {
 				this.scope = scope;
-				this.store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(this.projection());
+				this.store = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)(this.projection());
 				this.scope.subscribe(() => {
 					this.store.set(this.projection());
 				});

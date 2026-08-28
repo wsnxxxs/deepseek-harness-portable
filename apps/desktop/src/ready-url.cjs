@@ -13,7 +13,7 @@ function readyUrl(output) {
 
 /** The browser shell cannot activate until its shell and portable feature roots exist. */
 const REQUIRED_CLIENT_ENTRIES = [
-  '@deepseek-ai/dsh-client-runtime',
+  '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-layout',
   '@dsh-portable/interactive-learning',
   '@dsh-portable/vision-bridge',

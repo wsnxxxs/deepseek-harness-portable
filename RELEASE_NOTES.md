@@ -14,7 +14,8 @@ v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 ## Runtime and Compatibility
 
-- **Bundled runtimes refreshed**: update the packaged Interactive Learning and Vision Bridge components to the latest workspace state.
+- **Bundled runtimes refreshed**: move the kernel to the official `dsh-v0.1.2-alpha.1` release and adopt its Controller, Client Store, Chat/Session UI, and User Questions architecture, while refreshing the Interactive Learning and Vision Bridge components.
+- **Sessions and attachments**: use the upstream archive, `@file`/`@session` references, image attachments, and token-usage surfaces; retain permanent deletion, cold-session handles, and the text/Office file upload/download extension.
 - **Windows path handling**: dropped directories are now distinguished from empty files in the composer.
 
 ## Fixes
@@ -26,7 +27,7 @@ v1.5.6 is a feature and bug-fix release following v1.5.5.
 
 - Distribution: 1.5.6
 - Desktop shell: 0.1.0-shell.2
-- Kernel: 0.1.1-rc.2 (@deepseek-ai/dsh-web-app)
+- Kernel: 0.1.2-alpha.1 (@deepseek-ai/dsh-web-app, `dsh-v0.1.2-alpha.1`)
 - Tag: v1.5.6
 
 ## Checksums and security

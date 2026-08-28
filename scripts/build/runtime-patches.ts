@@ -59,12 +59,16 @@ function definitionById(definitions: readonly PatchDefinition[], id: string): Pa
 export function patchDirectoryPickerWorker(source: string): string {
   let output = source
   const oldReadUtf16 = `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && bytes[end] !== 0) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`
+  const currentReadUtf16 = `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && !(bytes[end] === 0 && bytes[end + 1] === 0)) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`
   const newReadUtf16 = `function readUtf16(koffi, address) {\n\treturn koffi.decode.string16(address);\n}`
   const oldPost = `const post = (message) => {\n\t/* v8 ignore next 3 -- disconnect needs a live IPC channel the unit lane must not sever (built-worker.e2e.ts owns the real close path). */\n\tsend(message, () => {\n\t\tif (process.connected) process.disconnect();\n\t});\n};`
   const newPost = `const post = (message) => {\n\tsend(message);\n};`
   if (output.includes(oldReadUtf16)) output = output.replace(oldReadUtf16, newReadUtf16)
   if (output.includes(oldPost)) output = output.replace(oldPost, newPost)
-  if (!output.includes(newReadUtf16) || !output.includes(newPost)) {
+  // alpha.1 already carries the corrected UTF-16 terminator scan. The
+  // distribution patch only needs to retain that implementation while adding
+  // the non-interactive health probe and the portable IPC send behavior.
+  if ((!output.includes(newReadUtf16) && !output.includes(currentReadUtf16)) || !output.includes(newPost)) {
     throw new Error('directory-picker worker no longer matches the reviewed memory/IPC implementation')
   }
   if (!output.includes('DSH_DIRECTORY_PICKER_IPC_PROBE')) {

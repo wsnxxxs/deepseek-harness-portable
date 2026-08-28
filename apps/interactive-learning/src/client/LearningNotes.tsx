@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { LegacyConversationSlice } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { isExplicitLearningBoundary } from '../learning-boundary.ts'
@@ -8,6 +9,9 @@ import css from './LearningNotes.module.css'
 import type { LearningLocaleKey } from './locales.ts'
 
 type LearningNotesProps = PropsRuntime<'conversation.composer.dock'> & PropsLocale<'interactive-learning'>
+
+/** The small Chat projection consumed by the learning notes renderer. */
+export type LearningNotesSource = Pick<LegacyConversationSlice, 'nodes' | 'runningCalls'>
 
 /** Business face for the learner's current-session notes view. */
 export interface LearningNotesViewInjected {
@@ -200,17 +204,11 @@ function isVerifiedTransfer(value: unknown): boolean {
     && (item.confidence === 'medium' || item.confidence === 'high')
 }
 
-function contentNodes(session: ConversationSnapshot): readonly unknown[] {
-  if (Array.isArray(session.nodes) && session.nodes.length > 0) return session.nodes
-  try {
-    const nodes = session.chat.nodes.values()
-    return nodes.length > 0 ? nodes : (Array.isArray(session.nodes) ? session.nodes : [])
-  } catch {
-    return Array.isArray(session.nodes) ? session.nodes : []
-  }
+function contentNodes(session: LearningNotesSource): readonly unknown[] {
+  return session.nodes
 }
 
-function allLearningCalls(session: ConversationSnapshot): Array<{ call: { name: string; argsRaw: string; content: unknown }; order: number }> {
+function allLearningCalls(session: LearningNotesSource): Array<{ call: { name: string; argsRaw: string; content: unknown }; order: number }> {
   const calls = contentNodes(session).flatMap((node, index) => {
     const call = nodeCall(node)
     return call === undefined || (!LEARNING_CALLS.has(call.name) && call.name !== 'learning_state_update')
@@ -256,7 +254,7 @@ function resultAnswer(content: unknown): string | undefined {
  * This deliberately consumes only visible session nodes; it never exposes
  * learner-state internals such as mastery, confidence, or assessment labels.
  */
-export function projectLearningNotes(session: ConversationSnapshot): LearningNotesProjection {
+export function projectLearningNotes(session: LearningNotesSource): LearningNotesProjection {
   const nodes = contentNodes(session)
   const calls = allLearningCalls(session)
   const evidence: string[] = []
@@ -443,10 +441,11 @@ function planRatio(notes: LearningNotesProjection): number {
  * for entering the next learner message.
  */
 export function LearningNotesView({
-  useSession, sessionId, cwd, call, t,
+  useSession, useChat, sessionId, cwd, call, t,
 }: LearningNotesViewProps) {
   const session = useSession(state => state)
-  const notes = projectLearningNotes(session)
+  const chat = useChat(state => state.legacy)
+  const notes = projectLearningNotes(chat)
   const bridge = useLearningInputBridge(sessionId)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -606,8 +605,9 @@ export function LearningNotesView({
   )
 }
 
-export function LearningSessionNotes({ session, input, inputActions, t }: LearningNotesProps) {
-  const notes = projectLearningNotes(session)
+export function LearningSessionNotes({ session, input, inputActions, useChat, t }: LearningNotesProps) {
+  const chat = useChat(state => state.legacy)
+  const notes = projectLearningNotes(chat)
   if (!notes.visible) return null
   const disabled = session.removed || session.running || input.phase !== 'plain'
   return (

@@ -3,7 +3,8 @@
  * Connects SettingsScope<VisionSettings> to the React view model.
  * @module @dsh-portable/vision-bridge/client/vision-card-controller
  */
-import { type SettingsScope, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
+import { type SnapshotStore } from '@deepseek-ai/dsh-client-store';
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client';
 import type { VisionConfig } from '../types.ts';
 import { type VisionRouteSummary } from './vision-route.ts';
 export interface VisionSettings extends VisionConfig {

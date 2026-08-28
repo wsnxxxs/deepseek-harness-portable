@@ -51,7 +51,7 @@ async function appFixture(): Promise<string> {
     },
     bin: { 'learning-fixture': './lib/fixture-cli.js' },
     files: ['lib/*.js', 'preset/**/*'],
-    dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-runtime'] } },
+    dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-ui-session'] } },
   }, null, 2)}\n`)
   await write(join(packageRoot, 'LICENSE'), 'Fixture license\n')
   await write(join(packageRoot, 'lib', 'index.js'), 'export { marker } from "./shared-fixture.js"\n')

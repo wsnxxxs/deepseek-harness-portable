@@ -1,5 +1,5 @@
 /** Model-route selection and transient message rewriting for hybrid vision. */
-import { contentHasImage, OFFLOADED_IMAGE_TEXT, } from '@deepseek-ai/dsh-llm';
+import { contentHasImage, offloadedImageText, } from '@deepseek-ai/dsh-llm';
 import { imageInputCapability, modelSupportsImages, selectVisionRoute, } from "./model-selection.js";
 import { formatVisualEvidenceForModel, parseVisualEvidence, } from "./hybrid-evidence.js";
 /** Return the history suffix after the latest assistant message. */
@@ -82,7 +82,7 @@ export function replaceImagesWithEvidence(messages, evidence, turnMessages = cur
     let emittedEvidence = false;
     return messages.map((message) => {
         const isCurrentTurn = turnIds.has(String(message.id));
-        const content = replaceBlocks(message.content, () => {
+        const content = replaceBlocks(message.content, (block) => {
             if (isCurrentTurn && !emittedEvidence) {
                 emittedEvidence = true;
                 return { type: 'text', text: evidenceText };
@@ -91,7 +91,7 @@ export function replaceImagesWithEvidence(messages, evidence, turnMessages = cur
                 type: 'text',
                 text: isCurrentTurn
                     ? '[additional image represented by the visual evidence above]'
-                    : OFFLOADED_IMAGE_TEXT,
+                    : offloadedImageText(block.attachment),
             };
         });
         return content === message.content ? message : { ...message, content };

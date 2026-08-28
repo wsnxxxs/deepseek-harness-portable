@@ -34,6 +34,11 @@ export interface RuntimeModeResolution {
   readonly missing?: readonly { id: string; reason: string; remediation?: string }[]
 }
 
+/** One-time compatibility mapping for sessions persisted by the old portable catalog. */
+export function canonicalModeId(modeId: string): string {
+  return modeId === 'code' ? 'ptc' : modeId
+}
+
 export interface RuntimeModeCatalog {
   readonly schemaVersion: 1
   readonly target: CapabilityReport['target']

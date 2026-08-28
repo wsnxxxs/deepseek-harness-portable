@@ -3,15 +3,16 @@ import { useState } from 'react'
 import type { LearningJson, StructureItemV1 } from '../protocol-current.ts'
 import type { ActivityRendererProps } from './types.ts'
 import css from './LearningActivity.module.css'
+import { markdownLabels } from './markdown-labels.ts'
 
 type CompareActivity = Extract<ActivityRendererProps['activity'], { kind: 'structure_compare' }>
 
-function Item({ item, side }: { item?: StructureItemV1; side: 'left' | 'right' }) {
+function Item({ item, side, labels }: { item?: StructureItemV1; side: 'left' | 'right'; labels: ReturnType<typeof markdownLabels> }) {
   if (item === undefined) return <span className={css.emptyCell} data-side={side}>—</span>
   return (
     <div className={css.compareItem} data-side={side}>
       <strong>{item.label}</strong>
-      {item.detail === undefined ? null : <MarkdownText text={item.detail} />}
+      {item.detail === undefined ? null : <MarkdownText text={item.detail} labels={labels} />}
     </div>
   )
 }
@@ -22,6 +23,7 @@ export function StructureCompare({ activity, busy, onSubmit, t }: ActivityRender
   const [answer, setAnswer] = useState('')
   const left = new Map(payload.left.items.map(item => [item.id, item]))
   const right = new Map(payload.right.items.map(item => [item.id, item]))
+  const labels = markdownLabels(t)
   const toggle = (id: string): void => setSelected(current => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id)
@@ -52,7 +54,7 @@ export function StructureCompare({ activity, busy, onSubmit, t }: ActivityRender
             data-alignment-id={alignment.id}
             data-selected={selected.has(alignment.id) || undefined}
           >
-            <Item item={alignment.leftId === undefined ? undefined : left.get(alignment.leftId)} side="left" />
+            <Item item={alignment.leftId === undefined ? undefined : left.get(alignment.leftId)} side="left" labels={labels} />
             <span className={css.compareLine} aria-hidden="true" />
             <span className={css.compareSelector}>
               <input
@@ -64,7 +66,7 @@ export function StructureCompare({ activity, busy, onSubmit, t }: ActivityRender
               />
             </span>
             <span className={css.compareLine} aria-hidden="true" />
-            <Item item={alignment.rightId === undefined ? undefined : right.get(alignment.rightId)} side="right" />
+            <Item item={alignment.rightId === undefined ? undefined : right.get(alignment.rightId)} side="right" labels={labels} />
             {alignment.prompt === undefined ? null : <span className={css.rowPrompt}>{alignment.prompt}</span>}
           </label>
         ))}

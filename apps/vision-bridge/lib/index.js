@@ -1,7 +1,7 @@
 import z from "@deepseek-ai/schemastery";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
-import { OFFLOADED_IMAGE_TEXT, contentHasImage, createUserMessage } from "@deepseek-ai/dsh-llm";
+import { contentHasImage, createUserMessage, offloadedImageText } from "@deepseek-ai/dsh-llm";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
@@ -536,7 +536,7 @@ function replaceImagesWithEvidence(messages, evidence, turnMessages = currentTur
 	let emittedEvidence = false;
 	return messages.map((message) => {
 		const isCurrentTurn = turnIds.has(String(message.id));
-		const content = replaceBlocks(message.content, () => {
+		const content = replaceBlocks(message.content, (block) => {
 			if (isCurrentTurn && !emittedEvidence) {
 				emittedEvidence = true;
 				return {
@@ -546,7 +546,7 @@ function replaceImagesWithEvidence(messages, evidence, turnMessages = currentTur
 			}
 			return {
 				type: "text",
-				text: isCurrentTurn ? "[additional image represented by the visual evidence above]" : OFFLOADED_IMAGE_TEXT
+				text: isCurrentTurn ? "[additional image represented by the visual evidence above]" : offloadedImageText(block.attachment)
 			};
 		});
 		return content === message.content ? message : {

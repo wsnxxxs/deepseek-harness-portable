@@ -3,14 +3,14 @@
  * the installation-owned fallback immediately before the first profile
  * compose. Dependency injection keeps this entry ordering directly testable.
  */
-export function composeAfterManagedFallback<T>(options: {
+export async function composeAfterManagedFallback<T>(options: {
   readonly virtualRuntime: boolean
   readonly installAnchor: string
-  readonly mutate: () => void
-  readonly heal: (installAnchor: string) => void
-  readonly compose: () => T
-}): T {
-  options.mutate()
-  if (!options.virtualRuntime) options.heal(options.installAnchor)
+  readonly mutate: () => void | Promise<void>
+  readonly heal: (options: { installAnchor: string }) => void | Promise<void>
+  readonly compose: () => T | Promise<T>
+}): Promise<T> {
+  await options.mutate()
+  if (!options.virtualRuntime) await options.heal({ installAnchor: options.installAnchor })
   return options.compose()
 }

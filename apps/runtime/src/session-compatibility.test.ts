@@ -109,7 +109,7 @@ test('portable reader accepts only its registered legacy unmarked event type', a
     await writeFixture(root, unknownId, 'portable-runtime/future-required')
     await assert.rejects(ctx.sessionPersistence.load(unknownId), (error: unknown) => {
       assert.equal((error as Error).name, 'SessionFormatUnsupportedError')
-      assert.match((error as Error).message, /portable-runtime\/future-required.*not marked ignorable/)
+      assert.match((error as Error).message, /portable-runtime\/future-required.*unknown to this harness/)
       return true
     })
   } finally {
@@ -120,7 +120,7 @@ test('portable reader accepts only its registered legacy unmarked event type', a
 
 test('portable mode-resolution writes are explicitly ignorable', () => {
   const trace: RuntimeModeTrace = {
-    modeId: 'code',
+    modeId: 'ptc',
     variantId: 'native',
     supportLevel: 'native',
     presetHash: 'a'.repeat(64),

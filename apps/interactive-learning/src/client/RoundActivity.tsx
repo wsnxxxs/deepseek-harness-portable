@@ -6,6 +6,7 @@ import { initialRoundState, roundReducer } from './roundState.ts'
 import { emitLearningUiLifecycle } from './lifecycle.ts'
 import { ParameterRoundVisual } from './ParameterExplorer.tsx'
 import css from './LearningActivity.module.css'
+import { markdownLabels } from './markdown-labels.ts'
 import { learningScope } from './tokens.ts'
 
 export interface RevealCompletion {
@@ -45,7 +46,7 @@ function writeStoredRound(storageKey: string | undefined, update: StoredRoundUi)
   sessionStorage.setItem(key, JSON.stringify({ ...readStoredRound(storageKey), ...update }))
 }
 
-function ProcessVisual({ activity, final }: { activity: LearningActivityV2; final: boolean }) {
+function ProcessVisual({ activity, final, labels }: { activity: LearningActivityV2; final: boolean; labels: ReturnType<typeof markdownLabels> }) {
   if (activity.visual?.kind !== 'process') return null
   const frame = activity.phase === 'question'
     ? activity.visual.frame
@@ -55,7 +56,7 @@ function ProcessVisual({ activity, final }: { activity: LearningActivityV2; fina
       <span className={css.roundNode}>{activity.seq + 1}</span>
       <div>
         <h3>{frame.title}</h3>
-        {frame.content === undefined ? null : <MarkdownText text={frame.content} />}
+        {frame.content === undefined ? null : <MarkdownText text={frame.content} labels={labels} />}
       </div>
     </section>
   )
@@ -102,9 +103,9 @@ function StructureVisual({ activity }: { activity: LearningActivityV2 }) {
   )
 }
 
-function CurrentVisual({ activity, final, t }: { activity: LearningActivityV2; final: boolean; t: TranslateNS<'interactive-learning'> }) {
+function CurrentVisual({ activity, final, t, labels }: { activity: LearningActivityV2; final: boolean; t: TranslateNS<'interactive-learning'>; labels: ReturnType<typeof markdownLabels> }) {
   if (activity.visual === undefined) return null
-  if (activity.visual.kind === 'process') return <ProcessVisual activity={activity} final={final} />
+  if (activity.visual.kind === 'process') return <ProcessVisual activity={activity} final={final} labels={labels} />
   if (activity.visual.kind === 'parameter') return <ParameterVisual activity={activity} t={t} />
   return <StructureVisual activity={activity} />
 }
@@ -170,6 +171,7 @@ export function RoundActivity({
   activity, completed = false, initialAnswer, storageKey, t, onSubmitAnswer, onContinue, onCancel,
 }: RoundActivityProps) {
   const stored = useRef(readStoredRound(storageKey)).current
+  const labels = markdownLabels(t)
   const [state, dispatch] = useReducer(roundReducer, undefined, () => {
     if (completed || stored.completed === true) return initialRoundState(activity.phase, true)
     if (activity.phase === 'reveal' && stored.animationComplete === true) {
@@ -276,7 +278,7 @@ export function RoundActivity({
         className={activity.phase === 'reveal' ? css.revealTransition : undefined}
         data-reveal-transition={activity.phase === 'reveal' || undefined}
       >
-        <CurrentVisual activity={activity} final={final} t={t} />
+        <CurrentVisual activity={activity} final={final} t={t} labels={labels} />
       </div>
       {activity.phase === 'question' ? (
         <>
@@ -300,7 +302,7 @@ export function RoundActivity({
         <>
           <section className={css.roundFeedback} data-verdict={activity.feedback.verdict}>
             {activity.feedback.learnerEcho === undefined ? null : <p>{activity.feedback.learnerEcho}</p>}
-            <MarkdownText text={activity.feedback.explanation} />
+            <MarkdownText text={activity.feedback.explanation} labels={labels} />
             {activity.feedback.answer === undefined ? null : <strong>{activity.feedback.answer}</strong>}
           </section>
           {state.status === 'completed' ? null : (

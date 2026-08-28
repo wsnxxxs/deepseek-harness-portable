@@ -3,7 +3,7 @@
  * current-session 笔记 view, and the external 学习库 with its per-message
  * 「留到库里」 action.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
 export { ActivityRendererRegistry, activityRendererRegistry } from './ActivityRenderer.tsx';
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts';
 export { VaultLibrary, VaultView, type VaultViewInjected } from './VaultView.tsx';

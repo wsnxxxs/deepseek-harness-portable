@@ -22,7 +22,11 @@ export function LearningSurface({
   useSessions,
   t,
 }: LearningSurfaceProps) {
-  const isLearningSession = useSessions(state => state.byId[sessionId]?.agentPreset === LEARNING_PRESET_ID)
+  const isLearningSession = useSessions(state => {
+    const row = state.byId[sessionId]
+    return row?.projectionValues?.agentPreset === LEARNING_PRESET_ID
+      || (row as { agentPreset?: unknown } | undefined)?.agentPreset === LEARNING_PRESET_ID
+  })
 
   useEffect(() => {
     if (typeof document === 'undefined') return

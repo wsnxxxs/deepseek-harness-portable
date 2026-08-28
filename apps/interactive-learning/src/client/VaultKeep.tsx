@@ -23,6 +23,7 @@ import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'reac
 import { createPortal } from 'react-dom'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconListPenOutline16, Tooltip, useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { learningScope } from './tokens.ts'
 import css from './VaultView.module.css'
@@ -92,8 +93,8 @@ interface SavedNote { noteSlug: string; path: string; kind: string }
  * tab decides this button, because an action that writes into a topic vault is
  * meaningless in a session that has no vault to write into.
  */
-export function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t }: VaultKeepProps) {
-  const text = useSession(snapshot => messageText(snapshot.nodes, messageId as unknown as string))
+export function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }: VaultKeepProps) {
+  const text = useChat(snapshot => messageText(snapshot.legacy.nodes, messageId as unknown as string))
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')

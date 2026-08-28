@@ -3,12 +3,17 @@
  * current-session 笔记 view, and the external 学习库 with its per-message
  * 「留到库里」 action.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
+import type {} from '@deepseek-ai/dsh-client-ui-user-questions/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { LearningComposer, selectLearningActivity } from './LearningComposer.tsx'
 import { LearningToolView } from './LearningToolView.tsx'
 import { LearningInputBridge, LearningNotesView } from './LearningNotes.tsx'

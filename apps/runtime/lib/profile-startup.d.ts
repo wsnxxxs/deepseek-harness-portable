@@ -6,8 +6,10 @@
 export declare function composeAfterManagedFallback<T>(options: {
     readonly virtualRuntime: boolean;
     readonly installAnchor: string;
-    readonly mutate: () => void;
-    readonly heal: (installAnchor: string) => void;
-    readonly compose: () => T;
-}): T;
+    readonly mutate: () => void | Promise<void>;
+    readonly heal: (options: {
+        installAnchor: string;
+    }) => void | Promise<void>;
+    readonly compose: () => T | Promise<T>;
+}): Promise<T>;
 //# sourceMappingURL=profile-startup.d.ts.map

@@ -42,6 +42,6 @@ export declare function titleFrom(text: string): string;
  * tab decides this button, because an action that writes into a topic vault is
  * meaningless in a session that has no vault to write into.
  */
-export declare function VaultKeepAction({ messageId, useSession, sessionId, cwd, call, t }: VaultKeepProps): import("react").JSX.Element | null;
+export declare function VaultKeepAction({ messageId, useChat, sessionId, cwd, call, t }: VaultKeepProps): import("react").JSX.Element | null;
 export {};
 //# sourceMappingURL=VaultKeep.d.ts.map

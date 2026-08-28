@@ -6,9 +6,9 @@
 
 import {
   createSnapshotStore,
-  type SettingsScope,
   type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { VisionConfig } from '../types.ts'
 import { describeVisionRoute, type VisionRouteSummary } from './vision-route.ts'
 
