@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import {
@@ -33,6 +33,21 @@ const { patchSessionPortableEventMetadata } = require('../../patches/dsh-session
 const { patchDirectoryPickerAuto } = require('../../patches/dsh-host-directory-picker-auto-index.js') as {
   patchDirectoryPickerAuto(source: string): string
 }
+const { patchFrontendStaticCacheHeaders } = require('../../patches/dsh-host-frontend-static-cache.js') as {
+  patchFrontendStaticCacheHeaders(source: string): string
+}
+
+/** Replace a staged file by path so a pnpm hardlink cannot mutate its source. */
+async function replaceStagedFile(path: string, content: string): Promise<void> {
+  const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
+  await writeFile(temporary, content)
+  try {
+    await rm(path, { force: true })
+    await rename(temporary, path)
+  } finally {
+    await rm(temporary, { force: true })
+  }
+}
 
 export {
   patchAppBootProfileRuntimeFallback,
@@ -40,6 +55,7 @@ export {
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
   patchDirectoryPickerAuto,
+  patchFrontendStaticCacheHeaders,
   patchSessionPortableEventMetadata,
 }
 
@@ -99,7 +115,7 @@ async function applyDefinition(
       continue
     }
     const result = attestPatchedFile(definition, file, await readFile(target, 'utf8'), transform)
-    if (result.changed) await writeFile(target, result.output)
+    if (result.changed) await replaceStagedFile(target, result.output)
     results.push({ changed: result.changed, attestation: result.attestation })
   }
   return {
@@ -120,6 +136,7 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
   const marketplace = definitionById(definitions, 'marketplace-self-update-fallback')
   const marketplaceTransparency = definitionById(definitions, 'marketplace-install-transparency')
   const directoryIndex = await readFile(resolve(options.root, 'patches/dsh-host-directory-picker-native-index.js'), 'utf8')
+  const frontendStatic = definitionById(definitions, 'frontend-static-hashed-cache')
   const baseAttestations = await Promise.all([
     applyDefinition(options, directoryPicker, {
       'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js': () => directoryIndex,
@@ -127,6 +144,9 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
     }),
     applyDefinition(options, directoryPickerAuto, {
       'node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js': patchDirectoryPickerAuto,
+    }),
+    applyDefinition(options, frontendStatic, {
+      'node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js': patchFrontendStaticCacheHeaders,
     }),
     applyDefinition(options, appBoot, {
       'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js': patchAppBootProfileRuntimeFallback,

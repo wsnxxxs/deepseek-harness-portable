@@ -21,6 +21,7 @@
     "vision:test": "pnpm --filter @dsh-portable/vision-bridge test",
     "runtime:deps:sync": "tsx scripts/runtime/sync-runtime-deps.ts",
     "runtime:deps:check": "tsx scripts/runtime/sync-runtime-deps.ts --check",
+    "startup:benchmark": "node scripts/benchmark-startup.cjs",
     "desktop:test": "pnpm --filter dsh-desktop-web-pkg test",
     "desktop:updater:test": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/desktop/tests/Run-Tests.ps1",
     "package": "pnpm run runtime:links:sync && pnpm exec tsx scripts/build-desktop-web-exe.ts --electron",

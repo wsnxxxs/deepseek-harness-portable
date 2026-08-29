@@ -83,7 +83,8 @@ test('fresh and upgraded profiles install the bundled marketplace once', () => {
       },
     })
     assert.deepEqual(result, { status: 'installed', enabled: true })
-    assert.deepEqual(specs, [fileSpec(item.source)])
+    assert.deepEqual(specs, [])
+    assert.equal(existsSync(join(item.profile, 'node_modules', MARKETPLACE_PACKAGE, 'lib', 'index.js')), true)
     const marker = JSON.parse(readFileSync(join(item.profile, MARKETPLACE_SEED_MARKER), 'utf8'))
     assert.equal(marker.sourceCommit, MARKETPLACE_SOURCE_COMMIT)
 
@@ -162,6 +163,9 @@ test('a broken dependency is rebuilt even after seeding and keeps its enabled st
 test('failed or incomplete installs remain retryable and never write the marker', () => {
   const item = fixture()
   try {
+    const sourceManifest = JSON.parse(readFileSync(join(item.source, 'package.json'), 'utf8'))
+    sourceManifest.dependencies = { 'fixture-dependency': '^1.0.0' }
+    writeJson(join(item.source, 'package.json'), sourceManifest)
     const failed = ensureMarketplacePreinstalled({
       profileDir: item.profile,
       sourceDir: item.source,

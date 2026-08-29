@@ -342,6 +342,74 @@ async function probeDirectoryPickerIpc() {
         const timeout = setTimeout(() => finish({ ok: false, reason: 'directory-picker IPC round trip timed out' }), PROBE_TIMEOUT_MS);
     });
 }
+/** Keep the dependent PowerShell checks ordered while allowing other probes to run beside them. */
+async function probePowerShellCapabilities(command, persistentShell, program) {
+    const executable = await command(program, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0']);
+    const marker = `DSH_POWERSHELL_${randomUUID().replaceAll('-', '')}`;
+    const commandResult = executable.ok
+        ? await command(program, ['-NoProfile', '-NonInteractive', '-Command', `$v='${marker}';[Console]::Out.Write($v)`], marker)
+        : executable;
+    const persistent = commandResult.ok
+        ? await persistentShell(program, ['-NoLogo', '-NoProfile'], 'powershell')
+        : commandResult;
+    return { executable, command: commandResult, persistent };
+}
+/** Run independent Win32 probes concurrently, retaining the WSL dependency chain. */
+async function probeWin32Capabilities(pty, command, persistentShell, directoryPickerIpc) {
+    const [conpty, directoryPicker, wsl] = await Promise.all([
+        pty('cmd.exe', ['/d', '/q']),
+        directoryPickerIpc(),
+        (async () => {
+            const executable = await command('C:/Windows/System32/wsl.exe', ['--status']);
+            const wslExecutable = {
+                ...executable,
+                remediation: 'Enable the Windows Subsystem for Linux optional component and restart Windows.',
+            };
+            const distroMarker = `DSH_WSL_DISTRO_${randomUUID().replaceAll('-', '')}`;
+            const distribution = executable.ok
+                ? await command('C:/Windows/System32/wsl.exe', ['--', 'sh', '-c', `printf ${distroMarker}`], distroMarker)
+                : executable;
+            const wslDistribution = {
+                ...distribution,
+                remediation: 'Run `wsl --install`, finish distribution initialization, then restart DeepSeek Harness.',
+            };
+            const bashMarker = `DSH_WSL_BASH_${randomUUID().replaceAll('-', '')}`;
+            const bash = distribution.ok
+                ? await command('C:/Windows/System32/wsl.exe', ['--', 'bash', '--noprofile', '--norc', '-c', `printf ${bashMarker}`], bashMarker)
+                : distribution;
+            const wslBash = {
+                ...bash,
+                remediation: 'Install Bash inside the default WSL distribution and verify `wsl -- bash -lc true`.',
+            };
+            const persistent = bash.ok
+                ? await persistentShell('C:/Windows/System32/wsl.exe', ['--', 'bash', '--noprofile', '--norc', '-i'], 'bash')
+                : bash;
+            return {
+                wslExecutable,
+                wslDistribution,
+                wslBash,
+                wslPersistent: persistent,
+            };
+        })(),
+    ]);
+    return { conpty, directoryPicker, ...wsl };
+}
+/** Keep the Bash → PTY → persistent dependency chain ordered beside the signal probe. */
+async function probePosixCapabilities(command, pty, persistentShell, posixSignals) {
+    const [shell, signals] = await Promise.all([
+        (async () => {
+            const marker = `DSH_BASH_${randomUUID().replaceAll('-', '')}`;
+            const bash = await command('/bin/bash', ['--noprofile', '--norc', '-c', `printf ${marker}`], marker);
+            const nativePty = bash.ok ? await pty('/bin/bash', ['--noprofile', '--norc', '-i']) : bash;
+            const persistent = nativePty.ok && bash.ok
+                ? await persistentShell('/bin/bash', ['--noprofile', '--norc', '-i'], 'bash')
+                : { ok: false, reason: 'Bash or native PTY failed before the persistence probe' };
+            return { bash, pty: nativePty, persistent };
+        })(),
+        posixSignals(),
+    ]);
+    return { ...shell, signals };
+}
 export function capabilitySnapshotHash(report) {
     return createHash('sha256').update(JSON.stringify({
         target: report.target,
@@ -364,10 +432,14 @@ export async function collectCapabilityReport(options = {}) {
     const cacheIdentity = currentCapabilityCacheIdentity(platform, arch, cache?.upstreamVersion ?? runtimeUpstreamVersion(), cache?.probeImplementationHash ?? probeImplementationHash());
     const forceRefresh = cache?.refresh === true || process.env.DSH_REFRESH_RUNTIME_CAPABILITIES === '1';
     if (cache !== undefined && !forceRefresh) {
+        options.trace?.('cache-check');
         const cached = await readCapabilityReportCache(cache.path, cacheIdentity, cache.maxAgeMs);
-        if (cached !== undefined)
+        if (cached !== undefined) {
+            options.trace?.('cache-hit');
             return cached;
+        }
     }
+    options.trace?.('cache-miss');
     const command = overrides.command ?? probeCommand;
     const pty = overrides.pty ?? probePty;
     const persistentShell = overrides.persistentShell ?? probePersistentShell;
@@ -375,72 +447,47 @@ export async function collectCapabilityReport(options = {}) {
     const sandboxWorkspaceWrite = overrides.sandboxWorkspaceWrite ?? probeSandboxWorkspaceWrite;
     const directoryPickerIpc = overrides.directoryPickerIpc ?? probeDirectoryPickerIpc;
     const capabilities = {};
-    const sandbox = await sandboxWorkspaceWrite();
-    capabilities['sandbox.workspace-write'] = available(sandbox, 'platform-sandbox');
+    options.trace?.('probes-start');
+    const sandboxPromise = sandboxWorkspaceWrite();
     const powershellProgram = platform === 'win32' ? 'powershell.exe' : 'pwsh';
-    const psExecutable = await command(powershellProgram, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0']);
-    capabilities['powershell.executable'] = available(psExecutable, powershellProgram);
-    const psMarker = `DSH_POWERSHELL_${randomUUID().replaceAll('-', '')}`;
-    const psCommand = psExecutable.ok
-        ? await command(powershellProgram, ['-NoProfile', '-NonInteractive', '-Command', `$v='${psMarker}';[Console]::Out.Write($v)`], psMarker)
-        : psExecutable;
-    capabilities['powershell.command'] = available(psCommand, powershellProgram);
-    const psPersistent = psCommand.ok
-        ? await persistentShell(powershellProgram, ['-NoLogo', '-NoProfile'], 'powershell')
-        : psCommand;
-    capabilities['powershell.persistent'] = available(psPersistent, `${powershellProgram}/node-pty:two-call-state`);
-    capabilities['shell.powershell'] = capabilities['powershell.persistent'];
     if (platform === 'win32') {
-        const conpty = await pty('cmd.exe', ['/d', '/q']);
-        capabilities['terminal.conpty'] = available(conpty, 'node-pty/conpty');
-        const wslExecutable = await command('C:/Windows/System32/wsl.exe', ['--status']);
-        capabilities['wsl.executable'] = available({
-            ...wslExecutable,
-            remediation: 'Enable the Windows Subsystem for Linux optional component and restart Windows.',
-        }, 'wsl.exe');
-        const distroMarker = `DSH_WSL_DISTRO_${randomUUID().replaceAll('-', '')}`;
-        const wslDistribution = wslExecutable.ok
-            ? await command('C:/Windows/System32/wsl.exe', ['--', 'sh', '-c', `printf ${distroMarker}`], distroMarker)
-            : wslExecutable;
-        capabilities['wsl.distribution'] = available({
-            ...wslDistribution,
-            remediation: 'Run `wsl --install`, finish distribution initialization, then restart DeepSeek Harness.',
-        }, 'wsl.exe/default-distribution');
-        const bashMarker = `DSH_WSL_BASH_${randomUUID().replaceAll('-', '')}`;
-        const wslBash = wslDistribution.ok
-            ? await command('C:/Windows/System32/wsl.exe', ['--', 'bash', '--noprofile', '--norc', '-c', `printf ${bashMarker}`], bashMarker)
-            : wslDistribution;
-        capabilities['wsl.bash'] = available({
-            ...wslBash,
-            remediation: 'Install Bash inside the default WSL distribution and verify `wsl -- bash -lc true`.',
-        }, 'wsl.exe/bash');
-        const wslPersistent = wslBash.ok
-            ? await persistentShell('C:/Windows/System32/wsl.exe', ['--', 'bash', '--noprofile', '--norc', '-i'], 'bash')
-            : wslBash;
-        capabilities['wsl.bash.persistent'] = available(wslPersistent, 'wsl.exe/bash/node-pty');
-        capabilities['bridge.win32-wsl-terminal'] = conpty.ok && wslPersistent.ok
+        const [sandbox, powershell, win32] = await Promise.all([
+            sandboxPromise,
+            probePowerShellCapabilities(command, persistentShell, powershellProgram),
+            probeWin32Capabilities(pty, command, persistentShell, directoryPickerIpc),
+        ]);
+        capabilities['sandbox.workspace-write'] = available(sandbox, 'platform-sandbox');
+        capabilities['powershell.executable'] = available(powershell.executable, powershellProgram);
+        capabilities['powershell.command'] = available(powershell.command, powershellProgram);
+        capabilities['powershell.persistent'] = available(powershell.persistent, `${powershellProgram}/node-pty:two-call-state`);
+        capabilities['shell.powershell'] = capabilities['powershell.persistent'];
+        capabilities['terminal.conpty'] = available(win32.conpty, 'node-pty/conpty');
+        capabilities['wsl.executable'] = available(win32.wslExecutable, 'wsl.exe');
+        capabilities['wsl.distribution'] = available(win32.wslDistribution, 'wsl.exe/default-distribution');
+        capabilities['wsl.bash'] = available(win32.wslBash, 'wsl.exe/bash');
+        capabilities['wsl.bash.persistent'] = available(win32.wslPersistent, 'wsl.exe/bash/node-pty');
+        capabilities['bridge.win32-wsl-terminal'] = win32.conpty.ok && win32.wslPersistent.ok
             ? { state: 'available', provider: 'desktop-runtime/wsl-terminal-bridge' }
             : unavailable('the Win32-to-WSL terminal bridge cannot operate until ConPTY and persistent WSL Bash both pass', 'Repair node-pty/ConPTY and the default WSL Bash distribution.');
         capabilities['process.posix-signals'] = unavailable('the Windows host cannot provide native POSIX process-group signals to WSL guests', 'Use the documented Ctrl+C/process-tree emulation or run the POSIX variant on Linux/macOS.');
-        capabilities['native.directory-picker'] = available(await directoryPickerIpc(), 'directory-picker-native/worker-ipc-v1');
+        capabilities['native.directory-picker'] = available(win32.directoryPicker, 'directory-picker-native/worker-ipc-v1');
         capabilities['terminal.pty.native'] = unavailable('native POSIX PTY is not a Win32 capability');
         capabilities['shell.bash'] = unavailable('native /bin/bash is not available on Win32; WSL is a separate compatible variant');
         capabilities['shell.bash.persistent'] = unavailable('native persistent Bash is not available on Win32; WSL is a separate compatible variant');
     }
     else {
-        const bashMarker = `DSH_BASH_${randomUUID().replaceAll('-', '')}`;
-        const bash = await command('/bin/bash', ['--noprofile', '--norc', '-c', `printf ${bashMarker}`], bashMarker);
+        const [sandbox, posix] = await Promise.all([
+            sandboxPromise,
+            probePosixCapabilities(command, pty, persistentShell, posixSignals),
+        ]);
+        capabilities['sandbox.workspace-write'] = available(sandbox, 'platform-sandbox');
         capabilities['shell.bash'] = available({
-            ...bash,
+            ...posix.bash,
             remediation: 'Install /bin/bash and verify that it can run without profile scripts.',
         }, '/bin/bash');
-        const nativePty = bash.ok ? await pty('/bin/bash', ['--noprofile', '--norc', '-i']) : bash;
-        capabilities['terminal.pty.native'] = available(nativePty, 'node-pty/posix');
-        const persistent = nativePty.ok && bash.ok
-            ? await persistentShell('/bin/bash', ['--noprofile', '--norc', '-i'], 'bash')
-            : { ok: false, reason: 'Bash or native PTY failed before the persistence probe' };
-        capabilities['shell.bash.persistent'] = available(persistent, 'node-pty+/bin/bash:two-call-state');
-        capabilities['process.posix-signals'] = available(await posixSignals(), 'node:SIGTERM-roundtrip');
+        capabilities['terminal.pty.native'] = available(posix.pty, 'node-pty/posix');
+        capabilities['shell.bash.persistent'] = available(posix.persistent, 'node-pty+/bin/bash:two-call-state');
+        capabilities['process.posix-signals'] = available(posix.signals, 'node:SIGTERM-roundtrip');
         capabilities['terminal.conpty'] = unavailable('ConPTY is only available on Windows');
         capabilities['wsl.executable'] = unavailable('WSL is only available on Windows');
         capabilities['wsl.distribution'] = unavailable('WSL is only available on Windows');
@@ -451,6 +498,7 @@ export async function collectCapabilityReport(options = {}) {
             ? 'Install zenity or kdialog; the UI will use the native picker only after an interactive health check.'
             : 'Use the signed macOS application bundle so the interactive picker can be verified by the native UI lane.');
     }
+    options.trace?.('probes-complete');
     const base = {
         target: { platform, arch },
         capabilities,

@@ -5,6 +5,8 @@ import type { CapabilityReport } from './mode-resolver.js'
 
 export const CAPABILITY_CACHE_SCHEMA_VERSION = 1
 export const CAPABILITY_PROBE_REVISION = 1
+/** Capability providers do not normally change during a work week. */
+export const CAPABILITY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 type CapabilityCacheEnvelope = {
   schemaVersion: number
@@ -51,7 +53,7 @@ function sameIdentity(left: CapabilityCacheIdentity, right: CapabilityCacheIdent
 export async function readCapabilityReportCache(
   path: string,
   identity: CapabilityCacheIdentity,
-  maxAgeMs = 24 * 60 * 60 * 1000,
+  maxAgeMs = CAPABILITY_CACHE_MAX_AGE_MS,
 ): Promise<CapabilityReport | undefined> {
   try {
     const cached = JSON.parse(await readFile(path, 'utf8')) as CapabilityCacheEnvelope

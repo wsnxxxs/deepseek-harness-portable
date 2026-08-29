@@ -35,7 +35,7 @@ import { collectCapabilityReport } from './capability-report.js';
 import { compileModeCatalog, canonicalModeId, measuredModeSupport, } from './mode-catalog.js';
 import { openBrowser } from './open-browser.js';
 import { ensureMarketplacePreinstalled, materializeMarketplaceSeed, MARKETPLACE_PACKAGE, } from './marketplace-bootstrap.js';
-import { createProfileFirstPackageJsonResolver } from './profile-module-resolver.js';
+import { createCachedProfileFallbackHealer } from './profile-fallback-cache.js';
 import { composeAfterManagedFallback } from './profile-startup.js';
 import { appendPortableModeResolution, PORTABLE_MODE_RESOLUTION_EVENT_TYPE, registerPackagedSessionCompatibility, } from './session-compatibility.js';
 import { adaptWin32SubprocessRuntime } from './win32-terminal-inspector.js';
@@ -59,6 +59,37 @@ const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.meta.url)
 const installationRequire = createRequire(INSTALL_ANCHOR);
 const { RUNTIME_PROTOCOL_VERSION, encodeRuntimeEvent, protocolEnabled, } = installationRequire('@dsh-portable/desktop-protocol');
 const PNPM_CLI_ENTRY = join(dirname(installationRequire.resolve('pnpm')), 'bin', 'pnpm.cjs');
+const BOOT_STARTED_AT = Date.now();
+/** Emit opt-in stage timing without changing the normal protocol stream. */
+function traceBoot(stage) {
+    if (process.env.DSH_BOOT_TRACE !== '1')
+        return;
+    const message = `${stage} +${String(Date.now() - BOOT_STARTED_AT)}ms`;
+    if (protocolEnabled(process.env)) {
+        console.log(encodeRuntimeEvent({
+            protocolVersion: RUNTIME_PROTOCOL_VERSION,
+            type: 'diagnostic',
+            code: 'BOOT_STAGE',
+            component: 'runtime-startup',
+            severity: 'warning',
+            message,
+            recoverable: true,
+        }));
+    }
+    else {
+        console.error(`[dsh-boot] ${message}`);
+    }
+}
+/** Enable Node's persistent bytecode cache when the bundled Electron supports it. */
+function enableRuntimeCompileCache() {
+    try {
+        const moduleApi = installationRequire('node:module');
+        moduleApi.enableCompileCache?.(join(resolveDshHome(), 'compile-cache'));
+    }
+    catch {
+        // Older development Node versions may not expose the optional API.
+    }
+}
 function marketplaceSourceDir() {
     try {
         return dirname(installationRequire.resolve(`${MARKETPLACE_PACKAGE}/package.json`));
@@ -133,7 +164,8 @@ async function resolveUpstreamCommit() {
     return 'unknown';
 }
 /** Materialize shipped presets, omitting unavailable modes from discovery and retaining their diagnostics. */
-async function materializeShippedPresetRoot() {
+async function materializeShippedPresetRoot(capabilityReport) {
+    traceBoot('presets:start');
     const target = join(resolveDshHome(), '.system-agent-presets');
     for (const source of SHIPPED_PRESET_SOURCES) {
         if (resolve(source.path) === resolve(target)) {
@@ -142,7 +174,9 @@ async function materializeShippedPresetRoot() {
     }
     const manifestPath = join(target, '.manifest.json');
     const evidencePath = join(target, '.runtime-capabilities.json');
-    const report = await collectCapabilityReport();
+    const report = capabilityReport ?? await collectCapabilityReport({
+        trace: stage => traceBoot(`capabilities:${stage}`),
+    });
     const upstreamCommit = await resolveUpstreamCommit();
     const sourceTrees = await Promise.all(SHIPPED_PRESET_SOURCES.map(async (source) => ({
         id: source.id,
@@ -169,8 +203,10 @@ async function materializeShippedPresetRoot() {
     try {
         if ((await readFile(manifestPath, 'utf8')) === manifest) {
             const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
-            if (evidence.schemaVersion === 1)
+            if (evidence.schemaVersion === 1) {
+                traceBoot('presets:cache-hit');
                 return { root: target, ...evidence };
+            }
         }
     }
     catch { }
@@ -186,6 +222,7 @@ async function materializeShippedPresetRoot() {
     };
     await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
     await writeFile(manifestPath, manifest);
+    traceBoot('presets:complete');
     return { root: target, ...evidence };
 }
 // Portable home: the exe's own directory unless the user opted into a
@@ -200,6 +237,7 @@ if (process.env.DSH_HOME === undefined || process.env.DSH_HOME.trim() === '') {
         process.env.DSH_HOME = join(dirname(process.execPath), '.dsh');
     }
 }
+enableRuntimeCompileCache();
 /**
  * Resolve the telemetry opt-out switch into its boot patch, mirroring the
  * source launcher's `resolveTelemetryPatch`: ANY non-empty value disables.
@@ -234,6 +272,13 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
         bundledSourceDir: bundledMarketplace,
     });
     let marketplace;
+    const cachedFallbackHeal = createCachedProfileFallbackHealer({
+        profileDir,
+        installAnchor: INSTALL_ANCHOR,
+        runtimeDepsPath: join(dirname(INSTALL_ANCHOR), 'runtime-deps.generated.json'),
+        bundles: () => readProfileManifest(NAME, profileDir).dsh?.profile?.bundles ?? [],
+        heal: healProfilesModuleFallback,
+    });
     const profile = await composeAfterManagedFallback({
         virtualRuntime,
         installAnchor: INSTALL_ANCHOR,
@@ -299,7 +344,7 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
                 console.log(`${NAME}: ${marketplace.status === 'installed' ? 'preinstalled' : 'repaired'} ${MARKETPLACE_PACKAGE} in the web profile`);
             }
         },
-        heal: healProfilesModuleFallback,
+        heal: cachedFallbackHeal,
         compose: () => loadProfile(NAME, PROFILE_NAME, INSTALL_ANCHOR),
     });
     const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? [];
@@ -413,37 +458,6 @@ function hasRequiredClientGraph(html) {
             pending.push(...row.inject);
     }
     return true;
-}
-/**
- * Repair the client-module roster after the host loader has settled.
- *
- * Repoint client-module metadata resolution at the writable profile first and
- * the packaged app second, clear its negative cache, and re-run the existing
- * reconciliation pass after the loader barrier. Downloaded client plugins and
- * their host bundle therefore resolve from the same profile-owned version.
- */
-function refreshClientModuleGraph(ctx, profileDir) {
-    const registry = ctx.get('clientModules');
-    const loader = ctx.get('loader');
-    if (registry?.processOne === undefined || registry.compose === undefined || loader?.entries === undefined)
-        return;
-    registry.resolvePkgJson = createProfileFirstPackageJsonResolver(profileDir, INSTALL_ANCHOR);
-    registry.pkgMeta?.clear();
-    const names = new Set();
-    for (const entry of loader.entries()) {
-        const name = entry.options?.name;
-        if (typeof name === 'string')
-            names.add(name);
-    }
-    let changed = false;
-    for (const name of names) {
-        if (registry.processOne.call(registry, name))
-            changed = true;
-    }
-    if (!changed)
-        return;
-    registry.composed = registry.compose.call(registry);
-    registry.notifyGraphChanged?.call(registry);
 }
 /** Read the browser-session cookie issued by the launch-token exchange. */
 function readSessionCookie(response) {
@@ -622,8 +636,14 @@ async function main() {
     // web profile from opening a second browser (or opening one for Desktop).
     webArgs.push('--no-open');
     const virtualRuntime = Boolean(process.pkg);
-    const presetState = await materializeShippedPresetRoot();
-    const composed = await composeProfile(presetState.root, virtualRuntime);
+    const presetRoot = join(resolveDshHome(), '.system-agent-presets');
+    traceBoot('startup:parallel-capability-compose');
+    const [capabilityReport, composed] = await Promise.all([
+        collectCapabilityReport({ trace: stage => traceBoot(`capabilities:${stage}`) }),
+        composeProfile(presetRoot, virtualRuntime),
+    ]);
+    traceBoot('compose:complete');
+    const presetState = await materializeShippedPresetRoot(capabilityReport);
     if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
         console.log(encodeRuntimeEvent({
             protocolVersion: RUNTIME_PROTOCOL_VERSION,
@@ -687,6 +707,7 @@ async function main() {
     };
     let ctx = new Context();
     try {
+        traceBoot('loader:start');
         ctx.baseUrl = pathToFileURL(dirname(rootConfig)).href + '/';
         ctx.provide('dshHomePath', dshHomePath);
         await ctx.plugin(Loader, { baseUrl: virtualRuntime ? bareModuleBaseUrl : installedModuleBaseUrl });
@@ -701,11 +722,12 @@ async function main() {
         await ctx.get('loader')?.await();
         if (ctx.get('loader') !== undefined)
             await assertEntriesActivated(ctx, NAME);
+        traceBoot('loader:complete');
         if (process.platform === 'win32') {
             adaptWin32SubprocessRuntime(ctx.get('subprocess'));
         }
         installRuntimeEvidenceSurface(ctx, presetState);
-        refreshClientModuleGraph(ctx, composed.profile.dir);
+        traceBoot('client-graph:initial-scan-complete');
         if (shellProtocol) {
             const port = ctx.get('webServer')?.port;
             if (!Number.isSafeInteger(port) || port <= 0) {
@@ -718,6 +740,7 @@ async function main() {
                 type: 'listening',
                 url: connection?.authenticatedUrl(bareUrl) ?? bareUrl,
             }));
+            traceBoot('listening');
         }
     }
     catch (cause) {

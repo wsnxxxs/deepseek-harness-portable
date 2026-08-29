@@ -3,6 +3,8 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 export const CAPABILITY_CACHE_SCHEMA_VERSION = 1;
 export const CAPABILITY_PROBE_REVISION = 1;
+/** Capability providers do not normally change during a work week. */
+export const CAPABILITY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export function currentCapabilityCacheIdentity(platform = process.platform, arch = process.arch, upstreamVersion = 'development', probeImplementationHash = '') {
     return {
         platform,
@@ -21,7 +23,7 @@ function sameIdentity(left, right) {
         && left.upstreamVersion === right.upstreamVersion
         && left.probeImplementationHash === right.probeImplementationHash;
 }
-export async function readCapabilityReportCache(path, identity, maxAgeMs = 24 * 60 * 60 * 1000) {
+export async function readCapabilityReportCache(path, identity, maxAgeMs = CAPABILITY_CACHE_MAX_AGE_MS) {
     try {
         const cached = JSON.parse(await readFile(path, 'utf8'));
         if (cached.schemaVersion !== CAPABILITY_CACHE_SCHEMA_VERSION

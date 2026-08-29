@@ -19,6 +19,8 @@ export interface CapabilityReportOptions {
     readonly platform?: NodeJS.Platform;
     readonly arch?: NodeJS.Architecture;
     readonly overrides?: CapabilityProbeOverrides;
+    /** Optional startup instrumentation hook; it never changes probe behavior. */
+    readonly trace?: (stage: string) => void;
     readonly cache?: false | {
         readonly path: string;
         readonly refresh?: boolean;

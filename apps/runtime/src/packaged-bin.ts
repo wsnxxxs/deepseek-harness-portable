@@ -66,7 +66,7 @@ import {
   type MarketplaceBootstrapResult,
 } from './marketplace-bootstrap.js'
 import type { CapabilityReport } from './mode-resolver.js'
-import { createProfileFirstPackageJsonResolver } from './profile-module-resolver.js'
+import { createCachedProfileFallbackHealer } from './profile-fallback-cache.js'
 import { composeAfterManagedFallback } from './profile-startup.js'
 import {
   appendPortableModeResolution,
@@ -116,6 +116,39 @@ const {
   protocolEnabled(environment?: NodeJS.ProcessEnv): boolean
 }
 const PNPM_CLI_ENTRY = join(dirname(installationRequire.resolve('pnpm')), 'bin', 'pnpm.cjs')
+
+const BOOT_STARTED_AT = Date.now()
+
+/** Emit opt-in stage timing without changing the normal protocol stream. */
+function traceBoot(stage: string): void {
+  if (process.env.DSH_BOOT_TRACE !== '1') return
+  const message = `${stage} +${String(Date.now() - BOOT_STARTED_AT)}ms`
+  if (protocolEnabled(process.env)) {
+    console.log(encodeRuntimeEvent({
+      protocolVersion: RUNTIME_PROTOCOL_VERSION,
+      type: 'diagnostic',
+      code: 'BOOT_STAGE',
+      component: 'runtime-startup',
+      severity: 'warning',
+      message,
+      recoverable: true,
+    }))
+  } else {
+    console.error(`[dsh-boot] ${message}`)
+  }
+}
+
+/** Enable Node's persistent bytecode cache when the bundled Electron supports it. */
+function enableRuntimeCompileCache(): void {
+  try {
+    const moduleApi = installationRequire('node:module') as {
+      enableCompileCache?: (directory?: string) => unknown
+    }
+    moduleApi.enableCompileCache?.(join(resolveDshHome(), 'compile-cache'))
+  } catch {
+    // Older development Node versions may not expose the optional API.
+  }
+}
 
 function marketplaceSourceDir(): string | undefined {
   try {
@@ -201,7 +234,8 @@ async function resolveUpstreamCommit(): Promise<string> {
 }
 
 /** Materialize shipped presets, omitting unavailable modes from discovery and retaining their diagnostics. */
-async function materializeShippedPresetRoot(): Promise<MaterializedPresetState> {
+async function materializeShippedPresetRoot(capabilityReport?: CapabilityReport): Promise<MaterializedPresetState> {
+  traceBoot('presets:start')
   const target = join(resolveDshHome(), '.system-agent-presets')
   for (const source of SHIPPED_PRESET_SOURCES) {
     if (resolve(source.path) === resolve(target)) {
@@ -210,7 +244,9 @@ async function materializeShippedPresetRoot(): Promise<MaterializedPresetState> 
   }
   const manifestPath = join(target, '.manifest.json')
   const evidencePath = join(target, '.runtime-capabilities.json')
-  const report = await collectCapabilityReport()
+  const report = capabilityReport ?? await collectCapabilityReport({
+    trace: stage => traceBoot(`capabilities:${stage}`),
+  })
   const upstreamCommit = await resolveUpstreamCommit()
   const sourceTrees = await Promise.all(SHIPPED_PRESET_SOURCES.map(async source => ({
     id: source.id,
@@ -237,7 +273,10 @@ async function materializeShippedPresetRoot(): Promise<MaterializedPresetState> 
   try {
     if ((await readFile(manifestPath, 'utf8')) === manifest) {
       const evidence = JSON.parse(await readFile(evidencePath, 'utf8')) as RuntimeCapabilityEvidence
-      if (evidence.schemaVersion === 1) return { root: target, ...evidence }
+      if (evidence.schemaVersion === 1) {
+        traceBoot('presets:cache-hit')
+        return { root: target, ...evidence }
+      }
     }
   } catch {}
   await rm(target, { recursive: true, force: true })
@@ -251,6 +290,7 @@ async function materializeShippedPresetRoot(): Promise<MaterializedPresetState> 
   }
   await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`)
   await writeFile(manifestPath, manifest)
+  traceBoot('presets:complete')
   return { root: target, ...evidence }
 }
 
@@ -265,6 +305,7 @@ if (process.env.DSH_HOME === undefined || process.env.DSH_HOME.trim() === '') {
     process.env.DSH_HOME = join(dirname(process.execPath), '.dsh')
   }
 }
+enableRuntimeCompileCache()
 
 /**
  * Resolve the telemetry opt-out switch into its boot patch, mirroring the
@@ -306,6 +347,13 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
     bundledSourceDir: bundledMarketplace,
   })
   let marketplace!: MarketplaceBootstrapResult
+  const cachedFallbackHeal = createCachedProfileFallbackHealer({
+    profileDir,
+    installAnchor: INSTALL_ANCHOR,
+    runtimeDepsPath: join(dirname(INSTALL_ANCHOR), 'runtime-deps.generated.json'),
+    bundles: () => readProfileManifest(NAME, profileDir).dsh?.profile?.bundles ?? [],
+    heal: healProfilesModuleFallback,
+  })
   const profile = await composeAfterManagedFallback({
     virtualRuntime,
     installAnchor: INSTALL_ANCHOR,
@@ -368,7 +416,7 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
         console.log(`${NAME}: ${marketplace.status === 'installed' ? 'preinstalled' : 'repaired'} ${MARKETPLACE_PACKAGE} in the web profile`)
       }
     },
-    heal: healProfilesModuleFallback,
+    heal: cachedFallbackHeal,
     compose: () => loadProfile(NAME, PROFILE_NAME, INSTALL_ANCHOR),
   })
   const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
@@ -477,45 +525,6 @@ function hasRequiredClientGraph(html: string): boolean {
     if (Array.isArray(row.inject)) pending.push(...row.inject)
   }
   return true
-}
-
-/**
- * Repair the client-module roster after the host loader has settled.
- *
- * Repoint client-module metadata resolution at the writable profile first and
- * the packaged app second, clear its negative cache, and re-run the existing
- * reconciliation pass after the loader barrier. Downloaded client plugins and
- * their host bundle therefore resolve from the same profile-owned version.
- */
-function refreshClientModuleGraph(ctx: Context, profileDir: string): void {
-  const registry = ctx.get('clientModules') as unknown as {
-    processOne?: (entryName: string) => boolean
-    compose?: () => unknown
-    notifyGraphChanged?: () => void
-    composed?: unknown
-    pkgMeta?: Map<string, unknown>
-    resolvePkgJson?: (packageName: string) => string
-  } | undefined
-  const loader = ctx.get('loader') as unknown as {
-    entries?: () => Iterable<{ options?: { name?: string } }>
-  } | undefined
-  if (registry?.processOne === undefined || registry.compose === undefined || loader?.entries === undefined) return
-
-  registry.resolvePkgJson = createProfileFirstPackageJsonResolver(profileDir, INSTALL_ANCHOR)
-  registry.pkgMeta?.clear()
-
-  const names = new Set<string>()
-  for (const entry of loader.entries()) {
-    const name = entry.options?.name
-    if (typeof name === 'string') names.add(name)
-  }
-  let changed = false
-  for (const name of names) {
-    if (registry.processOne.call(registry, name)) changed = true
-  }
-  if (!changed) return
-  registry.composed = registry.compose.call(registry)
-  registry.notifyGraphChanged?.call(registry)
 }
 
 /** Read the browser-session cookie issued by the launch-token exchange. */
@@ -713,8 +722,14 @@ async function main(): Promise<void> {
   webArgs.push('--no-open')
 
   const virtualRuntime = Boolean((process as NodeJS.Process & { pkg?: unknown }).pkg)
-  const presetState = await materializeShippedPresetRoot()
-  const composed = await composeProfile(presetState.root, virtualRuntime)
+  const presetRoot = join(resolveDshHome(), '.system-agent-presets')
+  traceBoot('startup:parallel-capability-compose')
+  const [capabilityReport, composed] = await Promise.all([
+    collectCapabilityReport({ trace: stage => traceBoot(`capabilities:${stage}`) }),
+    composeProfile(presetRoot, virtualRuntime),
+  ])
+  traceBoot('compose:complete')
+  const presetState = await materializeShippedPresetRoot(capabilityReport)
   if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
     console.log(encodeRuntimeEvent({
       protocolVersion: RUNTIME_PROTOCOL_VERSION,
@@ -781,6 +796,7 @@ async function main(): Promise<void> {
   }
   let ctx = new Context()
   try {
+    traceBoot('loader:start')
     ctx.baseUrl = pathToFileURL(dirname(rootConfig)).href + '/'
     ctx.provide('dshHomePath', dshHomePath)
     await ctx.plugin(Loader, { baseUrl: virtualRuntime ? bareModuleBaseUrl : installedModuleBaseUrl })
@@ -800,11 +816,12 @@ async function main(): Promise<void> {
     ]), bareModuleBaseUrl, virtualRuntime ? undefined : installedModuleBaseUrl)
     await ctx.get('loader')?.await()
     if (ctx.get('loader') !== undefined) await assertEntriesActivated(ctx, NAME)
+    traceBoot('loader:complete')
     if (process.platform === 'win32') {
       adaptWin32SubprocessRuntime(ctx.get('subprocess'))
     }
     installRuntimeEvidenceSurface(ctx, presetState)
-    refreshClientModuleGraph(ctx, composed.profile.dir)
+    traceBoot('client-graph:initial-scan-complete')
     if (shellProtocol) {
       const port = (ctx.get('webServer') as { port?: number } | undefined)?.port
       if (!Number.isSafeInteger(port) || (port as number) <= 0) {
@@ -817,6 +834,7 @@ async function main(): Promise<void> {
         type: 'listening',
         url: connection?.authenticatedUrl(bareUrl) ?? bareUrl,
       }))
+      traceBoot('listening')
     }
   } catch (cause) {
     await ctx.fiber.dispose()

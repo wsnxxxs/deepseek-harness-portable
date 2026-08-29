@@ -19,6 +19,14 @@ patches:
           - resolveDirectoryPickerBackend
           - 'platform: process.platform'
           - hasLinuxChooserBinary
+  - id: frontend-static-hashed-cache
+    targets: ['*']
+    files:
+      - path: node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js
+        guards:
+          - STATIC_MISS_CODES
+          - serveStatic
+          - 'res.writeHead(200, { "content-type": type });'
   - id: app-boot-profile-runtime-fallback
     targets: ['*']
     files:

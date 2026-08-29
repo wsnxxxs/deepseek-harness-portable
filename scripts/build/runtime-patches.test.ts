@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, link, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { test } from 'node:test'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -9,6 +9,7 @@ import {
   patchDirectoryPickerAuto,
   patchDirectoryPickerWorker,
   patchDshProfileStaleLinkRecovery,
+  patchFrontendStaticCacheHeaders,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
   patchSessionPortableEventMetadata,
@@ -47,6 +48,15 @@ test('directory-picker auto patch maps WSL to the Windows native backend', async
   assert.match(output, /function dshIsWsl\(\)/)
   assert.match(output, /platform: process\.platform === "linux" && dshIsWsl\(\) \? "win32" : process\.platform/)
   assert.equal(patchDirectoryPickerAuto(output), output)
+})
+
+test('frontend-static patch caches only hashed assets', async () => {
+  const source = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js'), 'utf8')
+  const output = patchFrontendStaticCacheHeaders(source)
+  assert.match(output, /IMMUTABLE_STATIC_CACHE/)
+  assert.match(output, /isImmutableStaticAsset/)
+  assert.match(output, /assets\\\/\[\^\/\]\+\-/)
+  assert.equal(patchFrontendStaticCacheHeaders(output), output)
 })
 
 test('app-boot patch resolves bare packages from profile then installed runtime', () => {
@@ -142,6 +152,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/worker.cjs',
     'node_modules/@deepseek-ai/dsh-host-directory-picker-auto/lib/index.js',
+    'node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js',
     'node_modules/@deepseek-ai/dsh-client-ui-settings-models/lib/client.js',
     'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
     'node_modules/@deepseek-ai/dsh/lib/bin.js',
@@ -153,7 +164,12 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     for (const path of paths) {
       const target = join(staging, ...path.split('/'))
       await mkdir(dirname(target), { recursive: true })
-      await copyFile(resolve('apps/runtime', ...path.split('/')), target)
+      const source = resolve('apps/runtime', ...path.split('/'))
+      if (path === 'node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js') {
+        await link(source, target)
+      } else {
+        await copyFile(source, target)
+      }
     }
     const attestations = await applyRuntimePatchLayer({
       root: resolve('.'),
@@ -162,12 +178,15 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     })
     const host = await readFile(join(staging, 'node_modules/dsh-plugin-marketplace/lib/index.js'), 'utf8')
     const client = await readFile(join(staging, 'node_modules/dsh-plugin-marketplace/lib/client.js'), 'utf8')
+    const originalFrontendStatic = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js'), 'utf8')
+    assert.doesNotMatch(originalFrontendStatic, /IMMUTABLE_STATIC_CACHE/)
     assert.match(host, /installedRepoGh = repositoryGitHubSpec/)
     assert.match(host, /MARKETPLACE_BOOT_BUNDLES/)
     assert.match(client, /data-portable-confirm-install/)
     assert.deepEqual(attestations.map(item => item.id), [
       'directory-picker-electron-ipc',
       'directory-picker-wsl-platform',
+      'frontend-static-hashed-cache',
       'app-boot-profile-runtime-fallback',
       'dsh-profile-stale-link-recovery',
       'portable-session-event-metadata',

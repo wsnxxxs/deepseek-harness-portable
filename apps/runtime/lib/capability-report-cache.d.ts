@@ -1,6 +1,8 @@
 import type { CapabilityReport } from './mode-resolver.js';
 export declare const CAPABILITY_CACHE_SCHEMA_VERSION = 1;
 export declare const CAPABILITY_PROBE_REVISION = 1;
+/** Capability providers do not normally change during a work week. */
+export declare const CAPABILITY_CACHE_MAX_AGE_MS: number;
 type CapabilityCacheEnvelope = {
     schemaVersion: number;
     probeRevision: number;

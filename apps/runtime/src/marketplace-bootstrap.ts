@@ -40,6 +40,7 @@ type ProfileManifest = {
 type PackageManifest = {
   name?: string
   main?: string
+  dependencies?: Record<string, string>
   dsh?: { bundle?: { patch?: string }; client?: unknown }
 }
 
@@ -468,6 +469,24 @@ export function ensureMarketplacePreinstalled(
       'MARKETPLACE_UNAVAILABLE',
       `the user-selected marketplace source ${JSON.stringify(initial.dependencySpec)} is not loadable and was not replaced`,
     )
+  }
+
+  // The distribution already owns a complete, dependency-free marketplace
+  // bundle. Copy it directly into the profile first so a fresh portable
+  // launch does not synchronously start a package manager. The installer
+  // callback remains the compatibility fallback for an unusual filesystem or
+  // future marketplace package with additional install-time requirements.
+  const directInstallable = Object.keys(sourceManifest.dependencies ?? {}).length === 0
+  if (directInstallable) {
+    try {
+      repairManagedMarketplace(options.profileDir, options.sourceDir, desiredEnabled)
+      clearRecoveryState(options.profileDir)
+      writeSeedMarker(options.profileDir)
+      return { status: 'installed', enabled: desiredEnabled }
+    } catch {
+      // Fall through to the existing pnpm path below. It still validates the
+      // resulting profile and preserves the same quarantine behavior on failure.
+    }
   }
   const portableSource = options.sourceDir.replace(/\\/g, '/')
   const exitCode = options.install(`file:${portableSource}`, desiredEnabled)

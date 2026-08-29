@@ -1,6 +1,7 @@
 const { spawn } = require('node:child_process')
-const { existsSync } = require('node:fs')
-const { join } = require('node:path')
+const { createServer } = require('node:net')
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
+const { dirname, join } = require('node:path')
 const { waitForOnboardingReady } = require('./ready-url.cjs')
 const { terminateProcessTree } = require('./process-tree.cjs')
 
@@ -32,6 +33,86 @@ function runtimeStartupError(message, output = '', code = undefined) {
   error.code = code
   error.startupLog = output
   return error
+}
+
+function validPort(value) {
+  const port = Number(value)
+  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : undefined
+}
+
+function readSavedPort(path) {
+  if (typeof path !== 'string' || path.length === 0) return undefined
+  try {
+    return validPort(readFileSync(path, 'utf8').trim())
+  } catch {
+    return undefined
+  }
+}
+
+function savePort(path, port) {
+  if (typeof path !== 'string' || path.length === 0 || validPort(port) === undefined) return
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, `${String(port)}\n`, 'utf8')
+  } catch {
+    // The runtime remains usable with an ephemeral port when persistence is unavailable.
+  }
+}
+
+function reserveLoopbackPort(host) {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    let settled = false
+    const finish = (error, port) => {
+      if (settled) return
+      settled = true
+      if (error !== undefined) reject(error)
+      else resolve(port)
+    }
+    server.once('error', error => finish(error))
+    server.listen(0, host, () => {
+      const address = server.address()
+      const port = typeof address === 'object' && address !== null ? validPort(address.port) : undefined
+      server.close(error => {
+        if (error !== undefined) finish(error)
+        else if (port === undefined) finish(new Error('runtime supervisor could not reserve a loopback port'))
+        else finish(undefined, port)
+      })
+    })
+  })
+}
+
+async function preferredRuntimePort(options) {
+  const explicit = validPort(options.port)
+  if (explicit !== undefined) return explicit
+  if (typeof options.portFile !== 'string' || options.portFile.length === 0) return options.port ?? 0
+  if (options.forceNewPort === true) {
+    try {
+      return await reserveLoopbackPort(options.host || '127.0.0.1')
+    } catch {
+      return 0
+    }
+  }
+  const saved = readSavedPort(options.portFile)
+  if (saved !== undefined) return saved
+  try {
+    return await reserveLoopbackPort(options.host || '127.0.0.1')
+  } catch {
+    return 0
+  }
+}
+
+function listeningPort(url) {
+  try {
+    return validPort(new URL(url).port)
+  } catch {
+    return undefined
+  }
+}
+
+function isPortInUseError(error) {
+  return error?.code === 'EADDRINUSE'
+    || /EADDRINUSE|address already in use|only one usage of each socket address/i.test(error?.startupLog || error?.message || '')
 }
 
 class RuntimeSupervisor {
@@ -73,6 +154,29 @@ class RuntimeSupervisor {
   }
 
   start(options) {
+    if (options.portFile !== undefined) return this.startWithPortRetry(options)
+    return this.startOnce(options)
+  }
+
+  async startWithPortRetry(options) {
+    let port = await preferredRuntimePort(options)
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const url = await this.startOnce({
+          ...options,
+          port,
+          onPortIssue: attempt === 0 ? undefined : options.onPortIssue,
+        })
+        savePort(options.portFile, listeningPort(url))
+        return url
+      } catch (error) {
+        if (attempt >= 1 || !isPortInUseError(error)) throw error
+        port = await preferredRuntimePort({ ...options, port: undefined, forceNewPort: true })
+      }
+    }
+  }
+
+  startOnce(options) {
     if (this.child !== undefined) throw new Error('runtime supervisor already owns a process')
     if (!existsSync(options.entry)) {
       throw new Error(`The packaged Harness entry is missing: ${options.entry}. Run the runtime build first.`)

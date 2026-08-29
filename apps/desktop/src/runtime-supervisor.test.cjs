@@ -1,8 +1,10 @@
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
+const { mkdtempSync, rmSync, writeFileSync } = require('node:fs')
+const { tmpdir } = require('node:os')
 const test = require('node:test')
-const { resolve } = require('node:path')
+const { join, resolve } = require('node:path')
 const { encodeRuntimeEvent } = require('../../../packages/desktop-protocol/src/index.cjs')
 const { RuntimeSupervisor } = require('./runtime-supervisor.cjs')
 
@@ -47,6 +49,35 @@ test('supervisor launches through protocol and waits for Harness readiness', asy
   assert.deepEqual(spawnCall.args.slice(1), ['--host', '127.0.0.1', '--port', '0', '--no-open'])
   assert.equal(spawnCall.options.env.DSH_RUNTIME_PROTOCOL_VERSION, '1')
   assert.equal(spawnCall.options.windowsHide, true)
+})
+
+test('supervisor reuses the persisted desktop runtime port', async () => {
+  const child = fakeChild(43)
+  const root = mkdtempSync(join(tmpdir(), 'dsh-runtime-port-'))
+  const portFile = join(root, 'runtime-port')
+  writeFileSync(portFile, '4568\n', 'utf8')
+  let spawnCall
+  const supervisor = new RuntimeSupervisor({
+    spawnProcess(executable, args) {
+      spawnCall = { executable, args }
+      return child
+    },
+    waitUntilReady: async () => {},
+  })
+  try {
+    const started = supervisor.start({
+      executable: process.execPath,
+      entry: resolve(__filename),
+      cwd: process.cwd(),
+      portFile,
+    })
+    child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'hello', pid: child.pid })}\n`)
+    child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'listening', url: 'http://127.0.0.1:4568/' })}\n`)
+    assert.equal(await started, 'http://127.0.0.1:4568/')
+    assert.deepEqual(spawnCall.args.slice(1), ['--host', '127.0.0.1', '--port', '4568', '--no-open'])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('supervisor keeps stderr diagnostics out of the stdout protocol stream', async () => {
@@ -118,7 +149,12 @@ test('supervisor delegates process-tree shutdown and retains failed ownership', 
   await assert.rejects(started, /exited before it was ready/)
 })
 
-test('supervisor preserves the requested timeout when termination emits close first', async () => {
+test('supervisor preserves the requested timeout when termination emits close first', async t => {
+  // The startup watchdog unrefs its timer so a hung runtime cannot hold the
+  // process open. A real 10 ms wait therefore lets the event loop drain before
+  // the rejection is observed, which cancels the test instead of failing it.
+  // Drive the clock so the timeout is deterministic under any load.
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const child = fakeChild(100)
   const supervisor = new RuntimeSupervisor({
     spawnProcess: () => child,
@@ -133,10 +169,18 @@ test('supervisor preserves the requested timeout when termination emits close fi
     cwd: process.cwd(),
     startupTimeoutMs: 10,
   })
-  await assert.rejects(started, error => error.code === 'TIMEOUT' && /startup timed out/.test(error.message))
+  // Attach the rejection handler before advancing the clock. `tick` runs the
+  // watchdog synchronously, so a handler attached afterwards would see an
+  // already-rejected promise and surface as an unhandled rejection.
+  const rejection = assert.rejects(started, error => error.code === 'TIMEOUT' && /startup timed out/.test(error.message))
+  t.mock.timers.tick(10)
+  await new Promise(settle => setImmediate(settle))
+  await rejection
 })
 
-test('supervisor reports a readiness timeout after listening has arrived', async () => {
+test('supervisor reports a readiness timeout after listening has arrived', async t => {
+  // Same unref'd watchdog as above: advance the clock rather than waiting.
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const child = fakeChild(101)
   const supervisor = new RuntimeSupervisor({
     spawnProcess: () => child,
@@ -154,5 +198,8 @@ test('supervisor reports a readiness timeout after listening has arrived', async
   })
   child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'hello', pid: child.pid })}\n`)
   child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'listening', url: 'http://127.0.0.1:9878/' })}\n`)
-  await assert.rejects(started, error => error.code === 'NOT_READY' && /host readiness/.test(error.message))
+  const rejection = assert.rejects(started, error => error.code === 'NOT_READY' && /host readiness/.test(error.message))
+  t.mock.timers.tick(10)
+  await new Promise(settle => setImmediate(settle))
+  await rejection
 })
