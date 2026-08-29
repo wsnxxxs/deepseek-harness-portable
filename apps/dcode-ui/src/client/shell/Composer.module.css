@@ -3,7 +3,7 @@
 .dock {
   /* Sized by its own content in the frame's flex column, never squeezed. */
   flex: none;
-  padding: 0 var(--zx-space-5) var(--zx-space-5);
+  padding: 0 var(--zx-space-5) clamp(14px, 2.4vh, 24px);
 }
 
 .shell {
@@ -11,21 +11,48 @@
   position: relative;
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--zx-label) 14%, transparent);
-  border-radius: var(--zx-radius-2xl);
-  background: var(--zx-bg-card);
-  box-shadow: var(--zx-shadow-panel);
-  transition: border-color var(--zx-motion), box-shadow var(--zx-motion);
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--zx-label) 13%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--zx-bg-card) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(138%);
+  backdrop-filter: blur(16px) saturate(138%);
+  box-shadow:
+    0 20px 52px color-mix(in srgb, #000 18%, transparent),
+    0 4px 14px color-mix(in srgb, #000 11%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+  transform: translateZ(0);
+  transition:
+    border-color var(--zx-motion-fast),
+    border-radius 220ms cubic-bezier(.2, .8, .2, 1),
+    box-shadow var(--zx-motion-fast),
+    background var(--zx-motion-fast);
 }
 
 [data-dcode-acrylic] .shell {
-  -webkit-backdrop-filter: var(--zx-glass-filter);
-  backdrop-filter: var(--zx-glass-filter);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+}
+
+.shellCompact {
+  border-radius: 28px;
+}
+
+.shellExpanded {
+  border-radius: 16px;
 }
 
 .shellFocused {
   border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
-  box-shadow: var(--zx-shadow-panel), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
+  box-shadow:
+    0 22px 58px color-mix(in srgb, #000 20%, transparent),
+    0 5px 16px color-mix(in srgb, #000 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 19%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
+}
+
+.referenceActive:not(.dropActive) {
+  border-color: color-mix(in srgb, var(--zx-accent) 32%, var(--zx-border));
 }
 
 .dropActive {
@@ -43,11 +70,16 @@
   gap: var(--zx-space-2);
   border: 1px solid color-mix(in srgb, var(--zx-accent) 72%, transparent);
   border-radius: inherit;
-  background: color-mix(in srgb, var(--zx-bg-card) 72%, var(--zx-accent) 12%);
+  background:
+    radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--zx-accent) 18%, transparent), transparent 58%),
+    color-mix(in srgb, var(--zx-bg-card) 78%, transparent);
   color: var(--zx-label);
   -webkit-backdrop-filter: blur(18px) saturate(145%);
   backdrop-filter: blur(18px) saturate(145%);
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--zx-accent) 14%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 13%, transparent),
+    inset 0 0 32px color-mix(in srgb, var(--zx-accent) 12%, transparent),
+    0 0 24px color-mix(in srgb, var(--zx-accent) 10%, transparent);
   pointer-events: none;
   animation: dropOverlayIn var(--zx-motion-fast) ease-out;
 }
@@ -86,12 +118,15 @@
   max-height: min(48vh, 360px);
   overflow-y: auto;
   padding: var(--zx-space-2);
-  border: 1px solid var(--zx-border-control);
-  border-radius: var(--zx-radius-xl);
-  background: color-mix(in srgb, var(--zx-bg-panel) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--zx-label) 12%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--zx-bg-panel) 88%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
   backdrop-filter: blur(18px) saturate(135%);
-  box-shadow: var(--zx-shadow-panel);
+  box-shadow:
+    0 18px 44px color-mix(in srgb, #000 20%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+  animation: commandMenuIn 150ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .commandMenuTitle {
@@ -154,9 +189,9 @@
 .input {
   display: block;
   width: 100%;
-  max-height: 40vh;
-  min-height: 56px;
-  padding: 12px 15px 6px;
+  max-height: min(38vh, 280px);
+  min-height: 48px;
+  padding: 13px 16px 5px;
   border: 0;
   background: transparent;
   color: var(--zx-label);
@@ -166,6 +201,15 @@
   resize: none;
   box-sizing: border-box;
   overflow-y: auto;
+  scrollbar-color: color-mix(in srgb, var(--zx-label) 22%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.input::-webkit-scrollbar { width: 5px; }
+.input::-webkit-scrollbar-track { background: transparent; }
+.input::-webkit-scrollbar-thumb {
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-label) 20%, transparent);
 }
 
 .input:focus {
@@ -190,7 +234,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--zx-space-2);
-  padding: 0 15px 10px;
+  padding: 3px 15px 10px;
 }
 
 .attachment {
@@ -202,11 +246,12 @@
   min-height: var(--zx-control-lg);
   padding: 4px 26px 4px 5px;
   border: 1px solid var(--zx-border-control);
-  border-radius: var(--zx-radius-md);
+  border-radius: 8px;
   background: color-mix(in srgb, var(--zx-bg-panel) 78%, var(--zx-bg-card));
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
   overflow: hidden;
+  animation: attachmentIn 180ms cubic-bezier(.2, .8, .2, 1) both;
   transition: border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);
 }
 
@@ -220,7 +265,7 @@
   width: 38px;
   height: var(--zx-control-md);
   flex: 0 0 auto;
-  border-radius: var(--zx-radius-sm);
+  border-radius: 8px;
   object-fit: cover;
   background: var(--zx-bg-hover);
   transition: transform var(--zx-motion-fast), filter var(--zx-motion-fast);
@@ -237,6 +282,32 @@
   gap: var(--zx-space-2);
   min-width: 0;
 }
+
+.fileGlyph {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--zx-label) 7%, transparent);
+  color: var(--zx-label-muted);
+}
+
+.fileGlyph svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+}
+
+.fileGlyph_archive { color: var(--zx-warn); }
+.fileGlyph_code { color: var(--zx-accent); }
+.fileGlyph_document { color: color-mix(in srgb, var(--zx-accent) 64%, var(--zx-label)); }
+.fileGlyph_generic { color: var(--zx-label-muted); }
 
 .attachmentFile > span {
   overflow: hidden;
@@ -285,6 +356,10 @@
   color: var(--zx-label);
 }
 
+.attachmentRemove:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
 .attachmentRemove:disabled {
   cursor: default;
   opacity: var(--zx-opacity-disabled);
@@ -300,7 +375,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--zx-space-2);
-  padding: 4px 9px 9px;
+  padding: 3px 9px 9px;
   min-width: 0;
 }
 
@@ -309,7 +384,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 2px;
+  gap: 4px;
 }
 
 .attachButton {
@@ -324,11 +399,20 @@
   background: transparent;
   color: var(--zx-label-muted);
   cursor: pointer;
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .attachButton:hover:not(:disabled) {
   background: var(--zx-bg-hover);
   color: var(--zx-label);
+}
+
+.attachButton:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .attachButton:disabled {
@@ -389,6 +473,16 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes commandMenuIn {
+  from { opacity: 0; transform: translateY(5px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes attachmentIn {
+  from { opacity: 0; transform: translateY(4px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Popover triggers otherwise keep their min-content width. Keeping the
    groups shrinkable lets the composer preserve a dedicated right seat for
    model controls and the send action at compact widths. */
@@ -417,17 +511,29 @@
 
 .controlTrigger {
   max-width: 220px;
-  height: var(--zx-control-sm);
-  padding: 0 5px 0 7px;
+  height: 26px;
+  padding: 0 7px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--zx-label) 9%, transparent);
   border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-label) 4%, transparent);
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-sm);
   line-height: 20px;
   font-weight: var(--zx-weight-medium);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .controlTrigger:hover:not(:disabled) {
-  background: var(--zx-bg-hover);
+  border-color: color-mix(in srgb, var(--zx-label) 15%, transparent);
+  background: color-mix(in srgb, var(--zx-label) 8%, transparent);
+}
+
+.controlTrigger:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .controlTrigger:disabled {
@@ -460,8 +566,17 @@
   color: var(--zx-label);
 }
 
+.modelTrigger {
+  background: color-mix(in srgb, var(--zx-label) 6%, transparent);
+}
+
 .reasoningTrigger .controlLabel {
-  color: var(--zx-label-muted);
+  color: var(--zx-label-secondary);
+}
+
+.reasoningTrigger {
+  border-color: color-mix(in srgb, var(--zx-accent) 13%, transparent);
+  background: color-mix(in srgb, var(--zx-accent) 5%, transparent);
 }
 
 .controlLabel {
@@ -506,6 +621,24 @@
   min-width: min(250px, calc(100vw - 32px));
 }
 
+.contextSeat {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 2px;
+  border-left: 1px solid color-mix(in srgb, var(--zx-label) 9%, transparent);
+}
+
+.contextSeat > :global(span) > :global(button) {
+  width: 26px;
+  height: 26px;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast), transform var(--zx-motion-fast);
+}
+
+.contextSeat > :global(span) > :global(button):active {
+  transform: scale(.94);
+}
+
 .send {
   display: grid;
   place-items: center;
@@ -519,12 +652,20 @@
   color: var(--zx-bg-app);
   cursor: pointer;
   box-shadow: var(--zx-shadow-card);
-  transition: background var(--zx-motion-fast), opacity var(--zx-motion-fast), transform var(--zx-motion-fast);
+  transition:
+    background var(--zx-motion-fast),
+    opacity var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .send:hover:not(:disabled) {
   background: color-mix(in srgb, var(--zx-label) 88%, var(--zx-bg-app));
   transform: translateY(-1px);
+}
+
+.send:active:not(:disabled) {
+  transform: translateY(0) scale(0.94);
 }
 
 .send:disabled {
@@ -574,12 +715,26 @@
   font: inherit;
   font-size: var(--zx-text-xs);
   cursor: pointer;
-  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    border-color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .projectChip:hover {
   background: var(--zx-bg-hover);
   color: var(--zx-label);
+}
+
+.projectChip:active {
+  transform: scale(0.98);
+}
+
+.projectChip:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
 }
 
 @container (max-width: 720px) {
@@ -642,6 +797,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dropOverlay,
+  .commandMenu,
   .attachment,
   .attachmentPreview,
   .attachmentRemove {

@@ -38,6 +38,8 @@ export interface ComposerProps {
   readonly blank?: boolean
   readonly cwd?: string
   readonly onOpenWorkspace?: () => void
+  /** Active `@query` at the caret; reserved for the file/symbol reference picker. */
+  readonly onReferenceQueryChange?: (query: string | undefined) => void
 }
 
 /** The `permissions` projection, read structurally. */
@@ -106,6 +108,37 @@ function fileSize(bytes: number): string {
   return `${(bytes / (1_024 * 1_024)).toFixed(1)} MB`
 }
 
+/** The unfinished @ token immediately before the caret, if one exists. */
+function referenceQuery(value: string, caret: number): string | undefined {
+  const match = /(?:^|\s)@([^\s@]*)$/.exec(value.slice(0, caret))
+  return match?.[1]
+}
+
+function fileKind(name: string): 'archive' | 'code' | 'document' | 'generic' {
+  const extension = name.split('.').pop()?.toLocaleLowerCase()
+  if (extension !== undefined && ['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 'archive'
+  if (extension !== undefined && ['js', 'jsx', 'ts', 'tsx', 'json', 'css', 'html', 'py', 'rs', 'go'].includes(extension)) return 'code'
+  if (extension !== undefined && ['pdf', 'doc', 'docx', 'md', 'txt', 'rtf'].includes(extension)) return 'document'
+  return 'generic'
+}
+
+/** Small, dependency-free file glyphs keep non-image attachments recognizable. */
+function FileGlyph({ name }: { name: string }) {
+  const kind = fileKind(name)
+  return (
+    <span className={`${css.fileGlyph} ${css[`fileGlyph_${kind}`]}`} aria-hidden>
+      <svg viewBox="0 0 16 16">
+        <path d="M4 1.75h5l3 3V14.25H4z" />
+        <path d="M9 1.75v3h3" />
+        {kind === 'archive' ? <path d="M7 4h2M7 6h2M7 8h2M7 10h2" /> : null}
+        {kind === 'code' ? <path d="m7 7-2 1.5L7 10m2-3 2 1.5L9 10" /> : null}
+        {kind === 'document' ? <path d="M6 7h4M6 9h4M6 11h3" /> : null}
+        {kind === 'generic' ? <path d="M6 8h4M6 10h4" /> : null}
+      </svg>
+    </span>
+  )
+}
+
 /** The DCode attachment strip: compact previews, with the same token rhythm as the composer. */
 function AttachmentRail(props: {
   attachments: readonly ComposerAttachment[]
@@ -122,7 +155,7 @@ function AttachmentRail(props: {
             ? <img className={css.attachmentPreview} src={attachment.previewUrl} alt={attachment.file.name || props.t('composer.attachmentFile')} />
             : (
               <span className={css.attachmentFile} title={attachment.file.name}>
-                <IconPaperclipOutline16 />
+                <FileGlyph name={attachment.file.name} />
                 <span>{attachment.file.name || props.t('composer.attachmentFile')}</span>
               </span>
             )}
@@ -143,7 +176,7 @@ function AttachmentRail(props: {
 }
 
 /** Prompt entry and the session controls. */
-export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerProps) {
+export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQueryChange }: ComposerProps) {
   const runtime = useRuntime()
   const t = useT()
   const session = useSessionSnapshot(sessionId)
@@ -158,6 +191,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   const [dragActive, setDragActive] = useState(false)
   const [commandIndex, setCommandIndex] = useState(0)
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false)
+  const [activeReferenceQuery, setActiveReferenceQuery] = useState<string | undefined>(undefined)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -183,8 +217,13 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
     }
     setFallbackDraft(sessionId === undefined ? '' : drafts.get(sessionId) ?? '')
     setError(undefined)
+    setActiveReferenceQuery(undefined)
     previousSession.current = sessionId
   }, [sessionId])
+
+  useEffect(() => {
+    onReferenceQueryChange?.(activeReferenceQuery)
+  }, [activeReferenceQuery, onReferenceQueryChange])
 
   useEffect(() => {
     if (sessionId !== undefined && input === undefined) drafts.set(sessionId, fallbackDraft)
@@ -310,6 +349,10 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
     else input.setDraft(value)
   }, [input])
 
+  const captureReference = useCallback((value: string, caret: number | null) => {
+    setActiveReferenceQuery(referenceQuery(value, caret ?? value.length))
+  }, [])
+
   const completeCommand = useCallback((command: CommandDescriptor) => {
     updateDraft(`/${command.name}${command.input === undefined ? '' : ' '}`)
     setCommandMenuDismissed(true)
@@ -409,6 +452,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
     if (text === '' && inputState.imageIds.length === 0) return
     if (input !== undefined) {
       setError(undefined)
+      setActiveReferenceQuery(undefined)
       input.submit(mode)
       return
     }
@@ -417,6 +461,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
     setFallbackDraft('')
     drafts.delete(sessionId)
     setError(undefined)
+    setActiveReferenceQuery(undefined)
 
     // A leading slash is a command line, not a prompt: routing it through the
     // commands Remote keeps the host's command lifecycle and catalog intact.
@@ -486,6 +531,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   }, [groups, cwd])
 
   const disabled = sessionId === undefined
+  const compact = draft.trim() === '' && attachments.length === 0 && error === undefined
   const currentPermission = permissions?.options.find(option => option.value === permissions.currentValue)
   const currentPermissionLabel = currentPermission === undefined
     ? t('composer.permission')
@@ -521,7 +567,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
         : null}
       <div
         ref={shellRef}
-        className={`${css.shell} ${focused ? css.shellFocused : ''} ${dragActive ? css.dropActive : ''}`}
+        className={`${css.shell} ${compact ? css.shellCompact : css.shellExpanded} ${focused ? css.shellFocused : ''} ${activeReferenceQuery === undefined ? '' : css.referenceActive} ${dragActive ? css.dropActive : ''}`}
         onDragEnter={event => {
           if (event.dataTransfer.types.includes('Files')) setDragActive(true)
         }}
@@ -576,7 +622,11 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
             placeholder={disabled
               ? t('composer.needsSession')
               : running ? t('composer.placeholderRunning') : t('composer.placeholder')}
-            onChange={event => { updateDraft(event.target.value) }}
+            onChange={event => {
+              updateDraft(event.target.value)
+              captureReference(event.target.value, event.target.selectionStart)
+            }}
+            onSelect={event => { captureReference(event.currentTarget.value, event.currentTarget.selectionStart) }}
             onKeyDown={onKeyDown}
             onPaste={onPaste}
             aria-label={t('composer.placeholder')}
@@ -695,7 +745,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
               }
               rows={reasoningRows}
             />
-            <ContextMeter sessionId={sessionId} />
+            <span className={css.contextSeat}><ContextMeter sessionId={sessionId} /></span>
             {running
               ? (
                 <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>
