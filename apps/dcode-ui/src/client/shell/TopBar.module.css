@@ -16,6 +16,11 @@
   -webkit-app-region: drag;
 }
 
+[data-dcode-acrylic] .bar {
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
 .bar > * {
   -webkit-app-region: no-drag;
 }

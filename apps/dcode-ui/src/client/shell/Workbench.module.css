@@ -26,6 +26,23 @@
   box-sizing: border-box;
 }
 
+.root[data-dcode-acrylic],
+.root[data-dcode-acrylic] .center {
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
+/* Browsers and systems without a native window material still need a
+   non-uniform layer for the software blur to read as glass instead of as the
+   same flat colour with a lower alpha. Native material supplies this detail
+   itself, so do not tint it a second time. */
+html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
+  background:
+    radial-gradient(circle at 18% 4%, color-mix(in srgb, var(--zx-accent) 11%, transparent), transparent 34%),
+    radial-gradient(circle at 84% 92%, color-mix(in srgb, var(--zx-label) 5%, transparent), transparent 38%),
+    var(--zx-bg-app);
+}
+
 .rail {
   position: relative;
   width: var(--zx-rail-width);

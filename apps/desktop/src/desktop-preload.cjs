@@ -258,6 +258,11 @@ if (!isSplashDocument) {
     style.textContent = `
       :root { --dsh-titlebar-height: 36px; --dsh-window-surface: #f4f7fb; --dsh-desktop-titlebar-height: ${process.platform === 'win32' ? '36px' : '0px'}; }
       html, body { height: 100%; min-height: 0 !important; background: var(--dsh-window-surface) !important; }
+      html[data-dcode-acrylic], html[data-dcode-acrylic] body,
+      html[data-dcode-acrylic] #root, html[data-dcode-acrylic] #app,
+      html[data-dcode-acrylic] #__next, html[data-dcode-acrylic] [data-reactroot] {
+        background: transparent !important;
+      }
       body { overflow: hidden !important; overscroll-behavior: none; }
       body > * { min-height: 0; }
       #root, #app, #__next, [data-reactroot] { min-height: 0 !important; height: 100%; }

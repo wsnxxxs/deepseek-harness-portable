@@ -159,6 +159,7 @@
 
   --zx-motion-fast: 120ms cubic-bezier(0.2, 0, 0.2, 1);
   --zx-motion: 180ms cubic-bezier(0.2, 0, 0.2, 1);
+  --zx-glass-filter: blur(20px) saturate(130%);
 
   /* Column geometry. Panels are resizable within these bounds. */
   --zx-rail-width: 240px;
@@ -261,19 +262,22 @@
 }
 
 /**
- * Windows 11 backdrop.
+ * Glass surfaces and native-window transparency.
  *
- * The native material composites behind the *window*, so it is only visible
- * where the document is transparent. The shell has already made the window
- * background transparent; these rules clear the page ground the desktop
- * preload paints over it, and thin the workbench's own surfaces so the
- * material shows through them.
+ * A native material composites behind the *window*, so it is only visible
+ * where the document is transparent. The html attribute marks that native
+ * case and clears the page ground. The scope attribute is also used without
+ * native material to enable the software-glass tokens and filters.
  *
  * Element-qualified on purpose: the workbench root carries the same attribute
  * (it needs the token overrides below) and must keep painting its ground.
  */
 html[data-dcode-acrylic],
-body[data-dcode-acrylic] {
+html[data-dcode-acrylic] body,
+html[data-dcode-acrylic] #root,
+html[data-dcode-acrylic] #app,
+html[data-dcode-acrylic] #__next,
+html[data-dcode-acrylic] [data-reactroot] {
   background: transparent !important;
 }
 

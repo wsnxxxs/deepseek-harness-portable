@@ -8,7 +8,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * only state this component owns is which panel is showing.
  * @module @dsh-portable/dcode-ui/client/shell/Workbench
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dcodeScope } from "../tokens.js";
 import { useNavigation } from "../state/navigation.js";
 import { useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups, } from "../state/hooks.js";
@@ -134,16 +134,13 @@ export function Workbench({ navigation }) {
     // scoped to this component's lifetime, so the official interface — which
     // has no translucent surfaces — gets its opaque ground back the moment the
     // operator switches away.
-    const acrylic = runtime.appearance.material !== 'none';
-    useEffect(() => {
-        if (!acrylic || typeof document === 'undefined')
+    const nativeMaterial = runtime.appearance.material !== 'none';
+    useLayoutEffect(() => {
+        if (!nativeMaterial || typeof document === 'undefined')
             return undefined;
-        const roots = [document.documentElement, document.body];
-        for (const node of roots)
-            node.setAttribute(ACRYLIC_ATTRIBUTE, '');
-        return () => { for (const node of roots)
-            node.removeAttribute(ACRYLIC_ATTRIBUTE); };
-    }, [acrylic]);
+        document.documentElement.setAttribute(ACRYLIC_ATTRIBUTE, '');
+        return () => { document.documentElement.removeAttribute(ACRYLIC_ATTRIBUTE); };
+    }, [nativeMaterial]);
     // Portaled DSH menus render under body. Give that portal the same DCode
     // token scope while the workbench owns the page so official setting rows
     // keep the glass treatment instead of falling back to a separate surface.
@@ -152,9 +149,11 @@ export function Workbench({ navigation }) {
             return undefined;
         document.body.setAttribute('data-dcode-scope', '');
         document.body.setAttribute('data-dcode-scheme', scheme);
+        document.body.setAttribute(ACRYLIC_ATTRIBUTE, '');
         return () => {
             document.body.removeAttribute('data-dcode-scope');
             document.body.removeAttribute('data-dcode-scheme');
+            document.body.removeAttribute(ACRYLIC_ATTRIBUTE);
         };
     }, [scheme]);
     const newTask = useCallback((workspaceId) => {
@@ -247,7 +246,7 @@ export function Workbench({ navigation }) {
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
     const drawer = state.layout === 'compact' && (state.railOpen || state.asideOpen);
-    return (_jsxs("div", { ref: setFrame, className: css.root, ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, style: { '--zx-rail-width': `${railWidth}px` }, ...(acrylic ? { [ACRYLIC_ATTRIBUTE]: '' } : {}), children: [fullSurface
+    return (_jsxs("div", { ref: setFrame, className: css.root, ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, style: { '--zx-rail-width': `${railWidth}px` }, [ACRYLIC_ATTRIBUTE]: '', children: [fullSurface
                 ? (_jsx("div", { className: css.surface, children: state.view === 'learning'
                         ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
                         : state.view === 'plugins'

@@ -18,6 +18,11 @@
   transition: border-color var(--zx-motion), box-shadow var(--zx-motion);
 }
 
+[data-dcode-acrylic] .shell {
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
 .shellFocused {
   border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
   box-shadow: var(--zx-shadow-panel), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);

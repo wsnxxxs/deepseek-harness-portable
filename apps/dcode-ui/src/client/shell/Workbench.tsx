@@ -8,7 +8,7 @@
  * @module @dsh-portable/dcode-ui/client/shell/Workbench
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { dcodeScope } from '../tokens.ts'
@@ -145,13 +145,12 @@ export function Workbench({ navigation }: WorkbenchProps) {
   // scoped to this component's lifetime, so the official interface — which
   // has no translucent surfaces — gets its opaque ground back the moment the
   // operator switches away.
-  const acrylic = runtime.appearance.material !== 'none'
-  useEffect(() => {
-    if (!acrylic || typeof document === 'undefined') return undefined
-    const roots = [document.documentElement, document.body]
-    for (const node of roots) node.setAttribute(ACRYLIC_ATTRIBUTE, '')
-    return () => { for (const node of roots) node.removeAttribute(ACRYLIC_ATTRIBUTE) }
-  }, [acrylic])
+  const nativeMaterial = runtime.appearance.material !== 'none'
+  useLayoutEffect(() => {
+    if (!nativeMaterial || typeof document === 'undefined') return undefined
+    document.documentElement.setAttribute(ACRYLIC_ATTRIBUTE, '')
+    return () => { document.documentElement.removeAttribute(ACRYLIC_ATTRIBUTE) }
+  }, [nativeMaterial])
 
   // Portaled DSH menus render under body. Give that portal the same DCode
   // token scope while the workbench owns the page so official setting rows
@@ -160,9 +159,11 @@ export function Workbench({ navigation }: WorkbenchProps) {
     if (typeof document === 'undefined') return undefined
     document.body.setAttribute('data-dcode-scope', '')
     document.body.setAttribute('data-dcode-scheme', scheme)
+    document.body.setAttribute(ACRYLIC_ATTRIBUTE, '')
     return () => {
       document.body.removeAttribute('data-dcode-scope')
       document.body.removeAttribute('data-dcode-scheme')
+      document.body.removeAttribute(ACRYLIC_ATTRIBUTE)
     }
   }, [scheme])
 
@@ -262,7 +263,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
       data-dcode-layout={state.layout}
       data-rail-resizing={railResizing ? '' : undefined}
       style={{ '--zx-rail-width': `${railWidth}px` } as CSSProperties}
-      {...(acrylic ? { [ACRYLIC_ATTRIBUTE]: '' } : {})}
+      {...{ [ACRYLIC_ATTRIBUTE]: '' }}
     >
       {fullSurface
         ? (
