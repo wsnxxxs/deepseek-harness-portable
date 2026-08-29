@@ -371,6 +371,7 @@ export declare const en: {
     readonly 'settings.openOfficialSettingsBody': "Sections this panel does not cover are available in the official interface.";
     readonly 'settings.skillsEmpty': "No skills are available in this session.";
     readonly 'settings.loading': "Loading…";
+    readonly 'settings.loadFailed': "Settings could not be opened: {error}";
     readonly 'settings.count': "{count} entries";
     readonly 'settings.namespace': "Namespace";
     readonly 'settings.provider': "Provider";

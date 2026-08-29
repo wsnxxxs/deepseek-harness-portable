@@ -8,7 +8,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * only state this component owns is which panel is showing.
  * @module @dsh-portable/dcode-ui/client/shell/Workbench
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dcodeScope } from "../tokens.js";
 import { useNavigation } from "../state/navigation.js";
 import { useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups, } from "../state/hooks.js";
@@ -27,11 +27,33 @@ import { PlanCard } from "./PlanCard.js";
 import { QuestionComposer } from "./QuestionComposer.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
+import { Button, EmptyState } from "./ui.js";
 import { Transcript } from "../chat/Transcript.js";
 import { LearningHome } from "../learning/LearningHome.js";
 import { PluginsHome } from "../plugins/PluginsHome.js";
 import { SettingsSurface } from "../settings/SettingsSurface.js";
 import css from './Workbench.module.css';
+/** Keep a settings initialization failure local to the replaceable surface. */
+class SettingsBoundary extends Component {
+    state = {};
+    static getDerivedStateFromError(error) {
+        return { error: error instanceof Error ? error.message : String(error) };
+    }
+    componentDidCatch(_error, _info) {
+        // The fallback below owns recovery; individual settings services retain
+        // responsibility for their own diagnostics.
+    }
+    componentDidUpdate(previous) {
+        if (previous.resetKey !== this.props.resetKey && this.state.error !== undefined) {
+            this.setState({ error: undefined });
+        }
+    }
+    render() {
+        if (this.state.error === undefined)
+            return this.props.children;
+        return (_jsx("div", { className: css.surfaceFailure, role: "alert", children: _jsxs(EmptyState, { children: [_jsx("span", { children: this.props.t('settings.loadFailed', { error: this.state.error }) }), _jsxs("div", { className: css.surfaceFailureActions, children: [_jsx(Button, { onClick: this.props.onBack, children: this.props.t('nav.backToWorkspace') }), _jsx(Button, { primary: true, onClick: () => { this.setState({ error: undefined }); }, children: this.props.t('common.retry') })] })] }) }));
+    }
+}
 /**
  * Resolve the working directory of the current session, which every
  * workspace-scoped panel (git, files) is addressed by.
@@ -251,7 +273,7 @@ export function Workbench({ navigation }) {
                         ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
                         : state.view === 'plugins'
                             ? _jsx(PluginsHome, { navigation: navigation })
-                            : (_jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId })) }))
+                            : (_jsx(SettingsBoundary, { resetKey: state.settingsSection, t: t, onBack: () => { navigation.show('session'); }, children: _jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId }) })) }))
                 : (_jsxs(_Fragment, { children: [drawer
                             ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: () => {
                                     if (state.railOpen)

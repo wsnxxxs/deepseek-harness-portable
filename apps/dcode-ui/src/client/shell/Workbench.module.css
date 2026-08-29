@@ -176,6 +176,19 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
   overflow: hidden;
 }
 
+.surfaceFailure {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.surfaceFailureActions {
+  display: flex;
+  gap: var(--zx-space-2);
+  margin-top: var(--zx-space-4);
+}
+
 .scroll {
   overflow: hidden auto;
   scrollbar-width: thin;

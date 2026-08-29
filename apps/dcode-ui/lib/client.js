@@ -1255,6 +1255,7 @@ window.__ModuleLoader__.load({
 			"settings.openOfficialSettingsBody": "Sections this panel does not cover are available in the official interface.",
 			"settings.skillsEmpty": "No skills are available in this session.",
 			"settings.loading": "Loading…",
+			"settings.loadFailed": "Settings could not be opened: {error}",
 			"settings.count": "{count} entries",
 			"settings.namespace": "Namespace",
 			"settings.provider": "Provider",
@@ -1789,6 +1790,7 @@ window.__ModuleLoader__.load({
 			"settings.openOfficialSettingsBody": "这里没有覆盖的设置项，可在官方版界面中继续配置。",
 			"settings.skillsEmpty": "当前会话没有可用技能。",
 			"settings.loading": "加载中…",
+			"settings.loadFailed": "设置无法打开：{error}",
 			"settings.count": "{count} 项",
 			"settings.namespace": "命名空间",
 			"settings.provider": "供应商",
@@ -13492,7 +13494,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\Workbench.module.css.mjs
-		const css$1 = ".NX-gGW_root{background:var(--zx-bg-app);color:var(--zx-label);font-family:var(--zx-font-ui);font-size:var(--zx-text-sm);line-height:var(--zx-leading-tight);isolation:isolate;padding-top:var(--dsh-desktop-titlebar-height,0px);box-sizing:border-box;grid-template-rows:1fr;grid-template-columns:auto minmax(0,1fr) auto;display:grid;position:absolute;inset:0;overflow:hidden}.NX-gGW_root[data-dcode-acrylic],.NX-gGW_root[data-dcode-acrylic] .NX-gGW_center{backdrop-filter:var(--zx-glass-filter)}html:not([data-dcode-acrylic]) .NX-gGW_root[data-dcode-acrylic]{background:radial-gradient(circle at 18% 4%, color-mix(in srgb, var(--zx-accent) 11%, transparent), transparent 34%), radial-gradient(circle at 84% 92%, color-mix(in srgb, var(--zx-label) 5%, transparent), transparent 38%), var(--zx-bg-app)}.NX-gGW_rail{width:var(--zx-rail-width);min-width:var(--zx-rail-width);border-right:1px solid var(--zx-border-soft);background:var(--zx-bg-panel);transition:width var(--zx-motion), min-width var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);flex-direction:column;display:flex;position:relative;overflow:hidden}.NX-gGW_railResizeHandle{z-index:var(--zx-z-sticky);touch-action:none;cursor:col-resize;outline:none;width:7px;position:absolute;top:0;bottom:0;right:0}.NX-gGW_railResizeHandle:after{content:\"\";background:var(--zx-accent);opacity:0;width:2px;transition:opacity var(--zx-motion-fast);position:absolute;top:0;bottom:0;right:0}.NX-gGW_railResizeHandle:hover:after,.NX-gGW_railResizeHandle:focus-visible:after,.NX-gGW_root[data-rail-resizing] .NX-gGW_railResizeHandle:after{opacity:.8}.NX-gGW_root[data-rail-resizing]{cursor:col-resize;user-select:none}.NX-gGW_root[data-rail-resizing] .NX-gGW_rail{transition:none}.NX-gGW_railCollapsed{visibility:hidden;border-right-color:#0000;width:0;min-width:0}.NX-gGW_center{flex-direction:column;min-width:0;display:flex;position:relative;overflow:hidden;container-type:inline-size}.NX-gGW_filler{flex:0 0 0}.NX-gGW_centerBlank .NX-gGW_filler{flex:1 1 0}.NX-gGW_aside{width:var(--zx-aside-width);min-width:var(--zx-aside-width);border-left:1px solid var(--zx-border-soft);background:var(--zx-bg-panel);transition:width var(--zx-motion), min-width var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);flex-direction:column;display:flex;overflow:hidden}.NX-gGW_asideCollapsed{visibility:hidden;border-left-color:#0000;width:0;min-width:0}.NX-gGW_surface{grid-column:1/-1;min-width:0;display:flex;overflow:hidden}.NX-gGW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;overflow:hidden auto}.NX-gGW_scroll::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.NX-gGW_scroll::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.NX-gGW_scroll::-webkit-scrollbar-track{background:0 0}.NX-gGW_scrim{z-index:var(--zx-z-scrim);background:var(--zx-scrim);cursor:default;animation:NX-gGW_scrimIn var(--zx-motion) ease-out;border:0;padding:0;position:absolute;inset:0}@keyframes NX-gGW_scrimIn{0%{opacity:0}}.NX-gGW_root[data-dcode-layout=compact]{grid-template-columns:minmax(0,1fr)}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_rail{z-index:var(--zx-z-drawer);top:var(--dsh-desktop-titlebar-height,0px);width:min(var(--zx-rail-width), 86%);min-width:0;box-shadow:var(--zx-shadow-panel);position:absolute;bottom:0;left:0}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_railCollapsed{width:min(var(--zx-rail-width), 86%);border-right-color:var(--zx-border-soft);transform:translate(-100%)}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_aside{z-index:var(--zx-z-drawer);top:var(--dsh-desktop-titlebar-height,0px);width:min(var(--zx-aside-width), 86%);min-width:0;box-shadow:var(--zx-shadow-panel);position:absolute;bottom:0;right:0}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_asideCollapsed{width:min(var(--zx-aside-width), 86%);border-left-color:var(--zx-border-soft);transform:translate(100%)}.NX-gGW_root[data-dcode-layout=wide]{--zx-reading-width:820px}@media (prefers-reduced-motion:reduce){.NX-gGW_rail,.NX-gGW_aside{transition:none}.NX-gGW_scrim{animation:none}}";
+		const css$1 = ".NX-gGW_root{background:var(--zx-bg-app);color:var(--zx-label);font-family:var(--zx-font-ui);font-size:var(--zx-text-sm);line-height:var(--zx-leading-tight);isolation:isolate;padding-top:var(--dsh-desktop-titlebar-height,0px);box-sizing:border-box;grid-template-rows:1fr;grid-template-columns:auto minmax(0,1fr) auto;display:grid;position:absolute;inset:0;overflow:hidden}.NX-gGW_root[data-dcode-acrylic],.NX-gGW_root[data-dcode-acrylic] .NX-gGW_center{backdrop-filter:var(--zx-glass-filter)}html:not([data-dcode-acrylic]) .NX-gGW_root[data-dcode-acrylic]{background:radial-gradient(circle at 18% 4%, color-mix(in srgb, var(--zx-accent) 11%, transparent), transparent 34%), radial-gradient(circle at 84% 92%, color-mix(in srgb, var(--zx-label) 5%, transparent), transparent 38%), var(--zx-bg-app)}.NX-gGW_rail{width:var(--zx-rail-width);min-width:var(--zx-rail-width);border-right:1px solid var(--zx-border-soft);background:var(--zx-bg-panel);transition:width var(--zx-motion), min-width var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);flex-direction:column;display:flex;position:relative;overflow:hidden}.NX-gGW_railResizeHandle{z-index:var(--zx-z-sticky);touch-action:none;cursor:col-resize;outline:none;width:7px;position:absolute;top:0;bottom:0;right:0}.NX-gGW_railResizeHandle:after{content:\"\";background:var(--zx-accent);opacity:0;width:2px;transition:opacity var(--zx-motion-fast);position:absolute;top:0;bottom:0;right:0}.NX-gGW_railResizeHandle:hover:after,.NX-gGW_railResizeHandle:focus-visible:after,.NX-gGW_root[data-rail-resizing] .NX-gGW_railResizeHandle:after{opacity:.8}.NX-gGW_root[data-rail-resizing]{cursor:col-resize;user-select:none}.NX-gGW_root[data-rail-resizing] .NX-gGW_rail{transition:none}.NX-gGW_railCollapsed{visibility:hidden;border-right-color:#0000;width:0;min-width:0}.NX-gGW_center{flex-direction:column;min-width:0;display:flex;position:relative;overflow:hidden;container-type:inline-size}.NX-gGW_filler{flex:0 0 0}.NX-gGW_centerBlank .NX-gGW_filler{flex:1 1 0}.NX-gGW_aside{width:var(--zx-aside-width);min-width:var(--zx-aside-width);border-left:1px solid var(--zx-border-soft);background:var(--zx-bg-panel);transition:width var(--zx-motion), min-width var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);flex-direction:column;display:flex;overflow:hidden}.NX-gGW_asideCollapsed{visibility:hidden;border-left-color:#0000;width:0;min-width:0}.NX-gGW_surface{grid-column:1/-1;min-width:0;display:flex;overflow:hidden}.NX-gGW_surfaceFailure{place-items:center;width:100%;min-width:0;display:grid}.NX-gGW_surfaceFailureActions{gap:var(--zx-space-2);margin-top:var(--zx-space-4);display:flex}.NX-gGW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;overflow:hidden auto}.NX-gGW_scroll::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.NX-gGW_scroll::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.NX-gGW_scroll::-webkit-scrollbar-track{background:0 0}.NX-gGW_scrim{z-index:var(--zx-z-scrim);background:var(--zx-scrim);cursor:default;animation:NX-gGW_scrimIn var(--zx-motion) ease-out;border:0;padding:0;position:absolute;inset:0}@keyframes NX-gGW_scrimIn{0%{opacity:0}}.NX-gGW_root[data-dcode-layout=compact]{grid-template-columns:minmax(0,1fr)}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_rail{z-index:var(--zx-z-drawer);top:var(--dsh-desktop-titlebar-height,0px);width:min(var(--zx-rail-width), 86%);min-width:0;box-shadow:var(--zx-shadow-panel);position:absolute;bottom:0;left:0}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_railCollapsed{width:min(var(--zx-rail-width), 86%);border-right-color:var(--zx-border-soft);transform:translate(-100%)}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_aside{z-index:var(--zx-z-drawer);top:var(--dsh-desktop-titlebar-height,0px);width:min(var(--zx-aside-width), 86%);min-width:0;box-shadow:var(--zx-shadow-panel);position:absolute;bottom:0;right:0}.NX-gGW_root[data-dcode-layout=compact] .NX-gGW_asideCollapsed{width:min(var(--zx-aside-width), 86%);border-left-color:var(--zx-border-soft);transform:translate(100%)}.NX-gGW_root[data-dcode-layout=wide]{--zx-reading-width:820px}@media (prefers-reduced-motion:reduce){.NX-gGW_rail,.NX-gGW_aside{transition:none}.NX-gGW_scrim{animation:none}}";
 		const tagId$1 = "@dsh-portable/dcode-ui/Workbench.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
@@ -13514,7 +13516,9 @@ window.__ModuleLoader__.load({
 			"scrim": "NX-gGW_scrim",
 			"scrimIn": "NX-gGW_scrimIn",
 			"scroll": "NX-gGW_scroll",
-			"surface": "NX-gGW_surface"
+			"surface": "NX-gGW_surface",
+			"surfaceFailure": "NX-gGW_surfaceFailure",
+			"surfaceFailureActions": "NX-gGW_surfaceFailureActions"
 		};
 		//#endregion
 		//#region src/client/shell/Workbench.tsx
@@ -13527,6 +13531,37 @@ window.__ModuleLoader__.load({
 		* only state this component owns is which panel is showing.
 		* @module @dsh-portable/dcode-ui/client/shell/Workbench
 		*/
+		/** Keep a settings initialization failure local to the replaceable surface. */
+		var SettingsBoundary = class extends react.Component {
+			state = {};
+			static getDerivedStateFromError(error) {
+				return { error: error instanceof Error ? error.message : String(error) };
+			}
+			componentDidCatch(_error, _info) {}
+			componentDidUpdate(previous) {
+				if (previous.resetKey !== this.props.resetKey && this.state.error !== void 0) this.setState({ error: void 0 });
+			}
+			render() {
+				if (this.state.error === void 0) return this.props.children;
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: Workbench_module_css_default.surfaceFailure,
+					role: "alert",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(EmptyState, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: this.props.t("settings.loadFailed", { error: this.state.error }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: Workbench_module_css_default.surfaceFailureActions,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+							onClick: this.props.onBack,
+							children: this.props.t("nav.backToWorkspace")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+							primary: true,
+							onClick: () => {
+								this.setState({ error: void 0 });
+							},
+							children: this.props.t("common.retry")
+						})]
+					})] })
+				});
+			}
+		};
 		/**
 		* Resolve the working directory of the current session, which every
 		* workspace-scoped panel (git, files) is addressed by.
@@ -13728,9 +13763,16 @@ window.__ModuleLoader__.load({
 							navigation,
 							cwd,
 							sessionId
-						}) : state.view === "plugins" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginsHome, { navigation }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsSurface, {
-							navigation,
-							sessionId
+						}) : state.view === "plugins" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginsHome, { navigation }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsBoundary, {
+							resetKey: state.settingsSection,
+							t,
+							onBack: () => {
+								navigation.show("session");
+							},
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsSurface, {
+								navigation,
+								sessionId
+							})
 						})
 					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 						drawer ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {

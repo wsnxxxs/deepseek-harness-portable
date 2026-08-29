@@ -8,8 +8,11 @@
  * @module @dsh-portable/dcode-ui/client/shell/Workbench
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type {
+  CSSProperties, ErrorInfo, KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent, ReactNode,
+} from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { dcodeScope } from '../tokens.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
@@ -22,6 +25,7 @@ import {
   clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth,
 } from '../state/rail-width.ts'
 import { useT } from '../state/i18n.ts'
+import type { Translate } from '../locales.ts'
 import { ACRYLIC_ATTRIBUTE } from '../theme.ts'
 import { useAppearance } from './ThemeSwitch.tsx'
 import { TopBar } from './TopBar.tsx'
@@ -33,6 +37,7 @@ import { PlanCard } from './PlanCard.tsx'
 import { QuestionComposer } from './QuestionComposer.tsx'
 import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
+import { Button, EmptyState } from './ui.tsx'
 import { Transcript } from '../chat/Transcript.tsx'
 import { LearningHome } from '../learning/LearningHome.tsx'
 import { PluginsHome } from '../plugins/PluginsHome.tsx'
@@ -43,6 +48,48 @@ import css from './Workbench.module.css'
 export interface WorkbenchProps {
   /** The view-state store shared with the keyboard layer and the palette. */
   readonly navigation: NavigationStore
+}
+
+/** Keep a settings initialization failure local to the replaceable surface. */
+class SettingsBoundary extends Component<{
+  readonly children: ReactNode
+  readonly onBack: () => void
+  readonly resetKey: string
+  readonly t: Translate
+}, { error?: string }> {
+  state: { error?: string } = {}
+
+  static getDerivedStateFromError(error: unknown): { error: string } {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+
+  componentDidCatch(_error: unknown, _info: ErrorInfo): void {
+    // The fallback below owns recovery; individual settings services retain
+    // responsibility for their own diagnostics.
+  }
+
+  componentDidUpdate(previous: Readonly<{ resetKey: string }>): void {
+    if (previous.resetKey !== this.props.resetKey && this.state.error !== undefined) {
+      this.setState({ error: undefined })
+    }
+  }
+
+  render(): ReactNode {
+    if (this.state.error === undefined) return this.props.children
+    return (
+      <div className={css.surfaceFailure} role="alert">
+        <EmptyState>
+          <span>{this.props.t('settings.loadFailed', { error: this.state.error })}</span>
+          <div className={css.surfaceFailureActions}>
+            <Button onClick={this.props.onBack}>{this.props.t('nav.backToWorkspace')}</Button>
+            <Button primary onClick={() => { this.setState({ error: undefined }) }}>
+              {this.props.t('common.retry')}
+            </Button>
+          </div>
+        </EmptyState>
+      </div>
+    )
+  }
 }
 
 /**
@@ -273,10 +320,16 @@ export function Workbench({ navigation }: WorkbenchProps) {
               : state.view === 'plugins'
                 ? <PluginsHome navigation={navigation} />
                 : (
-                  <SettingsSurface
-                    navigation={navigation}
-                    sessionId={sessionId}
-                  />
+                  <SettingsBoundary
+                    resetKey={state.settingsSection}
+                    t={t}
+                    onBack={() => { navigation.show('session') }}
+                  >
+                    <SettingsSurface
+                      navigation={navigation}
+                      sessionId={sessionId}
+                    />
+                  </SettingsBoundary>
                 )}
           </div>
         )
