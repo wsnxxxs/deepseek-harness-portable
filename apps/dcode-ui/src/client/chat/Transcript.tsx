@@ -11,7 +11,6 @@
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
@@ -34,8 +33,9 @@ import { useChatSnapshot, useSessionSnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
-import { Button, CopyButton, IconButton, Spinner } from '../shell/ui.tsx'
+import { Button, CopyButton, IconButton, shimmerActive, Spinner } from '../shell/ui.tsx'
 import { useModalFocus } from '../shell/use-modal-focus.ts'
+import { MessageNavRail } from '../shell/MessageNavRail.tsx'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
 import {
@@ -55,6 +55,8 @@ export interface TranscriptProps {
    * composer's centring below cannot disagree about which phase they are in.
    */
   readonly blank: boolean
+  /** Compact frames suppress the edge rail so it cannot cover the transcript. */
+  readonly compact?: boolean
 }
 
 type FeedbackRating = 'positive' | 'negative'
@@ -222,26 +224,83 @@ function ImageLightbox(props: { src: string; alt: string }) {
   )
 }
 
-/** Reasoning text, folded by default. */
-function Reasoning({ text }: { text: string }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
+function compactTokens(count: number): string {
+  if (count < 1000) return String(count)
+  if (count < 1_000_000) return `${(count / 1000).toFixed(count < 10_000 ? 1 : 0)}k`
+  return `${(count / 1_000_000).toFixed(1)}m`
+}
+
+/** Running reasoning stays visible; completed reasoning folds into a one-line capsule. */
+function Reasoning(props: {
+  text: string
+  streaming: boolean
+  durationMs?: number
+  tokenCount?: number
+  labels: MarkdownLabels
+}) {
+  const [open, setOpen] = useState(props.streaming)
   const panelId = useId()
+  const startedAt = useRef(Date.now())
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    if (!props.streaming) return undefined
+    const update = (): void => { setElapsed(Math.max(0, Date.now() - startedAt.current)) }
+    update()
+    const timer = window.setInterval(update, 1000)
+    return () => { window.clearInterval(timer) }
+  }, [props.streaming])
+
+  useEffect(() => {
+    if (props.streaming) setOpen(true)
+  }, [props.streaming])
+
+  const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1000))
+  const title = props.streaming
+    ? `Thinking (${seconds}s)…`
+    : `Thought for ${seconds}s${props.tokenCount === undefined ? '' : ` · ${compactTokens(props.tokenCount)} tokens`}`
   return (
-    <div className={css.reasoning}>
+    <div className={`${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''}`}>
       <button
         type="button"
         className={css.reasoningHead}
         aria-expanded={open}
         aria-controls={panelId}
+        disabled={props.streaming}
         onClick={() => { setOpen(value => !value) }}
       >
         <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
-        <span>{t('chat.reasoning')}</span>
-        <span className={css.reasoningMeta}>{t('chat.reasoningChars', { count: text.length })}</span>
-        <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />
+        <span className={css.reasoningTitle}>{title}</span>
+        {props.streaming
+          ? <span className={css.reasoningGlow} aria-hidden />
+          : <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />}
       </button>
-      {open ? <div className={css.reasoningBody} id={panelId} role="region">{text}</div> : null}
+      <div className={`${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`}>
+        <div className={css.reasoningBody} id={panelId} role="region">
+          <MarkdownText text={props.text} streaming={props.streaming} labels={props.labels} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Lightweight waiting row before the first assistant delta arrives. */
+function ThinkingStatus() {
+  const startedAt = useRef(Date.now())
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSeconds(Math.max(0, Math.round((Date.now() - startedAt.current) / 1000)))
+    }, 1000)
+    return () => { window.clearInterval(timer) }
+  }, [])
+  return (
+    <div className={`${css.reasoning} ${css.reasoningStreaming} ${shimmerActive()}`} role="status" aria-live="polite">
+      <div className={css.reasoningHead}>
+        <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
+        <span className={css.reasoningTitle}>Thinking ({seconds}s)…</span>
+        <span className={css.reasoningGlow} aria-hidden />
+      </div>
     </div>
   )
 }
@@ -254,14 +313,10 @@ function ToolActivityGroup(props: {
   const t = useT()
   const [open, setOpen] = useState(false)
   const contentId = useId()
-  const parts = [
-    props.group.readCount === 0
-      ? null
-      : t(props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany', { count: props.group.readCount }),
-    props.group.searchCount === 0
-      ? null
-      : t(props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany', { count: props.group.searchCount }),
-  ].filter((part): part is string => part !== null)
+  const summary = t(
+    props.group.fileCount === 1 ? 'chat.toolActivity.exploredOne' : 'chat.toolActivity.explored',
+    { count: props.group.fileCount },
+  )
 
   return (
     <div className={css.toolActivity}>
@@ -273,7 +328,7 @@ function ToolActivityGroup(props: {
         onClick={() => { setOpen(value => !value) }}
       >
         <span className={css.toolActivityIcon} aria-hidden><IconSearchOutline16 /></span>
-        <span className={css.toolActivitySummary}>{parts.join(', ')}</span>
+        <span className={css.toolActivitySummary}>{summary}</span>
         {props.group.durationMs === undefined
           ? null
           : <span className={css.toolActivityDuration}>· {formatToolDuration(props.group.durationMs)}</span>}
@@ -401,6 +456,8 @@ function AssistantBlocks(props: {
   blocks: readonly AssistantBlock[]
   streaming: boolean
   labels: MarkdownLabels
+  durationMs?: number
+  tokenCount?: number
 }) {
   return (
     <div className={css.blockGap}>
@@ -412,7 +469,18 @@ function AssistantBlocks(props: {
             </div>
           )
         }
-        if (block.kind === 'reasoning') return <Reasoning key={index} text={block.text} />
+        if (block.kind === 'reasoning') {
+          return (
+            <Reasoning
+              key={index}
+              text={block.text}
+              streaming={props.streaming}
+              durationMs={props.durationMs}
+              tokenCount={props.tokenCount}
+              labels={props.labels}
+            />
+          )
+        }
         if (block.kind === 'image') {
           return (
             <MessageAttachments
@@ -444,6 +512,16 @@ function Stats({ node }: { node: AssistantMessageNode }) {
       {node.interrupted === true ? <span>{t('chat.interrupted')}</span> : null}
     </div>
   )
+}
+
+function assistantTokenCount(node: AssistantMessageNode): number | undefined {
+  const usage = node.usage as { totalTokens?: number; total_tokens?: number } | undefined
+  return usage?.totalTokens ?? usage?.total_tokens
+}
+
+function assistantDurationMs(node: AssistantMessageNode): number | undefined {
+  const start = node.timing?.stepStartTime
+  return start === null || start === undefined ? undefined : Math.max(0, node.timing!.completedTime - start)
 }
 
 function assistantText(blocks: readonly AssistantBlock[]): string {
@@ -566,7 +644,14 @@ function Node(props: {
     case 'assistant':
       return (
         <div>
-          <AssistantBlocks sessionId={props.sessionId} blocks={node.blocks} streaming={false} labels={props.labels} />
+          <AssistantBlocks
+            sessionId={props.sessionId}
+            blocks={node.blocks}
+            streaming={false}
+            labels={props.labels}
+            durationMs={assistantDurationMs(node)}
+            tokenCount={assistantTokenCount(node)}
+          />
           <AssistantActions sessionId={props.sessionId} node={node} feedback={props.feedback} onBranched={props.onBranched} />
           <Stats node={node} />
         </div>
@@ -745,81 +830,8 @@ function dynamicGreetingKey(): DcodeKey {
   return 'chat.empty.evening'
 }
 
-/** Compact index for jumping between loaded conversation turns. */
-function TurnNavigator(props: {
-  turns: readonly (readonly ConversationNode[])[]
-  scrollerRef: RefObject<HTMLDivElement | null>
-  running: boolean
-  onNavigate: (index: number) => void
-}) {
-  const t = useT()
-  const [active, setActive] = useState(0)
-
-  useEffect(() => {
-    const scroller = props.scrollerRef.current
-    if (scroller === null) return undefined
-    let frame = 0
-    const update = (): void => {
-      window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(() => {
-        const turns = [...scroller.querySelectorAll<HTMLElement>('[data-turn-index]')]
-        const marker = scroller.getBoundingClientRect().top + 72
-        let next = 0
-        for (const [index, turn] of turns.entries()) {
-          if (turn.getBoundingClientRect().top <= marker) next = index
-        }
-        setActive(next)
-      })
-    }
-    update()
-    scroller.addEventListener('scroll', update, { passive: true })
-    return () => {
-      window.cancelAnimationFrame(frame)
-      scroller.removeEventListener('scroll', update)
-    }
-  }, [props.scrollerRef, props.turns.length])
-
-  if (props.turns.length < 2) return null
-  return (
-    <nav className={css.turnNavigator} aria-label={t('chat.turnNavigation.label')}>
-      {props.turns.map((turn, index) => {
-        const status = turn.some(node => node.kind === 'turn-error')
-          ? 'Error'
-          : index === props.turns.length - 1 && props.running ? 'Running' : 'Complete'
-        const statusLabel = status === 'Error'
-          ? t('chat.turnNavigation.status.error')
-          : status === 'Running'
-            ? t('chat.turnNavigation.status.running')
-            : t('chat.turnNavigation.status.complete')
-        return (
-          <button
-            type="button"
-            key={index}
-            className={css.turnButton}
-            aria-label={`${t('chat.turnNavigation.turn', { count: index + 1 })}, ${statusLabel}`}
-            title={statusLabel}
-            aria-current={active === index ? 'true' : undefined}
-            onClick={() => {
-              props.onNavigate(index)
-              const target = props.scrollerRef.current?.querySelector<HTMLElement>(`[data-turn-index="${String(index)}"]`)
-              target?.scrollIntoView({
-                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-                block: 'start',
-              })
-              setActive(index)
-            }}
-          >
-            <span className={`${css.turnStatus} ${css[`turnStatus${status}`]}`} aria-hidden />
-            <span>{index + 1}</span>
-          </button>
-        )
-      })}
-    </nav>
-  )
-}
-
 /** The scrolling conversation, its turn summaries and its streaming tail. */
-export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProps) {
+export function Transcript({ navigation, sessionId, cwd, blank, compact = false }: TranscriptProps) {
   const runtime = useRuntime()
   const t = useT()
   const chat = useChatSnapshot(sessionId)
@@ -831,6 +843,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   const highlightTimerRef = useRef<number | undefined>(undefined)
   const [highlightedTurn, setHighlightedTurn] = useState<number | undefined>(undefined)
   const [branchCreated, setBranchCreated] = useState(false)
+  const [showScrollLatest, setShowScrollLatest] = useState(false)
 
   const labels = useMemo<MarkdownLabels>(() => ({
     code: { copyLabel: t('common.copy'), copiedLabel: t('common.copied') },
@@ -849,6 +862,11 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
     setHighlightedTurn(index)
     window.clearTimeout(highlightTimerRef.current)
     highlightTimerRef.current = window.setTimeout(() => { setHighlightedTurn(undefined) }, 1600)
+    const target = scrollerRef.current?.querySelector<HTMLElement>(`[data-turn-index="${String(index)}"]`)
+    target?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    })
   }, [])
 
   useEffect(() => () => { window.clearTimeout(highlightTimerRef.current) }, [])
@@ -866,7 +884,9 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
     if (scroller === null) return undefined
     const onScroll = (): void => {
       const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
-      pinnedRef.current = distance < 80
+      const pinned = distance < 80
+      pinnedRef.current = pinned
+      setShowScrollLatest(!pinned)
     }
     scroller.addEventListener('scroll', onScroll, { passive: true })
     return () => { scroller.removeEventListener('scroll', onScroll) }
@@ -879,7 +899,23 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   }, [nodes, partial, runningCalls.length, sessionId])
 
   // A session switch starts pinned to the newest message again.
-  useEffect(() => { pinnedRef.current = true }, [sessionId])
+  useLayoutEffect(() => {
+    pinnedRef.current = true
+    setShowScrollLatest(false)
+    const scroller = scrollerRef.current
+    if (scroller !== null) scroller.scrollTop = scroller.scrollHeight
+  }, [sessionId])
+
+  const scrollToLatest = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (scroller === null) return
+    pinnedRef.current = true
+    setShowScrollLatest(false)
+    scroller.scrollTo({
+      top: scroller.scrollHeight,
+      behavior: 'auto',
+    })
+  }, [])
 
   if (sessionId === undefined) {
     // Keep the greeting, but remove the extra prompt and shortcut button.
@@ -910,12 +946,11 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
         )
         : (
           <>
-            <TurnNavigator
-              turns={turns}
+            {compact ? null : <MessageNavRail
+              nodes={nodes}
               scrollerRef={scrollerRef}
-              running={session?.running === true}
               onNavigate={navigateToTurn}
-            />
+            />}
             <div className={css.flow}>
             {feedback.error === undefined ? null : (
               <div className={`${css.notice} ${css.noticeError}`} role="alert">
@@ -1000,7 +1035,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               )}
 
             {session?.running === true && partial === null && runningCalls.length === 0
-              ? <div className={css.stats} role="status" aria-live="polite">{t('chat.thinking')}<span className={css.streamingDot} /></div>
+              ? <ThinkingStatus />
               : null}
 
             {session?.pendingSubmissions.map(submission => (
@@ -1031,6 +1066,14 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
                 </div>
               )}
             </div>
+            {showScrollLatest
+              ? (
+                <button type="button" className={css.scrollLatest} onClick={scrollToLatest}>
+                  <IconChevronRightOutline14 className={css.scrollLatestIcon} />
+                  {t('chat.scrollLatest')}
+                </button>
+              )
+              : null}
           </>
         )}
       {branchCreated

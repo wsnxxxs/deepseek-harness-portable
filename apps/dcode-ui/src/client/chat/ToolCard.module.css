@@ -7,6 +7,11 @@
   overflow: hidden;
 }
 
+.cardEmphasized {
+  border-color: color-mix(in srgb, var(--zx-accent) 28%, var(--zx-border-soft));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--zx-accent) 66%, transparent);
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -79,6 +84,18 @@
   font-variant-numeric: tabular-nums;
   transition: color var(--zx-motion-fast), opacity var(--zx-motion-fast);
 }
+
+.changes {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.additions { color: var(--zx-success); }
+.deletions { color: var(--zx-error); }
 
 .error {
   color: var(--zx-error);

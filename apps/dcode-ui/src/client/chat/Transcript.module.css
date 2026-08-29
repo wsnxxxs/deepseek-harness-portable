@@ -33,75 +33,6 @@
   font-size: var(--zx-text-sm);
 }
 
-.turnNavigator {
-  position: sticky;
-  top: var(--zx-space-3);
-  z-index: var(--zx-z-sticky);
-  display: inline-flex;
-  align-self: flex-end;
-  gap: var(--zx-space-1);
-  margin: var(--zx-space-3) var(--zx-space-5) calc(var(--zx-space-3) * -1);
-  padding: var(--zx-space-1);
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-pill);
-  background: var(--zx-bg-overlay);
-  box-shadow: var(--zx-shadow-popover);
-}
-
-.turnButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: var(--zx-control-xs);
-  min-height: var(--zx-control-xs);
-  padding: 0 var(--zx-space-2);
-  border: 0;
-  border-radius: var(--zx-radius-pill);
-  background: transparent;
-  color: var(--zx-label-muted);
-  font: inherit;
-  font-size: var(--zx-text-micro);
-  cursor: pointer;
-  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
-}
-
-.turnButton:hover,
-.turnButton[aria-current='true'] {
-  background: var(--zx-bg-active);
-  color: var(--zx-label);
-}
-
-.turnButton:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
-.turnStatus {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-}
-
-.turnStatusComplete {
-  background: var(--zx-success);
-}
-
-.turnStatusRunning {
-  background: var(--zx-accent);
-  animation: turn-status-breathe 1.4s ease-in-out infinite;
-}
-
-.turnStatusError {
-  background: var(--zx-warn);
-}
-
-@keyframes turn-status-breathe {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--zx-accent) 36%, transparent); opacity: 0.72; }
-  50% { box-shadow: 0 0 0 4px transparent; opacity: 1; }
-}
-
 .flow {
   /* The gutter is outside the measure — the reading column is the text, and
      the composer's shell lines up with it — so a column narrower than the
@@ -460,13 +391,22 @@
 }
 
 .reasoning {
-  border: 1px solid color-mix(in srgb, var(--zx-accent) 14%, var(--zx-border-soft));
-  border-radius: var(--zx-radius-md);
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 16%, var(--zx-border-soft));
+  border-radius: var(--zx-radius-pill);
   background: color-mix(in srgb, var(--zx-accent) 4%, var(--zx-bg-card));
-  padding: var(--zx-space-2) var(--zx-space-3);
+  padding: 5px var(--zx-space-3);
   color: var(--zx-label-muted);
   font-size: var(--zx-text-xs);
   line-height: var(--zx-leading-body);
+  transition: width var(--zx-motion), border-radius var(--zx-motion), background var(--zx-motion);
+}
+
+.reasoningStreaming,
+.reasoning:has(.reasoningDisclosureOpen) {
+  width: 100%;
+  border-radius: var(--zx-radius-md);
 }
 
 .reasoningHead {
@@ -482,17 +422,38 @@
   cursor: pointer;
 }
 
+.reasoningHead:disabled {
+  cursor: default;
+}
+
 .reasoningIcon {
   display: grid;
   place-items: center;
   color: color-mix(in srgb, var(--zx-accent) 58%, var(--zx-label-muted));
 }
 
-.reasoningMeta {
+.reasoningTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.reasoningGlow {
   margin-left: auto;
-  color: var(--zx-label-decor);
-  font-family: var(--zx-font-mono);
-  font-size: var(--zx-text-micro);
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--zx-accent) 74%, white);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--zx-accent) 65%, transparent);
+  animation: reasoning-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes reasoning-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(0.76); box-shadow: 0 0 5px color-mix(in srgb, var(--zx-accent) 30%, transparent); }
+  50% { opacity: 1; transform: scale(1.12); box-shadow: 0 0 14px color-mix(in srgb, var(--zx-accent) 72%, transparent); }
 }
 
 .reasoningChevron,
@@ -508,10 +469,32 @@
 }
 
 .reasoningBody {
-  margin-top: var(--zx-space-3);
-  padding-top: var(--zx-space-3);
+  padding: var(--zx-space-3) 0 var(--zx-space-2);
   border-top: 1px solid color-mix(in srgb, var(--zx-accent) 10%, var(--zx-border-soft));
-  white-space: pre-wrap;
+  color: var(--zx-label-secondary);
+}
+
+.reasoningBody :global(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.reasoningDisclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: min(100%, var(--zx-reading-width));
+  opacity: 0;
+  transition: grid-template-rows var(--zx-motion), opacity var(--zx-motion-fast);
+}
+
+.reasoningDisclosure > .reasoningBody {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.reasoningDisclosureOpen {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 
 .reasoningHead:hover {
@@ -683,13 +666,44 @@
   animation: zx-blink 1s steps(2, start) infinite;
 }
 
+.scrollLatest {
+  position: fixed;
+  right: var(--zx-space-5);
+  bottom: var(--zx-space-5);
+  z-index: var(--zx-z-sticky);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-height: var(--zx-control-sm);
+  padding: 0 var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-popover);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+  animation: scroll-latest-in var(--zx-motion-fast);
+}
+
+.scrollLatest:hover { background: var(--zx-bg-hover); color: var(--zx-label); }
+.scrollLatest:focus-visible { outline: none; box-shadow: var(--zx-shadow-popover), var(--zx-focus-ring); }
+.scrollLatestIcon { transform: rotate(90deg); }
+
+@keyframes scroll-latest-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes zx-blink {
   50% { opacity: 0.2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .streamingDot,
-  .turnStatusRunning,
+  .reasoningGlow,
+  .scrollLatest,
   .turnLeadHighlight,
   .branchToast { animation: none; }
 }

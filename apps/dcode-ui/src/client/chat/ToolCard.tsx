@@ -17,9 +17,9 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { useT } from '../state/i18n.ts'
-import { Spinner, ui } from '../shell/ui.tsx'
+import { shimmerActive, Spinner, ui } from '../shell/ui.tsx'
 import { AnsiOutput, OutputToolbar } from './AnsiOutput.tsx'
-import { formatToolDuration, resultText, summarizeTool, toolDurationMs, type ToolKind } from './tools.ts'
+import { formatToolDuration, resultText, summarizeTool, toolChangeStats, toolDurationMs, type ToolKind } from './tools.ts'
 import css from './ToolCard.module.css'
 
 /** Glyph per card-head vocabulary word. */
@@ -70,6 +70,8 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
   const duration = settled
     ? toolDurationMs(block)
     : Math.max(0, now - startedAt.current)
+  const changes = settled && summary.mutating ? toolChangeStats(block) : undefined
+  const emphasized = summary.mutating || summary.kind === 'run'
 
   useEffect(() => {
     if (settled) return undefined
@@ -89,10 +91,10 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
 
   return (
     <div className={css.group}>
-      <div className={css.card}>
+      <div className={`${css.card} ${emphasized ? css.cardEmphasized : ''}`}>
         <button
           type="button"
-          className={`${css.head} ${ui.cardHeader}`}
+          className={`${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`}
           aria-expanded={open}
           aria-controls={contentId}
           onClick={() => {
@@ -105,6 +107,14 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
           </span>
           <span className={`${css.verb} ${failed ? css.error : ''}`}>{verb}</span>
           <span className={css.detail}>{summary.detail === '' ? name : summary.detail}</span>
+          {changes === undefined
+            ? null
+            : (
+              <span className={css.changes} aria-label={`${changes.additions} lines added, ${changes.deletions} lines removed`}>
+                <span className={css.additions}>+{changes.additions}</span>
+                <span className={css.deletions}>−{changes.deletions}</span>
+              </span>
+            )}
           {duration === undefined
             ? null
             : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}

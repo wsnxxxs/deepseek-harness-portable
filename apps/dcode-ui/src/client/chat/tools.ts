@@ -36,6 +36,8 @@ export interface ToolActivityGroup {
   readonly blocks: readonly ToolResultNode[]
   readonly readCount: number
   readonly searchCount: number
+  /** Distinct workspace paths touched by the exploration run. */
+  readonly fileCount: number
   /** Sum of call durations when every result retained its call timestamp. */
   readonly durationMs: number | undefined
 }
@@ -44,7 +46,9 @@ export interface ToolActivityGroup {
 export type TranscriptItem = ConversationNode | ToolActivityGroup
 
 /** Tools that change files on disk. */
-const MUTATING = new Set(['write', 'edit', 'str_replace_editor'])
+const MUTATING = new Set([
+  'write', 'edit', 'str_replace_editor', 'write_to_file', 'replace_file_content',
+])
 
 /** Argument fields that name a path, in the order they are consulted. */
 const PATH_FIELDS = ['file_path', 'path', 'notebook_path', 'target', 'filename'] as const
@@ -127,18 +131,26 @@ export function summarizeTool(name: string, argsRaw: string | undefined): ToolSu
     case 'bash':
     case 'pwsh':
     case 'terminal_send':
+    case 'run_command':
       return { ...base, kind: 'run', detail: oneLine(firstString(args, ['command', 'input', 'script']) ?? '') }
     case 'read':
+    case 'view_file':
+    case 'read_file':
     case 'read_image':
     case 'read_attachment':
       return { ...base, kind: 'read', detail: oneLine(path ?? '') }
     case 'write':
+    case 'write_to_file':
       return { ...base, kind: 'write', detail: oneLine(path ?? '') }
     case 'edit':
     case 'str_replace_editor':
+    case 'replace_file_content':
       return { ...base, kind: 'edit', detail: oneLine(path ?? '') }
     case 'glob':
     case 'grep':
+    case 'grep_search':
+    case 'list_dir':
+    case 'list_directory':
     case 'session_search':
     case 'fs_search':
       return { ...base, kind: 'search', detail: oneLine(firstString(args, ['pattern', 'query', 'regex']) ?? '') }
@@ -177,6 +189,50 @@ export function formatToolDuration(ms: number): string {
   return `${(Math.max(0, ms) / 1000).toFixed(1)}s`
 }
 
+/** Displayable line changes for file-writing cards, when the tool retained enough data. */
+export function toolChangeStats(block: ToolCallBlock): { additions: number; deletions: number } | undefined {
+  if (!('isError' in block) || block.isError) return undefined
+  const meta = typeof block.meta === 'object' && block.meta !== null
+    ? block.meta as Record<string, unknown>
+    : {}
+  const numberField = (names: readonly string[]): number | undefined => {
+    for (const name of names) {
+      const value = meta[name]
+      if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value))
+    }
+    return undefined
+  }
+  const additions = numberField(['additions', 'insertions', 'linesAdded', 'added'])
+  const deletions = numberField(['deletions', 'removals', 'linesRemoved', 'removed'])
+  if (additions !== undefined || deletions !== undefined) {
+    return { additions: additions ?? 0, deletions: deletions ?? 0 }
+  }
+
+  const output = resultText(block.content)
+  const diffLines = output.split('\n')
+  const diffAdditions = diffLines.filter(line => line.startsWith('+') && !line.startsWith('+++')).length
+  const diffDeletions = diffLines.filter(line => line.startsWith('-') && !line.startsWith('---')).length
+  if (diffAdditions > 0 || diffDeletions > 0) {
+    return { additions: diffAdditions, deletions: diffDeletions }
+  }
+
+  const name = block.call?.name ?? ''
+  const args = parseArgs(block.call?.argsRaw)
+  const countLines = (value: unknown): number => typeof value === 'string' && value !== '' ? value.split(/\r?\n/).length : 0
+  if (name === 'replace_file_content' || name === 'edit' || name === 'str_replace_editor') {
+    const before = firstString(args, ['old_str', 'old_string', 'old_content'])
+    const after = firstString(args, ['new_str', 'new_string', 'new_content'])
+    if (before !== undefined || after !== undefined) {
+      return { additions: countLines(after), deletions: countLines(before) }
+    }
+  }
+  if (name === 'write_to_file' || name === 'write') {
+    const content = firstString(args, ['content', 'text'])
+    if (content !== undefined) return { additions: countLines(content), deletions: 0 }
+  }
+  return undefined
+}
+
 /** An error anywhere in a ToolCallBlock tree must remain visually explicit. */
 function hasToolError(block: ToolCallBlock): boolean {
   if ('isError' in block && block.isError) return true
@@ -192,23 +248,26 @@ function aggregatableActivity(node: ConversationNode): node is ToolResultNode {
 
 /**
  * Collapse consecutive successful read/search results into transcript groups.
- * Runs shorter than three stay as ordinary ToolCards, and errors always break a run.
+ * A single action stays as an ordinary ToolCard; consecutive exploration is
+ * folded by default, and errors always break a run.
  */
 export function aggregateToolActivity(nodes: readonly ConversationNode[]): readonly TranscriptItem[] {
   const items: TranscriptItem[] = []
   let run: ToolResultNode[] = []
 
   const flush = (): void => {
-    if (run.length < 3) {
+    if (run.length < 2) {
       items.push(...run)
       run = []
       return
     }
     let readCount = 0
     let searchCount = 0
+    const files = new Set<string>()
     const durations = run.map(toolDurationMs)
     for (const block of run) {
       const kind = summarizeTool(block.call?.name ?? '', block.call?.argsRaw).kind
+      for (const path of summarizeTool(block.call?.name ?? '', block.call?.argsRaw).files) files.add(path)
       if (kind === 'read') readCount += 1
       if (kind === 'search') searchCount += 1
     }
@@ -217,6 +276,7 @@ export function aggregateToolActivity(nodes: readonly ConversationNode[]): reado
       blocks: run,
       readCount,
       searchCount,
+      fileCount: files.size === 0 ? run.length : files.size,
       durationMs: durations.every((value): value is number => value !== undefined)
         ? durations.reduce((total, value) => total + value, 0)
         : undefined,
