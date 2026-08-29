@@ -63,7 +63,7 @@ export function TopBar({ navigation, sessionId, cwd }) {
     const shareClass = shareStatus === 'success'
         ? css.shareSuccess
         : shareStatus === 'error' ? css.shareError : '';
-    return (_jsxs("header", { className: css.bar, children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), workspace === undefined
+    return (_jsxs("header", { className: css.bar, children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, dataFocusTarget: "rail", onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), workspace === undefined
                 ? null
                 : (_jsx(Popover, { label: t('top.workspaceMenu'), placement: "down", triggerClassName: css.workspaceTrigger, trigger: (_jsxs(_Fragment, { children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { className: css.chipLabel, children: workspace.title }), _jsx(IconChevronDownOutline14, {})] })), rows: groups.map(group => ({
                         id: String(group.workspaceId),
@@ -78,6 +78,6 @@ export function TopBar({ navigation, sessionId, cwd }) {
                             if (sessionId !== undefined && sessionLogDownload !== undefined) {
                                 void sessionLogDownload.download(sessionId);
                             }
-                        }, children: [_jsx(TopBarDownloadIcon, { size: 14 }), _jsx("span", { className: css.shareLabel, children: shareLabel })] }), _jsxs("div", { className: css.layoutGroup, role: "group", "aria-label": t('top.layout'), children: [_jsx(IconButton, { label: t('top.toggleSummary'), className: css.layoutButton, active: state.summaryOpen, onClick: () => { navigation.toggleSummary(); }, children: _jsx(TopBarListIcon, { size: 16 }) }), _jsx(IconButton, { label: t('top.togglePreview'), className: css.layoutButton, active: state.asideOpen, onClick: () => { navigation.toggleAside(); }, children: _jsx(IconPanelLeftOutline16, { className: ui.mirrored, size: 14 }) })] })] })] }));
+                        }, children: [_jsx(TopBarDownloadIcon, { size: 14 }), _jsx("span", { className: css.shareLabel, children: shareLabel })] }), _jsxs("div", { className: css.layoutGroup, role: "group", "aria-label": t('top.layout'), children: [_jsx(IconButton, { label: t('top.toggleSummary'), className: css.layoutButton, active: state.summaryOpen, dataFocusTarget: "summary", onClick: () => { navigation.toggleSummary(); }, children: _jsx(TopBarListIcon, { size: 16 }) }), _jsx(IconButton, { label: t('top.togglePreview'), className: css.layoutButton, active: state.asideOpen, dataFocusTarget: "aside", onClick: () => { navigation.toggleAside(); }, children: _jsx(IconPanelLeftOutline16, { className: ui.mirrored, size: 14 }) })] })] })] }));
 }
 //# sourceMappingURL=TopBar.js.map

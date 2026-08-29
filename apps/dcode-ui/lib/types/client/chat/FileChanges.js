@@ -13,10 +13,10 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * @module @dsh-portable/dcode-ui/client/chat/FileChanges
  */
 import { useCallback, useMemo, useState } from 'react';
-import { IconEditOutline16, IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconEditOutline16, IconRefreshOutline14, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useT } from "../state/i18n.js";
-import { DiffCount, Spinner } from "../shell/ui.js";
+import { DiffCount, Spinner, ui } from "../shell/ui.js";
 import css from './FileChanges.module.css';
 /** Split a path into its directory prefix and file name for two-tone display. */
 function splitPath(path) {
@@ -46,6 +46,8 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
     const t = useT();
     const [undoing, setUndoing] = useState(false);
     const [note, setNote] = useState(undefined);
+    const [confirmingUndo, setConfirmingUndo] = useState(false);
+    const [acknowledgedUndo, setAcknowledgedUndo] = useState(false);
     const totals = useMemo(() => paths.reduce((sum, path) => {
         const counts = countsFor(status, path, cwd);
         return { insertions: sum.insertions + counts.insertions, deletions: sum.deletions + counts.deletions };
@@ -56,25 +58,43 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
         setUndoing(true);
         setNote(undefined);
         void runtime.git.undo(cwd, paths).then((result) => {
-            setUndoing(false);
             if (!result.ok) {
-                setNote(result.error.message);
+                setNote({ text: result.error.message, kind: 'error' });
                 return;
             }
             const reverted = result.value.outcomes.filter(outcome => outcome.result !== 'skipped');
             const quarantined = result.value.outcomes.filter(outcome => outcome.result === 'quarantined');
-            setNote(quarantined.length === 0
-                ? t('changes.undone', { count: reverted.length })
-                : `${t('changes.undone', { count: reverted.length })} · ${quarantined.map(o => o.movedTo ?? o.path).join(', ')}`);
+            setNote({
+                text: quarantined.length === 0
+                    ? t('changes.undone', { count: reverted.length })
+                    : `${t('changes.undone', { count: reverted.length })} · ${quarantined.map(o => o.movedTo ?? o.path).join(', ')}`,
+                kind: 'success',
+            });
             onChanged();
-        });
+        }).catch((cause) => {
+            setNote({ text: cause instanceof Error ? cause.message : String(cause), kind: 'error' });
+        }).finally(() => { setUndoing(false); });
     }, [runtime, cwd, paths, onChanged, t]);
     if (paths.length === 0)
         return null;
-    return (_jsxs("section", { className: css.card, children: [_jsxs("header", { className: css.head, children: [_jsx("span", { className: css.title, children: t('changes.count', { count: paths.length }) }), _jsx(DiffCount, { insertions: totals.insertions, deletions: totals.deletions }), _jsxs("button", { type: "button", className: css.undo, disabled: undoing || cwd === undefined || !runtime.git.available, onClick: undo, title: t('changes.undo'), children: [undoing ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}), undoing ? t('changes.undoing') : t('changes.undo')] })] }), paths.map((path) => {
+    return (_jsxs("section", { className: css.card, children: [_jsxs("header", { className: `${css.head} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('changes.count', { count: paths.length }) }), _jsx(DiffCount, { insertions: totals.insertions, deletions: totals.deletions }), _jsxs("button", { type: "button", className: css.undo, disabled: undoing || cwd === undefined || !runtime.git.available, onClick: () => {
+                            setAcknowledgedUndo(false);
+                            setConfirmingUndo(true);
+                        }, title: t('changes.undo'), children: [undoing ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}), undoing ? t('changes.undoing') : t('changes.undo')] })] }), paths.map((path) => {
                 const { dir, name } = splitPath(path);
                 const counts = countsFor(status, path, cwd);
                 return (_jsxs("button", { type: "button", className: css.row, onClick: () => { onOpenDiff(path); }, title: path, children: [_jsx(IconEditOutline16, {}), _jsx("span", { className: css.path, children: _jsxs("bdi", { children: [dir === '' ? '' : _jsx("span", { className: css.dir, children: dir }), name] }) }), _jsx(DiffCount, { insertions: counts.insertions, deletions: counts.deletions })] }, path));
-            }), note === undefined ? null : _jsx("p", { className: css.note, children: note })] }));
+            }), note === undefined
+                ? null
+                : _jsx("p", { className: `${css.note} ${note.kind === 'error' ? css.noteError : ''}`, role: note.kind === 'error' ? 'alert' : 'status', children: note.text }), _jsx(RiskConfirmation, { open: confirmingUndo, title: t('changes.undoConfirmTitle'), description: t('changes.undoConfirmBody'), acknowledgeLabel: t('changes.undoConfirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('changes.undo'), acknowledged: acknowledgedUndo, disabled: undoing, onAcknowledgedChange: setAcknowledgedUndo, onCancel: () => {
+                    setAcknowledgedUndo(false);
+                    setConfirmingUndo(false);
+                }, onConfirm: () => {
+                    if (!acknowledgedUndo)
+                        return;
+                    setAcknowledgedUndo(false);
+                    setConfirmingUndo(false);
+                    undo();
+                } })] }));
 }
 //# sourceMappingURL=FileChanges.js.map

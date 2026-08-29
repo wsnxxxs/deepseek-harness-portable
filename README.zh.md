@@ -184,23 +184,27 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 
 快速模式不替代从零构建 kernel 或发布安装包所需的完整依赖安装。
 
-之后必须在目标原生主机上打包。打包流程会执行真实能力探测、写入实测模式目录和文件清单、对含 manifest 的最终应用字节再次冒烟、生成平台容器，最后写出不可变的已验证 bundle：
+之后必须在目标原生主机上打包。打包流程会执行真实能力探测、写入实测模式目录和文件清单、对含 manifest 的最终应用字节再次冒烟、生成平台容器，最后写出不可变的已验证 bundle。打包前先运行默认快速测试；会主动重建或写入生成产物的测试放在 dirty suite，Windows 专用 launcher 与 updater 检查放在 platform suite：
+
+    pnpm test
+    pnpm run test:dirty
+    pnpm run test:platform
 
     pnpm run desktop:package:win
 
-Windows 已验证 bundle 位于 `dist-desktop/verified/win32-x64/`。发布是独立的只复制操作，必须显式传入该目录：
+Windows 已验证 bundle 位于 `dist-desktop/electron/verified/win32-x64/`。发布是独立的只复制操作，必须显式传入该目录：
 
-    pnpm run desktop:release:win -- --input dist-desktop/verified/win32-x64
+    pnpm run desktop:release:win -- --input dist-desktop/electron/verified/win32-x64
 
 构建 macOS Apple Silicon DMG：
 
     pnpm run desktop:package:mac
-    pnpm run desktop:release:mac -- --input dist-desktop/verified/darwin-arm64
+    pnpm run desktop:release:mac -- --input dist-desktop/electron/verified/darwin-arm64
 
 构建 Linux x64 AppImage 和 deb（必须在原生 Linux x64 主机执行）：
 
     pnpm run desktop:package:linux
-    pnpm run desktop:release:linux -- --input dist-desktop/verified/linux-x64
+    pnpm run desktop:release:linux -- --input dist-desktop/electron/verified/linux-x64
 
 产物位于 `dist-desktop/electron/linux-artifacts/`，未压缩 runtime 位于
 `dist-desktop/electron/DeepSeek Harness-linux-x64/`。官方上游 Landlock launcher

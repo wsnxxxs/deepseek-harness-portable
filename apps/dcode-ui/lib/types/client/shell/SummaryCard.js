@@ -19,6 +19,7 @@ import { useChatSnapshot, useProjectionValue, useWorkspaceGroups } from "../stat
 import { useT } from "../state/i18n.js";
 import { useGitStatus } from "../git/useGit.js";
 import { latestTodos } from "../chat/tools.js";
+import { ui } from "./ui.js";
 import css from './SummaryCard.module.css';
 /** One digest line: an icon, what it is, and the value it stands for. */
 function Row(props) {
@@ -26,7 +27,7 @@ function Row(props) {
                 ? null
                 : _jsx("span", { className: css.rowChevron, "aria-hidden": true, children: _jsx(IconChevronRightOutline14, {}) })] }));
     if (props.onOpen === undefined) {
-        return _jsx("div", { className: css.row, title: props.title, children: body });
+        return _jsx("div", { className: css.row, title: props.title, role: props.ariaLabel === undefined ? undefined : 'note', tabIndex: props.ariaLabel === undefined ? undefined : 0, "aria-label": props.ariaLabel, children: body });
     }
     return (_jsx("button", { type: "button", className: `${css.row} ${css.rowAction}`, title: props.title, onClick: props.onOpen, children: body }));
 }
@@ -49,7 +50,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
     const dirty = (status?.files.length ?? 0) > 0;
     const done = todos.filter(todo => todo.status === 'completed').length;
     const objective = goal?.goal.objective;
-    return (_jsxs("section", { className: css.card, "aria-label": t('summary.title'), children: [_jsxs("header", { className: css.header, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
+    return (_jsxs("section", { className: css.card, "aria-label": t('summary.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
                 ? _jsx("p", { className: css.empty, children: t('chat.empty.noWorkspace') })
                 : (_jsxs("div", { className: css.rows, children: [_jsx(Row, { icon: _jsx(IconCodeOutline16, {}), label: t('git.changes'), title: t('summary.openChanges'), value: !repository
                                 ? _jsx("span", { className: css.muted, children: t('top.noRepository') })
@@ -57,7 +58,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
                                     ? (_jsxs("span", { className: css.counts, children: [_jsxs("span", { className: css.added, children: ["+", status?.insertions ?? 0] }), _jsxs("span", { className: css.removed, children: ["-", status?.deletions ?? 0] })] }))
                                     : _jsx("span", { className: css.muted, children: t('git.clean') }), onOpen: () => { navigation.openAside('changes'); } }), workspace === undefined
                             ? null
-                            : (_jsx(Row, { icon: _jsx(IconFolderOpenOutline16, {}), label: t('summary.local'), title: workspace.path, value: _jsx("span", { className: css.truncate, children: workspace.title }) })), !repository
+                            : (_jsx(Row, { icon: _jsx(IconFolderOpenOutline16, {}), label: t('summary.local'), title: workspace.path, ariaLabel: workspace.path, value: _jsx("span", { className: css.truncate, children: workspace.title }) })), !repository
                             ? null
                             : (_jsx(Row, { icon: _jsx(IconBranchOutline16, {}), label: t('top.branch'), value: (_jsx("span", { className: css.truncate, children: status?.branch ?? (status?.detached === true ? 'HEAD' : t('top.branch')) })) })), objective === undefined || objective === ''
                             ? null

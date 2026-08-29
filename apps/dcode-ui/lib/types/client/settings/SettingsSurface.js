@@ -12,13 +12,14 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * entry points between the modern and classic front ends.
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14, IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16, IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useAsync, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
-import { Button, EmptyState, Spinner } from "../shell/ui.js";
+import { Button, EmptyState, Spinner, ui } from "../shell/ui.js";
+import { useModalFocus } from "../shell/use-modal-focus.js";
 import { ThemeSwitch } from "../shell/ThemeSwitch.js";
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from "./usage.js";
 import { SelectMenu } from "./SelectMenu.js";
@@ -72,7 +73,7 @@ function GeneralSection() {
     const theme = runtime.theme;
     // ThemeRuntime emits one revision for both palette and font-size writes.
     // The appearance store carries that notification while remaining optional.
-    const themeKey = () => {
+    const themeKey = useCallback(() => {
         const current = theme?.getTheme();
         return current === undefined
             ? ''
@@ -80,7 +81,7 @@ function GeneralSection() {
                 current.preference ?? '', current.fontSize, current.active.id,
                 ...(current.themes ?? []).map(entry => entry.id),
             ].join(':');
-    };
+    }, [theme]);
     const themeState = useSyncExternalStore(runtime.appearance.subscribe, themeKey, themeKey);
     const snapshot = useMemo(() => theme?.getTheme(), [theme, themeState]);
     // Anything a plugin registered beyond the two built-in palettes.
@@ -303,10 +304,11 @@ function ModelProviderCard(props) {
         : credentialDeclared
             ? css.statusDotMissing
             : css.statusDotNeutral;
-    return (_jsxs("div", { className: css.providerCard, children: [_jsxs("div", { className: css.providerHead, children: [_jsx("span", { className: `${css.statusDot} ${statusClass}`, "aria-label": statusLabel, title: statusLabel }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.row.name }), _jsxs("div", { className: css.rowBody, children: [props.row.id, props.row.active ? '' : ` · ${t('settings.models.inactive')}`] })] }), editable
-                        ? _jsx(Button, { onClick: () => { setOpen(value => !value); setFailure(undefined); }, children: open ? t('common.close') : t('common.edit') })
+    const editorId = `dcode-provider-editor-${props.row.id.replace(/[^a-z0-9_-]/gi, '-')}`;
+    return (_jsxs("div", { className: css.providerCard, children: [_jsxs("div", { className: `${css.providerHead} ${ui.cardHeader}`, children: [_jsx("span", { className: `${css.statusDot} ${statusClass}`, role: "img", "aria-label": statusLabel, title: statusLabel }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.row.name }), _jsxs("div", { className: css.rowBody, children: [props.row.id, props.row.active ? '' : ` · ${t('settings.models.inactive')}`] })] }), editable
+                        ? _jsx(Button, { ariaExpanded: open, ariaControls: editorId, onClick: () => { setOpen(value => !value); setFailure(undefined); }, children: open ? t('common.close') : t('common.edit') })
                         : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), open
-                ? (_jsxs("div", { className: css.providerEditor, children: [_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.apiKey') }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: apiKey, placeholder: props.row.credential?.configured === true ? t('settings.models.keyConfiguredHint') : t('settings.models.keyPlaceholder'), disabled: busy || !keyEditable, onChange: event => { setApiKey(event.target.value); } })] }), profileEditable
+                ? (_jsxs("div", { className: css.providerEditor, id: editorId, children: [_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.apiKey') }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: apiKey, placeholder: props.row.credential?.configured === true ? t('settings.models.keyConfiguredHint') : t('settings.models.keyPlaceholder'), disabled: busy || !keyEditable, onChange: event => { setApiKey(event.target.value); } })] }), profileEditable
                             ? (_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.baseURL') }), _jsx("input", { className: css.fieldInput, type: "url", value: baseURL, placeholder: t('settings.models.baseURLPlaceholder'), disabled: busy, onChange: event => { setBaseURL(event.target.value); } })] }))
                             : null, failure === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: failure }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setOpen(false); }, disabled: busy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: () => { void save(); }, disabled: busy, children: busy ? t('common.saving') : t('common.save') })] })] }))
                 : null] }));
@@ -356,8 +358,8 @@ function SkillsSection({ sessionId }) {
         return _jsx(EmptyState, { children: skills.error });
     if (skills.value?.ok === false)
         return _jsx(EmptyState, { children: skills.value.error.message });
-    return (_jsxs(Section, { title: t('settings.skills'), body: t('settings.count', { count: rows.length }), children: [_jsx("input", { className: css.search, value: query, placeholder: t('common.search'), onChange: event => { setQuery(event.target.value); } }), rows.length === 0
-                ? _jsx(EmptyState, { children: t('composer.noSkills') })
+    return (_jsxs(Section, { title: t('settings.skills'), body: t('settings.count', { count: rows.length }), children: [_jsx("input", { className: css.search, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); } }), rows.length === 0
+                ? _jsx(EmptyState, { children: t('settings.skillsEmpty') })
                 : (_jsx("div", { className: css.card, children: rows.map(skill => (_jsx(Row, { title: `/${skill.name}`, body: skill.whenToUse ?? skill.description, control: skill.modelInvocable ? _jsx("span", { className: css.badge, children: "model" }) : undefined }, skill.name))) }))] }));
 }
 /** Slash commands registered for the current session. */
@@ -375,7 +377,7 @@ function CommandsSection({ sessionId }) {
         return _jsx(EmptyState, { children: commands.value.error.message });
     const rows = commands.value?.ok === true ? commands.value.value : [];
     return (_jsx(Section, { title: t('settings.commands'), body: t('settings.count', { count: rows.length }), children: rows.length === 0
-            ? _jsx(EmptyState, { children: t('settings.empty') })
+            ? _jsx(EmptyState, { children: t('settings.commandsEmpty') })
             : (_jsx("div", { className: css.card, children: rows.map(command => (_jsx(Row, { title: `/${command.name}`, body: command.description }, command.name))) })) }));
 }
 /**
@@ -400,7 +402,7 @@ function PluginsSection({ mcpOnly }) {
     const entries = inventory.value?.ok === true ? inventory.value.value.entries : [];
     const rows = mcpOnly ? entries.filter(entry => /mcp/i.test(entry.moduleName)) : entries;
     return (_jsx(Section, { title: mcpOnly ? t('settings.mcp') : t('settings.plugins'), body: t('settings.count', { count: rows.length }), children: rows.length === 0
-            ? _jsx(EmptyState, { children: t('settings.empty') })
+            ? _jsx(EmptyState, { children: t('settings.inventoryEmpty') })
             : (_jsx("div", { className: css.card, children: rows.map(entry => (_jsx(Row, { title: entry.moduleName, body: entry.enabled ? entry.fiberPhase ?? 'active' : 'disabled', control: _jsx("span", { className: css.badge, children: entry.fiberPhase ?? '—' }) }, entry.entryId))) })) }));
 }
 /** Persist the default preset through the same settings namespace as DSH. */
@@ -443,18 +445,6 @@ function AgentPresetsSection() {
             setSelectedDefault(undefined);
         }
     }, [hostDefault, presets, selectedDefault]);
-    useEffect(() => {
-        if (dialog === undefined)
-            return undefined;
-        const onKeyDown = (event) => {
-            if (event.key !== 'Escape' || dialogBusy)
-                return;
-            setDialog(undefined);
-            setDialogError(undefined);
-        };
-        document.addEventListener('keydown', onKeyDown);
-        return () => { document.removeEventListener('keydown', onKeyDown); };
-    }, [dialog, dialogBusy]);
     const saveDefault = useCallback((id) => {
         if (id === defaultId || savingDefault)
             return;
@@ -484,6 +474,8 @@ function AgentPresetsSection() {
         setDialogError(undefined);
         setViewContent(undefined);
     };
+    const dialogRef = useRef(null);
+    useModalFocus(dialog !== undefined, dialogRef, { onClose: () => { closeDialog(); } });
     const beginCopy = (from) => {
         setCopyId('');
         setCopyName('');
@@ -573,7 +565,7 @@ function AgentPresetsSection() {
     if (roster.value?.ok === false)
         return _jsx(EmptyState, { children: roster.value.error.message });
     return (_jsxs(Section, { title: t('settings.agentPresets'), body: t('settings.agentPresetsBody'), children: [presets.length === 0
-                ? _jsx(EmptyState, { children: t('settings.empty') })
+                ? _jsx(EmptyState, { children: t('settings.presetsEmpty') })
                 : (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.agentPresetsDefault'), body: t('settings.agentPresetsDefaultBody'), control: (_jsx(SelectMenu, { value: defaultId, ariaLabel: t('settings.agentPresetsDefault'), options: presets.map(preset => ({
                                             id: preset.id,
                                             label: preset.name ?? preset.id,
@@ -587,11 +579,11 @@ function AgentPresetsSection() {
                                             ? (_jsxs(_Fragment, { children: [_jsx(Button, { onClick: () => { openPresetLocation(preset.id); }, children: canOpenDirectory ? t('settings.agentPresets.openLocation') : t('settings.agentPresets.showLocation') }), _jsx(Button, { onClick: () => { setDialogError(undefined); setDialog({ kind: 'delete', id: preset.id }); }, children: t('settings.agentPresets.delete') })] }))
                                             : null] })) }, preset.id))) })] })), dialog === undefined
                 ? null
-                : (_jsx("div", { className: css.dialogBackdrop, role: "presentation", onMouseDown: (event) => { if (event.target === event.currentTarget)
-                        closeDialog(); }, children: _jsx("div", { className: css.dialog, role: "dialog", "aria-modal": "true", "aria-labelledby": "dcode-settings-dialog-title", children: dialog.kind === 'copy'
+                : (_jsx("div", { className: css.dialogBackdrop, role: "presentation", onPointerDown: (event) => { if (event.target === event.currentTarget)
+                        closeDialog(); }, children: _jsx("div", { ref: dialogRef, className: css.dialog, role: "dialog", "aria-modal": "true", "aria-labelledby": "dcode-settings-dialog-title", tabIndex: -1, children: dialog.kind === 'copy'
                             ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.copyTitle') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), _jsx("p", { className: css.dialogBody, children: t('settings.agentPresets.copyBody') }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.agentPresets.id') }), _jsx("input", { className: css.fieldInput, autoFocus: true, value: copyId, placeholder: "my-agent", disabled: dialogBusy, onChange: event => { setCopyId(event.target.value); } })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.agentPresets.name') }), _jsx("input", { className: css.fieldInput, value: copyName, placeholder: t('settings.agentPresets.namePlaceholder'), disabled: dialogBusy, onChange: event => { setCopyName(event.target.value); } })] }), dialogError === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: dialogError }), _jsxs("div", { className: css.dialogActions, children: [_jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: confirmCopy, disabled: dialogBusy, children: dialogBusy ? t('common.saving') : t('settings.agentPresets.copy') })] })] }))
                             : dialog.kind === 'view'
-                                ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.view') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), dialogBusy ? _jsx(EmptyState, { children: _jsx(Spinner, {}) }) : viewContent === undefined ? _jsx("div", { className: css.inlineError, role: "alert", children: dialogError ?? t('common.error') }) : _jsx("pre", { className: css.viewerCode, children: viewContent })] }))
+                                ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.view') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), dialogBusy ? _jsx(EmptyState, { children: _jsx(Spinner, {}) }) : viewContent === undefined ? _jsx("div", { className: css.inlineError, role: "alert", children: dialogError ?? t('common.error') }) : _jsx("pre", { className: css.viewerCode, tabIndex: 0, role: "region", "aria-label": t('settings.agentPresets.view'), children: viewContent })] }))
                                 : (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.deleteTitle') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), _jsx("p", { className: css.dialogBody, children: t('settings.agentPresets.deleteBody') }), dialogError === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: dialogError }), _jsxs("div", { className: css.dialogActions, children: [_jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: confirmDelete, disabled: dialogBusy, children: dialogBusy ? t('common.saving') : t('settings.agentPresets.delete') })] })] })) }) })), Object.entries(revealedPaths).map(([id, path]) => (_jsxs("div", { className: css.revealedPath, children: [_jsx("span", { children: `${id}: ` }), _jsx("code", { children: path })] }, id)))] }));
 }
 /** Direct subagents of the current session. */
@@ -611,7 +603,7 @@ function SubagentsSection({ sessionId }) {
         ? catalog.value.value.members ?? []
         : [];
     return (_jsx(Section, { title: t('settings.subagents'), body: t('settings.count', { count: members.length }), children: members.length === 0
-            ? _jsx(EmptyState, { children: t('settings.empty') })
+            ? _jsx(EmptyState, { children: t('settings.subagentsEmpty') })
             : (_jsx("div", { className: css.card, children: members.map(member => (_jsx(Row, { title: member.name ?? member.childSessionId, body: member.status }, member.childSessionId))) })) }));
 }
 /**
@@ -631,9 +623,15 @@ function NamespaceSection({ title, body, match }) {
     const openDocument = useCallback(() => {
         void runtime.remote.settings.openSettingsDocument();
     }, [runtime]);
-    return (_jsxs(Section, { title: title, body: body, children: [described.loading ? _jsx(EmptyState, { children: _jsx(Spinner, {}) }) : null, described.error !== undefined ? _jsx(EmptyState, { children: described.error }) : null, described.value?.ok === false ? _jsx(EmptyState, { children: described.value.error.message }) : null, namespaces.length === 0 && !described.loading && described.error === undefined
-                ? _jsx(EmptyState, { children: t('settings.empty') })
-                : (_jsx("div", { className: css.card, children: namespaces.map(view => (_jsx(Row, { title: view.ns, body: `${t('settings.namespace')} · ${view.applies}`, control: _jsx("span", { className: css.rowMono, children: JSON.stringify(view.value) }) }, view.ns))) })), described.value?.ok === true && described.value.value.hasDocument
+    return (_jsxs(Section, { title: title, body: body, children: [described.loading
+                ? _jsx(EmptyState, { children: _jsx(Spinner, {}) })
+                : described.error !== undefined
+                    ? _jsx("div", { role: "alert", children: _jsx(EmptyState, { children: described.error }) })
+                    : described.value?.ok === false
+                        ? _jsx("div", { role: "alert", children: _jsx(EmptyState, { children: described.value.error.message }) })
+                        : namespaces.length === 0
+                            ? _jsx(EmptyState, { children: t('settings.namespaceEmpty') })
+                            : (_jsx("div", { className: css.card, children: namespaces.map(view => (_jsx(Row, { title: view.ns, body: `${t('settings.namespace')} · ${view.applies}`, control: _jsx("span", { className: css.rowMono, children: JSON.stringify(view.value) }) }, view.ns))) })), described.value?.ok === true && described.value.value.hasDocument
                 ? _jsx(Button, { onClick: openDocument, children: t('settings.openOfficialSettings') })
                 : null] }));
 }
@@ -645,7 +643,10 @@ function UsageSection() {
     const list = useSessionList();
     const totals = useMemo(() => summarizeUsage(aggregateUsage(list)), [list]);
     if (list.phase === 'pending') {
-        return (_jsx(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: _jsx("div", { className: css.card, children: _jsx("div", { className: css.usageStatus, children: t('settings.usageLoading') }) }) }));
+        return (_jsx(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: _jsx("div", { className: css.card, children: _jsx("div", { className: css.usageStatus, role: "status", children: t('settings.usageLoading') }) }) }));
+    }
+    if (list.state === 'error') {
+        return (_jsx(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: _jsx("div", { className: css.card, role: "alert", children: _jsx("div", { className: css.usageStatus, children: list.error?.message ?? t('settings.usageError') }) }) }));
     }
     return (_jsxs(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: [_jsxs("div", { className: css.usageTotal, children: [_jsx("span", { className: css.usageTotalTitle, children: t('settings.usageTotal') }), _jsx("strong", { className: css.usageTotalValue, children: formatTokenCount(totals.totalTokens) }), _jsx("span", { className: css.usageTotalScope, children: t('settings.usageScope', {
                             sessions: formatTokenCount(totals.sessions),
@@ -653,7 +654,7 @@ function UsageSection() {
                         }) })] }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
 }
 /** The settings rail and the selected section. */
-export function SettingsSurface({ navigation, sessionId, renderSection }) {
+export function SettingsSurface({ navigation, sessionId }) {
     const t = useT();
     const state = useNavigation(navigation);
     const icons = {
@@ -670,19 +671,19 @@ export function SettingsSurface({ navigation, sessionId, renderSection }) {
         commands: _jsx(IconListPenOutline16, {}),
         usage: _jsx(IconDataOutline16, {}),
     };
-    const official = (id, fallback) => renderSection === undefined
-        ? fallback
-        : (_jsx("div", { className: css.officialSection, "data-dcode-settings-section": id, children: renderSection('settings.section', { close: () => { navigation.show('session'); } }, { only: id }) }));
+    // `settings.section` is declared by the official settings shell, and a slot
+    // has exactly one declarer, so the workbench cannot own a renderSlot for it.
+    // Every page below is therefore DCode's own implementation.
     const body = () => {
         switch (state.settingsSection) {
             case 'general':
             case 'appearance': return _jsx(GeneralSection, {});
-            case 'models': return official('models', _jsx(ModelsSection, {}));
+            case 'models': return _jsx(ModelsSection, {});
             case 'skills': return _jsx(SkillsSection, { sessionId: sessionId });
             case 'commands': return _jsx(CommandsSection, { sessionId: sessionId });
-            case 'plugins': return official('plugins', _jsx(PluginSettingsSection, {}));
+            case 'plugins': return _jsx(PluginSettingsSection, {});
             case 'mcp': return _jsx(PluginSettingsSection, { mcpOnly: true });
-            case 'agentPresets': return official('agent-presets', _jsx(AgentPresetsSection, {}));
+            case 'agentPresets': return _jsx(AgentPresetsSection, {});
             case 'subagents': return _jsx(SubagentsSection, { sessionId: sessionId });
             case 'usage': return _jsx(UsageSection, {});
             case 'memory':
@@ -695,6 +696,6 @@ export function SettingsSurface({ navigation, sessionId, renderSection }) {
                 return _jsx(GeneralSection, {});
         }
     };
-    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(group => (_jsxs("div", { children: [_jsx("div", { className: css.group, children: t(group.group) }), group.items.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`, onClick: () => { navigation.openSettings(item.id); }, children: [icons[item.id] ?? _jsx(IconFollowsystemOutline16, {}), t(item.label)] }, item.id)))] }, group.group)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [_jsx("div", { className: css.title, children: t('settings.title') }), body()] }) })] }));
+    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(group => (_jsxs("div", { children: [_jsx("div", { className: css.group, children: t(group.group) }), group.items.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`, "aria-current": state.settingsSection === item.id ? 'page' : undefined, onClick: () => { navigation.openSettings(item.id); }, children: [icons[item.id] ?? _jsx(IconFollowsystemOutline16, {}), t(item.label)] }, item.id)))] }, group.group)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [_jsx("div", { className: css.title, children: t('settings.title') }), body()] }) })] }));
 }
 //# sourceMappingURL=SettingsSurface.js.map

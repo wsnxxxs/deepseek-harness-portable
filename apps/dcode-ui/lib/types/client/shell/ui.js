@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /**
  * Workbench atoms.
  *
@@ -10,27 +10,17 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * @module @dsh-portable/dcode-ui/client/shell/ui
  */
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react';
-import { IconCheckOutline14 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCheckOutline14, IconCheckOutline16, IconCopyOutline16, writeClipboard, } from '@deepseek-ai/dsh-client-ui-primitives';
 import css from './ui.module.css';
 /** Class names other modules compose against (they own their own layout). */
 export const ui = css;
-/** A bordered card with an optional header row. */
-export function Card(props) {
-    return (_jsxs("section", { className: `${css.card} ${props.className ?? ''}`, children: [props.title === undefined && props.actions === undefined
-                ? null
-                : (_jsxs("header", { className: css.cardHeader, children: [_jsx("span", { className: css.grow, children: props.title }), props.actions] })), props.children] }));
-}
-/** A panel section heading with optional trailing controls. */
-export function SectionTitle(props) {
-    return (_jsxs("div", { className: css.sectionTitle, children: [_jsx("span", { children: props.children }), props.actions] }));
-}
 /** A square control that carries an icon and an accessible name. */
 export function IconButton(props) {
-    return (_jsx("button", { type: "button", className: `${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, "aria-label": props.label, "aria-pressed": props.active, "data-tooltip": props.label, disabled: props.disabled, onClick: props.onClick, children: props.children }));
+    return (_jsx("button", { type: "button", className: `${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, "aria-label": props.label, "aria-pressed": props.active, "data-tooltip": props.label, "data-dcode-focus-target": props.dataFocusTarget, disabled: props.disabled, onClick: props.onClick, children: props.children }));
 }
 /** A labelled control. */
 export function Button(props) {
-    return (_jsx("button", { type: "button", className: `${css.button} ${props.primary === true ? css.buttonPrimary : ''} ${props.className ?? ''}`, disabled: props.disabled, title: props.title, onClick: props.onClick, children: props.children }));
+    return (_jsx("button", { type: "button", className: `${css.button} ${props.primary === true ? css.buttonPrimary : ''} ${props.className ?? ''}`, disabled: props.disabled, autoFocus: props.autoFocus, title: props.title, "aria-label": props.ariaLabel, "aria-expanded": props.ariaExpanded, "aria-controls": props.ariaControls, onClick: props.onClick, children: props.children }));
 }
 /** A compact status chip. */
 export function Pill(props) {
@@ -52,20 +42,62 @@ export function DiffCount(props) {
 export function Popover(props) {
     const [open, setOpen] = useState(false);
     const anchorRef = useRef(null);
+    const triggerRef = useRef(null);
+    const rowRefs = useRef({});
+    const [active, setActive] = useState(0);
     const menuId = useId();
+    const rows = props.rows ?? [];
+    const firstEnabled = useCallback((from, direction) => {
+        for (let index = from; index >= 0 && index < rows.length; index += direction) {
+            if (rows[index]?.disabled !== true)
+                return index;
+        }
+        return -1;
+    }, [rows]);
+    const close = useCallback((restoreFocus = false) => {
+        setOpen(false);
+        if (restoreFocus)
+            triggerRef.current?.focus();
+    }, []);
     useEffect(() => {
         if (!open)
             return undefined;
         const onPointerDown = (event) => {
-            if (anchorRef.current?.contains(event.target) === true)
+            if (event.target instanceof Node && anchorRef.current?.contains(event.target) === true)
                 return;
-            setOpen(false);
+            close();
         };
         const onKeyDown = (event) => {
-            if (event.key !== 'Escape')
+            if (!(event.target instanceof Node) || anchorRef.current?.contains(event.target) !== true)
                 return;
-            event.stopPropagation();
-            setOpen(false);
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                close(true);
+                return;
+            }
+            if (rows.length === 0)
+                return;
+            if (event.key === 'Enter' || event.key === ' ') {
+                const row = rows[active];
+                if (row === undefined || row.disabled === true)
+                    return;
+                event.preventDefault();
+                close(true);
+                row.onSelect?.();
+                return;
+            }
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp'
+                && event.key !== 'Home' && event.key !== 'End')
+                return;
+            event.preventDefault();
+            const next = event.key === 'Home'
+                ? firstEnabled(0, 1)
+                : event.key === 'End'
+                    ? firstEnabled(rows.length - 1, -1)
+                    : firstEnabled(active + (event.key === 'ArrowDown' ? 1 : -1), event.key === 'ArrowDown' ? 1 : -1);
+            if (next >= 0)
+                setActive(next);
         };
         document.addEventListener('pointerdown', onPointerDown, true);
         document.addEventListener('keydown', onKeyDown, true);
@@ -73,21 +105,30 @@ export function Popover(props) {
             document.removeEventListener('pointerdown', onPointerDown, true);
             document.removeEventListener('keydown', onKeyDown, true);
         };
-    }, [open]);
+    }, [active, close, firstEnabled, open, rows]);
+    useEffect(() => {
+        if (!open)
+            return;
+        setActive(firstEnabled(0, 1));
+    }, [firstEnabled, open]);
+    useEffect(() => {
+        if (open && active >= 0)
+            rowRefs.current[active]?.focus();
+    }, [active, open]);
     const select = useCallback((row) => {
         if (row.disabled === true)
             return;
-        setOpen(false);
+        close(true);
         row.onSelect?.();
-    }, []);
+    }, [close]);
     let lastGroup;
-    return (_jsxs("div", { className: css.popoverAnchor, ref: anchorRef, style: props.style, children: [_jsx("button", { type: "button", className: `${css.iconButton} ${open ? css.iconButtonActive : ''} ${props.triggerClassName ?? ''}`, "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": open ? menuId : undefined, "aria-label": props.label, title: props.label, disabled: props.disabled, onClick: () => { setOpen(value => !value); }, children: props.trigger }), open
-                ? (_jsxs("div", { id: menuId, role: "menu", className: `${css.popover} ${props.placement === 'down' ? css.popoverDown : css.popoverUp} ${props.align === 'end' ? css.popoverRight : ''} ${props.popoverClassName ?? ''}`, children: [props.children, props.rows?.map((row) => {
+    return (_jsxs("div", { className: css.popoverAnchor, ref: anchorRef, style: props.style, children: [_jsx("button", { ref: triggerRef, type: "button", className: `${css.iconButton} ${open ? css.iconButtonActive : ''} ${props.triggerClassName ?? ''}`, "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": open ? menuId : undefined, "aria-label": props.label, title: props.label, disabled: props.disabled, onClick: () => { setOpen(value => !value); }, children: props.trigger }), open
+                ? (_jsxs("div", { id: menuId, role: "menu", className: `${css.popover} ${props.placement === 'down' ? css.popoverDown : css.popoverUp} ${props.align === 'end' ? css.popoverRight : ''} ${props.popoverClassName ?? ''}`, children: [props.children, rows.map((row, index) => {
                             const heading = row.group !== undefined && row.group !== lastGroup
                                 ? _jsx("div", { className: css.menuLabel, children: row.group })
                                 : null;
                             lastGroup = row.group;
-                            return (_jsxs(Fragment, { children: [heading, _jsxs("button", { type: "button", role: "menuitem", disabled: row.disabled, className: `${css.menuItem} ${row.active === true ? css.menuItemActive : ''} ${row.danger === true ? css.menuItemDanger : ''}`, onClick: () => { select(row); }, children: [row.icon === undefined ? null : _jsx("span", { className: css.menuIcon, children: row.icon }), _jsxs("span", { className: `${css.grow} ${css.menuContent}`, children: [row.label, row.detail === undefined ? null : _jsx("span", { className: css.menuDetail, children: row.detail })] }), row.active === true ? _jsx(IconCheckOutline14, {}) : null] })] }, row.id));
+                            return (_jsxs(Fragment, { children: [heading, _jsxs("button", { ref: (node) => { rowRefs.current[index] = node; }, type: "button", role: "menuitem", disabled: row.disabled, tabIndex: index === active ? 0 : -1, className: `${css.menuItem} ${row.active === true ? css.menuItemActive : ''} ${row.danger === true ? css.menuItemDanger : ''}`, onClick: () => { select(row); }, children: [row.icon === undefined ? null : _jsx("span", { className: css.menuIcon, children: row.icon }), _jsxs("span", { className: `${css.grow} ${css.menuContent}`, children: [row.label, row.detail === undefined ? null : _jsx("span", { className: css.menuDetail, children: row.detail })] }), row.active === true ? _jsx(IconCheckOutline14, {}) : null] })] }, row.id));
                         })] }))
                 : null] }));
 }
@@ -96,7 +137,22 @@ export function EmptyState(props) {
     return _jsx("div", { className: css.empty, children: props.children });
 }
 /** An indeterminate progress mark. */
-export function Spinner() {
-    return _jsx("span", { className: css.spinner, "aria-hidden": true });
+export function Spinner(props = {}) {
+    return _jsx("span", { className: `${css.spinner} ${props.size === 'sm' ? css.spinnerSmall : ''}`, "aria-hidden": true });
+}
+/** Shared clipboard action with consistent transient success feedback. */
+export function CopyButton(props) {
+    const [copied, setCopied] = useState(false);
+    const copy = useCallback(() => {
+        if (copied)
+            return;
+        void writeClipboard(props.text).then((ok) => {
+            if (!ok)
+                return;
+            setCopied(true);
+            window.setTimeout(() => { setCopied(false); }, 1500);
+        });
+    }, [copied, props.text]);
+    return (_jsxs(_Fragment, { children: [_jsx(IconButton, { label: copied ? props.copiedLabel : props.label, className: props.className, onClick: copy, children: copied ? _jsx(IconCheckOutline16, {}) : _jsx(IconCopyOutline16, {}) }), copied ? _jsx("span", { className: css.visuallyHidden, role: "status", children: props.copiedLabel }) : null] }));
 }
 //# sourceMappingURL=ui.js.map

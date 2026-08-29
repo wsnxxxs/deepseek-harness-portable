@@ -11,18 +11,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 /** Class names other modules compose against (they own their own layout). */
 export declare const ui: Record<string, string>;
-/** A bordered card with an optional header row. */
-export declare function Card(props: {
-    title?: ReactNode;
-    actions?: ReactNode;
-    children?: ReactNode;
-    className?: string;
-}): import("react").JSX.Element;
-/** A panel section heading with optional trailing controls. */
-export declare function SectionTitle(props: {
-    children: ReactNode;
-    actions?: ReactNode;
-}): import("react").JSX.Element;
 /** A square control that carries an icon and an accessible name. */
 export declare function IconButton(props: {
     label: string;
@@ -31,6 +19,7 @@ export declare function IconButton(props: {
     active?: boolean;
     disabled?: boolean;
     className?: string;
+    dataFocusTarget?: string;
 }): import("react").JSX.Element;
 /** A labelled control. */
 export declare function Button(props: {
@@ -40,6 +29,10 @@ export declare function Button(props: {
     disabled?: boolean;
     title?: string;
     className?: string;
+    autoFocus?: boolean;
+    ariaLabel?: string;
+    ariaExpanded?: boolean;
+    ariaControls?: string;
 }): import("react").JSX.Element;
 /** A compact status chip. */
 export declare function Pill(props: {
@@ -88,5 +81,14 @@ export declare function EmptyState(props: {
     children: ReactNode;
 }): import("react").JSX.Element;
 /** An indeterminate progress mark. */
-export declare function Spinner(): import("react").JSX.Element;
+export declare function Spinner(props?: {
+    size?: 'sm' | 'md';
+}): import("react").JSX.Element;
+/** Shared clipboard action with consistent transient success feedback. */
+export declare function CopyButton(props: {
+    text: string;
+    label: string;
+    copiedLabel: string;
+    className?: string;
+}): import("react").JSX.Element;
 //# sourceMappingURL=ui.d.ts.map

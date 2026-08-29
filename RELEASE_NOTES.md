@@ -2,7 +2,7 @@
 
 [中文](RELEASE_NOTES.zh.md)
 
-Windows x64 desktop release · 2026-08-28
+Windows x64 desktop release · 2026-08-29
 
 v1.6.0 is a feature and bug-fix release following v1.5.6.
 
@@ -13,6 +13,7 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 - **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
 - **Responsive DCode workbench**: adapt the rail, conversation, preview, and environment summary to compact/medium/wide windows; persist rail sizing and provide quick workspace/task switching.
 - **Plugin management surface**: add dedicated Marketplace, Installed, and Configuration sections with repository review gates, live job progress, lifecycle controls, and restart state.
+- **DCode UI polish**: standardize conversation cards, add context usage and message actions, and improve focus, accessibility, and loading feedback across the workbench.
 
 ## Runtime and Compatibility
 
@@ -24,6 +25,7 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 
 - **Refresh generated Learning bundles and preserve the material, concept-review, and intent-routing contracts in the packaged runtime.**
 - **Keep the Windows release pipeline reusable by caching completed packaging layers without changing final artifact verification.**
+- **Keep fast tests isolated from generated-output and Windows platform checks so release verification remains repeatable.**
 
 ## Components
 

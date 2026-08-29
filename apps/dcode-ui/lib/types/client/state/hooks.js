@@ -55,7 +55,7 @@ export function useObservableSelector(source, fallback, select) {
     return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 const EMPTY_SESSION_LIST = {
-    ids: [], byId: {}, current: undefined, phase: 'pending',
+    ids: [], byId: {}, current: undefined, phase: 'pending', state: 'idle', error: null,
     subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 };
 const EMPTY_PENDING_INTERACTIONS = new Map();

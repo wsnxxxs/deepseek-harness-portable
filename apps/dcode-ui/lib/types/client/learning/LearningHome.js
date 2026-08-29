@@ -11,7 +11,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * around capabilities that already exist.
  * @module @dsh-portable/dcode-ui/client/learning/LearningHome
  */
-import { useCallback, useMemo, useState } from 'react';
+import { Component, Suspense, useCallback, useMemo, useState } from 'react';
 import { IconChevronLeftOutline14, IconGoalOutline16, IconQuestionOutline14, IconSkillOutline16, IconSparkle16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { VaultLibrary } from '@dsh-portable/interactive-learning/client';
 import { useRuntime } from "../state/runtime.js";
@@ -26,6 +26,21 @@ const MODES = [
     { id: 'problem', titleKey: 'learning.problem', bodyKey: 'learning.problemBody' },
     { id: 'material', titleKey: 'learning.material', bodyKey: 'learning.materialBody' },
 ];
+class LearningBoundary extends Component {
+    state = {};
+    static getDerivedStateFromError(error) {
+        return { error: error instanceof Error ? error.message : String(error) };
+    }
+    componentDidCatch(_error, _info) {
+        // The visible fallback is the recovery surface; no duplicate logging is
+        // needed here because the pack owns its own diagnostics.
+    }
+    render() {
+        return this.state.error === undefined
+            ? this.props.children
+            : (_jsx("div", { role: "alert", children: _jsx(EmptyState, { children: this.props.t('learning.error', { error: this.state.error }) }) }));
+    }
+}
 /** Learning entry points, the current learning session, and the vault. */
 export function LearningHome({ navigation, cwd, sessionId }) {
     const runtime = useRuntime();
@@ -93,10 +108,10 @@ export function LearningHome({ navigation, cwd, sessionId }) {
         { id: 'notes', label: t('learning.notes') },
         { id: 'visuals', label: t('learning.visuals') },
     ];
-    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('learning.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), sections.map(entry => (_jsxs("div", { children: [entry.group === undefined ? null : _jsx("div", { className: css.railGroup, children: entry.group }), _jsx("button", { type: "button", className: `${css.railItem} ${section === entry.id ? css.railItemActive : ''}`, onClick: () => { setSection(entry.id); }, children: entry.label })] }, entry.id)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [section === 'start'
+    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('learning.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), sections.map(entry => (_jsxs("div", { children: [entry.group === undefined ? null : _jsx("div", { className: css.railGroup, children: entry.group }), _jsx("button", { type: "button", className: `${css.railItem} ${section === entry.id ? css.railItemActive : ''}`, onClick: () => { setSection(entry.id); }, "aria-current": section === entry.id ? 'page' : undefined, children: entry.label })] }, entry.id)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [section === 'start'
                             ? (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('learning.title') }), _jsx("p", { className: css.subtitle, children: t('learning.subtitle') })] }), _jsx("div", { className: css.grid, children: MODES.map(mode => (_jsxs("button", { type: "button", className: css.mode, disabled: starting || runtime.navigation === undefined, onClick: () => { start(mode); }, children: [_jsxs("span", { className: css.modeTitle, children: [mode.id === 'concept'
                                                             ? _jsx(IconSparkle16, {})
-                                                            : mode.id === 'problem' ? _jsx(IconQuestionOutline14, { size: 16 }) : _jsx(IconSkillOutline16, {}), t(mode.titleKey)] }), _jsx("span", { className: css.modeBody, children: t(mode.bodyKey) })] }, mode.id))) }), failure === undefined ? null : _jsx("p", { className: css.note, children: failure }), cwd === undefined ? _jsx("p", { className: css.note, children: t('learning.needsWorkspace') }) : null] }))
+                                                            : mode.id === 'problem' ? _jsx(IconQuestionOutline14, { size: 16 }) : _jsx(IconSkillOutline16, {}), t(mode.titleKey)] }), _jsx("span", { className: css.modeBody, children: t(mode.bodyKey) })] }, mode.id))) }), failure === undefined ? null : _jsx("p", { className: css.note, role: "alert", children: failure }), cwd === undefined ? _jsx("p", { className: css.note, children: t('learning.needsWorkspace') }) : null] }))
                             : null, section === 'current'
                             ? (_jsxs(_Fragment, { children: [_jsx("div", { className: css.title, children: t('learning.current') }), learningSessions.length === 0
                                         ? _jsx(EmptyState, { children: t('learning.currentNone') })
@@ -109,7 +124,7 @@ export function LearningHome({ navigation, cwd, sessionId }) {
                                             ? t('learning.library')
                                             : section === 'concepts' ? t('learning.cards') : section === 'notes' ? t('learning.notes') : t('learning.visuals') }), cwd === undefined
                                         ? _jsx(EmptyState, { children: t('learning.needsWorkspace') })
-                                        : (_jsx("div", { className: css.library, children: _jsx(VaultLibrary, { cwd: cwd, call: runtime.learningCall, t: runtime.learningT, embedded: true }) }))] }))
+                                        : (_jsx("div", { className: css.library, children: _jsx(LearningBoundary, { t: t, children: _jsx(Suspense, { fallback: _jsx("div", { role: "status", children: _jsx(EmptyState, { children: t('learning.loading') }) }), children: _jsx(VaultLibrary, { cwd: cwd, call: runtime.learningCall, t: runtime.learningT, embedded: true }) }) }) }))] }))
                             : null] }) })] }));
 }
 //# sourceMappingURL=LearningHome.js.map

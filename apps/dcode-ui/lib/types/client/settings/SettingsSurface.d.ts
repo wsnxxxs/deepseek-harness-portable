@@ -12,15 +12,12 @@
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import { type NavigationStore } from '../state/navigation.ts';
 /** Props of the settings surface. */
 export interface SettingsSurfaceProps {
     readonly navigation: NavigationStore;
     readonly sessionId: SessionId | undefined;
-    /** Official DSH settings section renderer supplied by the root slot. */
-    readonly renderSection?: PropsRenderSlots<'settings.section'>['renderSlot'];
 }
 /** The settings rail and the selected section. */
-export declare function SettingsSurface({ navigation, sessionId, renderSection }: SettingsSurfaceProps): import("react").JSX.Element;
+export declare function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps): import("react").JSX.Element;
 //# sourceMappingURL=SettingsSurface.d.ts.map

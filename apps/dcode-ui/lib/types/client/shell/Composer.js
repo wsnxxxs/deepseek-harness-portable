@@ -16,6 +16,7 @@ import { useRuntime } from "../state/runtime.js";
 import { useAsync, useObservable, useProjectionValue, useSessionInput, useSessionSnapshot, useWorkspaceGroups, } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { Popover } from "./ui.js";
+import { ContextMeter } from "./ContextMeter.js";
 import css from './Composer.module.css';
 /** Permission value that requires an explicit user acknowledgement. */
 const FULL_ACCESS_PERMISSION = 'danger-full-access';
@@ -81,6 +82,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }) {
     const [fallbackDraft, setFallbackDraft] = useState('');
     const [focused, setFocused] = useState(false);
     const [error, setError] = useState(undefined);
+    const [dragActive, setDragActive] = useState(false);
     const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
     const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false);
     const inputRef = useRef(null);
@@ -91,15 +93,23 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }) {
     const attachments = useMemo(() => conversation?.draftAttachmentsFor(inputState.imageIds) ?? [], [conversation, inputState.imageIds]);
     // Restore this session's draft on a task switch, and persist the outgoing one.
     const previousSession = useRef(undefined);
+    const fallbackDraftRef = useRef(fallbackDraft);
+    const inputRefForDraft = useRef(input);
+    fallbackDraftRef.current = fallbackDraft;
+    inputRefForDraft.current = input;
     useEffect(() => {
         const outgoing = previousSession.current;
-        if (outgoing !== undefined)
-            drafts.set(outgoing, fallbackDraft);
+        if (outgoing !== undefined && inputRefForDraft.current === undefined) {
+            drafts.set(outgoing, fallbackDraftRef.current);
+        }
         setFallbackDraft(sessionId === undefined ? '' : drafts.get(sessionId) ?? '');
         setError(undefined);
         previousSession.current = sessionId;
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- the draft is captured, not observed
     }, [sessionId]);
+    useEffect(() => {
+        if (sessionId !== undefined && input === undefined)
+            drafts.set(sessionId, fallbackDraft);
+    }, [fallbackDraft, input, sessionId]);
     // Grow with content up to the stylesheet's cap. The card's width decides how
     // many lines the draft wraps to, so observe the card itself rather than only
     // the viewport — the center column can resize when either side rail changes.
@@ -219,6 +229,25 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }) {
             setError(cause instanceof Error ? cause.message : String(cause));
         }
     }, [conversation, input, t]);
+    const onPaste = useCallback((event) => {
+        const files = [];
+        for (const item of Array.from(event.clipboardData.items)) {
+            if (!item.type.startsWith('image/'))
+                continue;
+            const file = item.getAsFile();
+            if (file !== null)
+                files.push(file);
+        }
+        if (files.length === 0)
+            return;
+        event.preventDefault();
+        addAttachments(files);
+    }, [addAttachments]);
+    const onDrop = useCallback((event) => {
+        event.preventDefault();
+        setDragActive(false);
+        addAttachments(Array.from(event.dataTransfer.files));
+    }, [addAttachments]);
     const removeAttachment = useCallback((id) => {
         if (input === undefined || conversation === undefined)
             return;
@@ -347,14 +376,25 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }) {
             : css.permissionRead;
     return (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dock, children: [blank && sessionId !== undefined
                         ? (_jsx("div", { className: css.headerRow, children: _jsxs("button", { type: "button", className: css.projectChip, onClick: onOpenWorkspace, title: cwd, children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { children: workspaceTitle ?? t('nav.openWorkspace') }), _jsx(IconChevronDownOutline14, {})] }) }))
-                        : null, _jsxs("div", { ref: shellRef, className: `${css.shell} ${focused ? css.shellFocused : ''}`, children: [_jsxs("div", { className: css.inputArea, children: [_jsx("textarea", { ref: inputRef, className: css.input, rows: 1, value: draft, disabled: disabled, placeholder: disabled
+                        : null, _jsxs("div", { ref: shellRef, className: `${css.shell} ${focused ? css.shellFocused : ''} ${dragActive ? css.dropActive : ''}`, onDragEnter: event => {
+                            if (event.dataTransfer.types.includes('Files'))
+                                setDragActive(true);
+                        }, onDragOver: event => {
+                            if (event.dataTransfer.types.includes('Files'))
+                                event.preventDefault();
+                        }, onDragLeave: event => {
+                            if (!event.currentTarget.contains(event.relatedTarget))
+                                setDragActive(false);
+                        }, onDrop: onDrop, children: [dragActive
+                                ? (_jsxs("div", { className: css.dropOverlay, role: "status", children: [_jsx("strong", { children: t('composer.dropFiles') }), _jsx("span", { children: t('composer.dropFilesHint') })] }))
+                                : null, _jsxs("div", { className: css.inputArea, children: [_jsx("textarea", { ref: inputRef, className: css.input, rows: 1, value: draft, disabled: disabled, placeholder: disabled
                                             ? t('composer.needsSession')
-                                            : running ? t('composer.placeholderRunning') : t('composer.placeholder'), onChange: event => { updateDraft(event.target.value); }, onKeyDown: onKeyDown, onFocus: () => { setFocused(true); }, onBlur: () => { setFocused(false); } }), _jsx(AttachmentRail, { attachments: attachments, disabled: disabled || inputState.phase !== 'plain', onRemove: removeAttachment, t: t })] }), _jsx("input", { ref: attachmentInputRef, className: css.fileInput, type: "file", multiple: true, "aria-hidden": "true", tabIndex: -1, onChange: event => {
+                                            : running ? t('composer.placeholderRunning') : t('composer.placeholder'), onChange: event => { updateDraft(event.target.value); }, onKeyDown: onKeyDown, onPaste: onPaste, "aria-label": t('composer.placeholder'), onFocus: () => { setFocused(true); }, onBlur: () => { setFocused(false); } }), _jsx(AttachmentRail, { attachments: attachments, disabled: disabled || inputState.phase !== 'plain', onRemove: removeAttachment, t: t })] }), _jsx("input", { ref: attachmentInputRef, className: css.fileInput, type: "file", multiple: true, "aria-hidden": "true", tabIndex: -1, onChange: event => {
                                     addAttachments(Array.from(event.currentTarget.files ?? []));
                                     event.currentTarget.value = '';
-                                } }), error === undefined ? null : _jsx("div", { className: css.error, children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx("button", { type: "button", className: css.attachButton, "aria-label": t('composer.addAttachment'), title: t('composer.addAttachment'), disabled: disabled || input === undefined, onClick: () => { attachmentInputRef.current?.click(); }, children: _jsx(IconPaperclipOutline16, {}) }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows }), _jsx(Popover, { label: blankSession ? t('composer.mode') : t('composer.modeLocked'), disabled: !blankSession || sessionId === undefined || modeRows.length === 0, triggerClassName: `${css.controlTrigger} ${css.modeTrigger}`, trigger: _jsxs("span", { className: css.control, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { className: css.controlLabel, children: currentPresetLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: modeRows })] }), _jsxs("div", { className: css.trailingControls, children: [_jsx(Popover, { label: t('composer.model'), disabled: modelRows.length === 0, align: "end", triggerClassName: `${css.controlTrigger} ${css.modelTrigger}`, popoverClassName: css.modelMenu, trigger: _jsxs("span", { className: css.control, children: [_jsx("span", { className: css.controlLabel, children: currentModel === undefined
+                                } }), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx("button", { type: "button", className: css.attachButton, "aria-label": t('composer.addAttachment'), title: t('composer.addAttachment'), disabled: disabled || input === undefined, onClick: () => { attachmentInputRef.current?.click(); }, children: _jsx(IconPaperclipOutline16, {}) }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows }), _jsx(Popover, { label: blankSession ? t('composer.mode') : t('composer.modeLocked'), disabled: !blankSession || sessionId === undefined || modeRows.length === 0, triggerClassName: `${css.controlTrigger} ${css.modeTrigger}`, trigger: _jsxs("span", { className: css.control, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { className: css.controlLabel, children: currentPresetLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: modeRows })] }), _jsxs("div", { className: css.trailingControls, children: [_jsx(Popover, { label: t('composer.model'), disabled: modelRows.length === 0, align: "end", triggerClassName: `${css.controlTrigger} ${css.modelTrigger}`, popoverClassName: css.modelMenu, trigger: _jsxs("span", { className: css.control, children: [_jsx("span", { className: css.controlLabel, children: currentModel === undefined
                                                                 ? t('composer.model')
-                                                                : `${currentModel.model.name} · ${currentModel.group.name}` }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: modelRows }), _jsx(Popover, { label: t('composer.reasoning'), disabled: reasoningRows.length === 0, align: "end", triggerClassName: `${css.controlTrigger} ${css.reasoningTrigger}`, trigger: _jsxs("span", { className: css.control, children: [_jsx(IconThinkOutline16, {}), _jsx("span", { className: css.controlLabel, children: reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault') }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: reasoningRows }), running
+                                                                : `${currentModel.model.name} · ${currentModel.group.name}` }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: modelRows }), _jsx(Popover, { label: t('composer.reasoning'), disabled: reasoningRows.length === 0, align: "end", triggerClassName: `${css.controlTrigger} ${css.reasoningTrigger}`, trigger: _jsxs("span", { className: css.control, children: [_jsx(IconThinkOutline16, {}), _jsx("span", { className: css.controlLabel, children: reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault') }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: reasoningRows }), _jsx(ContextMeter, { sessionId: sessionId }), running
                                                 ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
                                                 : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
                     setAcknowledgedFullAccess(false);

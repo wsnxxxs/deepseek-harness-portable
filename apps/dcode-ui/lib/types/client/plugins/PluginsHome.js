@@ -64,7 +64,15 @@ function useInventory(client) {
                     unavailable: answer.unavailable,
                 });
         })
-            .catch(() => { });
+            .catch((cause) => {
+            if (controller.signal.aborted)
+                return;
+            setState(previous => ({
+                ...previous,
+                loading: false,
+                error: cause instanceof Error ? cause.message : String(cause),
+            }));
+        });
         return () => { controller.abort(); };
     }, [client, nonce]);
     const reload = useCallback(() => { setNonce(value => value + 1); }, []);
@@ -113,7 +121,7 @@ export function PluginsHome({ navigation }) {
     const auditLocale = locale.active.toLowerCase().startsWith('zh') ? 'zh' : 'en';
     const installedCount = inventory.snapshot?.plugins.length;
     const marketplaceMissing = inventory.unavailable;
-    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('plugins.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(entry => (_jsxs("div", { children: [entry.group === undefined ? null : _jsx("div", { className: css.railGroup, children: t(entry.group) }), _jsxs("button", { type: "button", className: `${css.railItem} ${section === entry.id ? css.railItemActive : ''}`, onClick: () => { setSection(entry.id); }, children: [entry.icon, _jsx("span", { className: ui.grow, children: t(entry.label) }), entry.id === 'installed' && installedCount !== undefined && installedCount > 0
+    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('plugins.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(entry => (_jsxs("div", { children: [entry.group === undefined ? null : _jsx("div", { className: css.railGroup, children: t(entry.group) }), _jsxs("button", { type: "button", className: `${css.railItem} ${section === entry.id ? css.railItemActive : ''}`, "aria-current": section === entry.id ? 'page' : undefined, onClick: () => { setSection(entry.id); }, children: [entry.icon, _jsx("span", { className: ui.grow, children: t(entry.label) }), entry.id === 'installed' && installedCount !== undefined && installedCount > 0
                                         ? _jsx("span", { className: css.railCount, children: installedCount })
                                         : null] })] }, entry.id)))] }), _jsx("div", { className: css.body, children: _jsx("div", { className: css.inner, children: section === 'settings'
                         ? _jsx(PluginSettingsSection, {})

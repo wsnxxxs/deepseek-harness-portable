@@ -60,11 +60,11 @@ export function JobProgress({ operation, onCancel }) {
     const percent = job?.percent;
     const indeterminate = percent === undefined;
     const parts = job === undefined ? [] : statistics(job, t);
-    return (_jsxs("div", { className: css.progress, role: "status", "aria-live": "polite", children: [_jsxs("div", { className: css.progressHead, children: [_jsx("span", { className: css.progressPhase, children: t(job === undefined ? 'plugins.phase.pending' : PHASE_KEY[job.phase]) }), _jsx("span", { className: css.progressPercent, children: indeterminate ? '…' : `${String(percent)}%` }), parts.length === 0 ? null : _jsx("span", { className: css.progressStats, children: parts.join(' · ') }), operation.jobId === undefined
+    return (_jsxs("div", { className: css.progress, role: "region", "aria-live": "off", "aria-label": t('plugins.progress.label'), children: [_jsxs("div", { className: css.progressHead, children: [_jsx("span", { className: css.progressPhase, role: "status", "aria-live": "polite", children: t(job === undefined ? 'plugins.phase.pending' : PHASE_KEY[job.phase]) }), _jsx("span", { className: css.progressPercent, children: indeterminate ? '…' : `${String(percent)}%` }), parts.length === 0 ? null : _jsx("span", { className: css.progressStats, children: parts.join(' · ') }), operation.jobId === undefined
                         ? null
-                        : _jsx(Button, { onClick: onCancel, children: t('plugins.cancelJob') })] }), _jsx("div", { className: css.progressTrack, role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, ...(indeterminate ? {} : { 'aria-valuenow': percent }), children: _jsx("div", { className: `${css.progressFill} ${indeterminate ? css.progressIndeterminate : ''}`, ...(indeterminate ? {} : { style: { width: `${String(percent)}%` } }) }) }), job === undefined || job.step === '' ? null : _jsx("div", { className: css.progressStep, children: job.step }), job === undefined || job.log.length === 0
+                        : _jsx(Button, { onClick: onCancel, children: t('plugins.cancelJob') })] }), _jsx("div", { className: css.progressTrack, role: "progressbar", "aria-label": t('plugins.progress.label'), "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuetext": indeterminate ? t('plugins.progress.indeterminate') : `${String(percent)}%`, ...(indeterminate ? {} : { 'aria-valuenow': percent }), children: _jsx("div", { className: `${css.progressFill} ${indeterminate ? css.progressIndeterminate : ''}`, ...(indeterminate ? {} : { style: { width: `${String(percent)}%` } }) }) }), job === undefined || job.step === '' ? null : _jsx("div", { className: css.progressStep, children: job.step }), job === undefined || job.log.length === 0
                 ? null
-                : _jsx("pre", { className: css.log, children: job.log.slice(-LOG_LINES).join('\n') })] }));
+                : _jsx("pre", { className: css.log, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: job.log.slice(-LOG_LINES).join('\n') })] }));
 }
 /** How much installer output a failure keeps on screen. */
 const FAILURE_OUTPUT = 800;
@@ -74,8 +74,9 @@ const FAILURE_OUTPUT = 800;
  * @returns the output block, or null when the Host sent none.
  */
 export function JobOutput({ operation }) {
+    const t = useT();
     if (operation.status !== 'failed' || operation.output === '')
         return null;
-    return _jsx("pre", { className: css.log, children: operation.output.slice(-FAILURE_OUTPUT) });
+    return _jsx("pre", { className: css.log, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: operation.output.slice(-FAILURE_OUTPUT) });
 }
 //# sourceMappingURL=JobProgress.js.map

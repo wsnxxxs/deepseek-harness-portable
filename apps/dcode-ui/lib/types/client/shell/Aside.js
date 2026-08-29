@@ -9,7 +9,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * the window and reopen it in the classic UI and the same facts are there.
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { IconChecklistOutline14, IconCheckOutline14, IconCloseOutline16, IconGoalOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -117,16 +117,16 @@ function DetailsPanel({ sessionId, callId, cwd, diff, }) {
             return _jsx(EmptyState, { children: currentFile.error.message || t('common.error') });
         return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: t('details.file') }), _jsxs("span", { className: css.fileMeta, children: [currentFile.value.size, " B"] })] }), _jsx("div", { className: css.filePath, title: currentFile.value.path, children: _jsx("bdi", { children: currentFile.value.path }) }), _jsxs("div", { className: css.fileMeta, children: [currentFile.value.binary ? _jsx(Pill, { children: t('git.binary') }) : null, currentFile.value.truncated ? _jsx(Pill, { children: t('git.truncated') }) : null] }), currentFile.value.binary
                     ? _jsx(EmptyState, { children: t('git.binary') })
-                    : _jsx("pre", { className: css.pre, children: currentFile.value.text })] }));
+                    : _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.file'), children: currentFile.value.text })] }));
     }
     const settled = 'isError' in block;
     const name = settled ? block.call?.name ?? 'tool' : block.name;
     const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
     const summary = summarizeTool(name, argsRaw);
     const output = settled ? resultText(block.content) : '';
-    return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: name }), _jsx(Pill, { children: summary.kind })] }), _jsxs("div", { className: css.detailBlock, children: [_jsx("span", { className: css.detailLabel, children: t('details.arguments') }), _jsx("pre", { className: css.pre, children: argsRaw ?? '—' })] }), settled
+    return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: name }), _jsx(Pill, { children: summary.kind })] }), _jsxs("div", { className: css.detailBlock, children: [_jsx("span", { className: css.detailLabel, children: t('details.arguments') }), _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw ?? '—' })] }), settled
                 ? (_jsxs("div", { className: css.detailBlock, children: [_jsxs("span", { className: css.detailRow, children: [_jsx("span", { className: css.detailLabel, children: t('details.output') }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
-                            ? _jsx("pre", { className: css.pre, children: "\u2014" })
+                            ? _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
                             : _jsx(AnsiOutput, { text: output, wrap: wrap })] }))
                 : null] }));
 }
@@ -134,12 +134,30 @@ function DetailsPanel({ sessionId, callId, cwd, diff, }) {
 export function Aside({ navigation, sessionId, cwd }) {
     const t = useT();
     const state = useNavigation(navigation);
+    const tabPrefix = useId();
+    const tabRefs = useRef({ changes: null, goal: null, details: null });
     const tabs = [
         { id: 'changes', label: t('git.changes') },
         { id: 'goal', label: t('goal.title') },
         { id: 'details', label: t('details.title') },
     ];
-    return (_jsxs("aside", { className: css.aside, "aria-label": t('details.title'), children: [_jsxs("header", { className: css.header, children: [_jsx("span", { className: css.headerTitle, children: t('aside.title') }), _jsx("button", { type: "button", className: css.headerClose, "aria-label": t('aside.close'), onClick: () => { navigation.toggleAside(); }, children: _jsx(IconCloseOutline16, {}) })] }), _jsx("div", { className: css.tabs, role: "tablist", "aria-label": t('aside.title'), children: tabs.map(tab => (_jsx("button", { type: "button", role: "tab", "aria-selected": state.aside === tab.id, className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, children: tab.label }, tab.id))) }), _jsxs("div", { className: css.body, children: [state.aside === 'changes'
+    const panelId = `${tabPrefix}-panel`;
+    const moveTab = (event, index) => {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End')
+            return;
+        event.preventDefault();
+        const next = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+                ? tabs.length - 1
+                : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        const tab = tabs[next];
+        if (tab === undefined)
+            return;
+        navigation.openAside(tab.id);
+        tabRefs.current[tab.id]?.focus();
+    };
+    return (_jsxs("aside", { className: css.aside, "aria-label": t('details.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.headerTitle, children: t('aside.title') }), _jsx("button", { type: "button", className: css.headerClose, "aria-label": t('aside.close'), onClick: () => { navigation.toggleAside(); }, children: _jsx(IconCloseOutline16, {}) })] }), _jsx("div", { className: css.tabs, role: "tablist", "aria-label": t('aside.title'), children: tabs.map((tab, index) => (_jsx("button", { ref: element => { tabRefs.current[tab.id] = element; }, type: "button", role: "tab", id: `${tabPrefix}-${tab.id}`, "aria-selected": state.aside === tab.id, "aria-controls": panelId, tabIndex: state.aside === tab.id ? 0 : -1, className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, onKeyDown: event => { moveTab(event, index); }, children: tab.label }, tab.id))) }), _jsxs("div", { id: panelId, className: css.body, role: "tabpanel", tabIndex: 0, "aria-labelledby": `${tabPrefix}-${state.aside}`, "aria-label": tabs.find(tab => tab.id === state.aside)?.label, children: [state.aside === 'changes'
                         ? (_jsxs(_Fragment, { children: [_jsx(GitPanel, { cwd: cwd, sessionId: sessionId, selected: state.diff?.path, onOpenDiff: (path, staged) => { navigation.openDiff(path, staged); } }), state.diff === undefined || cwd === undefined
                                     ? null
                                     : (_jsx(DiffViewer, { cwd: cwd, path: state.diff.path, staged: state.diff.staged, onClose: () => { navigation.closeDiff(); } }))] }))

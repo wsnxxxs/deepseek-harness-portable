@@ -188,21 +188,29 @@ a from-scratch kernel build or release package.
 
 After that, package on the matching native host. Packaging runs the real capability probes, writes the measured mode catalog and file inventory, retests the manifest-bearing application bytes, creates the platform containers, and finally writes an immutable verified bundle:
 
+Run the default fast suite before packaging. Tests that intentionally rebuild or
+write generated package output are kept in the dirty suite; Windows-only
+launcher and updater checks are in the platform suite:
+
+    pnpm test
+    pnpm run test:dirty
+    pnpm run test:platform
+
     pnpm run desktop:package:win
 
-The verified Windows bundle is written to `dist-desktop/verified/win32-x64/`. Publishing is a separate copy-only operation and requires that directory explicitly:
+The verified Windows bundle is written to `dist-desktop/electron/verified/win32-x64/`. Publishing is a separate copy-only operation and requires that directory explicitly:
 
-    pnpm run desktop:release:win -- --input dist-desktop/verified/win32-x64
+    pnpm run desktop:release:win -- --input dist-desktop/electron/verified/win32-x64
 
 For macOS Apple Silicon DMG builds, use:
 
     pnpm run desktop:package:mac
-    pnpm run desktop:release:mac -- --input dist-desktop/verified/darwin-arm64
+    pnpm run desktop:release:mac -- --input dist-desktop/electron/verified/darwin-arm64
 
 For Linux x64 AppImage and deb builds, run on a native Linux x64 host:
 
     pnpm run desktop:package:linux
-    pnpm run desktop:release:linux -- --input dist-desktop/verified/linux-x64
+    pnpm run desktop:release:linux -- --input dist-desktop/electron/verified/linux-x64
 
 The Linux command writes the unpacked runtime to
 `dist-desktop/electron/DeepSeek Harness-linux-x64/` and the release artifacts to

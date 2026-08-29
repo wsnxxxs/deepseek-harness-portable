@@ -9,13 +9,14 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * workspace crawl of its own.
  * @module @dsh-portable/dcode-ui/client/shell/CommandPalette
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16, IconListPenOutline16, IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useCurrentSessionId, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { THEME_PREFERENCES } from "../theme.js";
 import { commandShortcut } from "../platform.js";
+import { useModalFocus } from "./use-modal-focus.js";
 import css from './CommandPalette.module.css';
 /** Locale key per theme preference, for the palette's three theme rows. */
 const THEME_LABEL = {
@@ -51,7 +52,12 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
     const [active, setActive] = useState(0);
     const [files, setFiles] = useState([]);
     const inputRef = useRef(null);
-    useEffect(() => { inputRef.current?.focus(); }, []);
+    const panelRef = useRef(null);
+    const listId = useId();
+    useModalFocus(true, panelRef, {
+        initialFocusRef: inputRef,
+        onClose: () => { navigation.togglePalette(false); },
+    });
     // File candidates come from the Host index, re-queried as the operator types.
     useEffect(() => {
         if (sessionId === undefined || query.trim() === '') {
@@ -227,7 +233,7 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
             && (fuzzyMatch(query, row.label) || (row.detail !== undefined && fuzzyMatch(query, row.detail))));
         return matching;
     }, [actions, list, files, filter, query, t, navigation, runtime]);
-    useEffect(() => { setActive(0); }, [query, filter]);
+    useEffect(() => { setActive(0); }, [query, filter, rows.length]);
     const choose = useCallback((row) => {
         if (row === undefined)
             return;
@@ -237,7 +243,7 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
     const onKeyDown = useCallback((event) => {
         if (event.key === 'ArrowDown') {
             event.preventDefault();
-            setActive(index => Math.min(index + 1, rows.length - 1));
+            setActive(index => Math.max(0, Math.min(index + 1, rows.length - 1)));
             return;
         }
         if (event.key === 'ArrowUp') {
@@ -260,10 +266,10 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
     return (_jsx("div", { className: css.backdrop, role: "presentation", onPointerDown: (event) => {
             if (event.target === event.currentTarget)
                 navigation.togglePalette(false);
-        }, children: _jsxs("div", { className: css.panel, role: "dialog", "aria-modal": "true", "aria-label": t('nav.commandPalette'), children: [_jsxs("div", { className: css.search, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: inputRef, className: css.input, value: query, placeholder: t('palette.placeholder'), onChange: event => { setQuery(event.target.value); }, onKeyDown: onKeyDown })] }), _jsx("div", { className: css.filters, children: filters.map(entry => (_jsx("button", { type: "button", className: `${css.filter} ${filter === entry.id ? css.filterActive : ''}`, onClick: () => { setFilter(entry.id); }, children: entry.label }, entry.id))) }), _jsxs("div", { className: css.list, children: [rows.length === 0 ? _jsx("div", { className: css.empty, children: t('palette.empty') }) : null, rows.map((row, index) => {
+        }, children: _jsxs("div", { ref: panelRef, className: css.panel, role: "dialog", "aria-modal": "true", "aria-label": t('nav.commandPalette'), tabIndex: -1, children: [_jsxs("div", { className: css.search, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: inputRef, className: css.input, role: "combobox", "aria-autocomplete": "list", "aria-label": t('palette.placeholder'), "aria-expanded": true, "aria-controls": listId, "aria-activedescendant": rows[active] === undefined ? undefined : `palette-row-${String(active)}`, value: query, placeholder: t('palette.placeholder'), onChange: event => { setQuery(event.target.value); }, onKeyDown: onKeyDown })] }), _jsx("div", { className: css.filters, role: "group", "aria-label": t('palette.filter'), children: filters.map(entry => (_jsx("button", { type: "button", className: `${css.filter} ${filter === entry.id ? css.filterActive : ''}`, "aria-pressed": filter === entry.id, onClick: () => { setFilter(entry.id); }, children: entry.label }, entry.id))) }), _jsxs("div", { className: css.list, id: listId, role: "listbox", "aria-label": t('palette.results'), children: [rows.length === 0 ? _jsx("div", { className: css.empty, children: t('palette.empty') }) : null, rows.map((row, index) => {
                             const heading = row.group === lastGroup ? null : _jsx("div", { className: css.group, children: row.group }, `g:${row.group}`);
                             lastGroup = row.group;
-                            return (_jsxs("div", { children: [heading, _jsxs("button", { type: "button", className: `${css.row} ${index === active ? css.rowActive : ''}`, onPointerEnter: () => { setActive(index); }, onClick: () => { choose(row); }, children: [row.icon, _jsx("span", { className: css.rowLabel, children: row.label }), row.detail === undefined ? null : _jsx("span", { className: css.rowDetail, children: row.detail }), row.shortcut === undefined ? null : _jsx("span", { className: css.shortcut, children: row.shortcut })] })] }, row.id));
+                            return (_jsxs("div", { children: [heading, _jsxs("button", { id: `palette-row-${String(index)}`, type: "button", role: "option", "aria-selected": index === active, className: `${css.row} ${index === active ? css.rowActive : ''}`, onPointerEnter: () => { setActive(index); }, onClick: () => { choose(row); }, children: [row.icon, _jsx("span", { className: css.rowLabel, children: row.label }), row.detail === undefined ? null : _jsx("span", { className: css.rowDetail, children: row.detail }), row.shortcut === undefined ? null : _jsx("span", { className: css.shortcut, children: row.shortcut })] })] }, row.id));
                         })] })] }) }));
 }
 //# sourceMappingURL=CommandPalette.js.map

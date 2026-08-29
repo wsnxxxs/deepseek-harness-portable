@@ -9,10 +9,10 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * completes.
  * @module @dsh-portable/dcode-ui/client/chat/ToolCard
  */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { IconBrowseOutline16, IconChecklistOutline14, IconChevronRightOutline14, IconCodeOutline16, IconEditOutline16, IconSearchOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
-import { Spinner } from "../shell/ui.js";
+import { Spinner, ui } from "../shell/ui.js";
 import { AnsiOutput, OutputToolbar } from "./AnsiOutput.js";
 import { resultText, summarizeTool } from "./tools.js";
 import css from './ToolCard.module.css';
@@ -39,6 +39,7 @@ function isSettled(block) {
 export function ToolCard({ block, onInspect }) {
     const t = useT();
     const [open, setOpen] = useState(false);
+    const contentId = useId();
     // Wrap is per card and per session: an operator reading a wide table turns
     // it off once, and the next card they open is a stack trace that wants it on.
     const [wrap, setWrap] = useState(true);
@@ -53,15 +54,15 @@ export function ToolCard({ block, onInspect }) {
         : settled
             ? t('chat.ran')
             : t('chat.running');
-    return (_jsxs("div", { className: css.group, children: [_jsxs("div", { className: css.card, children: [_jsxs("button", { type: "button", className: css.head, "aria-expanded": open, onClick: () => {
+    return (_jsxs("div", { className: css.group, children: [_jsxs("div", { className: css.card, children: [_jsxs("button", { type: "button", className: `${css.head} ${ui.cardHeader}`, "aria-expanded": open, "aria-controls": contentId, onClick: () => {
                             setOpen(value => !value);
                             onInspect?.(block.callId);
                         }, children: [_jsx("span", { className: `${css.glyph} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), _jsx(IconChevronRightOutline14, { className: `${css.chevron} ${open ? css.chevronOpen : ''}` })] }), open
-                        ? (_jsxs("div", { className: css.body, children: [argsRaw === undefined || argsRaw.trim() === ''
+                        ? (_jsxs("div", { className: css.body, id: contentId, children: [argsRaw === undefined || argsRaw.trim() === ''
                                     ? null
-                                    : (_jsxs(_Fragment, { children: [_jsx("span", { className: css.bodyLabel, children: t('details.arguments') }), _jsx("pre", { className: css.output, children: argsRaw })] })), settled
+                                    : (_jsxs(_Fragment, { children: [_jsx("span", { className: css.bodyLabel, children: t('details.arguments') }), _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw })] })), settled
                                     ? (_jsxs(_Fragment, { children: [_jsxs("span", { className: css.bodyRow, children: [_jsx("span", { className: css.bodyLabel, children: t('details.output') }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
-                                                ? _jsx("pre", { className: css.output, children: "\u2014" })
+                                                ? _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
                                                 : (_jsx(AnsiOutput, { text: output, wrap: wrap, className: failed ? css.error : undefined }))] }))
                                     : null] }))
                         : null] }), block.subCalls.length === 0

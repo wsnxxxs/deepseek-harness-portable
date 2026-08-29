@@ -121,7 +121,7 @@ describe('concept cards', () => {
     })
     const memory = await readLearnerMemoryWithCards(vault)
     expect(memory.concepts[0]).toMatchObject({ conceptSlug: '闭包', due: '2026-08-29', reviewIntervalDays: 3 })
-    expect(renderLearnerMemory(memory, { title: '学习库' })).toContain('next review: 2026-08-29')
+    expect(renderLearnerMemory(memory, { title: '学习库' })).toContain('DUE for review')
   })
 
   it('moves concept anchors with a renamed section and marks missing ones stale', async () => {

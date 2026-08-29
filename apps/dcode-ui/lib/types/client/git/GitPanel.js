@@ -58,6 +58,11 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }) {
         void runtime.git.branches(cwd).then((result) => {
             if (live && result.ok)
                 setBranches(result.value.branches);
+            if (live && !result.ok)
+                setNote({ text: result.error.message, error: true });
+        }).catch((cause) => {
+            if (live)
+                setNote({ text: cause instanceof Error ? cause.message : String(cause), error: true });
         });
         return () => { live = false; };
     }, [runtime, cwd, git.status]);
@@ -82,7 +87,9 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }) {
             setMessage('');
             setNote({ text: t('git.committed', { commit: result.value.commit ?? '' }), error: false });
             git.refresh();
-        });
+        }).catch((cause) => {
+            setNote({ text: cause instanceof Error ? cause.message : String(cause), error: true });
+        }).finally(() => { setCommitting(false); });
     }, [runtime, cwd, message, git, t]);
     if (git.unavailable)
         return _jsx(EmptyState, { children: t('git.unavailable') });
@@ -113,8 +120,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }) {
                             active: branch.current,
                         })), triggerClassName: css.branchRow }), status.ahead > 0 ? _jsx("span", { children: t('git.ahead', { count: status.ahead }) }) : null, status.behind > 0 ? _jsx("span", { children: t('git.behind', { count: status.behind }) }) : null] }), status.files.length === 0
                 ? _jsx(EmptyState, { children: t('git.clean') })
-                : (_jsx("div", { className: css.files, children: status.files.map(file => (_jsxs("button", { type: "button", className: `${css.file} ${selected === file.path ? css.fileActive : ''}`, onClick: () => { onOpenDiff(file.path, file.staged); }, title: file.path, children: [_jsx("span", { className: `${css.code} ${codeClass(file)}`, "aria-hidden": true, children: codeMark(file) }), _jsx("span", { className: css.path, children: _jsx("bdi", { children: file.path }) }), _jsx(DiffCount, { insertions: file.insertions, deletions: file.deletions })] }, `${file.code}:${file.path}`))) })), _jsxs("div", { className: css.commit, children: [_jsx("textarea", { className: css.input, rows: 2, value: message, placeholder: t('git.commitPlaceholder'), onChange: event => { setMessage(event.target.value); } }), _jsxs("div", { className: css.actions, children: [_jsx(Button, { primary: true, disabled: committing || message.trim() === '' || status.files.length === 0, onClick: commit, children: committing ? t('git.committing') : t('git.commit') }), note === undefined
+                : (_jsx("div", { className: css.files, children: status.files.map(file => (_jsxs("button", { type: "button", className: `${css.file} ${selected === file.path ? css.fileActive : ''}`, onClick: () => { onOpenDiff(file.path, file.staged); }, title: file.path, children: [_jsx("span", { className: `${css.code} ${codeClass(file)}`, "aria-hidden": true, children: codeMark(file) }), _jsx("span", { className: css.path, children: _jsx("bdi", { children: file.path }) }), _jsx(DiffCount, { insertions: file.insertions, deletions: file.deletions })] }, `${file.code}:${file.path}`))) })), _jsxs("div", { className: css.commit, children: [_jsx("textarea", { className: css.input, rows: 2, value: message, "aria-label": t('git.commitPlaceholder'), placeholder: t('git.commitPlaceholder'), onChange: event => { setMessage(event.target.value); } }), _jsxs("div", { className: css.actions, children: [_jsx(Button, { primary: true, disabled: committing || message.trim() === '' || status.files.length === 0, onClick: commit, children: committing ? t('git.committing') : t('git.commit') }), note === undefined
                                 ? null
-                                : _jsx("span", { className: `${css.note} ${note.error ? css.noteError : ''}`, children: note.text })] })] })] }));
+                                : _jsx("span", { className: `${css.note} ${note.error ? css.noteError : ''}`, role: note.error ? 'alert' : 'status', children: note.text })] })] })] }));
 }
 //# sourceMappingURL=GitPanel.js.map

@@ -14,11 +14,12 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useState } from 'react';
 import { Button as PrimitiveButton, IconRefreshOutline14, Modal, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
-import { Button, EmptyState, IconButton, Spinner } from "../shell/ui.js";
+import { Button, EmptyState, IconButton, Pill, Spinner } from "../shell/ui.js";
 import { lifecycleSteps, pendingRestart, } from "./market.js";
 import { JobOutput, JobProgress } from "./JobProgress.js";
 import { useOperations } from "./useJob.js";
 import css from './PluginsHome.module.css';
+import ui from '../shell/ui.module.css';
 /** Name of each lifecycle stage. */
 const STEP_NAME = {
     installed: 'plugins.lifecycle.installed',
@@ -54,29 +55,29 @@ function InstalledCard(props) {
     const t = useT();
     const { plugin, operation } = props;
     const busy = operation?.status === 'running';
-    return (_jsxs("article", { className: css.card, children: [_jsxs("div", { className: css.cardHead, children: [_jsxs("div", { className: css.identity, children: [plugin.homepage === undefined
+    return (_jsxs("article", { className: css.card, children: [_jsxs("div", { className: `${css.cardHead} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.identity, children: [plugin.homepage === undefined
                                 ? _jsx("span", { className: css.name, children: plugin.name })
-                                : (_jsx("a", { className: css.name, href: plugin.homepage, target: "_blank", rel: "noreferrer", children: plugin.name })), props.self ? _jsx("span", { className: `${css.tag} ${css.tagAccent}`, children: t('plugins.selfTag') }) : null, plugin.updateAvailable && plugin.latestVersion !== undefined
-                                ? (_jsx("span", { className: `${css.tag} ${css.tagAccent}`, children: t('plugins.updateTag', { version: plugin.latestVersion }) }))
-                                : null, plugin.enabled ? null : _jsx("span", { className: `${css.tag} ${css.tagMuted}`, children: t('plugins.disabledTag') }), pendingRestart(plugin)
-                                ? _jsx("span", { className: `${css.tag} ${css.tagWarn}`, children: t('plugins.pendingTag') })
+                                : (_jsx("a", { className: css.name, href: plugin.homepage, target: "_blank", rel: "noreferrer", children: plugin.name })), props.self ? _jsx(Pill, { className: css.tagAccent, children: t('plugins.selfTag') }) : null, plugin.updateAvailable && plugin.latestVersion !== undefined
+                                ? (_jsx(Pill, { className: css.tagAccent, children: t('plugins.updateTag', { version: plugin.latestVersion }) }))
+                                : null, plugin.enabled ? null : _jsx(Pill, { className: css.tagMuted, children: t('plugins.disabledTag') }), pendingRestart(plugin)
+                                ? _jsx(Pill, { className: css.tagWarn, children: t('plugins.pendingTag') })
                                 : null] }), _jsxs("div", { className: css.actions, children: [plugin.updateAvailable && plugin.latestVersion !== undefined
                                 ? (_jsx(Button, { primary: true, disabled: busy, onClick: props.onUpdate, children: busy ? t('plugins.updating') : t('plugins.update', { version: plugin.latestVersion }) }))
                                 : null, props.self
                                 ? null
-                                : (_jsxs(_Fragment, { children: [_jsx(Button, { disabled: busy, onClick: props.onToggle, children: busy ? t('plugins.working') : t(plugin.enabled ? 'plugins.disable' : 'plugins.enable') }), _jsx(Button, { className: css.dangerConfirm, disabled: busy, onClick: props.onUninstall, children: t('plugins.uninstall') })] }))] })] }), _jsxs("div", { className: css.facts, children: [_jsx("span", { className: css.tag, children: plugin.version === undefined
-                            ? t('plugins.versionUnknown')
-                            : t('plugins.version', { version: plugin.version }) }), plugin.latestVersion === undefined || plugin.latestVersion === plugin.version
+                                : (_jsxs(_Fragment, { children: [_jsx(Button, { disabled: busy, onClick: props.onToggle, children: busy ? t('plugins.working') : t(plugin.enabled ? 'plugins.disable' : 'plugins.enable') }), _jsx(Button, { className: css.dangerConfirm, disabled: busy, onClick: props.onUninstall, children: t('plugins.uninstall') })] }))] })] }), _jsxs("div", { className: css.cardBody, children: [_jsxs("div", { className: css.facts, children: [_jsx(Pill, { children: plugin.version === undefined
+                                    ? t('plugins.versionUnknown')
+                                    : t('plugins.version', { version: plugin.version }) }), plugin.latestVersion === undefined || plugin.latestVersion === plugin.version
+                                ? null
+                                : _jsx(Pill, { children: t('plugins.latestVersion', { version: plugin.latestVersion }) })] }), plugin.description === undefined
                         ? null
-                        : _jsx("span", { className: css.tag, children: t('plugins.latestVersion', { version: plugin.latestVersion }) })] }), plugin.description === undefined
-                ? null
-                : _jsx("p", { className: css.description, children: plugin.description }), _jsx(Lifecycle, { plugin: plugin }), props.self ? _jsx("div", { className: css.statusLine, children: t('plugins.selfNote') }) : null, operation === undefined
-                ? null
-                : (_jsxs(_Fragment, { children: [_jsx(JobProgress, { operation: operation, onCancel: props.onCancel }), operation.status === 'done'
-                            ? _jsx("div", { className: `${css.statusLine} ${css.statusOk}`, children: t('plugins.actionDone') })
-                            : null, operation.status === 'failed'
-                            ? (_jsxs(_Fragment, { children: [_jsx("div", { className: `${css.statusLine} ${css.statusError}`, children: t('plugins.actionFailed', { error: operation.error ?? '' }) }), _jsx(JobOutput, { operation: operation })] }))
-                            : null] }))] }));
+                        : _jsx("p", { className: css.description, children: plugin.description }), _jsx(Lifecycle, { plugin: plugin }), props.self ? _jsx("div", { className: css.statusLine, children: t('plugins.selfNote') }) : null, operation === undefined
+                        ? null
+                        : (_jsxs(_Fragment, { children: [_jsx(JobProgress, { operation: operation, onCancel: props.onCancel }), operation.status === 'done'
+                                    ? _jsx("div", { className: `${css.statusLine} ${css.statusOk}`, children: t('plugins.actionDone') })
+                                    : null, operation.status === 'failed'
+                                    ? (_jsxs(_Fragment, { children: [_jsx("div", { className: `${css.statusLine} ${css.statusError}`, children: t('plugins.actionFailed', { error: operation.error ?? '' }) }), _jsx(JobOutput, { operation: operation })] }))
+                                    : null] }))] })] }));
 }
 /** Manage the plugins this profile has installed. */
 export function InstalledSection(props) {
@@ -88,12 +89,12 @@ export function InstalledSection(props) {
     const selfName = props.snapshot?.self?.name;
     return (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('plugins.installedTitle') }), _jsx("p", { className: css.subtitle, children: t('plugins.installedBody') })] }), _jsxs("div", { className: css.toolbar, children: [_jsxs("span", { className: css.meta, children: [t('plugins.installedCount', { count: plugins.length }), updatable === 0 ? '' : ` · ${t('plugins.updatableCount', { count: updatable })}`] }), _jsx(IconButton, { label: t('plugins.refresh'), disabled: props.loading, onClick: props.onReload, children: _jsx(IconRefreshOutline14, {}) })] }), props.error === undefined
                 ? null
-                : _jsx("div", { className: css.error, children: t('plugins.readFailed', { error: props.error }) }), props.snapshot?.error === undefined
+                : _jsx("div", { className: css.error, role: "alert", children: t('plugins.readFailed', { error: props.error }) }), props.snapshot?.error === undefined
                 ? null
-                : _jsx("div", { className: css.error, children: t('plugins.readFailed', { error: props.snapshot.error }) }), plugins.length === 0
-                ? (_jsx(EmptyState, { children: props.loading
-                        ? _jsx(Spinner, {})
-                        : (_jsxs(_Fragment, { children: [t('plugins.emptyInstalled'), _jsx(Button, { primary: true, onClick: props.onBrowse, children: t('plugins.browseMarket') })] })) }))
+                : _jsx("div", { className: css.error, role: "alert", children: t('plugins.readFailed', { error: props.snapshot.error }) }), plugins.length === 0
+                ? (props.loading
+                    ? _jsxs("div", { className: css.loadingState, role: "status", children: [_jsx(Spinner, { size: "sm" }), t('plugins.loading')] })
+                    : (_jsxs(EmptyState, { children: [t('plugins.emptyInstalled'), _jsx(Button, { primary: true, onClick: props.onBrowse, children: t('plugins.browseMarket') })] })))
                 : (_jsxs("div", { className: css.list, children: [plugins.map(plugin => (_jsx(InstalledCard, { plugin: plugin, self: plugin.name === selfName, operation: operations[plugin.name], onUpdate: () => {
                                 start(plugin.name, () => props.client.update(plugin.name), props.onReload);
                             }, onToggle: () => {

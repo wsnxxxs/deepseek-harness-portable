@@ -64,6 +64,7 @@ export const inject = [
     'remote.credentials',
     'remote.llm',
     'remote.pluginInventory',
+    'remote.messageFeedback',
     'remote.subagents',
     'remote.agentPresets',
     'remote.fileReferences',
@@ -90,10 +91,7 @@ function bindRootRegistration(ctx, mode) {
     const t = bindTranslate(ctx.locale.bind(DCODE_NS));
     // One element tree, created once: a mode flip mounts and unmounts it, and
     // the workbench's own view state survives in `navigation` across the flip.
-    const render = ({ renderSlot }) => createElement(DcodeRuntimeProvider, { value: runtime }, createElement(TranslateProvider, { value: t }, createElement(Workbench, {
-        navigation,
-        renderSettingsSlot: renderSlot,
-    })));
+    const render = () => createElement(DcodeRuntimeProvider, { value: runtime }, createElement(TranslateProvider, { value: t }, createElement(Workbench, { navigation })));
     let active;
     const apply = () => {
         const wanted = mode.get() === 'dcode';
@@ -112,7 +110,11 @@ function bindRootRegistration(ctx, mode) {
             name: 'root',
             priority: ROOT_PRIORITY,
             locale: DCODE_NS,
-            children: { 'settings.section': { kind: 'list', scope: 'root' } },
+            // `settings.section` is already owned by the official `sidebar.settings`
+            // entry (ui-settings-general declares it), and a slot has exactly one
+            // declarer: re-declaring it here throws at register() and fails the
+            // whole client plugin tree. The workbench therefore renders its own
+            // settings sections instead of the official ones while active.
         }, render));
     };
     apply();

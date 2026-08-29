@@ -1,6 +1,6 @@
 # DeepSeek Harness Desktop v1.6.0
 
-Windows x64 桌面版 · 2026-08-28
+Windows x64 桌面版 · 2026-08-29
 
 v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 
@@ -11,6 +11,7 @@ v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 - **学习意图路由与视觉活动**：优化 learn/not-learn 路由、教学路线、学习笔记和语义视觉活动。
 - **自适应 DCode 工作台**：让侧栏、会话区、预览区和环境摘要适配紧凑/中等/宽屏窗口；持久化侧栏宽度，并支持快速切换工作区和任务。
 - **插件管理页面**：新增插件市场、已安装和配置三个分区，提供仓库审核、实时任务进度、生命周期操作和重启状态提示。
+- **DCode UI 细节优化**：统一会话卡片，增加上下文用量与消息操作，并改善工作台的焦点、无障碍和加载反馈。
 
 ## 运行时与兼容性
 
@@ -22,6 +23,7 @@ v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 
 - **刷新生成的 Learning bundle，并在打包运行时中保持资料、概念复习和意图路由契约一致。**
 - **复用已完成的 Windows 打包层，同时保持最终产物校验不变。**
+- **将快速测试与生成产物测试、Windows 平台检查分离，保持发布验证可重复。**
 
 ## 组件版本
 
@@ -33,7 +35,7 @@ v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 
 ## English Release Notes
 
-Windows x64 desktop release · 2026-08-28
+Windows x64 desktop release · 2026-08-29
 
 v1.6.0 is a feature and bug-fix release following v1.5.6.
 
@@ -44,6 +46,7 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 - **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
 - **Responsive DCode workbench**: adapt the rail, conversation, preview, and environment summary to compact/medium/wide windows; persist rail sizing and provide quick workspace/task switching.
 - **Plugin management surface**: add dedicated Marketplace, Installed, and Configuration sections with repository review gates, live job progress, lifecycle controls, and restart state.
+- **DCode UI polish**: standardize conversation cards, add context usage and message actions, and improve focus, accessibility, and loading feedback across the workbench.
 
 ### Runtime and Compatibility
 
@@ -55,6 +58,7 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 
 - **Refresh generated Learning bundles and preserve the material, concept-review, and intent-routing contracts in the packaged runtime.**
 - **Keep the Windows release pipeline reusable by caching completed packaging layers without changing final artifact verification.**
+- **Keep fast tests isolated from generated-output and Windows platform checks so release verification remains repeatable.**
 
 ### Component Versions
 

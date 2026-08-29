@@ -39,7 +39,7 @@ That faster mode does not cover a from-scratch kernel build or release package.
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
 
-Run each packaging command on its matching native host: Windows x64 with a working WSL distribution, Apple Silicon macOS, or Linux x64. The commands download Electron, run capability probes and packaged smoke tests, and write immutable verified bundles under `dist-desktop/verified/<target>/`.
+Run each packaging command on its matching native host: Windows x64 with a working WSL distribution, Apple Silicon macOS, or Linux x64. The commands download Electron, run capability probes and packaged smoke tests, and write immutable verified bundles under `dist-desktop/electron/verified/<target>/`.
 
 The unpacked Windows application is written to:
 
@@ -64,9 +64,9 @@ After installing the deb, run `dsh` from a terminal to launch the desktop shell.
 
 Publishing is a separate copy-only step. It re-hashes the exact files named by `artifact-verification.json`; it does not build, test, patch, sign, or recreate an archive:
 
-    pnpm run desktop:release:win -- --input dist-desktop/verified/win32-x64
-    pnpm run desktop:release:mac -- --input dist-desktop/verified/darwin-arm64
-    pnpm run desktop:release:linux -- --input dist-desktop/verified/linux-x64
+    pnpm run desktop:release:win -- --input dist-desktop/electron/verified/win32-x64
+    pnpm run desktop:release:mac -- --input dist-desktop/electron/verified/darwin-arm64
+    pnpm run desktop:release:linux -- --input dist-desktop/electron/verified/linux-x64
 
 ## Release identity
 

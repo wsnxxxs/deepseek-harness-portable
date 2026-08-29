@@ -53,7 +53,7 @@ function useCurrentCwd(sessionId) {
     }, [runtime, sessionId, groups]);
 }
 /** The whole modern surface. */
-export function Workbench({ navigation, renderSettingsSlot }) {
+export function Workbench({ navigation }) {
     const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
@@ -124,6 +124,11 @@ export function Workbench({ navigation, renderSettingsSlot }) {
         event.preventDefault();
         resizeRail(next, true);
     }, [railWidth, resizeRail]);
+    const restoreOverlayFocus = useCallback((target) => {
+        window.requestAnimationFrame(() => {
+            frame?.querySelector(`[data-dcode-focus-target="${target}"]`)?.focus();
+        });
+    }, [frame]);
     // A native backdrop only shows through a transparent document, and the
     // desktop shell paints an opaque page ground of its own. Clearing it is
     // scoped to this component's lifetime, so the official interface — which
@@ -190,6 +195,8 @@ export function Workbench({ navigation, renderSettingsSlot }) {
                 navigation.togglePalette();
                 return;
             }
+            if (navigation.getSnapshot().paletteOpen)
+                return;
             if (meta && event.key.toLowerCase() === 'n') {
                 event.preventDefault();
                 newTask();
@@ -211,22 +218,31 @@ export function Workbench({ navigation, renderSettingsSlot }) {
                 return;
             }
             if (event.key === 'Escape') {
+                event.preventDefault();
                 const snapshot = navigation.getSnapshot();
                 if (snapshot.paletteOpen)
                     navigation.togglePalette(false);
-                else if (snapshot.summaryOpen)
+                else if (snapshot.summaryOpen) {
                     navigation.toggleSummary(false);
-                else if (snapshot.diff !== undefined)
+                    restoreOverlayFocus('summary');
+                }
+                else if (snapshot.diff !== undefined) {
                     navigation.closeDiff();
-                else if (snapshot.layout === 'compact' && snapshot.railOpen)
+                    restoreOverlayFocus('aside');
+                }
+                else if (snapshot.layout === 'compact' && snapshot.railOpen) {
                     navigation.closeRail();
-                else if (snapshot.layout === 'compact' && snapshot.asideOpen)
+                    restoreOverlayFocus('rail');
+                }
+                else if (snapshot.layout === 'compact' && snapshot.asideOpen) {
                     navigation.toggleAside();
+                    restoreOverlayFocus('aside');
+                }
             }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => { document.removeEventListener('keydown', onKeyDown); };
-    }, [navigation, newTask, openWorkspace]);
+    }, [navigation, newTask, openWorkspace, restoreOverlayFocus]);
     const fullSurface = state.view !== 'session';
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
@@ -236,9 +252,9 @@ export function Workbench({ navigation, renderSettingsSlot }) {
                         ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
                         : state.view === 'plugins'
                             ? _jsx(PluginsHome, { navigation: navigation })
-                            : (_jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId, renderSection: renderSettingsSlot })) }))
+                            : (_jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId })) }))
                 : (_jsxs(_Fragment, { children: [drawer
-                            ? (_jsx("button", { type: "button", className: css.scrim, "aria-label": t('nav.dismissPanels'), onClick: () => {
+                            ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: () => {
                                     if (state.railOpen)
                                         navigation.closeRail();
                                     if (state.asideOpen)

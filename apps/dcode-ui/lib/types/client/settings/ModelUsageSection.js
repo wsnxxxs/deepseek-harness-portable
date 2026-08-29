@@ -9,7 +9,10 @@ export function ModelUsageSection({ useSessions, t }) {
     const list = useSessions(snapshot => snapshot);
     const totals = summarizeUsage(aggregateUsage(list));
     if (list.phase === 'pending') {
-        return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.title, children: t('settings.modelUsage') }), _jsx("p", { className: css.intro, children: t('settings.modelUsageBody') }), _jsx("div", { className: css.status, children: t('settings.usageLoading') })] }));
+        return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.title, children: t('settings.modelUsage') }), _jsx("p", { className: css.intro, children: t('settings.modelUsageBody') }), _jsx("div", { className: css.status, role: "status", children: t('settings.usageLoading') })] }));
+    }
+    if (list.state === 'error') {
+        return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.title, children: t('settings.modelUsage') }), _jsx("p", { className: css.intro, children: t('settings.modelUsageBody') }), _jsx("div", { className: css.status, role: "alert", children: list.error?.message ?? t('settings.usageError') })] }));
     }
     return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.title, children: t('settings.modelUsage') }), _jsx("p", { className: css.intro, children: t('settings.modelUsageBody') }), _jsxs("div", { className: css.total, children: [_jsx("span", { className: css.totalTitle, children: t('settings.usageTotal') }), _jsx("strong", { className: css.totalValue, children: formatTokenCount(totals.totalTokens) }), _jsx("span", { className: css.totalScope, children: t('settings.usageScope', {
                             sessions: formatTokenCount(totals.sessions),

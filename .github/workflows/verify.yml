@@ -31,9 +31,20 @@ jobs:
       - run: pnpm --filter @dsh-portable/release-manifest run build
       - run: pnpm --filter @dsh-portable/interactive-learning run build
       - run: pnpm --filter @dsh-portable/runtime run build
-      - run: pnpm run packaging:test
-      - run: pnpm run learning:test
-      - run: pnpm run runtime:test
+      - name: Fast suite leaves the checkout untouched
+        shell: bash
+        run: |
+          # Builds legitimately rewrite tracked artifacts, so compare the tree
+          # either side of the test run instead of requiring a clean checkout.
+          git status --porcelain > /tmp/tree-before.txt
+          pnpm test
+          git status --porcelain > /tmp/tree-after.txt
+          if ! diff -u /tmp/tree-before.txt /tmp/tree-after.txt; then
+            echo 'pnpm test modified the working tree.' >&2
+            echo 'Tests that write must move to pnpm test:dirty.' >&2
+            exit 1
+          fi
+      - run: pnpm run test:dirty
       - run: sh scripts/install-unix.test.sh
       - run: pnpm run readme:check
       - name: Presets contain no host-platform branches

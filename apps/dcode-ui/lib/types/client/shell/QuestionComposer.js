@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /** Codex-style composer takeover for ask-user-question and plan review waits. */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconChecklistOutline14, IconCloseOutline16, IconEditOutline16, IconQuestionOutline14, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
 import { Button, Spinner } from "./ui.js";
@@ -75,7 +75,13 @@ function QuestionFlow({ pending }) {
     })));
     const [busy, setBusy] = useState(null);
     const [error, setError] = useState();
+    const optionRefs = useRef({});
     const question = questions[index];
+    const hasOptions = (question?.options?.length ?? 0) > 0;
+    useEffect(() => {
+        if (hasOptions)
+            optionRefs.current[0]?.focus();
+    }, [index, pending.key]);
     const updateDraft = (update) => {
         setDrafts(current => current.map((draft, draftIndex) => draftIndex === index ? update(draft) : draft));
         setError(undefined);
@@ -105,7 +111,6 @@ function QuestionFlow({ pending }) {
     if (question === undefined)
         return null;
     const draft = drafts[index] ?? { selected: [], custom: '', skipped: false };
-    const hasOptions = (question.options?.length ?? 0) > 0;
     const choose = (label) => {
         updateDraft(current => question.multiSelect === true
             ? {
@@ -158,17 +163,31 @@ function QuestionFlow({ pending }) {
         event.preventDefault();
         continueFlow();
     };
-    return (_jsx("div", { className: css.frame, "data-question-key": pending.key, children: _jsxs("section", { className: css.card, "aria-labelledby": `question-${pending.key}-${String(index)}`, children: [_jsxs("header", { className: css.header, children: [_jsxs("span", { className: css.kicker, children: [_jsx(IconQuestionOutline14, {}), question.header ?? t('question.title')] }), _jsxs("div", { className: css.headerActions, children: [_jsxs("span", { className: css.counter, children: [index + 1, " / ", questions.length] }), _jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.cancel'), title: t('question.cancel'), disabled: busy !== null, onClick: cancel, children: _jsx(IconCloseOutline16, {}) })] })] }), _jsxs("div", { className: css.body, children: [_jsx("h2", { className: css.title, id: `question-${pending.key}-${String(index)}`, children: question.question }), question.detail === undefined ? null : (_jsx("div", { className: css.detail, children: _jsx(MarkdownText, { text: question.detail, labels: labels }) })), _jsxs("div", { className: css.options, role: question.multiSelect === true ? 'group' : 'radiogroup', children: [(question.options ?? []).map((option, optionIndex) => {
-                                    const selected = draft.selected.includes(option.label);
-                                    const display = parseRecommendedLabel(option.label);
-                                    return (_jsxs("button", { type: "button", className: `${css.option} ${selected ? css.optionSelected : ''}`, role: question.multiSelect === true ? 'checkbox' : 'radio', "aria-checked": selected, disabled: busy !== null, onClick: () => { choose(option.label); }, children: [_jsx("span", { className: question.multiSelect === true
-                                                    ? `${css.checkbox} ${selected ? css.checkboxSelected : ''}`
-                                                    : `${css.radio} ${selected ? css.radioSelected : ''}`, "aria-hidden": true, children: selected && _jsx(IconCheckOutline14, { size: 12 }) }), _jsxs("span", { className: css.optionCopy, children: [_jsx("span", { className: css.optionLabel, children: display.label }), display.recommended ? _jsx("span", { className: css.badge, children: t('question.recommended') }) : null, option.description === undefined ? null : (_jsx("span", { className: css.description, children: option.description }))] })] }, `${option.label}-${String(optionIndex)}`));
-                                }), hasOptions ? (_jsxs("label", { className: `${css.customRow} ${draft.custom !== '' ? css.customRowActive : ''}`, children: [_jsx("span", { className: question.multiSelect === true
+    const moveOption = (event, optionIndex) => {
+        if (question.multiSelect === true)
+            return;
+        const direction = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
+            : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 0;
+        if (direction === 0)
+            return;
+        event.preventDefault();
+        const count = question.options?.length ?? 0;
+        const next = (optionIndex + direction + count) % count;
+        optionRefs.current[next]?.focus();
+    };
+    const selectedOptionIndex = question.options?.findIndex(option => draft.selected.includes(option.label)) ?? -1;
+    return (_jsx("div", { className: css.frame, "data-question-key": pending.key, children: _jsxs("section", { className: css.card, "aria-labelledby": `question-${pending.key}-${String(index)}`, children: [_jsxs("header", { className: css.header, children: [_jsxs("span", { className: css.kicker, children: [_jsx(IconQuestionOutline14, {}), question.header ?? t('question.title')] }), _jsxs("div", { className: css.headerActions, children: [_jsxs("span", { className: css.counter, children: [index + 1, " / ", questions.length] }), _jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.cancel'), title: t('question.cancel'), disabled: busy !== null, onClick: cancel, children: _jsx(IconCloseOutline16, {}) })] })] }), _jsxs("div", { className: css.body, children: [_jsx("h2", { className: css.title, id: `question-${pending.key}-${String(index)}`, children: question.question }), question.detail === undefined ? null : (_jsx("div", { className: css.detail, children: _jsx(MarkdownText, { text: question.detail, labels: labels }) })), _jsxs("div", { className: css.options, children: [_jsx("div", { className: css.optionGroup, role: question.multiSelect === true ? 'group' : 'radiogroup', "aria-label": question.question, children: (question.options ?? []).map((option, optionIndex) => {
+                                        const selected = draft.selected.includes(option.label);
+                                        const display = parseRecommendedLabel(option.label);
+                                        return (_jsxs("button", { ref: (node) => { optionRefs.current[optionIndex] = node; }, type: "button", className: `${css.option} ${selected ? css.optionSelected : ''}`, role: question.multiSelect === true ? 'checkbox' : 'radio', "aria-checked": selected, tabIndex: question.multiSelect === true
+                                                || (selectedOptionIndex >= 0 ? selected : optionIndex === 0) ? 0 : -1, disabled: busy !== null, onClick: () => { choose(option.label); }, onKeyDown: event => { moveOption(event, optionIndex); }, children: [_jsx("span", { className: question.multiSelect === true
+                                                        ? `${css.checkbox} ${selected ? css.checkboxSelected : ''}`
+                                                        : `${css.radio} ${selected ? css.radioSelected : ''}`, "aria-hidden": true, children: selected && _jsx(IconCheckOutline14, { size: 12 }) }), _jsxs("span", { className: css.optionCopy, children: [_jsx("span", { className: css.optionLabel, children: display.label }), display.recommended ? _jsx("span", { className: css.badge, children: t('question.recommended') }) : null, option.description === undefined ? null : (_jsx("span", { className: css.description, children: option.description }))] })] }, `${option.label}-${String(optionIndex)}`));
+                                    }) }), hasOptions ? (_jsxs("label", { className: `${css.customRow} ${draft.custom !== '' ? css.customRowActive : ''}`, children: [_jsx("span", { className: question.multiSelect === true
                                                 ? `${css.checkbox} ${draft.custom !== '' ? css.checkboxSelected : ''}`
                                                 : css.customIcon, "aria-hidden": true, children: question.multiSelect === true
                                                 ? draft.custom !== '' && _jsx(IconCheckOutline14, { size: 12 })
-                                                : _jsx(IconEditOutline16, { size: 14 }) }), _jsx("textarea", { className: css.customInput, rows: 1, value: draft.custom, disabled: busy !== null, placeholder: t('question.custom'), onChange: changeCustom, onKeyDown: continueFromCustom })] })) : (_jsx("textarea", { autoFocus: true, className: css.freeInput, rows: 2, value: draft.custom, disabled: busy !== null, placeholder: t('question.custom'), onChange: changeCustom, onKeyDown: continueFromCustom }))] })] }), _jsxs("footer", { className: css.footer, children: [_jsxs("div", { className: css.pager, children: [_jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.previous'), disabled: index === 0 || busy !== null, onClick: () => { setIndex(value => value - 1); setError(undefined); }, children: _jsx(IconChevronLeftOutline14, {}) }), _jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.next'), disabled: index === questions.length - 1 || busy !== null, onClick: () => { setIndex(value => value + 1); setError(undefined); }, children: _jsx(IconChevronRightOutline14, {}) })] }), _jsx("div", { className: css.feedback, role: "status", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy !== null, onClick: skip, children: t('question.skip') }), _jsx(Button, { primary: true, disabled: busy !== null || !answerable(draft), onClick: continueFlow, children: busy === 'answer' ? _jsxs(_Fragment, { children: [_jsx(Spinner, {}), t('question.submitting')] }) : index === questions.length - 1 ? t('question.submit') : t('question.continue') })] })] })] }) }));
+                                                : _jsx(IconEditOutline16, { size: 14 }) }), _jsx("textarea", { className: css.customInput, rows: 1, value: draft.custom, disabled: busy !== null, placeholder: t('question.custom'), "aria-label": t('question.custom'), onChange: changeCustom, onKeyDown: continueFromCustom })] })) : (_jsx("textarea", { autoFocus: true, className: css.freeInput, rows: 2, value: draft.custom, disabled: busy !== null, placeholder: t('question.custom'), "aria-label": t('question.custom'), onChange: changeCustom, onKeyDown: continueFromCustom }))] })] }), _jsxs("footer", { className: css.footer, children: [_jsxs("div", { className: css.pager, children: [_jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.previous'), disabled: index === 0 || busy !== null, onClick: () => { setIndex(value => value - 1); setError(undefined); }, children: _jsx(IconChevronLeftOutline14, {}) }), _jsx("button", { type: "button", className: css.iconButton, "aria-label": t('question.next'), disabled: index === questions.length - 1 || busy !== null, onClick: () => { setIndex(value => value + 1); setError(undefined); }, children: _jsx(IconChevronRightOutline14, {}) })] }), _jsx("div", { className: css.feedback, role: "alert", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy !== null, onClick: skip, children: t('question.skip') }), _jsx(Button, { primary: true, disabled: busy !== null || !answerable(draft), onClick: continueFlow, children: busy === 'answer' ? _jsxs(_Fragment, { children: [_jsx(Spinner, { size: "sm" }), t('question.submitting')] }) : index === questions.length - 1 ? t('question.submit') : t('question.continue') })] })] })] }) }));
 }
 /** The plan-review approval card supplied by the same pending question wire. */
 function PlanReviewCard({ pending, review }) {
@@ -187,7 +206,7 @@ function PlanReviewCard({ pending, review }) {
             setError(cause instanceof Error ? cause.message : String(cause));
         });
     };
-    return (_jsx("div", { className: css.frame, "data-plan-review-key": pending.key, children: _jsxs("section", { className: `${css.card} ${css.reviewCard}`, "aria-label": review.question, children: [_jsx("header", { className: css.reviewHeader, children: _jsxs("span", { className: css.kicker, children: [_jsx(IconChecklistOutline14, {}), t('question.planReview')] }) }), _jsxs("div", { className: css.reviewBody, children: [_jsx("h2", { className: css.title, children: review.question }), _jsx("div", { className: css.plan, children: _jsx(MarkdownText, { text: review.plan, labels: labels }) })] }), _jsxs("footer", { className: css.reviewFooter, children: [_jsx("div", { className: css.feedback, role: "status", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy, onClick: () => { settle(() => pending.cancel()); }, children: t('question.discuss') }), review.decline === undefined ? null : (_jsx(Button, { disabled: busy, title: review.decline.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline.label] }] })); }, children: t('question.decline') })), _jsx(Button, { primary: true, disabled: busy, title: review.approve.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })); }, children: busy ? _jsxs(_Fragment, { children: [_jsx(Spinner, {}), t('question.submitting')] }) : t('question.approve') })] })] })] }) }));
+    return (_jsx("div", { className: css.frame, "data-plan-review-key": pending.key, children: _jsxs("section", { className: `${css.card} ${css.reviewCard}`, "aria-label": review.question, children: [_jsx("header", { className: css.reviewHeader, children: _jsxs("span", { className: css.kicker, children: [_jsx(IconChecklistOutline14, {}), t('question.planReview')] }) }), _jsxs("div", { className: css.reviewBody, children: [_jsx("h2", { className: css.title, children: review.question }), _jsx("div", { className: css.plan, children: _jsx(MarkdownText, { text: review.plan, labels: labels }) })] }), _jsxs("footer", { className: css.reviewFooter, children: [_jsx("div", { className: css.feedback, role: "alert", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy, onClick: () => { settle(() => pending.cancel()); }, children: t('question.discuss') }), review.decline === undefined ? null : (_jsx(Button, { disabled: busy, title: review.decline.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline.label] }] })); }, children: t('question.decline') })), _jsx(Button, { primary: true, autoFocus: true, disabled: busy, title: review.approve.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })); }, children: busy ? _jsxs(_Fragment, { children: [_jsx(Spinner, { size: "sm" }), t('question.submitting')] }) : t('question.approve') })] })] })] }) }));
 }
 /** Route the pending request to the plan-review or generic question surface. */
 export function QuestionComposer({ pending }) {

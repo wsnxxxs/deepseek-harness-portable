@@ -38,7 +38,7 @@
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
 
-每条打包命令都必须在对应的原生主机执行：带可用 WSL 发行版的 Windows x64、Apple Silicon macOS 或 Linux x64。命令会下载 Electron、执行能力探测与打包后冒烟测试，并把不可变的已验证 bundle 写入 `dist-desktop/verified/<target>/`。
+每条打包命令都必须在对应的原生主机执行：带可用 WSL 发行版的 Windows x64、Apple Silicon macOS 或 Linux x64。命令会下载 Electron、执行能力探测与打包后冒烟测试，并把不可变的已验证 bundle 写入 `dist-desktop/electron/verified/<target>/`。
 
 Windows 未压缩应用位于：
 
@@ -60,9 +60,9 @@ Electron runtime。构建期间会使用 `musl-gcc` 编译官方上游 Landlock 
 
 发布是独立的只复制步骤。它会重新校验 `artifact-verification.json` 指定的精确文件，不会构建、测试、打补丁、签名或重建归档：
 
-    pnpm run desktop:release:win -- --input dist-desktop/verified/win32-x64
-    pnpm run desktop:release:mac -- --input dist-desktop/verified/darwin-arm64
-    pnpm run desktop:release:linux -- --input dist-desktop/verified/linux-x64
+    pnpm run desktop:release:win -- --input dist-desktop/electron/verified/win32-x64
+    pnpm run desktop:release:mac -- --input dist-desktop/electron/verified/darwin-arm64
+    pnpm run desktop:release:linux -- --input dist-desktop/electron/verified/linux-x64
 
 ## 发布身份
 
