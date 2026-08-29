@@ -20,6 +20,7 @@ import {
   RiskConfirmation,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerAttachment, DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { CommandDescriptor } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type BusyEnterBehavior } from '../state/runtime.ts'
 import {
@@ -93,6 +94,12 @@ function oppositeBusyEnter(value: BusyEnterBehavior): BusyEnterBehavior {
 /** Draft text per session, so switching tasks does not lose an unsent prompt. */
 const drafts = new Map<string, string>()
 
+/** A leading, argument-free slash token is eligible for command completion. */
+function slashQuery(value: string): string | undefined {
+  const match = /^\/([^\s]*)$/.exec(value)
+  return match?.[1]?.toLocaleLowerCase()
+}
+
 function fileSize(bytes: number): string {
   if (bytes < 1_024) return `${String(bytes)} B`
   if (bytes < 1_024 * 1_024) return `${(bytes / 1_024).toFixed(1)} KB`
@@ -149,6 +156,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   const [focused, setFocused] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [dragActive, setDragActive] = useState(false)
+  const [commandIndex, setCommandIndex] = useState(0)
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -204,12 +213,34 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
 
   const catalog = useAsync(async () => await runtime.remote.session.modelCatalog(), [runtime])
   const presets = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime])
+  const commandCatalog = useAsync(
+    async () => (sessionId === undefined ? undefined : await runtime.remote.commands.list(sessionId)),
+    [runtime, sessionId],
+  )
 
   const running = session?.running === true
   const current = selection?.next ?? selection?.lastUsed ?? undefined
   const roster = presets.value?.ok === true ? presets.value.value.presets : []
   const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id
   const blankSession = (blank ?? session?.blank ?? false) && !running
+  const commandQuery = slashQuery(draft)
+  const commands = commandCatalog.value?.ok === true ? commandCatalog.value.value : []
+  const commandMatches = useMemo<readonly CommandDescriptor[]>(() => {
+    if (commandQuery === undefined) return []
+    return commands
+      .filter(command => command.name.toLocaleLowerCase().includes(commandQuery))
+      .sort((left, right) => {
+        const leftPrefix = left.name.toLocaleLowerCase().startsWith(commandQuery)
+        const rightPrefix = right.name.toLocaleLowerCase().startsWith(commandQuery)
+        if (leftPrefix !== rightPrefix) return leftPrefix ? -1 : 1
+        return left.name.localeCompare(right.name)
+      })
+  }, [commandQuery, commands])
+  const commandMenuOpen = focused && !commandMenuDismissed && commandMatches.length > 0
+
+  useEffect(() => {
+    setCommandIndex(0)
+  }, [commandQuery, sessionId])
 
   const currentModel = useMemo(() => {
     if (catalog.value?.ok !== true) return undefined
@@ -274,9 +305,21 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   }, [blankSession, runtime, sessionId])
 
   const updateDraft = useCallback((value: string) => {
+    setCommandMenuDismissed(false)
     if (input === undefined) setFallbackDraft(value)
     else input.setDraft(value)
   }, [input])
+
+  const completeCommand = useCallback((command: CommandDescriptor) => {
+    updateDraft(`/${command.name}${command.input === undefined ? '' : ' '}`)
+    setCommandMenuDismissed(true)
+    requestAnimationFrame(() => {
+      const textarea = inputRef.current
+      if (textarea === null) return
+      textarea.focus()
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+    })
+  }, [updateDraft])
 
   const addAttachments = useCallback((files: readonly File[]) => {
     if (files.length === 0) return
@@ -402,6 +445,26 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   }, [runtime, sessionId])
 
   const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (commandMenuOpen) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        setCommandIndex(index => (index + direction + commandMatches.length) % commandMatches.length)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setCommandMenuDismissed(true)
+        return
+      }
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+        if (event.nativeEvent.isComposing) return
+        event.preventDefault()
+        const command = commandMatches[commandIndex]
+        if (command !== undefined) completeCommand(command)
+        return
+      }
+    }
     if (event.key !== 'Enter' || event.shiftKey) return
     if (event.nativeEvent.isComposing) return
     event.preventDefault()
@@ -410,7 +473,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
       ? 'queue'
       : accelerated ? oppositeBusyEnter(busyEnter) : busyEnter
     send(mode)
-  }, [busyEnter, running, send])
+  }, [busyEnter, commandIndex, commandMatches, commandMenuOpen, completeCommand, running, send])
 
   const { groups } = useWorkspaceGroups()
   const workspaceTitle = useMemo(() => {
@@ -473,12 +536,37 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
         {dragActive
           ? (
             <div className={css.dropOverlay} role="status">
+              <span className={css.dropIcon}><IconPaperclipOutline16 /></span>
               <strong>{t('composer.dropFiles')}</strong>
               <span>{t('composer.dropFilesHint')}</span>
             </div>
           )
           : null}
         <div className={css.inputArea}>
+          {commandMenuOpen
+            ? (
+              <div id="composer-command-list" className={css.commandMenu} role="listbox" aria-label={t('composer.commands')}>
+                <div className={css.commandMenuTitle}>{t('composer.commands')}</div>
+                {commandMatches.map((command, index) => (
+                  <button
+                    type="button"
+                    id={`composer-command-${command.name}`}
+                    key={command.name}
+                    className={`${css.commandOption} ${index === commandIndex ? css.commandOptionActive : ''}`}
+                    role="option"
+                    aria-selected={index === commandIndex}
+                    onMouseEnter={() => { setCommandIndex(index) }}
+                    onMouseDown={event => { event.preventDefault() }}
+                    onClick={() => { completeCommand(command) }}
+                  >
+                    <span className={css.commandName}>/{command.name}</span>
+                    <span className={css.commandDescription}>{command.description}</span>
+                    {command.input === undefined ? null : <span className={css.commandHint}>{command.input.hint}</span>}
+                  </button>
+                ))}
+              </div>
+            )
+            : null}
           <textarea
             ref={inputRef}
             className={css.input}
@@ -492,6 +580,9 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
             onKeyDown={onKeyDown}
             onPaste={onPaste}
             aria-label={t('composer.placeholder')}
+            aria-autocomplete="list"
+            aria-controls={commandMenuOpen ? 'composer-command-list' : undefined}
+            aria-activedescendant={commandMenuOpen ? `composer-command-${commandMatches[commandIndex]?.name ?? ''}` : undefined}
             onFocus={() => { setFocused(true) }}
             onBlur={() => { setFocused(false) }}
           />
@@ -556,6 +647,20 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
             />
           </div>
           <div className={css.trailingControls}>
+            {running
+              ? (
+                <div className={css.busyHints} aria-label={t('composer.busyHints')}>
+                  <span className={`${css.busyHint} ${busyEnter === 'queue' ? css.busyHintActive : ''}`}>
+                    <kbd>{busyEnter === 'queue' ? t('composer.keyEnter') : t('composer.keyModifiedEnter')}</kbd>
+                    <span>{t('composer.queue')}</span>
+                  </span>
+                  <span className={`${css.busyHint} ${busyEnter === 'steer' ? css.busyHintActive : ''}`}>
+                    <kbd>{busyEnter === 'steer' ? t('composer.keyEnter') : t('composer.keyModifiedEnter')}</kbd>
+                    <span>{t('composer.steer')}</span>
+                  </span>
+                </div>
+              )
+              : null}
             <Popover
               label={t('composer.model')}
               disabled={modelRows.length === 0}

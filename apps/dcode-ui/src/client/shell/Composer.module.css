@@ -40,11 +40,31 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--zx-space-1);
+  gap: var(--zx-space-2);
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 72%, transparent);
   border-radius: inherit;
-  background: color-mix(in srgb, var(--zx-bg-card) 92%, var(--zx-accent));
+  background: color-mix(in srgb, var(--zx-bg-card) 72%, var(--zx-accent) 12%);
   color: var(--zx-label);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--zx-accent) 14%, transparent);
   pointer-events: none;
+  animation: dropOverlayIn var(--zx-motion-fast) ease-out;
+}
+
+.dropIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-accent) 16%, var(--zx-bg-card));
+  color: var(--zx-accent);
+}
+
+.dropIcon :global(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .dropOverlay span {
@@ -53,7 +73,82 @@
 }
 
 .inputArea {
+  position: relative;
   min-width: 0;
+}
+
+.commandMenu {
+  position: absolute;
+  z-index: var(--zx-z-popover);
+  right: 10px;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  max-height: min(48vh, 360px);
+  overflow-y: auto;
+  padding: var(--zx-space-2);
+  border: 1px solid var(--zx-border-control);
+  border-radius: var(--zx-radius-xl);
+  background: color-mix(in srgb, var(--zx-bg-panel) 92%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+  box-shadow: var(--zx-shadow-panel);
+}
+
+.commandMenuTitle {
+  padding: 3px 8px 7px;
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  font-weight: var(--zx-weight-semibold);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.commandOption {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.commandOption:hover,
+.commandOptionActive {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.commandOptionActive {
+  box-shadow: inset 2px 0 var(--zx-accent);
+}
+
+.commandName {
+  color: var(--zx-accent);
+  font-weight: var(--zx-weight-semibold);
+}
+
+.commandDescription {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commandHint {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--zx-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input {
@@ -111,6 +206,14 @@
   background: color-mix(in srgb, var(--zx-bg-panel) 78%, var(--zx-bg-card));
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
+  overflow: hidden;
+  transition: border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);
+}
+
+.attachment:hover {
+  border-color: color-mix(in srgb, var(--zx-accent) 36%, var(--zx-border-control));
+  box-shadow: var(--zx-shadow-card);
+  transform: translateY(-2px);
 }
 
 .attachmentPreview {
@@ -120,6 +223,12 @@
   border-radius: var(--zx-radius-sm);
   object-fit: cover;
   background: var(--zx-bg-hover);
+  transition: transform var(--zx-motion-fast), filter var(--zx-motion-fast);
+}
+
+.attachment:hover .attachmentPreview {
+  filter: saturate(1.08);
+  transform: scale(1.06);
 }
 
 .attachmentFile {
@@ -155,6 +264,20 @@
   background: transparent;
   color: var(--zx-label-muted);
   cursor: pointer;
+  opacity: .55;
+  transform: scale(.88);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    opacity var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
+}
+
+.attachment:hover .attachmentRemove,
+.attachmentRemove:focus-visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .attachmentRemove:hover:not(:disabled) {
@@ -226,6 +349,44 @@
   flex: 0 1 auto;
   justify-content: flex-end;
   margin-left: auto;
+}
+
+.busyHints {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: var(--zx-space-1);
+}
+
+.busyHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  white-space: nowrap;
+  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.busyHint kbd {
+  color: inherit;
+  font: inherit;
+}
+
+.busyHintActive {
+  border-color: color-mix(in srgb, var(--zx-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--zx-accent) 10%, transparent);
+  color: var(--zx-accent);
+  font-weight: var(--zx-weight-semibold);
+}
+
+@keyframes dropOverlayIn {
+  from { opacity: 0; transform: scale(.985); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* Popover triggers otherwise keep their min-content width. Keeping the
@@ -436,6 +597,16 @@
   .trailingControls {
     max-width: 100%;
   }
+
+  .trailingControls {
+    flex-wrap: wrap;
+  }
+
+  .busyHints {
+    order: -1;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
 }
 
 @container (max-width: 520px) {
@@ -458,5 +629,23 @@
 
   .trailingControls .reasoningTrigger {
     max-width: 112px;
+  }
+
+  .commandOption {
+    grid-template-columns: minmax(82px, auto) minmax(0, 1fr);
+  }
+
+  .commandHint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropOverlay,
+  .attachment,
+  .attachmentPreview,
+  .attachmentRemove {
+    animation: none;
+    transition: none;
   }
 }
