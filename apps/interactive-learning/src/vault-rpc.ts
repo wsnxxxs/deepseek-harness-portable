@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { isConceptDue, readConceptCards, type ConceptCardRating } from './concept-cards.ts'
 import { excerptAround, keyPhrases, matchedTerms } from './material-retrieval.ts'
+import { ensureLexicalIndex, readSourceChunks, searchLexicalIndex } from './index/lexical.ts'
 import {
   correctConcept,
   deferConcept,
@@ -48,23 +49,27 @@ import {
 } from './material-vision.ts'
 import type { ParseDegradation, SourceSection, SourceStructure } from './ingest/types.ts'
 import {
+  activeSourceIds,
   containedPath,
   readAllStructures,
   readManifest,
   resolveTopicVault,
   vaultRelative,
   VaultContainmentError,
+  writeManifest,
   type TopicVault,
 } from './topic-vault.ts'
 
 /** Wire protocol tag; bumped only on a breaking panel-payload change. */
-export const VAULT_RPC_PROTOCOL = 'dsh-learning/vault@1' as const
+export const VAULT_RPC_PROTOCOL = 'dsh-learning/vault@2' as const
+/** Older clients may still send the v1 payload shape; the endpoint names stay stable. */
+export const VAULT_RPC_COMPAT_PROTOCOL = 'dsh-learning/vault@1' as const
 
 /**
  * Endpoints this router owns.
  *
- * `vault/*` reads the folder; `concepts/*` is the only group that writes, and
- * every one of its writes is a direct consequence of a button a person pressed.
+ * `vault/*` reads the folder; `space/scope` and the existing concepts/notes
+ * endpoints are the explicit writes, each caused by a panel action.
  */
 export const VAULT_RPC_ENDPOINTS = [
   'vault/probe',
@@ -72,6 +77,7 @@ export const VAULT_RPC_ENDPOINTS = [
   'vault/sources',
   'vault/read',
   'vault/search',
+  'space/scope',
   'concepts/list',
   'concepts/review',
   'concepts/rate',
@@ -163,6 +169,8 @@ export interface PanelSource {
   lastPage: number
   degradation: readonly ParseDegradation[]
   sections: readonly PanelSection[]
+  /** Whether this source participates in the current grounding scope. */
+  active: boolean
 }
 
 /** One section of the structure tree, flattened in document order. */
@@ -218,6 +226,17 @@ export interface PanelSearchResult {
   material: readonly PanelHit[]
   concepts: readonly PanelHit[]
   notes: readonly PanelHit[]
+  /** Effective source scope used for material hits. */
+  activeSourceIds?: readonly string[]
+}
+
+export interface SpaceScope {
+  status: 'ok'
+  protocol: typeof VAULT_RPC_PROTOCOL
+  /** null means the default all-sources scope. */
+  activeSourceIds: readonly string[] | null
+  selectedSourceIds: readonly string[]
+  sourceIds: readonly string[]
 }
 
 /** One section's body, resolved from its anchor rather than a line range. */
@@ -463,9 +482,12 @@ export async function vaultSources(vault: TopicVault): Promise<{
   status: VaultStatus
   protocol: typeof VAULT_RPC_PROTOCOL
   sources: readonly PanelSource[]
+  activeSourceIds: readonly string[] | null
 }> {
   const [manifest, structures] = await Promise.all([readManifest(vault), readAllStructures(vault)])
   const byId = new Map(structures.map(structure => [structure.sourceId, structure]))
+  const selectedSourceIds = await activeSourceIds(vault)
+  const selected = new Set(selectedSourceIds)
   const sources = manifest.sources.map((entry): PanelSource => {
     const structure = byId.get(entry.sourceId)
     return {
@@ -482,12 +504,43 @@ export async function vaultSources(vault: TopicVault): Promise<{
       lastPage: structure === undefined ? 0 : lastPageOf(structure),
       degradation: entry.degradation,
       sections: structure === undefined ? [] : panelSections(structure),
+      active: selected.has(entry.sourceId),
     }
   })
   return {
     status: sources.length === 0 ? 'empty' : 'ok',
     protocol: VAULT_RPC_PROTOCOL,
     sources,
+    activeSourceIds: manifest.activeSourceIds === undefined || manifest.activeSourceIds === null
+      ? null
+      : selectedSourceIds,
+  }
+}
+
+/** Read or update the Space's explicit grounding scope. */
+export async function spaceScope(
+  vault: TopicVault,
+  requestedSourceIds?: readonly string[] | null,
+): Promise<SpaceScope> {
+  const manifest = await readManifest(vault)
+  const sourceIds = manifest.sources.map(entry => entry.sourceId)
+  const selectedSourceIds = requestedSourceIds === undefined
+    ? await activeSourceIds(vault)
+    : requestedSourceIds === null
+      ? sourceIds
+      : [...new Set(requestedSourceIds)].filter(sourceId => sourceIds.includes(sourceId))
+  const active = requestedSourceIds === undefined
+    ? manifest.activeSourceIds === undefined || manifest.activeSourceIds === null ? null : selectedSourceIds
+    : requestedSourceIds === null || selectedSourceIds.length === sourceIds.length ? null : selectedSourceIds
+  if (requestedSourceIds !== undefined) {
+    await writeManifest(vault, { ...manifest, activeSourceIds: active })
+  }
+  return {
+    status: 'ok',
+    protocol: VAULT_RPC_PROTOCOL,
+    activeSourceIds: active,
+    selectedSourceIds: active === null ? sourceIds : selectedSourceIds,
+    sourceIds,
   }
 }
 
@@ -540,9 +593,9 @@ export async function vaultRead(
 /**
  * Free-text search over material, concept cards, and notes.
  *
- * Ranking is {@link matchedTerms} — the same distinct-term count the model's
- * retrieval uses — over {@link keyPhrases} of the query, so what a person finds
- * here is exactly what the model can reach. No model call, no index, no network.
+ * Material ranking uses the same chunk/BM25 index as model retrieval, while
+ * concepts and notes retain their small literal matcher. No model call or
+ * network is involved.
  */
 export async function vaultSearch(vault: TopicVault, query: string): Promise<PanelSearchResult> {
   const terms = keyPhrases(query)
@@ -552,31 +605,36 @@ export async function vaultSearch(vault: TopicVault, query: string): Promise<Pan
   if (terms.length === 0) return empty
 
   const material: (PanelHit & { score: number })[] = []
-  for (const structure of await readAllStructures(vault)) {
-    let lines: readonly string[]
-    try {
-      lines = await extractedLines(vault, structure)
-    } catch {
-      // A structure whose extracted markdown was deleted by hand is skipped,
-      // never fatal: tolerating hand-edited folders is the price of the format.
-      continue
+  const selectedSourceIds = await activeSourceIds(vault)
+  const structures = await readAllStructures(vault)
+  const bySource = new Map(structures.map(structure => [structure.sourceId, structure]))
+  const index = await ensureLexicalIndex(vault)
+  const chunksBySource = new Map<string, Awaited<ReturnType<typeof readSourceChunks>>>()
+  for (const hit of searchLexicalIndex(index, terms, {
+    sourceIds: selectedSourceIds,
+    limit: MAX_PANEL_HITS,
+  })) {
+    const structure = bySource.get(hit.sourceId)
+    if (structure === undefined) continue
+    let chunks = chunksBySource.get(hit.sourceId)
+    if (chunks === undefined) {
+      chunks = await readSourceChunks(vault, hit.sourceId)
+      chunksBySource.set(hit.sourceId, chunks)
     }
-    for (const section of structure.sections) {
-      const body = sectionBody(lines, section)
-      const matched = matchedTerms(`${section.label}\n${body}`, terms)
-      if (matched.length === 0) continue
-      material.push({
-        path: structure.extractedPath,
-        title: structure.title,
-        section: section.label,
-        sourceId: structure.sourceId,
-        sectionId: section.id,
-        ...(section.page === undefined ? {} : { page: section.page }),
-        excerpt: excerptAround(body, matched, MAX_PANEL_EXCERPT_CHARS),
-        matched,
-        score: matched.length,
-      })
-    }
+    const chunk = chunks.find(candidate => candidate.chunkId === hit.chunkId)
+    const section = structure.sections.find(candidate => candidate.id === hit.sectionId)
+    if (chunk === undefined || section === undefined) continue
+    material.push({
+      path: structure.extractedPath,
+      title: structure.title,
+      section: section.label,
+      sourceId: structure.sourceId,
+      sectionId: section.id,
+      ...(section.page === undefined ? {} : { page: section.page }),
+      excerpt: excerptAround(chunk.text, hit.matchedTerms, MAX_PANEL_EXCERPT_CHARS),
+      matched: [...hit.matchedTerms],
+      score: hit.score,
+    })
   }
 
   const concepts: (PanelHit & { score: number })[] = []
@@ -615,6 +673,7 @@ ${note.body}`, terms)
 
   return {
     ...empty,
+    activeSourceIds: selectedSourceIds,
     material: rank(material).map(({ score: _score, ...hit }) => hit),
     concepts: rank(concepts).map(({ score: _score, ...hit }) => hit),
     notes: rank(notes).map(({ score: _score, ...hit }) => hit),
@@ -683,6 +742,17 @@ export async function handleVaultEndpoint(
       }
       case 'vault/search':
         return { ok: true, value: await vaultSearch(vault, text(fields.query) ?? '') }
+      case 'space/scope': {
+        if (fields.sourceIds !== undefined && fields.sourceIds !== null && !Array.isArray(fields.sourceIds)) {
+          return fail('bad-request', 'space/scope sourceIds must be an array or null')
+        }
+        const requested = fields.sourceIds === null
+          ? null
+          : fields.sourceIds === undefined
+            ? undefined
+            : fields.sourceIds.filter((value): value is string => typeof value === 'string')
+        return { ok: true, value: await spaceScope(vault, requested) }
+      }
       case 'concepts/list':
         return { ok: true, value: await listConcepts(vault) }
       case 'concepts/review':

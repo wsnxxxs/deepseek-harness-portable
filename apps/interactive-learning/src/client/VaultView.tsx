@@ -75,6 +75,7 @@ interface Source {
   lastPage: number
   degradation: Degradation[]
   sections: Section[]
+  active?: boolean
 }
 interface Summary {
   status: string
@@ -98,6 +99,7 @@ interface Hit {
   matched: string[]
 }
 interface SearchResult { status: string; terms: string[]; material: Hit[]; concepts: Hit[]; notes: Hit[] }
+interface SourceList { status: string; sources: Source[]; activeSourceIds?: string[] | null }
 interface Reading {
   status: string
   sourceId: string
@@ -231,7 +233,7 @@ function CoverageStrip({ source, t }: { source: Source; t: VaultViewProps['t'] }
 
 /** One source row: provenance, coverage, honest degradation, then its tree. */
 function SourceCard({
-  source, reading, onOpen, onClose, ask, onReparsed, t,
+  source, reading, onOpen, onClose, ask, onReparsed, onScopeChange, t,
 }: {
   source: Source
   reading: Reading | undefined
@@ -239,6 +241,7 @@ function SourceCard({
   onClose: () => void
   ask: Ask
   onReparsed: () => void
+  onScopeChange: (sourceId: string, active: boolean) => void
   t: VaultViewProps['t']
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -258,6 +261,15 @@ function SourceCard({
             {source.lastPage > 0 ? t('vaultReadTo', { page: String(source.lastPage) }) : t('vaultSectionCount', { count: String(source.sectionCount) })}
           </p>
         </div>
+        <label className={css.scopeToggle}>
+          <input
+            type="checkbox"
+            checked={source.active !== false}
+            aria-label={t('vaultScopeToggle', { title: source.title })}
+            onChange={(event) => { onScopeChange(source.sourceId, event.target.checked) }}
+          />
+          <span>{t('vaultScopeInclude')}</span>
+        </label>
       </header>
 
       <CoverageStrip source={source} t={t} />
@@ -439,6 +451,7 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
   const [reading, setReading] = useState<Reading | undefined>(undefined)
   const [searchFailure, setSearchFailure] = useState('')
   const [readingFailure, setReadingFailure] = useState('')
+  const [scopeFailure, setScopeFailure] = useState('')
   /** Bumped to re-run the whole load; a re-read rewrites the source on disk. */
   const [reloads, setReloads] = useState(0)
   const live = useRef(true)
@@ -463,13 +476,14 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
     setFailure('')
     setSearchFailure('')
     setReadingFailure('')
+    setScopeFailure('')
     setReading(undefined)
     setResults(undefined)
     void (async () => {
       try {
         const [head, list, cards, due, kept] = await Promise.all([
           ask<Summary>('vault/summary'),
-          ask<{ status: string; sources: Source[] }>('vault/sources'),
+          ask<SourceList>('vault/sources'),
           ask<ConceptList>('concepts/list'),
           ask<ConceptList>('concepts/review'),
           ask<NoteList>('notes/list'),
@@ -504,7 +518,13 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
           throw new Error(`${invalid[0]} returned status ${invalid[1]}`)
         }
         setSummary(head)
-        setSources(list?.sources ?? [])
+        const selected = list.activeSourceIds === null || list.activeSourceIds === undefined
+          ? undefined
+          : new Set(list.activeSourceIds)
+        setSources((list?.sources ?? []).map(source => ({
+          ...source,
+          active: source.active ?? (selected === undefined ? true : selected.has(source.sourceId)),
+        })))
         setConcepts(cards)
         setQueue(due)
         setNotes(kept)
@@ -518,8 +538,31 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
     return () => { cancelled = true }
   }, [ask, reloads])
 
-  // Debounced so a query runs on a pause in typing, not on every keystroke:
-  // each run reads every extracted file in the vault.
+  const changeScope = useCallback((sourceId: string, active: boolean) => {
+    const before = sources
+    const nextSourceIds = sources
+      .filter(source => source.sourceId === sourceId ? active : source.active !== false)
+      .map(source => source.sourceId)
+    setScopeFailure('')
+    setSources(current => current.map(source => (
+      source.sourceId === sourceId ? { ...source, active } : source
+    )))
+    void (async () => {
+      try {
+        const result = await ask<{ selectedSourceIds?: string[] }>('space/scope', { sourceIds: nextSourceIds })
+        if (result?.selectedSourceIds !== undefined) {
+          const selected = new Set(result.selectedSourceIds)
+          setSources(current => current.map(source => ({ ...source, active: selected.has(source.sourceId) })))
+        }
+      } catch (cause) {
+        setSources(before)
+        setScopeFailure(cause instanceof Error ? cause.message : String(cause))
+      }
+    })()
+  }, [ask, sources])
+
+  // Debounced so a query runs on a pause in typing, not on every keystroke;
+  // the Host answers from the derived chunk index.
   useEffect(() => {
     const trimmed = query.trim()
     if (trimmed === '') {
@@ -694,6 +737,7 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
     : (
       <div className={css.sources}>
         {readingFailure !== '' && <p className={css.staleNote} role="alert">{readingFailure}</p>}
+        {scopeFailure !== '' && <p className={css.staleNote} role="alert">{t('vaultScopeFailed')}: {scopeFailure}</p>}
         {sources.map(source => (
           <SourceCard
             key={source.sourceId}
@@ -703,6 +747,7 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
             onClose={() => { setReading(undefined) }}
             ask={ask as Ask}
             onReparsed={reload}
+            onScopeChange={changeScope}
             t={t}
           />
         ))}
@@ -759,6 +804,14 @@ export function VaultLibrary({ cwd, call, t, onClose, embedded = false, topics }
           onChange={(event) => { setQuery(event.target.value) }}
         />
         <p className={css.local}>{t('vaultLocalOnly')}</p>
+        {sources.length > 0 && (
+          <p className={css.scopeNote}>
+            {t('vaultScopeSummary', {
+              selected: String(sources.filter(source => source.active !== false).length),
+              total: String(sources.length),
+            })}
+          </p>
+        )}
       </header>
 
       {searchFailure !== ''

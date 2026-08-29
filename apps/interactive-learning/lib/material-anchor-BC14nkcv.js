@@ -15,6 +15,8 @@ import { createHash } from "node:crypto";
 const SOURCE_STRUCTURE_PROTOCOL = "dsh-learning-structure@1";
 /** Vault manifest protocol tag. */
 const VAULT_MANIFEST_PROTOCOL = "dsh-learning-vault@1";
+/** Library/Space manifest protocol tag. The legacy vault manifest stays readable. */
+const SPACE_MANIFEST_PROTOCOL = "dsh-learning-space@2";
 const SLUG_STRIP = /[^\p{Letter}\p{Number}]+/gu;
 const MAX_SLUG_LENGTH = 64;
 /**
@@ -205,4 +207,4 @@ function mentionSupported(mention, targets) {
 	});
 }
 //#endregion
-export { slugify as _, formatSectionAnchor as a, resolveAnchorTarget as c, SOURCE_STRUCTURE_PROTOCOL as d, VAULT_MANIFEST_PROTOCOL as f, sectionIdOf as g, quoteHashOf as h, formatAnchorTarget as i, sameStringList as l, normalizeQuote as m, anchorPage as n, mentionSupported as o, contentHashOf as p, anchorTargetsOf as r, parseAnchorText as s, ANCHOR_PATH_SEPARATOR as t, sectionMentions as u };
+export { sectionIdOf as _, formatSectionAnchor as a, resolveAnchorTarget as c, SOURCE_STRUCTURE_PROTOCOL as d, SPACE_MANIFEST_PROTOCOL as f, quoteHashOf as g, normalizeQuote as h, formatAnchorTarget as i, sameStringList as l, contentHashOf as m, anchorPage as n, mentionSupported as o, VAULT_MANIFEST_PROTOCOL as p, anchorTargetsOf as r, parseAnchorText as s, ANCHOR_PATH_SEPARATOR as t, sectionMentions as u, slugify as v };

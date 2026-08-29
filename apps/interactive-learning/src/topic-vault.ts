@@ -1,7 +1,7 @@
 /**
  * The topic vault: a learning topic IS a real directory, and that directory is a
- * harness Workspace. Nothing new is persisted to represent one — a vault is a
- * Workspace whose directory carries `.learning/manifest.json`.
+ * harness Workspace. The legacy identity marker remains `.learning/manifest.json`,
+ * while canonical Space metadata is added under `.library/space.json`.
  *
  * That identity is what makes the write fence free. `ctx.sandboxPolicy` resolves
  * `workspaceRoot` from the session's immutable `cwd`, and Workspace membership
@@ -19,11 +19,20 @@ import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/pro
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import {
+  SPACE_MANIFEST_PROTOCOL,
   VAULT_MANIFEST_PROTOCOL,
+  slugify,
   type SourceManifestEntry,
+  type SpaceManifest,
   type SourceStructure,
   type VaultManifest,
 } from './ingest/types.ts'
+import {
+  ensureSpaceManifest,
+  readSpaceManifest,
+  writeSpaceManifest,
+  SPACE_MANIFEST_RELATIVE_PATH,
+} from './space/manifest.ts'
 
 /** Vault-relative directory names. Stable: a person's file manager sees these. */
 export const VAULT_DIRECTORIES = Object.freeze({
@@ -33,6 +42,10 @@ export const VAULT_DIRECTORIES = Object.freeze({
   notes: 'notes',
   internal: '.learning',
   structure: join('.learning', 'structure'),
+  library: '.library',
+  libraryIndex: join('.library', 'index'),
+  chunks: join('.library', 'chunks'),
+  artifacts: 'artifacts',
 })
 
 /** Vault-relative path of the manifest whose presence marks a directory a vault. */
@@ -50,6 +63,12 @@ export interface TopicVault {
   readonly notes: string
   readonly internal: string
   readonly structure: string
+  /** Derived Library cache paths; the legacy paths above remain authoritative. */
+  readonly library: string
+  readonly libraryIndex: string
+  readonly chunks: string
+  readonly artifacts: string
+  readonly spaceManifestPath: string
   readonly manifestPath: string
 }
 
@@ -80,6 +99,11 @@ export function vaultFromRoot(root: string, title?: string, workspaceId?: string
     notes: join(absolute, VAULT_DIRECTORIES.notes),
     internal: join(absolute, VAULT_DIRECTORIES.internal),
     structure: join(absolute, VAULT_DIRECTORIES.structure),
+    library: join(absolute, VAULT_DIRECTORIES.library),
+    libraryIndex: join(absolute, VAULT_DIRECTORIES.libraryIndex),
+    chunks: join(absolute, VAULT_DIRECTORIES.chunks),
+    artifacts: join(absolute, VAULT_DIRECTORIES.artifacts),
+    spaceManifestPath: join(absolute, SPACE_MANIFEST_RELATIVE_PATH),
     manifestPath: join(absolute, VAULT_MANIFEST_PATH),
   }
 }
@@ -139,14 +163,25 @@ export async function resolveTopicVault(ctx: Context, cwd: string | undefined): 
 
 /**
  * Create the vault layout, idempotently. Safe to call on an existing vault: the
- * manifest is only written when absent, so a reingest never resets the record.
+ * legacy manifest is only written when absent, and Space metadata is ensured
+ * without resetting the source record.
  * @param root - Absolute directory to make into a vault.
  * @param title - Display title for a newly created vault.
  * @returns the resolved vault.
  */
 export async function ensureVaultLayout(root: string, title?: string): Promise<TopicVault> {
   const vault = vaultFromRoot(root, title)
-  for (const directory of [vault.sources, vault.extracted, vault.concepts, vault.notes, vault.structure]) {
+  for (const directory of [
+    vault.sources,
+    vault.extracted,
+    vault.concepts,
+    vault.notes,
+    vault.structure,
+    vault.library,
+    vault.libraryIndex,
+    vault.chunks,
+    vault.artifacts,
+  ]) {
     await mkdir(directory, { recursive: true })
   }
   if (!await isVaultRoot(vault.root)) {
@@ -159,6 +194,7 @@ export async function ensureVaultLayout(root: string, title?: string): Promise<T
       sources: [],
     })
   }
+  await ensureSpaceManifest(vault)
   return vault
 }
 
@@ -178,12 +214,15 @@ export async function readManifest(vault: TopicVault): Promise<VaultManifest> {
     updatedAt: now,
     sources: [],
   }
-  try {
-    const parsed = JSON.parse(await readFile(vault.manifestPath, 'utf8')) as VaultManifest
-    if (parsed?.protocol !== VAULT_MANIFEST_PROTOCOL || !Array.isArray(parsed.sources)) return empty
-    return parsed
-  } catch {
-    return empty
+  const space = await readSpaceManifest(vault)
+  if (space === undefined) return empty
+  return {
+    protocol: VAULT_MANIFEST_PROTOCOL,
+    ...(space.title === undefined ? {} : { title: space.title }),
+    createdAt: space.createdAt,
+    updatedAt: space.updatedAt,
+    sources: space.sources,
+    ...(space.activeSourceIds === undefined ? {} : { activeSourceIds: space.activeSourceIds }),
   }
 }
 
@@ -192,6 +231,20 @@ export async function writeManifest(vault: TopicVault, manifest: VaultManifest):
   await mkdir(vault.internal, { recursive: true })
   const stamped: VaultManifest = { ...manifest, updatedAt: new Date().toISOString() }
   await writeFile(vault.manifestPath, `${JSON.stringify(stamped, undefined, 2)}\n`, 'utf8')
+  const current = await readSpaceManifest(vault)
+  const space: SpaceManifest = {
+    protocol: SPACE_MANIFEST_PROTOCOL,
+    schema: current?.schema ?? 'learning',
+    id: current?.id ?? slugify(vault.root, 'space'),
+    ...(stamped.title === undefined ? {} : { title: stamped.title }),
+    createdAt: stamped.createdAt,
+    updatedAt: stamped.updatedAt,
+    sources: stamped.sources,
+    ...(stamped.activeSourceIds === undefined
+      ? current?.activeSourceIds === undefined ? {} : { activeSourceIds: current.activeSourceIds }
+      : { activeSourceIds: stamped.activeSourceIds }),
+  }
+  await writeSpaceManifest(vault, space)
 }
 
 /** Replace one source's manifest entry, appending when it is new. */
@@ -209,6 +262,20 @@ export async function upsertManifestEntry(
 /** Absolute path of one source's structure record. */
 export function structurePathOf(vault: TopicVault, sourceId: string): string {
   return join(vault.structure, `${sourceId}.json`)
+}
+
+/** Absolute path of one source's derived chunk stream. */
+export function chunksPathOf(vault: TopicVault, sourceId: string): string {
+  return join(vault.chunks, `${sourceId}.jsonl`)
+}
+
+/** Effective grounding scope for the sources currently recorded in the vault. */
+export async function activeSourceIds(vault: TopicVault): Promise<readonly string[]> {
+  const manifest = await readManifest(vault)
+  const ids = manifest.sources.map(entry => entry.sourceId)
+  if (manifest.activeSourceIds === undefined || manifest.activeSourceIds === null) return ids
+  const allowed = new Set(ids)
+  return [...new Set(manifest.activeSourceIds)].filter(sourceId => allowed.has(sourceId))
 }
 
 /**

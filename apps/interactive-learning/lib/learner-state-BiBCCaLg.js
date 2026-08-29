@@ -1234,22 +1234,4 @@ function renderLearnerStateTranscript(state, options = {}) {
 	return rendered;
 }
 //#endregion
-//#region lib/types/bootstrap.js
-/**
-* Compatibility hook for the installable Learning package.
-*
-* The portable runtime statically imports this package's preset entry before
-* boot and before persistence can load a session. Keep session-event
-* registration here so every Host/preset entry uses the same idempotent seam.
-* Learning snapshots are also written with the envelope's `ignorable` marker,
-* so a host that attaches this package lazily can still retain and fold them
-* after the import resolves. The Session reader keeps an exact compatibility
-* exception for older `learning/state` snapshots written before that marker.
-*/
-/** Register the Learning session event for strict validation when the package is attached. */
-function registerInteractiveLearningSessionCompatibility() {
-	registerLearningSessionEventType();
-}
-registerInteractiveLearningSessionCompatibility();
-//#endregion
-export { serializeLearnerStateSnapshot as S, parseLearnerStateSnapshotEvent as _, LEARNER_STATE_SESSION_EVENT_TYPE as a, renderLearnerStateTranscript as b, LEARNING_CHECKPOINT_METRIC_KINDS as c, LEARNING_SEGMENT_SESSION_EVENT_TYPE as d, MAX_FAILED_MOVES as f, hydrateLearnerStateSnapshot as g, foldLearnerStateSession as h, LEARNER_STATE_PROTOCOL as i, LEARNING_CHECKPOINT_METRIC_STATUSES as l, createLearnerStateSnapshotEvent as m, DEFAULT_TRANSCRIPT_TOKEN_BUDGET as n, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL as o, createInitialLearnerState as p, LEARNER_STATE_EVENT_PROTOCOL as r, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE as s, registerInteractiveLearningSessionCompatibility as t, LEARNING_SEGMENT_EVENT_PROTOCOL as u, reduceLearnerState as v, resetLearnerState as x, registerLearningSessionEventType as y };
+export { reduceLearnerState as _, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL as a, resetLearnerState as b, LEARNING_CHECKPOINT_METRIC_STATUSES as c, MAX_FAILED_MOVES as d, createInitialLearnerState as f, parseLearnerStateSnapshotEvent as g, hydrateLearnerStateSnapshot as h, LEARNER_STATE_SESSION_EVENT_TYPE as i, LEARNING_SEGMENT_EVENT_PROTOCOL as l, foldLearnerStateSession as m, LEARNER_STATE_EVENT_PROTOCOL as n, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE as o, createLearnerStateSnapshotEvent as p, LEARNER_STATE_PROTOCOL as r, LEARNING_CHECKPOINT_METRIC_KINDS as s, DEFAULT_TRANSCRIPT_TOKEN_BUDGET as t, LEARNING_SEGMENT_SESSION_EVENT_TYPE as u, registerLearningSessionEventType as v, serializeLearnerStateSnapshot as x, renderLearnerStateTranscript as y };

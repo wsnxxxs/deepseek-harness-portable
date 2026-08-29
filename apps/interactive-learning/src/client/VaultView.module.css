@@ -163,6 +163,13 @@
   line-height: var(--lx-leading-micro);
 }
 
+.scopeNote {
+  margin: calc(var(--lx-space-sm) * -1) 0 0;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-micro);
+  line-height: var(--lx-leading-micro);
+}
+
 /* ---------- source card ---------- */
 
 .sources {
@@ -194,6 +201,20 @@
   gap: var(--lx-space-2xs);
   min-width: 0;
 }
+
+.scopeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lx-space-xs);
+  margin-inline-start: auto;
+  color: var(--lx-label-secondary);
+  font-size: var(--lx-text-2xs);
+  line-height: var(--lx-leading-2xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scopeToggle input { accent-color: var(--lx-accent); }
 
 .cardTitle {
   margin: 0;

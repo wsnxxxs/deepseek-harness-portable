@@ -33,6 +33,7 @@ export { LearningActivityBroker as default } from './broker.ts'
 export {
   VAULT_DIRECTORIES,
   VAULT_MANIFEST_PATH,
+  activeSourceIds,
   VaultContainmentError,
   containedPath,
   ensureVaultLayout,
@@ -42,6 +43,7 @@ export {
   readStructure,
   resolveTopicVault,
   structurePathOf,
+  chunksPathOf,
   upsertManifestEntry,
   vaultFromRoot,
   vaultRelative,
@@ -49,7 +51,17 @@ export {
   type TopicVault,
 } from './topic-vault.ts'
 export {
+  SPACE_MANIFEST_RELATIVE_PATH,
+  effectiveSourceIds,
+  ensureSpaceManifest,
+  readSpaceManifest,
+  writeSpaceManifest,
+  type SpaceManifest,
+} from './space/index.ts'
+export type { Space } from './space/index.ts'
+export {
   SOURCE_STRUCTURE_PROTOCOL,
+  SPACE_MANIFEST_PROTOCOL,
   VAULT_MANIFEST_PROTOCOL,
   SUPPORTED_EXTENSIONS,
   deriveStructure,
@@ -70,6 +82,37 @@ export {
   type SourceStructure,
   type VaultManifest,
 } from './ingest/index.ts'
+export {
+  fileProvider,
+  SOURCE_PROVIDERS,
+  type AcquiredBytes,
+  type FileSourceRef,
+  type SourceProvider,
+  type SourceRef,
+} from './ingest/provider.ts'
+export {
+  DEFAULT_CHUNK_OVERLAP,
+  DEFAULT_CHUNK_TARGET_CHARS,
+  chunkSource,
+  type ChunkOptions,
+  type SourceChunk,
+} from './index/chunker.ts'
+export {
+  LEXICAL_INDEX_PROTOCOL,
+  buildLexicalIndex,
+  ensureLexicalIndex,
+  lexicalIndexPathOf,
+  readSourceChunks,
+  searchLexicalIndex,
+  tokenize,
+  updateLexicalIndex,
+  writeSourceChunks,
+  type LexicalDocument,
+  type LexicalIndex,
+  type LexicalPosting,
+  type LexicalSearchHit,
+  type LexicalSearchOptions,
+} from './index/lexical.ts'
 export {
   MAX_SOURCE_BYTES,
   describeDegradation,
@@ -131,6 +174,12 @@ export {
   type RetrievalResult,
   type RetrievedPassage,
 } from './material-retrieval.ts'
+export {
+  TeachingPlanner,
+  retrieve,
+  type RetrieveRequest,
+  type RetrievalPlanner,
+} from './retrieval/index.ts'
 export {
   formatStudyMapViolations,
   validateStudyMapAgainstVault,

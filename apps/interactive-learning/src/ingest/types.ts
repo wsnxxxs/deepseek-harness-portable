@@ -18,6 +18,9 @@ export const SOURCE_STRUCTURE_PROTOCOL = 'dsh-learning-structure@1' as const
 /** Vault manifest protocol tag. */
 export const VAULT_MANIFEST_PROTOCOL = 'dsh-learning-vault@1' as const
 
+/** Library/Space manifest protocol tag. The legacy vault manifest stays readable. */
+export const SPACE_MANIFEST_PROTOCOL = 'dsh-learning-space@2' as const
+
 /** Every block kind a parser may emit. Anything finer degrades to `paragraph`. */
 export type ParsedBlockKind = 'heading' | 'paragraph' | 'code' | 'table' | 'list' | 'caption'
 
@@ -160,6 +163,23 @@ export interface VaultManifest {
   createdAt: string
   updatedAt: string
   sources: readonly SourceManifestEntry[]
+  /** Explicit grounding scope. Missing/null means every source is active. */
+  activeSourceIds?: readonly string[] | null
+}
+
+/** Canonical manifest written to `.library/space.json`. */
+export interface SpaceManifest {
+  protocol: typeof SPACE_MANIFEST_PROTOCOL
+  /** Schema controls which views a Space exposes; learning is the legacy skin. */
+  schema: 'learning' | 'library'
+  /** Stable identity for future Space-level APIs. */
+  id: string
+  title?: string
+  createdAt: string
+  updatedAt: string
+  sources: readonly SourceManifestEntry[]
+  /** null/undefined keeps the backwards-compatible all-sources default. */
+  activeSourceIds?: readonly string[] | null
 }
 
 const SLUG_STRIP = /[^\p{Letter}\p{Number}]+/gu

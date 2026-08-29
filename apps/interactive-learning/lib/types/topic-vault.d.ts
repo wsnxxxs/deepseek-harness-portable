@@ -1,7 +1,7 @@
 /**
  * The topic vault: a learning topic IS a real directory, and that directory is a
- * harness Workspace. Nothing new is persisted to represent one — a vault is a
- * Workspace whose directory carries `.learning/manifest.json`.
+ * harness Workspace. The legacy identity marker remains `.learning/manifest.json`,
+ * while canonical Space metadata is added under `.library/space.json`.
  *
  * That identity is what makes the write fence free. `ctx.sandboxPolicy` resolves
  * `workspaceRoot` from the session's immutable `cwd`, and Workspace membership
@@ -24,6 +24,10 @@ export declare const VAULT_DIRECTORIES: Readonly<{
     notes: "notes";
     internal: ".learning";
     structure: string;
+    library: ".library";
+    libraryIndex: string;
+    chunks: string;
+    artifacts: "artifacts";
 }>;
 /** Vault-relative path of the manifest whose presence marks a directory a vault. */
 export declare const VAULT_MANIFEST_PATH: string;
@@ -39,6 +43,12 @@ export interface TopicVault {
     readonly notes: string;
     readonly internal: string;
     readonly structure: string;
+    /** Derived Library cache paths; the legacy paths above remain authoritative. */
+    readonly library: string;
+    readonly libraryIndex: string;
+    readonly chunks: string;
+    readonly artifacts: string;
+    readonly spaceManifestPath: string;
     readonly manifestPath: string;
 }
 /** A path that tried to leave the vault it was resolved against. */
@@ -70,7 +80,8 @@ export declare function isVaultRoot(root: string): Promise<boolean>;
 export declare function resolveTopicVault(ctx: Context, cwd: string | undefined): Promise<TopicVault | undefined>;
 /**
  * Create the vault layout, idempotently. Safe to call on an existing vault: the
- * manifest is only written when absent, so a reingest never resets the record.
+ * legacy manifest is only written when absent, and Space metadata is ensured
+ * without resetting the source record.
  * @param root - Absolute directory to make into a vault.
  * @param title - Display title for a newly created vault.
  * @returns the resolved vault.
@@ -91,6 +102,10 @@ export declare function writeManifest(vault: TopicVault, manifest: VaultManifest
 export declare function upsertManifestEntry(vault: TopicVault, entry: SourceManifestEntry): Promise<VaultManifest>;
 /** Absolute path of one source's structure record. */
 export declare function structurePathOf(vault: TopicVault, sourceId: string): string;
+/** Absolute path of one source's derived chunk stream. */
+export declare function chunksPathOf(vault: TopicVault, sourceId: string): string;
+/** Effective grounding scope for the sources currently recorded in the vault. */
+export declare function activeSourceIds(vault: TopicVault): Promise<readonly string[]>;
 /**
  * Read one source's derived structure.
  * @returns the structure, or `undefined` when it is missing or unreadable.

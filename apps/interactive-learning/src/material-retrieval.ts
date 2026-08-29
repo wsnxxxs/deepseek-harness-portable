@@ -15,13 +15,13 @@
  * @module @dsh-portable/interactive-learning/src/material-retrieval
  */
 
-import { readFile } from 'node:fs/promises'
 import { normalizeQuote, type SourceSection, type SourceStructure } from './ingest/types.ts'
 import type { LearnerState } from './learner-state.ts'
 import { formatSectionAnchor } from './material-anchor.ts'
 import { readLearnerMemory } from './learner-memory.ts'
 import { slugify } from './ingest/types.ts'
-import { containedPath, readAllStructures, type TopicVault } from './topic-vault.ts'
+import { ensureLexicalIndex, readSourceChunks, searchLexicalIndex } from './index/lexical.ts'
+import { activeSourceIds, readAllStructures, type TopicVault } from './topic-vault.ts'
 
 /**
  * Why the next passage is being retrieved. A closed set: each member names a
@@ -238,6 +238,7 @@ export function planRetrieval(
 
 /** One retrieved passage, ready to cite. */
 export interface RetrievedPassage {
+  chunkId: string
   sourceId: string
   sectionId: string
   label: string
@@ -263,41 +264,14 @@ export interface RetrievalResult {
   usedChars: number
 }
 
-/** A section with its own body text and the terms it matched. */
+/** A chunk with its source section and the terms it matched. */
 interface ScoredSection {
+  chunkId: string
   structure: SourceStructure
   section: SourceSection
   body: string
   matched: readonly string[]
   score: number
-}
-
-/**
- * Score one section: distinct term hits first, then whether it is already cited.
- *
- * Term COUNT rather than occurrence count, so a section that merely repeats one
- * word does not outrank one that actually joins two ideas the learner is stuck
- * between.
- */
-function scoreSection(
-  structure: SourceStructure,
-  section: SourceSection,
-  body: string,
-  plan: RetrievalPlan,
-): ScoredSection | undefined {
-  const haystack = `${section.label}\n${body}`.toLowerCase()
-  const matched = plan.terms.filter(term => haystack.includes(term.toLowerCase()))
-  if (matched.length === 0) return undefined
-  const anchor = formatSectionAnchor(structure.sourceId, section)
-  const preferred = plan.preferredAnchors.some(candidate =>
-    candidate.includes(section.label) || anchor === candidate)
-  if (plan.intent === 'second-example' && preferred) return undefined
-  // An already-cited section is where the learner already is; that is the right
-  // place to look for counter-evidence and the wrong one for a second example.
-  const adjustment = plan.intent === 'second-example'
-    ? 0
-    : (preferred ? 1 : 0)
-  return { structure, section, body, matched, score: matched.length + adjustment }
 }
 
 /** Return the supplied terms that occur in a body, preserving their order. */
@@ -403,22 +377,40 @@ export async function executeRetrievalPlan(
   plan: RetrievalPlan,
   state: LearnerState,
   sessionQuery?: SessionQueryLike,
+  options: { sourceIds?: readonly string[] } = {},
 ): Promise<RetrievalResult> {
   const structures = await readAllStructures(vault)
+  const bySource = new Map(structures.map(structure => [structure.sourceId, structure]))
+  const index = await ensureLexicalIndex(vault)
+  const sourceIds = options.sourceIds ?? await activeSourceIds(vault)
+  const chunksBySource = new Map<string, Awaited<ReturnType<typeof readSourceChunks>>>()
   const scored: ScoredSection[] = []
-  for (const structure of structures) {
-    let lines: readonly string[]
-    try {
-      const path = await containedPath(vault, structure.extractedPath)
-      lines = (await readFile(path, 'utf8')).split('\n')
-    } catch {
-      continue
+  const candidates = searchLexicalIndex(index, plan.terms, {
+    sourceIds,
+    limit: 60,
+  })
+  for (const hit of candidates) {
+    const structure = bySource.get(hit.sourceId)
+    if (structure === undefined) continue
+    let sourceChunks = chunksBySource.get(hit.sourceId)
+    if (sourceChunks === undefined) {
+      sourceChunks = await readSourceChunks(vault, hit.sourceId)
+      chunksBySource.set(hit.sourceId, sourceChunks)
     }
-    for (const section of structure.sections) {
-      const body = lines.slice(section.line - 1, section.endLine - 1).join('\n')
-      const candidate = scoreSection(structure, section, body, plan)
-      if (candidate !== undefined) scored.push(candidate)
-    }
+    const chunk = sourceChunks.find(candidate => candidate.chunkId === hit.chunkId)
+    const section = structure.sections.find(candidate => candidate.id === hit.sectionId)
+    if (chunk === undefined || section === undefined) continue
+    const preferred = plan.preferredAnchors.some(candidate =>
+      candidate.includes(section.label) || chunk.anchor === candidate)
+    if (plan.intent === 'second-example' && preferred) continue
+    scored.push({
+      chunkId: hit.chunkId,
+      structure,
+      section,
+      body: chunk.text,
+      matched: hit.matchedTerms,
+      score: hit.score + (plan.intent === 'second-example' ? 0 : preferred ? 1 : 0),
+    })
   }
 
   scored.sort((left, right) => right.score - left.score || left.section.line - right.section.line)
@@ -437,6 +429,7 @@ export async function executeRetrievalPlan(
     if (text === '') continue
     usedChars += text.length
     passages.push({
+      chunkId: candidate.chunkId,
       sourceId: candidate.structure.sourceId,
       sectionId: candidate.section.id,
       label: candidate.section.label,

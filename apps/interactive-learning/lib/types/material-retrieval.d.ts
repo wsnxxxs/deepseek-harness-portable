@@ -79,6 +79,7 @@ export declare function keyPhrases(text: string): readonly string[];
 export declare function planRetrieval(state: LearnerState, budgetChars?: number, focus?: string): RetrievalPlan | undefined;
 /** One retrieved passage, ready to cite. */
 export interface RetrievedPassage {
+    chunkId: string;
     sourceId: string;
     sectionId: string;
     label: string;
@@ -127,6 +128,8 @@ interface SessionQueryLike {
  * @param sessionQuery - Optional `ctx.sessionQuery`.
  * @returns the passages, bounded by the plan's budget.
  */
-export declare function executeRetrievalPlan(vault: TopicVault, plan: RetrievalPlan, state: LearnerState, sessionQuery?: SessionQueryLike): Promise<RetrievalResult>;
+export declare function executeRetrievalPlan(vault: TopicVault, plan: RetrievalPlan, state: LearnerState, sessionQuery?: SessionQueryLike, options?: {
+    sourceIds?: readonly string[];
+}): Promise<RetrievalResult>;
 export {};
 //# sourceMappingURL=material-retrieval.d.ts.map

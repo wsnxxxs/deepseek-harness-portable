@@ -24,9 +24,9 @@ import { formatSectionAnchor } from './material-anchor.ts'
 import { describeReanchor } from './material-reanchor.ts'
 import {
   RETRIEVAL_INTENTS,
-  executeRetrievalPlan,
   planRetrieval,
 } from './material-retrieval.ts'
+import { retrieve, type RetrieveRequest } from './retrieval/index.ts'
 import {
   materialStructureMapped,
   recordMaterialReceipt,
@@ -36,6 +36,7 @@ import type { SourceSection, SourceStructure } from './ingest/types.ts'
 import type { LearnerState } from './learner-state.ts'
 import {
   containedPath,
+  activeSourceIds,
   readAllStructures,
   readManifest,
   readStructure,
@@ -138,7 +139,7 @@ function coverageOf(structure: SourceStructure): string {
  */
 const MATERIAL_STATUSES = [
   'ok', 'no-vault', 'empty', 'unknown-source', 'unknown-section', 'invalid',
-  'no-plan', 'no-match',
+  'out-of-scope', 'no-plan', 'no-match',
 ] as const
 
 const status = { type: 'string', enum: MATERIAL_STATUSES, required: true } as const
@@ -352,7 +353,8 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       const sourceId = typeof args.sourceId === 'string' ? args.sourceId.trim() : ''
 
       if (sourceId === '') {
-        const structures = await readAllStructures(vault)
+        const selected = new Set(await activeSourceIds(vault))
+        const structures = (await readAllStructures(vault)).filter(structure => selected.has(structure.sourceId))
         if (structures.length === 0) {
           return {
             status: 'empty' as const,
@@ -391,6 +393,12 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           status: 'unknown-source' as const,
           detail: `No source '${sourceId}' in this learning folder.`,
           known,
+        }
+      }
+      if (!(await activeSourceIds(vault)).includes(sourceId)) {
+        return {
+          status: 'out-of-scope' as const,
+          detail: `Source '${sourceId}' is outside the current grounding scope.`,
         }
       }
       const complete = structure.sections.length <= MAX_MAP_SECTIONS
@@ -463,6 +471,13 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
           status: 'unknown-source' as const,
           detail: `No source '${sourceId}' in this learning folder.`,
           known: (await readManifest(vault)).sources.map(entry => entry.sourceId),
+        }
+      }
+      if (!(await activeSourceIds(vault)).includes(sourceId)) {
+        return {
+          status: 'out-of-scope' as const,
+          sourceId,
+          detail: `Source '${sourceId}' is outside the current grounding scope.`,
         }
       }
       if (structure.sections.length === 0) {
@@ -564,8 +579,15 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
       }
       const scope = typeof args.sourceId === 'string' ? args.sourceId.trim() : ''
       const all = await readAllStructures(vault)
+      const selected = new Set(await activeSourceIds(vault))
+      if (scope !== '' && !selected.has(scope)) {
+        return {
+          status: 'out-of-scope' as const,
+          detail: `Source '${scope}' is outside the current grounding scope.`,
+        }
+      }
       const structures = scope === ''
-        ? all
+        ? all.filter(structure => selected.has(structure.sourceId))
         : all.filter(structure => structure.sourceId === scope)
       if (structures.length === 0) {
         return {
@@ -668,12 +690,13 @@ export function registerMaterialTools(ctx: MaterialToolContext): void {
         }
       }
 
-      const result = await executeRetrievalPlan(
-        vault,
-        plan,
+      const result = await retrieve({
+        space: vault,
+        query: focus,
+        planner: 'teaching',
         state,
-        ctx.get('sessionQuery' as never) as Parameters<typeof executeRetrievalPlan>[3],
-      )
+        sessionQuery: ctx.get('sessionQuery' as never) as RetrieveRequest['sessionQuery'],
+      })
       if (result.passages.length === 0 && result.learnerPrior.length === 0) {
         return {
           status: 'no-match' as const,

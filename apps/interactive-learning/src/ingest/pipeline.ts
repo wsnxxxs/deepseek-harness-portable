@@ -8,7 +8,7 @@
  * @module @dsh-portable/interactive-learning/src/ingest/pipeline
  */
 
-import { copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
 import {
   readManifest,
@@ -20,8 +20,11 @@ import {
 } from '../topic-vault.ts'
 import { reanchorVaultMemory, type ReanchorOutcome } from '../material-reanchor.ts'
 import { reanchorConceptCards } from '../concept-cards.ts'
+import { chunkSource } from '../index/chunker.ts'
+import { updateLexicalIndex, writeSourceChunks } from '../index/lexical.ts'
 import { emitSource } from './markdown.ts'
-import { extensionOf, parseSource, titleOf, SUPPORTED_EXTENSIONS } from './index.ts'
+import { fileProvider, type AcquiredBytes } from './provider.ts'
+import { extensionOf, titleOf, SUPPORTED_EXTENSIONS } from './index.ts'
 import {
   contentHashOf,
   slugify,
@@ -140,6 +143,7 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
   const fallbackSourceId = slugify(title)
 
   let bytes: Uint8Array
+  let acquired: AcquiredBytes
   try {
     const info = await stat(filePath)
     if (!info.isFile()) {
@@ -153,7 +157,8 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
         reason: `the file is ${Math.round(info.size / 1024 / 1024)} MB, over the ${MAX_SOURCE_BYTES / 1024 / 1024} MB limit`,
       }
     }
-    bytes = await readFile(filePath)
+    acquired = await fileProvider.acquire({ kind: 'file', path: filePath, fileName }, vault)
+    bytes = acquired.bytes
   } catch (cause) {
     return {
       status: 'rejected',
@@ -177,7 +182,7 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
   const sourceId = await resolveSourceId(vault, filePath, originPath, contentHash)
   const manifest = await readManifest(vault)
   const previous = manifest.sources.find(entry => entry.sourceId === sourceId)
-  const parsed: ParsedSource = await parseSource(bytes, fileName, sourceId)
+  const parsed: ParsedSource = await fileProvider.parse({ ...acquired, sourceId })
   if (previous?.contentHash === contentHash && previous.parser === parsed.parser) {
     return { status: 'unchanged', sourceId, title, entry: previous }
   }
@@ -206,6 +211,8 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
     `${JSON.stringify(structure, undefined, 2)}\n`,
     'utf8',
   )
+  const chunks = chunkSource(structure, markdown.split('\n'))
+  await writeSourceChunks(vault, sourceId, chunks)
 
   const entry: SourceManifestEntry = {
     sourceId,
@@ -222,6 +229,9 @@ export async function ingestSource(vault: TopicVault, filePath: string): Promise
     degradation: parsed.degradation,
   }
   await upsertManifestEntry(vault, entry)
+  // The index is a rebuildable cache. Update it when one is already present;
+  // otherwise the first search builds it from all current source chunks.
+  await updateLexicalIndex(vault, sourceId, contentHash, chunks)
   const memoryReanchored = await reanchorVaultMemory(vault, superseded, structure)
   const cardReanchored = await reanchorConceptCards(vault, superseded, structure)
   const reanchored: ReanchorOutcome = {

@@ -1,4 +1,5 @@
-import { _ as slugify, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as VAULT_MANIFEST_PROTOCOL, g as sectionIdOf, h as quoteHashOf, i as formatAnchorTarget, l as sameStringList, m as normalizeQuote, p as contentHashOf, r as anchorTargetsOf, s as parseAnchorText } from "./material-anchor-GE7zenuO.js";
+import { f as createInitialLearnerState } from "./learner-state-BiBCCaLg.js";
+import { _ as sectionIdOf, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as SPACE_MANIFEST_PROTOCOL, g as quoteHashOf, h as normalizeQuote, i as formatAnchorTarget, l as sameStringList, m as contentHashOf, p as VAULT_MANIFEST_PROTOCOL, r as anchorTargetsOf, s as parseAnchorText, v as slugify } from "./material-anchor-BC14nkcv.js";
 import { createHash } from "node:crypto";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
 import { copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
@@ -533,11 +534,98 @@ function reanchor(headingPath, quoteHash, structure) {
 	return structure.sections.find((section) => section.quoteHash === quoteHash);
 }
 //#endregion
+//#region lib/types/space/manifest.js
+/**
+* Canonical Space metadata.
+*
+* The legacy `.learning/manifest.json` remains the compatibility marker for a
+* vault. This module adds `.library/space.json` beside it and never removes or
+* rewrites user material while migrating.
+*/
+const SPACE_MANIFEST_RELATIVE_PATH = join(".library", "space.json");
+function pathOf(vault) {
+	return join(vault.root, SPACE_MANIFEST_RELATIVE_PATH);
+}
+function spaceIdOf(vault) {
+	return slugify(vault.root, "space");
+}
+function validLegacy(value) {
+	const candidate = value;
+	return candidate?.protocol === "dsh-learning-vault@1" && Array.isArray(candidate.sources) && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
+}
+function validSpace(value) {
+	const candidate = value;
+	return candidate?.protocol === "dsh-learning-space@2" && (candidate.schema === "learning" || candidate.schema === "library") && typeof candidate.id === "string" && candidate.id !== "" && Array.isArray(candidate.sources) && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
+}
+function fromLegacy(vault, legacy) {
+	return {
+		protocol: SPACE_MANIFEST_PROTOCOL,
+		schema: "learning",
+		id: spaceIdOf(vault),
+		...legacy.title === void 0 ? {} : { title: legacy.title },
+		createdAt: legacy.createdAt,
+		updatedAt: legacy.updatedAt,
+		sources: legacy.sources,
+		...legacy.activeSourceIds === void 0 ? {} : { activeSourceIds: legacy.activeSourceIds }
+	};
+}
+/** Read the canonical manifest, falling back to the legacy manifest. */
+async function readSpaceManifest(vault) {
+	try {
+		const parsed = JSON.parse(await readFile(pathOf(vault), "utf8"));
+		if (validSpace(parsed)) return parsed;
+	} catch {}
+	try {
+		const parsed = JSON.parse(await readFile(vault.manifestPath, "utf8"));
+		return validLegacy(parsed) ? fromLegacy(vault, parsed) : void 0;
+	} catch {
+		return;
+	}
+}
+/** Write `.library/space.json`; callers decide whether the legacy file is also written. */
+async function writeSpaceManifest(vault, manifest) {
+	await mkdir(vault.library, { recursive: true });
+	await writeFile(pathOf(vault), `${JSON.stringify(manifest, void 0, 2)}\n`, "utf8");
+}
+/**
+* Create or migrate the canonical manifest without touching the legacy file.
+* The operation is idempotent and only adds metadata.
+*/
+async function ensureSpaceManifest(vault) {
+	const existing = await readSpaceManifest(vault);
+	if (existing !== void 0) {
+		try {
+			const parsed = JSON.parse(await readFile(pathOf(vault), "utf8"));
+			if (validSpace(parsed)) return parsed;
+		} catch {}
+		await writeSpaceManifest(vault, existing);
+		return existing;
+	}
+	const now = (/* @__PURE__ */ new Date()).toISOString();
+	const created = {
+		protocol: SPACE_MANIFEST_PROTOCOL,
+		schema: "learning",
+		id: spaceIdOf(vault),
+		title: vault.title,
+		createdAt: now,
+		updatedAt: now,
+		sources: []
+	};
+	await writeSpaceManifest(vault, created);
+	return created;
+}
+/** Effective source scope; omitted/null means all known sources. */
+function effectiveSourceIds(manifest, sourceIds) {
+	if (manifest.activeSourceIds === void 0 || manifest.activeSourceIds === null) return [...sourceIds];
+	const allowed = new Set(sourceIds);
+	return [...new Set(manifest.activeSourceIds)].filter((sourceId) => allowed.has(sourceId));
+}
+//#endregion
 //#region lib/types/topic-vault.js
 /**
 * The topic vault: a learning topic IS a real directory, and that directory is a
-* harness Workspace. Nothing new is persisted to represent one — a vault is a
-* Workspace whose directory carries `.learning/manifest.json`.
+* harness Workspace. The legacy identity marker remains `.learning/manifest.json`,
+* while canonical Space metadata is added under `.library/space.json`.
 *
 * That identity is what makes the write fence free. `ctx.sandboxPolicy` resolves
 * `workspaceRoot` from the session's immutable `cwd`, and Workspace membership
@@ -557,7 +645,11 @@ const VAULT_DIRECTORIES = Object.freeze({
 	concepts: "concepts",
 	notes: "notes",
 	internal: ".learning",
-	structure: join(".learning", "structure")
+	structure: join(".learning", "structure"),
+	library: ".library",
+	libraryIndex: join(".library", "index"),
+	chunks: join(".library", "chunks"),
+	artifacts: "artifacts"
 });
 /** Vault-relative path of the manifest whose presence marks a directory a vault. */
 const VAULT_MANIFEST_PATH = join(VAULT_DIRECTORIES.internal, "manifest.json");
@@ -591,6 +683,11 @@ function vaultFromRoot(root, title, workspaceId) {
 		notes: join(absolute, VAULT_DIRECTORIES.notes),
 		internal: join(absolute, VAULT_DIRECTORIES.internal),
 		structure: join(absolute, VAULT_DIRECTORIES.structure),
+		library: join(absolute, VAULT_DIRECTORIES.library),
+		libraryIndex: join(absolute, VAULT_DIRECTORIES.libraryIndex),
+		chunks: join(absolute, VAULT_DIRECTORIES.chunks),
+		artifacts: join(absolute, VAULT_DIRECTORIES.artifacts),
+		spaceManifestPath: join(absolute, SPACE_MANIFEST_RELATIVE_PATH),
 		manifestPath: join(absolute, VAULT_MANIFEST_PATH)
 	};
 }
@@ -633,7 +730,8 @@ async function resolveTopicVault(ctx, cwd) {
 }
 /**
 * Create the vault layout, idempotently. Safe to call on an existing vault: the
-* manifest is only written when absent, so a reingest never resets the record.
+* legacy manifest is only written when absent, and Space metadata is ensured
+* without resetting the source record.
 * @param root - Absolute directory to make into a vault.
 * @param title - Display title for a newly created vault.
 * @returns the resolved vault.
@@ -645,7 +743,11 @@ async function ensureVaultLayout(root, title) {
 		vault.extracted,
 		vault.concepts,
 		vault.notes,
-		vault.structure
+		vault.structure,
+		vault.library,
+		vault.libraryIndex,
+		vault.chunks,
+		vault.artifacts
 	]) await mkdir(directory, { recursive: true });
 	if (!await isVaultRoot(vault.root)) {
 		const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -657,6 +759,7 @@ async function ensureVaultLayout(root, title) {
 			sources: []
 		});
 	}
+	await ensureSpaceManifest(vault);
 	return vault;
 }
 /**
@@ -675,13 +778,16 @@ async function readManifest(vault) {
 		updatedAt: now,
 		sources: []
 	};
-	try {
-		const parsed = JSON.parse(await readFile(vault.manifestPath, "utf8"));
-		if (parsed?.protocol !== "dsh-learning-vault@1" || !Array.isArray(parsed.sources)) return empty;
-		return parsed;
-	} catch {
-		return empty;
-	}
+	const space = await readSpaceManifest(vault);
+	if (space === void 0) return empty;
+	return {
+		protocol: VAULT_MANIFEST_PROTOCOL,
+		...space.title === void 0 ? {} : { title: space.title },
+		createdAt: space.createdAt,
+		updatedAt: space.updatedAt,
+		sources: space.sources,
+		...space.activeSourceIds === void 0 ? {} : { activeSourceIds: space.activeSourceIds }
+	};
 }
 /** Write the vault manifest, stamping `updatedAt`. */
 async function writeManifest(vault, manifest) {
@@ -691,6 +797,17 @@ async function writeManifest(vault, manifest) {
 		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
 	};
 	await writeFile(vault.manifestPath, `${JSON.stringify(stamped, void 0, 2)}\n`, "utf8");
+	const current = await readSpaceManifest(vault);
+	await writeSpaceManifest(vault, {
+		protocol: SPACE_MANIFEST_PROTOCOL,
+		schema: current?.schema ?? "learning",
+		id: current?.id ?? slugify(vault.root, "space"),
+		...stamped.title === void 0 ? {} : { title: stamped.title },
+		createdAt: stamped.createdAt,
+		updatedAt: stamped.updatedAt,
+		sources: stamped.sources,
+		...stamped.activeSourceIds === void 0 ? current?.activeSourceIds === void 0 ? {} : { activeSourceIds: current.activeSourceIds } : { activeSourceIds: stamped.activeSourceIds }
+	});
 }
 /** Replace one source's manifest entry, appending when it is new. */
 async function upsertManifestEntry(vault, entry) {
@@ -706,6 +823,18 @@ async function upsertManifestEntry(vault, entry) {
 /** Absolute path of one source's structure record. */
 function structurePathOf(vault, sourceId) {
 	return join(vault.structure, `${sourceId}.json`);
+}
+/** Absolute path of one source's derived chunk stream. */
+function chunksPathOf(vault, sourceId) {
+	return join(vault.chunks, `${sourceId}.jsonl`);
+}
+/** Effective grounding scope for the sources currently recorded in the vault. */
+async function activeSourceIds(vault) {
+	const manifest = await readManifest(vault);
+	const ids = manifest.sources.map((entry) => entry.sourceId);
+	if (manifest.activeSourceIds === void 0 || manifest.activeSourceIds === null) return ids;
+	const allowed = new Set(ids);
+	return [...new Set(manifest.activeSourceIds)].filter((sourceId) => allowed.has(sourceId));
 }
 /**
 * Read one source's derived structure.
@@ -1446,7 +1575,7 @@ function parseMarkdownFrontmatter(raw) {
 		body: lines.slice(end + 1).join("\n").trim()
 	};
 }
-function sectionBody(body, prefix) {
+function sectionBody$1(body, prefix) {
 	const lines = body.split("\n");
 	const start = lines.findIndex((line) => {
 		return (/^##\s+(.+)$/u.exec(line)?.[1]?.trim() ?? "").startsWith(prefix);
@@ -1479,9 +1608,9 @@ function parseCard(raw, path) {
 		lastReviewedAt: parsed.fields.get("last_reviewed") ?? null,
 		anchors: list(parsed.lists.get("anchors")),
 		staleAnchors: list(parsed.lists.get("stale_anchors")),
-		explanation: sectionBody(parsed.body, "我的解释"),
-		misconceptions: list(sectionBody(parsed.body, "当时的误解").split("\n"), 6),
-		unverifiedTransfer: sectionBody(parsed.body, "还没验证"),
+		explanation: sectionBody$1(parsed.body, "我的解释"),
+		misconceptions: list(sectionBody$1(parsed.body, "当时的误解").split("\n"), 6),
+		unverifiedTransfer: sectionBody$1(parsed.body, "还没验证"),
 		relatedConcepts: list([...parsed.body.matchAll(/\[\[([^\]]+)\]\]/gu)].map((match) => relatedName(match[1] ?? "")), 8),
 		createdAt: parsed.fields.get("created_at") ?? now,
 		updatedAt: parsed.fields.get("updated_at") ?? now,
@@ -1658,6 +1787,284 @@ async function reanchorConceptCards(vault, previous, next) {
 		if (result.changed) await updateConceptCardAnchors(vault, card.conceptSlug, result.anchors, result.staleAnchors);
 	}
 	return total;
+}
+//#endregion
+//#region lib/types/index/chunker.js
+/** Chunk the parsed section bodies into bounded, citeable retrieval units. */
+const DEFAULT_CHUNK_TARGET_CHARS = 1e3;
+const DEFAULT_CHUNK_OVERLAP = .15;
+function sectionBody(lines, section) {
+	return lines.slice(section.line, Math.max(section.line, section.endLine - 1)).join("\n").replace(/^<!--\s*p\.\d+\s*-->$/gmu, "").trim();
+}
+function isBoundary(text, index) {
+	const previous = text[index - 1];
+	const beforePrevious = text[index - 2];
+	return previous === "\n" || previous === "。" || previous === "！" || previous === "？" || previous === "." || previous === "!" || previous === "?" || previous === ";" || previous === "；" || previous === ":" || previous === "：" || previous === "、" || previous === " " && beforePrevious !== void 0;
+}
+/** Pick a human-readable cut near the requested size, with a hard upper bound. */
+function cutAt(text, start, target, max) {
+	const desired = Math.min(start + target, text.length);
+	if (desired >= text.length) return text.length;
+	const minimum = Math.min(start + Math.max(120, Math.floor(target * .55)), desired);
+	for (let index = desired; index >= minimum; index -= 1) if (isBoundary(text, index)) return index;
+	return Math.min(start + max, text.length);
+}
+function chunksForSection(structure, section, lines, ordStart, target, overlap) {
+	const body = sectionBody(lines, section);
+	const text = body === "" ? section.label : `${section.label}\n${body}`;
+	const overlapChars = Math.max(0, Math.min(target - 1, Math.round(target * overlap)));
+	const chunks = [];
+	let start = 0;
+	let ord = ordStart;
+	while (start < text.length) {
+		const end = cutAt(text, start, target, Math.max(target, Math.ceil(target * 1.2)));
+		const chunkText = text.slice(start, end).trim();
+		if (chunkText !== "") {
+			chunks.push({
+				chunkId: `${structure.sourceId}:${section.id}:ch${String(ord).padStart(4, "0")}`,
+				sourceId: structure.sourceId,
+				sectionId: section.id,
+				ord,
+				anchor: formatSectionAnchor(structure.sourceId, section),
+				quoteHash: section.quoteHash,
+				...section.page === void 0 ? {} : { page: section.page },
+				text: chunkText
+			});
+			ord += 1;
+		}
+		if (end >= text.length) break;
+		const next = Math.max(start + 1, end - overlapChars);
+		start = next >= end ? end : next;
+	}
+	return chunks;
+}
+/**
+* Build chunks without crossing section boundaries. The input is the extracted
+* markdown split into physical lines, so anchors continue to resolve against
+* the existing structure file.
+*/
+function chunkSource(structure, lines, options = {}) {
+	const target = Math.max(1, Math.floor(options.targetChars ?? 1e3));
+	const overlap = Math.max(0, Math.min(.5, options.overlap ?? .15));
+	const chunks = [];
+	let ord = 0;
+	for (const section of structure.sections) {
+		const sectionChunks = chunksForSection(structure, section, lines, ord, target, overlap);
+		chunks.push(...sectionChunks);
+		ord += sectionChunks.length;
+	}
+	return chunks;
+}
+//#endregion
+//#region lib/types/index/lexical.js
+/** Persistent chunk storage and a small BM25 inverted index for a Space. */
+const LEXICAL_INDEX_PROTOCOL = "dsh-learning-index@1";
+const K1 = 1.2;
+const B = .75;
+const LATIN_WORD$1 = /[A-Za-z0-9][A-Za-z0-9'-]*/gu;
+const CJK_RUN$1 = /[㐀-鿿豈-﫿]+/gu;
+/** Tokenize Latin words and CJK bigrams without a runtime dictionary. */
+function tokenize(text) {
+	const normalized = normalizeQuote(text).toLocaleLowerCase();
+	const tokens = [];
+	for (const match of normalized.matchAll(CJK_RUN$1)) {
+		const run = match[0];
+		for (let index = 0; index + 1 < run.length; index += 1) tokens.push(run.slice(index, index + 2));
+	}
+	for (const match of normalized.matchAll(LATIN_WORD$1)) if (match[0].length >= 2) tokens.push(match[0]);
+	return tokens;
+}
+function frequencies(tokens) {
+	const result = /* @__PURE__ */ new Map();
+	for (const token of tokens) result.set(token, (result.get(token) ?? 0) + 1);
+	return result;
+}
+function sourceHashesEqual(left, right) {
+	const leftKeys = Object.keys(left).sort();
+	const rightKeys = Object.keys(right).sort();
+	return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
+}
+/** Build a BM25 index from chunks. */
+function buildLexicalIndex(chunks, sourceHashes = {}) {
+	const documents = {};
+	const postings = /* @__PURE__ */ new Map();
+	let totalLength = 0;
+	for (const chunk of chunks) {
+		const tokenCounts = frequencies(tokenize(chunk.text));
+		const length = [...tokenCounts.values()].reduce((sum, value) => sum + value, 0);
+		documents[chunk.chunkId] = {
+			sourceId: chunk.sourceId,
+			sectionId: chunk.sectionId,
+			ord: chunk.ord,
+			length
+		};
+		totalLength += length;
+		for (const [token, tf] of tokenCounts) {
+			const rows = postings.get(token) ?? [];
+			rows.push({
+				chunkId: chunk.chunkId,
+				tf
+			});
+			postings.set(token, rows);
+		}
+	}
+	const serialized = {};
+	for (const [token, rows] of postings) serialized[token] = rows;
+	return {
+		protocol: LEXICAL_INDEX_PROTOCOL,
+		sourceHashes: { ...sourceHashes },
+		documents,
+		postings: serialized,
+		averageDocumentLength: chunks.length === 0 ? 0 : totalLength / chunks.length
+	};
+}
+/** Search an index with BM25 and return the best chunk locators. */
+function searchLexicalIndex(index, terms, options = {}) {
+	const queryTokens = [...new Set(terms.flatMap(tokenize))];
+	if (queryTokens.length === 0 || index.averageDocumentLength <= 0) return [];
+	const allowed = options.sourceIds === void 0 ? void 0 : new Set(options.sourceIds);
+	const scores = /* @__PURE__ */ new Map();
+	const tokenHits = /* @__PURE__ */ new Map();
+	const documentCount = Object.keys(index.documents).length;
+	for (const token of queryTokens) {
+		const rows = index.postings[token] ?? [];
+		if (rows.length === 0) continue;
+		const idf = Math.log(1 + (documentCount - rows.length + .5) / (rows.length + .5));
+		const matched = /* @__PURE__ */ new Set();
+		for (const row of rows) {
+			const document = index.documents[row.chunkId];
+			if (document === void 0 || allowed !== void 0 && !allowed.has(document.sourceId)) continue;
+			const denominator = row.tf + K1 * (.25 + B * document.length / index.averageDocumentLength);
+			const contribution = idf * (row.tf * 2.2) / denominator;
+			scores.set(row.chunkId, (scores.get(row.chunkId) ?? 0) + contribution);
+			matched.add(row.chunkId);
+		}
+		tokenHits.set(token, matched);
+	}
+	const results = [];
+	for (const [chunkId, score] of scores) {
+		const document = index.documents[chunkId];
+		if (document === void 0) continue;
+		const matchedTerms = terms.filter((term) => term.trim() !== "" && [...tokenize(term)].some((token) => tokenHits.get(token)?.has(chunkId)));
+		if (matchedTerms.length === 0) continue;
+		results.push({
+			chunkId,
+			...document,
+			score,
+			matchedTerms
+		});
+	}
+	results.sort((left, right) => right.score - left.score || left.ord - right.ord);
+	return results.slice(0, options.limit ?? 60);
+}
+function lexicalIndexPathOf(vault) {
+	return join(vault.libraryIndex, "postings.json");
+}
+/** Write one source's derived chunk stream. */
+async function writeSourceChunks(vault, sourceId, chunks) {
+	const path = await containedPath(vault, chunksPathOf(vault, sourceId));
+	await mkdir(vault.chunks, { recursive: true });
+	await writeFile(path, chunks.map((chunk) => JSON.stringify(chunk)).join("\n") + (chunks.length === 0 ? "" : "\n"), "utf8");
+}
+/** Read one source's derived chunk stream; malformed cache lines are skipped. */
+async function readSourceChunks(vault, sourceId) {
+	try {
+		const path = await containedPath(vault, chunksPathOf(vault, sourceId));
+		const lines = (await readFile(path, "utf8")).split("\n");
+		const chunks = [];
+		for (const line of lines) {
+			if (line.trim() === "") continue;
+			try {
+				const parsed = JSON.parse(line);
+				if (typeof parsed.chunkId !== "string" || typeof parsed.sourceId !== "string" || typeof parsed.sectionId !== "string" || typeof parsed.text !== "string" || typeof parsed.ord !== "number" || typeof parsed.anchor !== "string" || typeof parsed.quoteHash !== "string") continue;
+				chunks.push(parsed);
+			} catch {
+				continue;
+			}
+		}
+		return chunks;
+	} catch {
+		return [];
+	}
+}
+async function readStoredIndex(vault) {
+	try {
+		const parsed = JSON.parse(await readFile(await containedPath(vault, lexicalIndexPathOf(vault)), "utf8"));
+		if (parsed.protocol !== "dsh-learning-index@1" || parsed.sourceHashes === void 0 || parsed.documents === void 0 || parsed.postings === void 0 || typeof parsed.averageDocumentLength !== "number") return void 0;
+		return parsed;
+	} catch {
+		return;
+	}
+}
+async function writeStoredIndex(vault, index) {
+	await mkdir(vault.libraryIndex, { recursive: true });
+	await writeFile(await containedPath(vault, lexicalIndexPathOf(vault)), `${JSON.stringify(index, void 0, 2)}\n`, "utf8");
+}
+async function chunksForStructure(vault, structure) {
+	const stored = await readSourceChunks(vault, structure.sourceId);
+	if (stored.length > 0) return stored;
+	try {
+		const extracted = await containedPath(vault, structure.extractedPath);
+		const chunks = chunkSource(structure, (await readFile(extracted, "utf8")).split("\n"));
+		await writeSourceChunks(vault, structure.sourceId, chunks);
+		return chunks;
+	} catch {
+		return [];
+	}
+}
+/** Load a valid index or rebuild the derived caches when a source changed. */
+async function ensureLexicalIndex(vault) {
+	const manifest = await readManifest(vault);
+	const sourceHashes = Object.fromEntries(manifest.sources.map((entry) => [entry.sourceId, entry.contentHash]));
+	const stored = await readStoredIndex(vault);
+	if (stored !== void 0 && sourceHashesEqual(stored.sourceHashes, sourceHashes)) return stored;
+	const structures = await readAllStructures(vault);
+	const chunks = [];
+	for (const structure of structures) chunks.push(...await chunksForStructure(vault, structure));
+	const index = buildLexicalIndex(chunks, sourceHashes);
+	await writeStoredIndex(vault, index);
+	return index;
+}
+/**
+* Replace one source in an existing index after ingest. If no index exists yet,
+* leave it for the lazy full build so ingest remains as reliable as before.
+*/
+async function updateLexicalIndex(vault, sourceId, contentHash, chunks) {
+	const current = await readStoredIndex(vault);
+	if (current === void 0) return;
+	const kept = Object.entries(current.documents).filter(([, document]) => document.sourceId !== sourceId);
+	const keptIds = new Set(kept.map(([chunkId]) => chunkId));
+	const documents = Object.fromEntries(kept);
+	const postings = {};
+	for (const [token, rows] of Object.entries(current.postings)) {
+		const retained = rows.filter((row) => keptIds.has(row.chunkId));
+		if (retained.length > 0) postings[token] = retained;
+	}
+	for (const chunk of chunks) {
+		const counts = frequencies(tokenize(chunk.text));
+		const length = [...counts.values()].reduce((sum, value) => sum + value, 0);
+		documents[chunk.chunkId] = {
+			sourceId: chunk.sourceId,
+			sectionId: chunk.sectionId,
+			ord: chunk.ord,
+			length
+		};
+		for (const [token, tf] of counts) (postings[token] ??= []).push({
+			chunkId: chunk.chunkId,
+			tf
+		});
+	}
+	const totalLength = Object.values(documents).reduce((sum, document) => sum + document.length, 0);
+	await writeStoredIndex(vault, {
+		protocol: LEXICAL_INDEX_PROTOCOL,
+		sourceHashes: {
+			...current.sourceHashes,
+			[sourceId]: contentHash
+		},
+		documents,
+		postings,
+		averageDocumentLength: Object.keys(documents).length === 0 ? 0 : totalLength / Object.keys(documents).length
+	});
 }
 //#endregion
 //#region lib/types/material-retrieval.js
@@ -1864,29 +2271,6 @@ function planRetrieval(state, budgetChars = DEFAULT_RETRIEVAL_BUDGET_CHARS, focu
 	if (goalTerms.length === 0 && focusTerms.length === 0) return void 0;
 	return build("verbatim-anchor", focusTerms.length === 0 ? "no more specific situation applies, so find where the material states the goal" : "the learner named what to look for, so their own words lead the search");
 }
-/**
-* Score one section: distinct term hits first, then whether it is already cited.
-*
-* Term COUNT rather than occurrence count, so a section that merely repeats one
-* word does not outrank one that actually joins two ideas the learner is stuck
-* between.
-*/
-function scoreSection(structure, section, body, plan) {
-	const haystack = `${section.label}\n${body}`.toLowerCase();
-	const matched = plan.terms.filter((term) => haystack.includes(term.toLowerCase()));
-	if (matched.length === 0) return void 0;
-	const anchor = formatSectionAnchor(structure.sourceId, section);
-	const preferred = plan.preferredAnchors.some((candidate) => candidate.includes(section.label) || anchor === candidate);
-	if (plan.intent === "second-example" && preferred) return void 0;
-	const adjustment = plan.intent === "second-example" ? 0 : preferred ? 1 : 0;
-	return {
-		structure,
-		section,
-		body,
-		matched,
-		score: matched.length + adjustment
-	};
-}
 /** Return the supplied terms that occur in a body, preserving their order. */
 function matchedTerms(body, terms) {
 	const candidates = typeof terms === "string" ? [terms] : terms;
@@ -1959,21 +2343,38 @@ async function retrieveLearnerPrior(sessionQuery, vault, state, plan) {
 * @param sessionQuery - Optional `ctx.sessionQuery`.
 * @returns the passages, bounded by the plan's budget.
 */
-async function executeRetrievalPlan(vault, plan, state, sessionQuery) {
+async function executeRetrievalPlan(vault, plan, state, sessionQuery, options = {}) {
 	const structures = await readAllStructures(vault);
+	const bySource = new Map(structures.map((structure) => [structure.sourceId, structure]));
+	const index = await ensureLexicalIndex(vault);
+	const sourceIds = options.sourceIds ?? await activeSourceIds(vault);
+	const chunksBySource = /* @__PURE__ */ new Map();
 	const scored = [];
-	for (const structure of structures) {
-		let lines;
-		try {
-			const path = await containedPath(vault, structure.extractedPath);
-			lines = (await readFile(path, "utf8")).split("\n");
-		} catch {
-			continue;
+	const candidates = searchLexicalIndex(index, plan.terms, {
+		sourceIds,
+		limit: 60
+	});
+	for (const hit of candidates) {
+		const structure = bySource.get(hit.sourceId);
+		if (structure === void 0) continue;
+		let sourceChunks = chunksBySource.get(hit.sourceId);
+		if (sourceChunks === void 0) {
+			sourceChunks = await readSourceChunks(vault, hit.sourceId);
+			chunksBySource.set(hit.sourceId, sourceChunks);
 		}
-		for (const section of structure.sections) {
-			const candidate = scoreSection(structure, section, lines.slice(section.line - 1, section.endLine - 1).join("\n"), plan);
-			if (candidate !== void 0) scored.push(candidate);
-		}
+		const chunk = sourceChunks.find((candidate) => candidate.chunkId === hit.chunkId);
+		const section = structure.sections.find((candidate) => candidate.id === hit.sectionId);
+		if (chunk === void 0 || section === void 0) continue;
+		const preferred = plan.preferredAnchors.some((candidate) => candidate.includes(section.label) || chunk.anchor === candidate);
+		if (plan.intent === "second-example" && preferred) continue;
+		scored.push({
+			chunkId: hit.chunkId,
+			structure,
+			section,
+			body: chunk.text,
+			matched: hit.matchedTerms,
+			score: hit.score + (plan.intent === "second-example" ? 0 : preferred ? 1 : 0)
+		});
 	}
 	scored.sort((left, right) => right.score - left.score || left.section.line - right.section.line);
 	const passages = [];
@@ -1987,6 +2388,7 @@ async function executeRetrievalPlan(vault, plan, state, sessionQuery) {
 		if (text === "") continue;
 		usedChars += text.length;
 		passages.push({
+			chunkId: candidate.chunkId,
 			sourceId: candidate.structure.sourceId,
 			sectionId: candidate.section.id,
 			label: candidate.section.label,
@@ -3207,6 +3609,30 @@ async function parseSource(bytes, fileName, sourceId = slugify(titleOf(fileName)
 	};
 }
 //#endregion
+//#region lib/types/ingest/provider.js
+/** Source-provider seam for the directory-backed ingest pipeline. */
+/**
+* Adapter around the existing byte parser. The public `ingestSource` function
+* remains the write-and-reanchor entry point; this provider only standardizes
+* acquisition and parsing for future URL/text providers.
+*/
+const fileProvider = Object.freeze({
+	id: "file",
+	canHandle: (ref) => ref.kind === "file",
+	async acquire(ref, _space) {
+		return {
+			bytes: await readFile(ref.path),
+			fileName: ref.fileName ?? basename(ref.path),
+			...ref.sourceId === void 0 ? {} : { sourceId: ref.sourceId },
+			originPath: ref.path
+		};
+	},
+	async parse(acquired) {
+		return await parseSource(acquired.bytes, acquired.fileName, acquired.sourceId);
+	}
+});
+const SOURCE_PROVIDERS = Object.freeze([fileProvider]);
+//#endregion
 //#region lib/types/ingest/pipeline.js
 /**
 * Material ingest: the single host-side path from a file a person dropped to the
@@ -3285,6 +3711,7 @@ async function ingestSource(vault, filePath) {
 	const title = titleOf(fileName);
 	const fallbackSourceId = slugify(title);
 	let bytes;
+	let acquired;
 	try {
 		const info = await stat(filePath);
 		if (!info.isFile()) return {
@@ -3299,7 +3726,12 @@ async function ingestSource(vault, filePath) {
 			title,
 			reason: `the file is ${Math.round(info.size / 1024 / 1024)} MB, over the ${MAX_SOURCE_BYTES / 1024 / 1024} MB limit`
 		};
-		bytes = await readFile(filePath);
+		acquired = await fileProvider.acquire({
+			kind: "file",
+			path: filePath,
+			fileName
+		}, vault);
+		bytes = acquired.bytes;
 	} catch (cause) {
 		return {
 			status: "rejected",
@@ -3318,7 +3750,10 @@ async function ingestSource(vault, filePath) {
 	const originPath = await sourceOriginOf(filePath);
 	const sourceId = await resolveSourceId(vault, filePath, originPath, contentHash);
 	const previous = (await readManifest(vault)).sources.find((entry) => entry.sourceId === sourceId);
-	const parsed = await parseSource(bytes, fileName, sourceId);
+	const parsed = await fileProvider.parse({
+		...acquired,
+		sourceId
+	});
 	if (previous?.contentHash === contentHash && previous.parser === parsed.parser) return {
 		status: "unchanged",
 		sourceId,
@@ -3338,6 +3773,8 @@ async function ingestSource(vault, filePath) {
 	await mkdir(vault.structure, { recursive: true });
 	const structureAbsolute = structurePathOf(vault, sourceId);
 	await writeFile(structureAbsolute, `${JSON.stringify(structure, void 0, 2)}\n`, "utf8");
+	const chunks = chunkSource(structure, markdown.split("\n"));
+	await writeSourceChunks(vault, sourceId, chunks);
 	const entry = {
 		sourceId,
 		title: parsed.title,
@@ -3353,6 +3790,7 @@ async function ingestSource(vault, filePath) {
 		degradation: parsed.degradation
 	};
 	await upsertManifestEntry(vault, entry);
+	await updateLexicalIndex(vault, sourceId, contentHash, chunks);
 	const memoryReanchored = await reanchorVaultMemory(vault, superseded, structure);
 	const cardReanchored = await reanchorConceptCards(vault, superseded, structure);
 	const reanchored = {
@@ -3443,6 +3881,34 @@ function formatPages(pages) {
 	}
 	if (start !== void 0 && previous !== void 0) ranges.push(start === previous ? `${start}` : `${start}–${previous}`);
 	return ranges.join(", ");
+}
+//#endregion
+//#region lib/types/retrieval/index.js
+/** General retrieval facade; the existing teaching planner remains one mode. */
+/** Named value for callers that want to inject the existing teaching planner. */
+const TeachingPlanner = "teaching";
+function adHocPlan(query, budgetChars, preferredAnchors) {
+	return {
+		intent: "verbatim-anchor",
+		rationale: "the caller supplied a direct library query",
+		terms: keyPhrases(query),
+		preferredAnchors,
+		includeLearnerPrior: false,
+		budgetChars
+	};
+}
+/** Retrieve from a Space using ad-hoc, teaching, or future artifact planning. */
+async function retrieve(request) {
+	const budgetChars = request.budgetChars ?? 4e3;
+	const state = request.state ?? createInitialLearnerState("library-retrieval");
+	const planner = request.planner ?? (request.state === void 0 ? "ad-hoc" : "teaching");
+	const preferredAnchors = request.preferAnchors ?? state.sourceAnchors.slice(0, 4);
+	const planned = planner === "teaching" ? planRetrieval(state, budgetChars, request.query ?? "") : adHocPlan(request.query ?? "", budgetChars, preferredAnchors);
+	const plan = planned === void 0 ? adHocPlan("", budgetChars, preferredAnchors) : {
+		...planned,
+		preferredAnchors
+	};
+	return await executeRetrievalPlan(request.space, plan, state, request.sessionQuery, { sourceIds: request.scope });
 }
 //#endregion
 //#region lib/types/material-receipts.js
@@ -3728,6 +4194,7 @@ const status = {
 		"unknown-source",
 		"unknown-section",
 		"invalid",
+		"out-of-scope",
 		"no-plan",
 		"no-match"
 	],
@@ -4061,7 +4528,8 @@ function registerMaterialTools(ctx) {
 			const added = (await syncMentionedMaterial(exec.agent, vault)).flatMap((result) => [describeDegradation(result) || `${result.title}: read in full.`, ...result.reanchored === void 0 ? [] : [describeReanchor(result.reanchored, result.title)].filter((line) => line !== "")]);
 			const sourceId = typeof args.sourceId === "string" ? args.sourceId.trim() : "";
 			if (sourceId === "") {
-				const structures = await readAllStructures(vault);
+				const selected = new Set(await activeSourceIds(vault));
+				const structures = (await readAllStructures(vault)).filter((structure) => selected.has(structure.sourceId));
 				if (structures.length === 0) return {
 					status: "empty",
 					detail: "The learning folder holds no parsed material yet. Ask the learner to add a source."
@@ -4099,6 +4567,10 @@ function registerMaterialTools(ctx) {
 					known
 				};
 			}
+			if (!(await activeSourceIds(vault)).includes(sourceId)) return {
+				status: "out-of-scope",
+				detail: `Source '${sourceId}' is outside the current grounding scope.`
+			};
 			const complete = structure.sections.length <= 60;
 			const sections = (complete ? structure.sections : structure.sections.filter((section) => section.level <= 2)).map((section) => ({
 				id: section.id,
@@ -4167,6 +4639,11 @@ function registerMaterialTools(ctx) {
 				status: "unknown-source",
 				detail: `No source '${sourceId}' in this learning folder.`,
 				known: (await readManifest(vault)).sources.map((entry) => entry.sourceId)
+			};
+			if (!(await activeSourceIds(vault)).includes(sourceId)) return {
+				status: "out-of-scope",
+				sourceId,
+				detail: `Source '${sourceId}' is outside the current grounding scope.`
 			};
 			if (structure.sections.length === 0) return {
 				status: "empty",
@@ -4256,7 +4733,12 @@ function registerMaterialTools(ctx) {
 			};
 			const scope = typeof args.sourceId === "string" ? args.sourceId.trim() : "";
 			const all = await readAllStructures(vault);
-			const structures = scope === "" ? all : all.filter((structure) => structure.sourceId === scope);
+			const selected = new Set(await activeSourceIds(vault));
+			if (scope !== "" && !selected.has(scope)) return {
+				status: "out-of-scope",
+				detail: `Source '${scope}' is outside the current grounding scope.`
+			};
+			const structures = scope === "" ? all.filter((structure) => selected.has(structure.sourceId)) : all.filter((structure) => structure.sourceId === scope);
 			if (structures.length === 0) return {
 				status: scope === "" ? "empty" : "unknown-source",
 				detail: scope === "" ? "The learning folder holds no parsed material yet." : `No source '${scope}' in this learning folder.`
@@ -4332,12 +4814,19 @@ function registerMaterialTools(ctx) {
 				detail: "recall requires a live agent session"
 			};
 			const state = ctx.learningActivities.learnerState(agent);
-			const plan = planRetrieval(state, void 0, typeof args.focus === "string" ? args.focus : "");
+			const focus = typeof args.focus === "string" ? args.focus : "";
+			const plan = planRetrieval(state, void 0, focus);
 			if (plan === void 0) return {
 				status: "no-plan",
 				detail: "The learner state carries no goal, gap, or misconception yet, so there is nothing to retrieve for. Pass focus with what the learner asked to find, teach from conversation, or use learning_material_map to orient first."
 			};
-			const result = await executeRetrievalPlan(vault, plan, state, ctx.get("sessionQuery"));
+			const result = await retrieve({
+				space: vault,
+				query: focus,
+				planner: "teaching",
+				state,
+				sessionQuery: ctx.get("sessionQuery")
+			});
 			if (result.passages.length === 0 && result.learnerPrior.length === 0) return {
 				status: "no-match",
 				intent: plan.intent,
@@ -4996,4 +5485,4 @@ function buildLearningTeachingPolicy(context = {}) {
 /** Backwards-compatible standing-layer name used by existing agent wiring. */
 const LEARNING_TEACHING_POLICY = LEARNING_TEACHING_POLICY_CORE;
 //#endregion
-export { hasFreshIndependentTransfer as $, LEARN_INTENT_RULES as $t, ingestDirectory as A, VaultContainmentError as At, excerptAround as B, vaultFromRoot as Bt, mentionedPaths as C, parseLearnerConceptRecord as Ct, beginMaterialTurn as D, writeLearnerMemory as Dt, assertMaterialAnchorsReadable as E, upsertLearnerConcept as Et, parseSource as F, readManifest as Ft, INITIAL_REVIEW_INTERVAL_DAYS as G, deriveStructure as Gt, keyPhrases as H, writeManifest as Ht, titleOf as I, readStructure as It, buildConceptStudyMap as J, renderExtractedMarkdown as Jt, MAX_CONCEPT_CARDS as K, emitSource as Kt, parseMarkdownBlocks as L, resolveTopicVault as Lt, isSupportedSource as M, ensureVaultLayout as Mt, SUPPORTED_EXTENSIONS as N, isVaultRoot as Nt, MAX_SOURCE_BYTES as O, VAULT_DIRECTORIES as Ot, extensionOf as P, readAllStructures as Pt, dateKey as Q, LEARN_INTENT_NATURAL_LANGUAGE_RULES as Qt, DEFAULT_RETRIEVAL_BUDGET_CHARS as R, structurePathOf as Rt, sectionAnchor as S, memoryPathOf as St, syncMentionedMaterial as T, renderLearnerMemory as Tt, matchedTerms as U, EXTRACTED_HEADER as Ut, executeRetrievalPlan as V, vaultRelative as Vt, planRetrieval as W, PAGE_MARKER as Wt, conceptCardPathOf as X, LEARN_INTENT as Xt, conceptCardDraftFromState as Y, LEARNING_INTENT_ROUTING_GUIDANCE as Yt, conceptRecordFromCard as Z, LEARN_INTENT_MODEL_GUIDANCE as Zt, MATERIAL_TOOL_NAMES as _, reanchorVaultMemory as _t, LEARNING_REVIEW_POLICY as a, readConceptCards as at, MAX_SEARCH_MATCHES as b, MAX_STORED_CONCEPTS as bt, LEARNING_VISUAL_POLICY as c, recallCardIdOf as ct, routeLearningTurn as d, saveConceptCard as dt, classifyLearnIntent as en, isConceptDue as et, CONCEPT_TOOL_NAMES as f, updateConceptCardAnchors as ft, validateStudyMapAgainstVault as g, reanchorAnchorLists as gt, formatStudyMapViolations as h, describeReanchor as ht, LEARNING_MATERIAL_POLICY as i, readConceptCard as it, ingestSource as j, containedPath as jt, describeDegradation as k, VAULT_MANIFEST_PATH as kt, buildLearningTeachingPolicy as l, renderConceptCard as lt, validateRecallDeckAgainstVault as m, yamlString as mt, LEARNING_CONCEPT_SAVE_POLICY as n, isLearningBoundary as nn, nextReviewSchedule as nt, LEARNING_TEACHING_POLICY as o, readLearnerMemoryWithCards as ot, registerConceptTools as p, updateConceptCardSchedule as pt, MAX_REVIEW_INTERVAL_DAYS as q, reanchor as qt, LEARNING_GRADED_POLICY as r, parseMarkdownFrontmatter as rt, LEARNING_TEACHING_POLICY_CORE as s, reanchorConceptCards as st, LEARNING_CHINESE_TEMPLATES as t, isLearnIntent as tn, labelFromBody as tt, routeLearningRequest as u, reviewIntervalDays as ut, MAX_MAP_SECTIONS as v, LEARNER_MEMORY_PROTOCOL as vt, parseFileMentions as w, readLearnerMemory as wt, registerMaterialTools as x, conceptRecordFromState as xt, MAX_READ_CHARS as y, MAX_RENDERED_CONCEPTS as yt, RETRIEVAL_INTENTS as z, upsertManifestEntry as zt };
+export { readSourceChunks as $, readManifest as $t, MAX_SOURCE_BYTES as A, yamlString as At, titleOf as B, readLearnerMemory as Bt, mentionedPaths as C, classifyLearnIntent as Cn, reanchorConceptCards as Ct, beginMaterialTurn as D, saveConceptCard as Dt, assertMaterialAnchorsReadable as E, reviewIntervalDays as Et, SOURCE_PROVIDERS as F, MAX_RENDERED_CONCEPTS as Ft, executeRetrievalPlan as G, VAULT_MANIFEST_PATH as Gt, DEFAULT_RETRIEVAL_BUDGET_CHARS as H, upsertLearnerConcept as Ht, fileProvider as I, MAX_STORED_CONCEPTS as It, planRetrieval as J, chunksPathOf as Jt, keyPhrases as K, VaultContainmentError as Kt, SUPPORTED_EXTENSIONS as L, conceptRecordFromState as Lt, ingestDirectory as M, reanchorAnchorLists as Mt, ingestSource as N, reanchorVaultMemory as Nt, TeachingPlanner as O, updateConceptCardAnchors as Ot, isSupportedSource as P, LEARNER_MEMORY_PROTOCOL as Pt, lexicalIndexPathOf as Q, readAllStructures as Qt, extensionOf as R, memoryPathOf as Rt, sectionAnchor as S, LEARN_INTENT_RULES as Sn, readLearnerMemoryWithCards as St, syncMentionedMaterial as T, isLearningBoundary as Tn, renderConceptCard as Tt, RETRIEVAL_INTENTS as U, writeLearnerMemory as Ut, parseMarkdownBlocks as V, renderLearnerMemory as Vt, excerptAround as W, VAULT_DIRECTORIES as Wt, buildLexicalIndex as X, ensureVaultLayout as Xt, LEXICAL_INDEX_PROTOCOL as Y, containedPath as Yt, ensureLexicalIndex as Z, isVaultRoot as Zt, MATERIAL_TOOL_NAMES as _, renderExtractedMarkdown as _n, labelFromBody as _t, LEARNING_REVIEW_POLICY as a, vaultRelative as an, DEFAULT_CHUNK_TARGET_CHARS as at, MAX_SEARCH_MATCHES as b, LEARN_INTENT_MODEL_GUIDANCE as bn, readConceptCard as bt, LEARNING_VISUAL_POLICY as c, effectiveSourceIds as cn, MAX_CONCEPT_CARDS as ct, routeLearningTurn as d, writeSpaceManifest as dn, conceptCardDraftFromState as dt, readStructure as en, searchLexicalIndex as et, CONCEPT_TOOL_NAMES as f, EXTRACTED_HEADER as fn, conceptCardPathOf as ft, validateStudyMapAgainstVault as g, reanchor as gn, isConceptDue as gt, formatStudyMapViolations as h, emitSource as hn, hasFreshIndependentTransfer as ht, LEARNING_MATERIAL_POLICY as i, vaultFromRoot as in, DEFAULT_CHUNK_OVERLAP as it, describeDegradation as j, describeReanchor as jt, retrieve as k, updateConceptCardSchedule as kt, buildLearningTeachingPolicy as l, ensureSpaceManifest as ln, MAX_REVIEW_INTERVAL_DAYS as lt, validateRecallDeckAgainstVault as m, deriveStructure as mn, dateKey as mt, LEARNING_CONCEPT_SAVE_POLICY as n, structurePathOf as nn, updateLexicalIndex as nt, LEARNING_TEACHING_POLICY as o, writeManifest as on, chunkSource as ot, registerConceptTools as p, PAGE_MARKER as pn, conceptRecordFromCard as pt, matchedTerms as q, activeSourceIds as qt, LEARNING_GRADED_POLICY as r, upsertManifestEntry as rn, writeSourceChunks as rt, LEARNING_TEACHING_POLICY_CORE as s, SPACE_MANIFEST_RELATIVE_PATH as sn, INITIAL_REVIEW_INTERVAL_DAYS as st, LEARNING_CHINESE_TEMPLATES as t, resolveTopicVault as tn, tokenize as tt, routeLearningRequest as u, readSpaceManifest as un, buildConceptStudyMap as ut, MAX_MAP_SECTIONS as v, LEARNING_INTENT_ROUTING_GUIDANCE as vn, nextReviewSchedule as vt, parseFileMentions as w, isLearnIntent as wn, recallCardIdOf as wt, registerMaterialTools as x, LEARN_INTENT_NATURAL_LANGUAGE_RULES as xn, readConceptCards as xt, MAX_READ_CHARS as y, LEARN_INTENT as yn, parseMarkdownFrontmatter as yt, parseSource as z, parseLearnerConceptRecord as zt };
