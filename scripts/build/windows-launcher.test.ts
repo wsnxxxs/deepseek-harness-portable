@@ -92,6 +92,7 @@ internal static class RuntimeProbe
         result["recoveryMarkerPresent"] = File.Exists(Path.Combine(root, "recovery-ran.txt"));
         result["workerVariables"] = leakedWorkerVariables.ToArray();
         result["nodeOptionsPresent"] = !String.IsNullOrEmpty(Environment.GetEnvironmentVariable("NODE_OPTIONS"));
+        result["compatibilityLayerPresent"] = !String.IsNullOrEmpty(Environment.GetEnvironmentVariable("__COMPAT_LAYER"));
         result["consoleAttached"] = GetConsoleWindow() != IntPtr.Zero;
         string json = new JavaScriptSerializer().Serialize(result);
         File.WriteAllText(Path.Combine(root, "runtime-result.json"), json, new UTF8Encoding(false));
@@ -167,6 +168,7 @@ test('Windows launcher is a GUI PE, preserves argv, and releases its root image'
     await runRootLauncher(launcher, appRoot, arguments_, {
       ...process.env,
       NODE_OPTIONS: '--require=C:\\workbuddy\\genie-safe-delete.cjs',
+      __COMPAT_LAYER: 'Installer',
     })
     await waitFor(resultPath)
     const result = JSON.parse(readFileSync(resultPath, 'utf8')) as {
@@ -175,12 +177,14 @@ test('Windows launcher is a GUI PE, preserves argv, and releases its root image'
       recoveryMarkerPresent: boolean
       workerVariables: string[]
       nodeOptionsPresent: boolean
+      compatibilityLayerPresent: boolean
       consoleAttached: boolean
     }
     assert.deepEqual(result.arguments, arguments_)
     assert.equal(result.launcherDeleted, true, 'TEMP worker must not lock the root launcher image')
     assert.deepEqual(result.workerVariables, [], 'worker-only environment metadata must not reach Electron')
     assert.equal(result.nodeOptionsPresent, false, 'launcher must not pass inherited Node preload hooks to Electron')
+    assert.equal(result.compatibilityLayerPresent, false, 'launcher must not pass installer AppCompat shims to Electron')
     assert.equal(result.consoleAttached, false)
     assert.equal(result.recoveryMarkerPresent, false)
     await new Promise(resolveDelay => setTimeout(resolveDelay, 1_000))

@@ -30,6 +30,14 @@ test('Setup uses collision-free transaction paths and no global image-name taskk
   assert.match(source, /CleanupOrphanRuntimes\(AppDir\)/)
 })
 
+test('Setup completion launches the desktop app as the original user without shell execution', () => {
+  const source = readFileSync(join(root, 'scripts', 'setup.iss'), 'utf8')
+  const runEntry = source.match(/^Filename: "\{app\}\\\{#MyLauncherExeName\}";.*$/m)?.[0]
+  assert.ok(runEntry, 'expected the post-install launcher entry')
+  assert.match(runEntry, /Flags: .*\brunasoriginaluser\b/)
+  assert.doesNotMatch(runEntry, /\bshellexec\b/)
+})
+
 test('lock diagnostics report but never terminate an unowned process', {
   skip: process.platform !== 'win32',
 }, async () => {

@@ -30,6 +30,7 @@ internal static class DeepSeekHarnessLauncher
     private const string WorkerArgumentPrefix = "DSH_GUI_WORKER_ARG_";
     private const string GuiLauncherVariable = "DSH_GUI_LAUNCHER";
     private const string NodeOptionsVariable = "NODE_OPTIONS";
+    private const string CompatibilityLayerVariable = "__COMPAT_LAYER";
 
     private const int ErrorMissingFile = 2;
     private const int ErrorDispatchWorker = 3;
@@ -654,6 +655,10 @@ internal static class DeepSeekHarnessLauncher
         // hooks. Development shells commonly use NODE_OPTIONS for helpers
         // that are incompatible with the bundled Electron process.
         environment.Remove(NodeOptionsVariable);
+        // Setup/AppCompat can attach installer compatibility shims to every
+        // descendant. They are meaningful only for the process that Windows
+        // classified and must not reach the packaged runtime.
+        environment.Remove(CompatibilityLayerVariable);
         environment.Remove(WorkerModeVariable);
         environment.Remove(WorkerTokenVariable);
         environment.Remove(WorkerDirectoryVariable);
