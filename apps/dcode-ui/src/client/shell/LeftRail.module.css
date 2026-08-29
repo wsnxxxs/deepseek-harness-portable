@@ -22,6 +22,50 @@
   -webkit-app-region: no-drag;
 }
 
+.searchField {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  height: var(--zx-control-xs);
+  margin: var(--zx-space-1) var(--zx-space-1) 0;
+  padding: 0 var(--zx-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-raised);
+  color: var(--zx-label-tertiary);
+}
+
+.searchField:focus-within {
+  border-color: var(--zx-border-control);
+  box-shadow: var(--zx-focus-ring);
+  color: var(--zx-label-muted);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+}
+
+.searchInput::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.searchInput::placeholder,
+.searchShortcut {
+  color: var(--zx-label-tertiary);
+}
+
+.searchShortcut {
+  flex: none;
+  font-size: var(--zx-text-micro);
+}
+
 .action {
   display: flex;
   align-items: center;
@@ -147,6 +191,43 @@
   flex: 1;
 }
 
+.branchBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  flex: none;
+  max-width: 42%;
+  min-width: 0;
+  padding: 1px var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: 999px;
+  background: var(--zx-bg-raised);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+}
+
+.branchName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.gitDotClean {
+  background: var(--zx-success);
+}
+
+.gitDotDirty {
+  background: var(--zx-warn);
+}
+
 .rowShell {
   display: flex;
   align-items: center;
@@ -194,15 +275,18 @@
 
 .rowMenu {
   flex: none;
+  margin-right: var(--zx-space-1);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--zx-motion-fast);
+  transform: translateX(3px);
+  transition: opacity var(--zx-motion-fast), transform var(--zx-motion-fast);
 }
 
 .rowShell:hover .rowMenu,
 .rowShell:focus-within .rowMenu {
   opacity: 1;
   pointer-events: auto;
+  transform: translateX(0);
 }
 
 .rowTitle {
@@ -228,16 +312,17 @@
 
 .dotRunning {
   background: var(--zx-accent);
-  animation: zx-pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--zx-accent) 45%, transparent);
+  animation: zx-shimmer-pulse 1.6s ease-in-out infinite;
 }
 
 .dotDone {
   background: var(--zx-success);
 }
 
-@keyframes zx-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+@keyframes zx-shimmer-pulse {
+  0%, 100% { opacity: 0.65; box-shadow: 0 0 0 0 color-mix(in srgb, var(--zx-accent) 0%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--zx-accent) 22%, transparent); }
 }
 
 @media (prefers-reduced-motion: reduce) {

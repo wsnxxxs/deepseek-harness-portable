@@ -8,14 +8,14 @@
  * @module @dsh-portable/dcode-ui/client/shell/LeftRail
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button as PrimitiveButton, IconApiOutline14, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
   IconDataOutline16, IconLinkOutline16,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
-  IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
+  IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
   Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -24,6 +24,7 @@ import { useRuntime } from '../state/runtime.ts'
 import { useSessionList, useWorkspaceGroups, type WorkspaceGroup } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
+import { useGitStatus } from '../git/useGit.ts'
 import { EmptyState, IconButton, Popover, ui } from './ui.tsx'
 import css from './LeftRail.module.css'
 
@@ -55,6 +56,7 @@ function SessionRow(props: {
   onOpen: () => void
   onArchive: () => void
   onDelete: () => void
+  onRename: () => void
   age: string
 }) {
   const { session, current } = props
@@ -66,6 +68,7 @@ function SessionRow(props: {
         className={`${css.row} ${current ? css.rowActive : ''}`}
         onClick={props.onOpen}
         title={session.displayTitle}
+        data-session-id={session.id}
       >
         {session.running
           ? <span className={`${css.dot} ${css.dotRunning}`} aria-hidden />
@@ -82,6 +85,12 @@ function SessionRow(props: {
         triggerClassName={css.rowMenu}
         trigger={<IconEllipsisOutline16 />}
         rows={[
+          {
+            id: 'rename',
+            label: t('common.edit'),
+            icon: <IconEditOutline16 />,
+            onSelect: props.onRename,
+          },
           {
             id: 'archive',
             label: t('session.archive'),
@@ -112,6 +121,11 @@ function WorkspaceRow(props: {
 }) {
   const { group, collapsed } = props
   const t = useT()
+  const refreshSessionId = group.sessions.find(session => session.running)?.id ?? group.sessions[0]?.id
+  const git = useGitStatus(group.path, refreshSessionId)
+  const gitStatus = git.status?.repository === true ? git.status : undefined
+  const dirty = (gitStatus?.files.length ?? 0) > 0
+  const branch = gitStatus?.branch ?? (gitStatus?.detached === true ? 'HEAD' : undefined)
   return (
     <div className={css.groupHeaderShell}>
       <button
@@ -123,6 +137,14 @@ function WorkspaceRow(props: {
         {collapsed ? <IconChevronRightOutline14 /> : <IconChevronDownOutline14 />}
         {collapsed ? <IconFolderClose16 /> : <IconFolderOpen16 />}
         <span className={css.groupName}>{group.title}</span>
+        {branch === undefined
+          ? null
+          : (
+            <span className={css.branchBadge} title={`${branch} · ${dirty ? t('git.changes') : t('git.clean')}`}>
+              <span className={`${css.gitDot} ${dirty ? css.gitDotDirty : css.gitDotClean}`} aria-hidden />
+              <span className={css.branchName}>{branch}</span>
+            </span>
+          )}
       </button>
       <div className={css.groupActions}>
         <Popover
@@ -167,9 +189,16 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
   const list = useSessionList()
   const { groups, ungrouped } = useWorkspaceGroups()
   const age = useAge()
+  const searchRef = useRef<HTMLInputElement | null>(null)
+  const treeRef = useRef<HTMLDivElement | null>(null)
+  const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
   const [deleting, setDeleting] = useState(false)
+  const [sessionRenameTarget, setSessionRenameTarget] = useState<SessionSummary | undefined>()
+  const [sessionRenameDraft, setSessionRenameDraft] = useState('')
+  const [sessionRenaming, setSessionRenaming] = useState(false)
+  const [sessionRenameError, setSessionRenameError] = useState<string | undefined>()
   const [renameTarget, setRenameTarget] = useState<WorkspaceGroup | undefined>()
   const [renameDraft, setRenameDraft] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -186,10 +215,88 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
     })
   }, [])
 
-  const hasRows = useMemo(
-    () => groups.length > 0 || ungrouped.length > 0,
-    [groups, ungrouped],
-  )
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const filteredGroups = useMemo(() => groups.map((group) => {
+    if (normalizedQuery === '') return group
+    const groupMatches = `${group.title}\n${group.path}`.toLocaleLowerCase().includes(normalizedQuery)
+    return {
+      ...group,
+      sessions: groupMatches
+        ? group.sessions
+        : group.sessions.filter(session => `${session.displayTitle}\n${session.cwd ?? group.path}`.toLocaleLowerCase().includes(normalizedQuery)),
+    }
+  }).filter(group => normalizedQuery === '' || group.sessions.length > 0
+    || `${group.title}\n${group.path}`.toLocaleLowerCase().includes(normalizedQuery)), [groups, normalizedQuery])
+  const filteredUngrouped = useMemo(() => normalizedQuery === ''
+    ? ungrouped
+    : ungrouped.filter(session => `${session.displayTitle}\n${session.cwd ?? ''}`.toLocaleLowerCase().includes(normalizedQuery)),
+  [normalizedQuery, ungrouped])
+  const hasRows = filteredGroups.length > 0 || filteredUngrouped.length > 0
+  const visibleSessions = useMemo(() => [
+    ...filteredGroups.flatMap(group => collapsed.has(group.workspaceId) ? [] : group.sessions),
+    ...filteredUngrouped,
+  ], [collapsed, filteredGroups, filteredUngrouped])
+
+  const openSession = useCallback((session: SessionSummary, focus = false) => {
+    navigation.show('session')
+    runtime.sessions.open(session.id)
+    if (!focus) return
+    window.requestAnimationFrame(() => {
+      const rows = treeRef.current?.querySelectorAll<HTMLButtonElement>('[data-session-id]') ?? []
+      for (const row of rows) if (row.dataset.sessionId === session.id) row.focus()
+    })
+  }, [navigation, runtime])
+
+  const moveSession = useCallback((direction: 1 | -1, fromSearch = false) => {
+    if (visibleSessions.length === 0) return
+    const currentIndex = visibleSessions.findIndex(session => session.id === list.current)
+    const nextIndex = fromSearch
+      ? (direction === 1 ? 0 : visibleSessions.length - 1)
+      : Math.max(0, Math.min(visibleSessions.length - 1, (currentIndex < 0 ? (direction === 1 ? -1 : visibleSessions.length) : currentIndex) + direction))
+    const session = visibleSessions[nextIndex]
+    if (session !== undefined) openSession(session, true)
+  }, [list.current, openSession, visibleSessions])
+
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent): void => {
+      const target = event.target
+      const editable = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+        || (target instanceof HTMLElement && target.isContentEditable)
+      const findShortcut = event.key.toLocaleLowerCase() === 'f' && (event.metaKey || event.ctrlKey)
+      const slashShortcut = event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !editable
+      if (!findShortcut && !slashShortcut) return
+      event.preventDefault()
+      searchRef.current?.focus()
+      searchRef.current?.select()
+    }
+    document.addEventListener('keydown', focusSearch)
+    return () => { document.removeEventListener('keydown', focusSearch) }
+  }, [])
+
+  const openSessionRename = useCallback((session: SessionSummary) => {
+    setSessionRenameTarget(session)
+    setSessionRenameDraft(session.displayTitle)
+    setSessionRenameError(undefined)
+  }, [])
+
+  const confirmSessionRename = useCallback(() => {
+    const target = sessionRenameTarget
+    const title = sessionRenameDraft.trim()
+    if (target === undefined || title === '' || title === target.displayTitle || sessionRenaming) return
+    const session = runtime.binding(target.id)?.session
+    if (session === undefined) {
+      setSessionRenameError(t('common.error'))
+      return
+    }
+    setSessionRenaming(true)
+    setSessionRenameError(undefined)
+    void session.rename(title).then((result) => {
+      if (result.ok) setSessionRenameTarget(undefined)
+      else if ('error' in result) setSessionRenameError(result.error.message)
+    }).catch((cause: unknown) => {
+      setSessionRenameError(cause instanceof Error ? cause.message : String(cause))
+    }).finally(() => { setSessionRenaming(false) })
+  }, [runtime, sessionRenameDraft, sessionRenameTarget, sessionRenaming, t])
 
   const openRename = useCallback((group: WorkspaceGroup) => {
     setRenameTarget(group)
@@ -253,9 +360,40 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
           <span className={ui.grow}>{t('nav.newTask')}</span>
           <span className={css.shortcut}>{commandShortcut('N')}</span>
         </button>
+        <label className={css.searchField}>
+          <IconSearchOutline16 />
+          <input
+            ref={searchRef}
+            type="search"
+            className={css.searchInput}
+            value={query}
+            placeholder={t('common.search')}
+            aria-label={t('common.search')}
+            onChange={event => { setQuery(event.target.value) }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && query !== '') {
+                event.preventDefault()
+                setQuery('')
+              } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault()
+                moveSession(event.key === 'ArrowDown' ? 1 : -1, true)
+              }
+            }}
+          />
+          <span className={css.searchShortcut}>/</span>
+        </label>
       </div>
 
-      <div className={`${css.tree} ${ui.scroll}`}>
+      <div
+        ref={treeRef}
+        className={`${css.tree} ${ui.scroll}`}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+          event.preventDefault()
+          moveSession(event.key === 'ArrowDown' ? 1 : -1)
+        }}
+      >
         <div className={css.treeActions}>
           <button type="button" className={css.action} onClick={onOpenWorkspace}>
             <IconFolderOpenOutline16 />
@@ -283,7 +421,7 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
         {hasRows
           ? (
             <>
-              {groups.map(group => (
+              {filteredGroups.map(group => (
                 <div className={css.group} key={group.workspaceId}>
                   <WorkspaceRow
                     group={group}
@@ -301,33 +439,29 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
                         session={session}
                         current={session.id === list.current}
                         age={age(session.updatedAt)}
-                        onOpen={() => {
-                          navigation.show('session')
-                          runtime.sessions.open(session.id)
-                        }}
+                        onOpen={() => { openSession(session) }}
+                        onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.navigation?.archiveSession(session.id) }}
                         onDelete={() => { setDeleteTarget(session) }}
                       />
                     ))}
                 </div>
               ))}
-              {ungrouped.length === 0
+              {filteredUngrouped.length === 0
                 ? null
                 : (
                   <div className={css.group}>
                     <div className={css.groupHeader}>
                       <span className={css.groupName}>{t('nav.ungrouped')}</span>
                     </div>
-                    {ungrouped.map(session => (
+                    {filteredUngrouped.map(session => (
                       <SessionRow
                         key={session.id}
                         session={session}
                         current={session.id === list.current}
                         age={age(session.updatedAt)}
-                        onOpen={() => {
-                          navigation.show('session')
-                          runtime.sessions.open(session.id)
-                        }}
+                        onOpen={() => { openSession(session) }}
+                        onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.navigation?.archiveSession(session.id) }}
                         onDelete={() => { setDeleteTarget(session) }}
                       />
@@ -391,6 +525,41 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
           ]}
         />
       </div>
+      <Modal
+        open={sessionRenameTarget !== undefined}
+        onClose={() => { if (!sessionRenaming) setSessionRenameTarget(undefined) }}
+        title={t('common.edit')}
+        closeLabel={t('common.close')}
+        footer={(
+          <>
+            <PrimitiveButton variant="outline" disabled={sessionRenaming} onClick={() => { setSessionRenameTarget(undefined) }}>
+              {t('common.cancel')}
+            </PrimitiveButton>
+            <PrimitiveButton
+              variant="outline"
+              disabled={sessionRenaming || sessionRenameDraft.trim() === '' || sessionRenameDraft.trim() === sessionRenameTarget?.displayTitle}
+              onClick={confirmSessionRename}
+            >
+              {sessionRenaming ? t('common.saving') : t('common.save')}
+            </PrimitiveButton>
+          </>
+        )}
+      >
+        <input
+          className={css.workspaceInput}
+          value={sessionRenameDraft}
+          aria-label={t('common.edit')}
+          autoFocus
+          disabled={sessionRenaming}
+          onChange={event => { setSessionRenameDraft(event.target.value); setSessionRenameError(undefined) }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            confirmSessionRename()
+          }}
+        />
+        {sessionRenameError === undefined ? null : <div className={css.workspaceError} role="alert">{sessionRenameError}</div>}
+      </Modal>
       <Modal
         open={deleteTarget !== undefined}
         onClose={() => { if (!deleting) setDeleteTarget(undefined) }}
