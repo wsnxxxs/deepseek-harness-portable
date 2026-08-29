@@ -34,7 +34,7 @@ import { useChatSnapshot, useSessionSnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
-import { Button, CopyButton, Spinner } from '../shell/ui.tsx'
+import { Button, CopyButton, IconButton, Spinner } from '../shell/ui.tsx'
 import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
@@ -455,6 +455,7 @@ function AssistantActions(props: {
   sessionId: SessionId
   node: AssistantMessageNode
   feedback: MessageFeedbackState
+  onBranched: () => void
 }) {
   const runtime = useRuntime()
   const t = useT()
@@ -476,13 +477,14 @@ function AssistantActions(props: {
         atSeq: props.node.seq,
         increaseTitle: true,
       })
+      props.onBranched()
       runtime.sessions.open(child)
     } catch (cause: unknown) {
       setBranchError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBranching(false)
     }
-  }, [branching, props.node.seq, props.sessionId, runtime])
+  }, [branching, props.node.seq, props.onBranched, props.sessionId, runtime])
 
   const rate = useCallback((rating: FeedbackRating) => {
     if (messageId === undefined) return
@@ -494,49 +496,50 @@ function AssistantActions(props: {
 
   return (
     <div className={css.messageActions}>
-      {text === '' ? null : (
-        <CopyButton
-          text={text}
-          label={t('chat.message.copy')}
-          copiedLabel={t('chat.message.copied')}
+      <span className={css.messageActionGroup}>
+        {text === '' ? null : (
+          <CopyButton
+            text={text}
+            label={t('chat.message.copy')}
+            copiedLabel={t('chat.message.copied')}
+            className={css.messageAction}
+          />
+        )}
+        {props.feedback.enabled && messageId !== undefined
+          ? (
+            <>
+              <IconButton
+                label={t('chat.feedback.positive')}
+                className={css.messageAction}
+                active={item?.rating === 'positive'}
+                disabled={pending}
+                onClick={() => { rate('positive') }}
+              >
+                <IconLikeOutline16 />
+              </IconButton>
+              <IconButton
+                label={t('chat.feedback.negative')}
+                className={css.messageAction}
+                active={item?.rating === 'negative'}
+                disabled={pending}
+                onClick={() => { rate('negative') }}
+              >
+                <IconDislikeOutline16 />
+              </IconButton>
+            </>
+          )
+          : null}
+      </span>
+      <span className={`${css.messageActionGroup} ${css.branchActionGroup}`}>
+        <IconButton
+          label={branching ? t('chat.message.branching') : t('chat.message.branch')}
           className={css.messageAction}
-        />
-      )}
-      {props.feedback.enabled && messageId !== undefined
-        ? (
-          <>
-            <button
-              type="button"
-              className={`${css.messageAction} ${item?.rating === 'positive' ? css.messageActionActive : ''}`}
-              aria-label={t('chat.feedback.positive')}
-              aria-pressed={item?.rating === 'positive'}
-              disabled={pending}
-              onClick={() => { rate('positive') }}
-            >
-              <IconLikeOutline16 />
-            </button>
-            <button
-              type="button"
-              className={`${css.messageAction} ${item?.rating === 'negative' ? css.messageActionActive : ''}`}
-              aria-label={t('chat.feedback.negative')}
-              aria-pressed={item?.rating === 'negative'}
-              disabled={pending}
-              onClick={() => { rate('negative') }}
-            >
-              <IconDislikeOutline16 />
-            </button>
-          </>
-        )
-        : null}
-      <button
-        type="button"
-        className={css.messageAction}
-        aria-label={t('chat.message.branch')}
-        disabled={branching}
-        onClick={() => { void branch() }}
-      >
-        {branching ? <Spinner size="sm" /> : <IconBranchOutline16 />}
-      </button>
+          disabled={branching}
+          onClick={() => { void branch() }}
+        >
+          {branching ? <Spinner size="sm" /> : <IconBranchOutline16 />}
+        </IconButton>
+      </span>
       {branchError === undefined ? null : <span className={css.actionError} role="alert">{t('chat.message.branchFailed', { error: branchError })}</span>}
       {feedbackError === undefined ? null : <span className={css.actionError} role="alert">{t('chat.feedback.failed', { error: feedbackError })}</span>}
     </div>
@@ -550,19 +553,21 @@ function Node(props: {
   labels: MarkdownLabels
   onInspect: (callId: string) => void
   feedback: MessageFeedbackState
+  highlighted?: boolean
+  onBranched: () => void
 }) {
   const t = useT()
   const { node } = props
   switch (node.kind) {
     case 'user':
-      return <UserBubble sessionId={props.sessionId} content={node.content} />
+      return <UserBubble sessionId={props.sessionId} content={node.content} className={props.highlighted === true ? css.turnLeadHighlight : undefined} />
     case 'steering':
-      return <UserBubble sessionId={props.sessionId} content={node.content} className={css.steering} />
+      return <UserBubble sessionId={props.sessionId} content={node.content} className={`${css.steering} ${props.highlighted === true ? css.turnLeadHighlight : ''}`} />
     case 'assistant':
       return (
         <div>
           <AssistantBlocks sessionId={props.sessionId} blocks={node.blocks} streaming={false} labels={props.labels} />
-          <AssistantActions sessionId={props.sessionId} node={node} feedback={props.feedback} />
+          <AssistantActions sessionId={props.sessionId} node={node} feedback={props.feedback} onBranched={props.onBranched} />
           <Stats node={node} />
         </div>
       )
@@ -612,6 +617,7 @@ function QueuedMessageRow(props: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const editable = props.item.text !== null
+  const original = props.item.text ?? props.item.preview
 
   useEffect(() => {
     if (!editing) setDraft(props.item.text ?? props.item.preview)
@@ -635,7 +641,7 @@ function QueuedMessageRow(props: {
   }, [busy, props.item.id, props.sessionId, runtime])
 
   return (
-    <div className={`${css.user} ${css.steering} ${css.queueRow}`}>
+    <div className={`${css.user} ${props.item.placement === 'steering' ? css.steering : css.queuedPrompt} ${css.queueRow}`}>
       <span className={css.stats}>{t('chat.queued')}</span>
       {editing
         ? (
@@ -646,7 +652,12 @@ function QueuedMessageRow(props: {
             autoFocus
             onChange={event => { setDraft(event.target.value) }}
             onKeyDown={event => {
-              if (event.key === 'Escape') setEditing(false)
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setDraft(original)
+                setError(undefined)
+                setEditing(false)
+              }
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 if (draft.trim() !== '') void apply({ kind: 'edit', content: [{ type: 'text', text: draft.trim() }] })
@@ -671,7 +682,11 @@ function QueuedMessageRow(props: {
                 className={css.queueAction}
                 aria-label={t('chat.cancelQueuedEdit')}
                 disabled={busy}
-                onClick={() => { setEditing(false) }}
+                onClick={() => {
+                  setDraft(original)
+                  setError(undefined)
+                  setEditing(false)
+                }}
               ><IconCloseOutline16 /></button>
             </>
           )
@@ -683,7 +698,12 @@ function QueuedMessageRow(props: {
                 aria-label={t('chat.editQueued')}
                 title={editable ? undefined : t('chat.editQueuedUnsupported')}
                 disabled={busy || !editable}
-                onClick={() => { if (editable) setEditing(true) }}
+                onClick={() => {
+                  if (!editable) return
+                  setDraft(original)
+                  setError(undefined)
+                  setEditing(true)
+                }}
               ><IconEditOutline16 /></button>
               <button
                 type="button"
@@ -729,31 +749,71 @@ function dynamicGreetingKey(): DcodeKey {
 function TurnNavigator(props: {
   turns: readonly (readonly ConversationNode[])[]
   scrollerRef: RefObject<HTMLDivElement | null>
+  running: boolean
+  onNavigate: (index: number) => void
 }) {
   const t = useT()
   const [active, setActive] = useState(0)
+
+  useEffect(() => {
+    const scroller = props.scrollerRef.current
+    if (scroller === null) return undefined
+    let frame = 0
+    const update = (): void => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        const turns = [...scroller.querySelectorAll<HTMLElement>('[data-turn-index]')]
+        const marker = scroller.getBoundingClientRect().top + 72
+        let next = 0
+        for (const [index, turn] of turns.entries()) {
+          if (turn.getBoundingClientRect().top <= marker) next = index
+        }
+        setActive(next)
+      })
+    }
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    return () => {
+      window.cancelAnimationFrame(frame)
+      scroller.removeEventListener('scroll', update)
+    }
+  }, [props.scrollerRef, props.turns.length])
+
   if (props.turns.length < 2) return null
   return (
     <nav className={css.turnNavigator} aria-label={t('chat.turnNavigation.label')}>
-      {props.turns.map((_turn, index) => (
-        <button
-          type="button"
-          key={index}
-          className={css.turnButton}
-          aria-label={t('chat.turnNavigation.turn', { count: index + 1 })}
-          aria-current={active === index ? 'true' : undefined}
-          onClick={() => {
-            const target = props.scrollerRef.current?.querySelector<HTMLElement>(`[data-turn-index="${String(index)}"]`)
-            target?.scrollIntoView({
-              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-              block: 'start',
-            })
-            setActive(index)
-          }}
-        >
-          {index + 1}
-        </button>
-      ))}
+      {props.turns.map((turn, index) => {
+        const status = turn.some(node => node.kind === 'turn-error')
+          ? 'Error'
+          : index === props.turns.length - 1 && props.running ? 'Running' : 'Complete'
+        const statusLabel = status === 'Error'
+          ? t('chat.turnNavigation.status.error')
+          : status === 'Running'
+            ? t('chat.turnNavigation.status.running')
+            : t('chat.turnNavigation.status.complete')
+        return (
+          <button
+            type="button"
+            key={index}
+            className={css.turnButton}
+            aria-label={`${t('chat.turnNavigation.turn', { count: index + 1 })}, ${statusLabel}`}
+            title={statusLabel}
+            aria-current={active === index ? 'true' : undefined}
+            onClick={() => {
+              props.onNavigate(index)
+              const target = props.scrollerRef.current?.querySelector<HTMLElement>(`[data-turn-index="${String(index)}"]`)
+              target?.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                block: 'start',
+              })
+              setActive(index)
+            }}
+          >
+            <span className={`${css.turnStatus} ${css[`turnStatus${status}`]}`} aria-hidden />
+            <span>{index + 1}</span>
+          </button>
+        )
+      })}
     </nav>
   )
 }
@@ -768,6 +828,9 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   const feedback = useMessageFeedback(sessionId)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
+  const highlightTimerRef = useRef<number | undefined>(undefined)
+  const [highlightedTurn, setHighlightedTurn] = useState<number | undefined>(undefined)
+  const [branchCreated, setBranchCreated] = useState(false)
 
   const labels = useMemo<MarkdownLabels>(() => ({
     code: { copyLabel: t('common.copy'), copiedLabel: t('common.copied') },
@@ -778,6 +841,23 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   const partial = chat?.legacy.partial ?? null
   const runningCalls = chat?.legacy.runningCalls ?? []
   const turns = useMemo(() => splitTurns(nodes), [nodes])
+
+  const navigateToTurn = useCallback((index: number) => {
+    // Opt out of bottom pinning before smooth scrolling begins, otherwise a
+    // streaming layout update can pull the selected turn back out of view.
+    pinnedRef.current = false
+    setHighlightedTurn(index)
+    window.clearTimeout(highlightTimerRef.current)
+    highlightTimerRef.current = window.setTimeout(() => { setHighlightedTurn(undefined) }, 1600)
+  }, [])
+
+  useEffect(() => () => { window.clearTimeout(highlightTimerRef.current) }, [])
+
+  useEffect(() => {
+    if (!branchCreated) return undefined
+    const timer = window.setTimeout(() => { setBranchCreated(false) }, 2400)
+    return () => { window.clearTimeout(timer) }
+  }, [branchCreated])
 
   // Stick to the bottom while the operator is already there; a deliberate
   // scroll up during a streaming answer is never yanked back down.
@@ -830,7 +910,12 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
         )
         : (
           <>
-            <TurnNavigator turns={turns} scrollerRef={scrollerRef} />
+            <TurnNavigator
+              turns={turns}
+              scrollerRef={scrollerRef}
+              running={session?.running === true}
+              onNavigate={navigateToTurn}
+            />
             <div className={css.flow}>
             {feedback.error === undefined ? null : (
               <div className={`${css.notice} ${css.noticeError}`} role="alert">
@@ -854,9 +939,10 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               const paths = changedPaths(turn)
               const items = aggregateToolActivity(turn)
               const last = turnIndex === turns.length - 1
+              const firstUserIndex = items.findIndex(item => item.kind === 'user' || item.kind === 'steering')
               return (
                 <div className={css.turn} key={turn[0]?.seq ?? turnIndex} data-turn-index={turnIndex}>
-                  {items.map((item) => {
+                  {items.map((item, itemIndex) => {
                     if (item.kind === 'tool-activity') {
                       return (
                         <ToolActivityGroup
@@ -874,6 +960,8 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
                         labels={labels}
                         onInspect={callId => { navigation.inspect(callId) }}
                         feedback={feedback}
+                        highlighted={highlightedTurn === turnIndex && itemIndex === firstUserIndex}
+                        onBranched={() => { setBranchCreated(true) }}
                       />
                     )
                   })}
@@ -945,6 +1033,9 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
             </div>
           </>
         )}
+      {branchCreated
+        ? <div className={css.branchToast} role="status">{t('chat.message.branchCreated')}</div>
+        : null}
     </div>
   )
 }
