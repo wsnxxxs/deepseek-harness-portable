@@ -30,6 +30,19 @@ export interface ToolSummary {
 export type ToolKind =
   | 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'plan' | 'skill' | 'other'
 
+/** A collapsed run of lightweight, successful read/search calls. */
+export interface ToolActivityGroup {
+  readonly kind: 'tool-activity'
+  readonly blocks: readonly ToolResultNode[]
+  readonly readCount: number
+  readonly searchCount: number
+  /** Sum of call durations when every result retained its call timestamp. */
+  readonly durationMs: number | undefined
+}
+
+/** One transcript row after lightweight tool activity has been grouped. */
+export type TranscriptItem = ConversationNode | ToolActivityGroup
+
 /** Tools that change files on disk. */
 const MUTATING = new Set(['write', 'edit', 'str_replace_editor'])
 
@@ -151,6 +164,76 @@ export function summarizeTool(name: string, argsRaw: string | undefined): ToolSu
       return { ...base, kind: 'other', detail: oneLine(typeof fallback?.[1] === 'string' ? fallback[1] : '') }
     }
   }
+}
+
+/** Milliseconds spent in one settled tool call, when both event times are available. */
+export function toolDurationMs(block: ToolCallBlock): number | undefined {
+  if (!('isError' in block) || block.callTime === null) return undefined
+  return Math.max(0, block.time - block.callTime)
+}
+
+/** Compact tool timing shared by individual cards and activity summaries. */
+export function formatToolDuration(ms: number): string {
+  return `${(Math.max(0, ms) / 1000).toFixed(1)}s`
+}
+
+/** An error anywhere in a ToolCallBlock tree must remain visually explicit. */
+function hasToolError(block: ToolCallBlock): boolean {
+  if ('isError' in block && block.isError) return true
+  return block.subCalls.some(hasToolError)
+}
+
+/** Whether a result is safe to hide inside a lightweight activity disclosure. */
+function aggregatableActivity(node: ConversationNode): node is ToolResultNode {
+  if (node.kind !== 'tool-result' || hasToolError(node)) return false
+  const summary = summarizeTool(node.call?.name ?? '', node.call?.argsRaw)
+  return !summary.mutating && (summary.kind === 'read' || summary.kind === 'search')
+}
+
+/**
+ * Collapse consecutive successful read/search results into transcript groups.
+ * Runs shorter than three stay as ordinary ToolCards, and errors always break a run.
+ */
+export function aggregateToolActivity(nodes: readonly ConversationNode[]): readonly TranscriptItem[] {
+  const items: TranscriptItem[] = []
+  let run: ToolResultNode[] = []
+
+  const flush = (): void => {
+    if (run.length < 3) {
+      items.push(...run)
+      run = []
+      return
+    }
+    let readCount = 0
+    let searchCount = 0
+    const durations = run.map(toolDurationMs)
+    for (const block of run) {
+      const kind = summarizeTool(block.call?.name ?? '', block.call?.argsRaw).kind
+      if (kind === 'read') readCount += 1
+      if (kind === 'search') searchCount += 1
+    }
+    items.push({
+      kind: 'tool-activity',
+      blocks: run,
+      readCount,
+      searchCount,
+      durationMs: durations.every((value): value is number => value !== undefined)
+        ? durations.reduce((total, value) => total + value, 0)
+        : undefined,
+    })
+    run = []
+  }
+
+  for (const node of nodes) {
+    if (aggregatableActivity(node)) {
+      run.push(node)
+      continue
+    }
+    flush()
+    items.push(node)
+  }
+  flush()
+  return items
 }
 
 /**

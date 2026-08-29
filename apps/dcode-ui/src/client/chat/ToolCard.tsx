@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/client/chat/ToolCard
  */
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   IconBrowseOutline16, IconChecklistOutline14, IconChevronRightOutline14,
   IconCodeOutline16, IconEditOutline16, IconSearchOutline16, IconSkillOutline16,
@@ -19,7 +19,7 @@ import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { useT } from '../state/i18n.ts'
 import { Spinner, ui } from '../shell/ui.tsx'
 import { AnsiOutput, OutputToolbar } from './AnsiOutput.tsx'
-import { resultText, summarizeTool, type ToolKind } from './tools.ts'
+import { formatToolDuration, resultText, summarizeTool, toolDurationMs, type ToolKind } from './tools.ts'
 import css from './ToolCard.module.css'
 
 /** Glyph per card-head vocabulary word. */
@@ -53,18 +53,33 @@ export interface ToolCardProps {
 /** A compact, expandable tool-execution card. */
 export function ToolCard({ block, onInspect }: ToolCardProps) {
   const t = useT()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(() => isSettled(block) && block.isError)
   const contentId = useId()
   // Wrap is per card and per session: an operator reading a wide table turns
   // it off once, and the next card they open is a stack trace that wants it on.
   const [wrap, setWrap] = useState(true)
 
   const settled = isSettled(block)
+  const startedAt = useRef(block.time)
+  const [now, setNow] = useState(Date.now)
   const name = settled ? block.call?.name ?? 'tool' : block.name
   const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
   const summary = summarizeTool(name, argsRaw)
   const failed = settled && block.isError
   const output = settled ? resultText(block.content) : ''
+  const duration = settled
+    ? toolDurationMs(block)
+    : Math.max(0, now - startedAt.current)
+
+  useEffect(() => {
+    if (settled) return undefined
+    const timer = window.setInterval(() => { setNow(Date.now()) }, 100)
+    return () => { window.clearInterval(timer) }
+  }, [settled])
+
+  useEffect(() => {
+    if (failed) setOpen(true)
+  }, [failed])
 
   const verb = failed
     ? t('chat.failed')
@@ -85,11 +100,14 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
             onInspect?.(block.callId)
           }}
         >
-          <span className={`${css.glyph} ${failed ? css.error : ''}`} aria-hidden>
+          <span className={`${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`} aria-hidden>
             {settled ? failed ? <IconWarningOutline16 /> : <Glyph kind={summary.kind} /> : <Spinner />}
           </span>
           <span className={`${css.verb} ${failed ? css.error : ''}`}>{verb}</span>
           <span className={css.detail}>{summary.detail === '' ? name : summary.detail}</span>
+          {duration === undefined
+            ? null
+            : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}
           <IconChevronRightOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
         </button>
         {open

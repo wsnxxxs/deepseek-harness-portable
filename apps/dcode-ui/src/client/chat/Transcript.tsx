@@ -14,9 +14,9 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  IconBranchOutline16, IconCheckOutline16, IconCloseFill14, IconCloseOutline16,
+  IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
   IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconLikeOutline16,
-  IconPaperclipOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
+  IconPaperclipOutline16, IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -38,7 +38,10 @@ import { Button, CopyButton, Spinner } from '../shell/ui.tsx'
 import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
-import { changedPaths, messageText, splitTurns } from './tools.ts'
+import {
+  aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns,
+  type ToolActivityGroup as ToolActivityGroupData,
+} from './tools.ts'
 import type { DcodeKey } from '../locales.ts'
 import css from './Transcript.module.css'
 
@@ -233,11 +236,58 @@ function Reasoning({ text }: { text: string }) {
         aria-controls={panelId}
         onClick={() => { setOpen(value => !value) }}
       >
-        <IconThinkOutline14 />
-        {t('chat.reasoning')}
-        <span aria-hidden>{open ? '▾' : '▸'}</span>
+        <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
+        <span>{t('chat.reasoning')}</span>
+        <span className={css.reasoningMeta}>{t('chat.reasoningChars', { count: text.length })}</span>
+        <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />
       </button>
-      {open ? <div id={panelId} role="region">{text}</div> : null}
+      {open ? <div className={css.reasoningBody} id={panelId} role="region">{text}</div> : null}
+    </div>
+  )
+}
+
+/** A compact disclosure for a consecutive run of successful read/search calls. */
+function ToolActivityGroup(props: {
+  group: ToolActivityGroupData
+  onInspect: (callId: string) => void
+}) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const contentId = useId()
+  const parts = [
+    props.group.readCount === 0
+      ? null
+      : t(props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany', { count: props.group.readCount }),
+    props.group.searchCount === 0
+      ? null
+      : t(props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany', { count: props.group.searchCount }),
+  ].filter((part): part is string => part !== null)
+
+  return (
+    <div className={css.toolActivity}>
+      <button
+        type="button"
+        className={css.toolActivityHead}
+        aria-expanded={open}
+        aria-controls={contentId}
+        onClick={() => { setOpen(value => !value) }}
+      >
+        <span className={css.toolActivityIcon} aria-hidden><IconSearchOutline16 /></span>
+        <span className={css.toolActivitySummary}>{parts.join(', ')}</span>
+        {props.group.durationMs === undefined
+          ? null
+          : <span className={css.toolActivityDuration}>· {formatToolDuration(props.group.durationMs)}</span>}
+        <IconChevronRightOutline14 className={`${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}`} />
+      </button>
+      {open
+        ? (
+          <div className={css.toolActivityItems} id={contentId}>
+            {props.group.blocks.map(block => (
+              <ToolCard key={block.callId} block={block} onInspect={props.onInspect} />
+            ))}
+          </div>
+        )
+        : null}
     </div>
   )
 }
@@ -802,19 +852,31 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
 
             {turns.map((turn, turnIndex) => {
               const paths = changedPaths(turn)
+              const items = aggregateToolActivity(turn)
               const last = turnIndex === turns.length - 1
               return (
                 <div className={css.turn} key={turn[0]?.seq ?? turnIndex} data-turn-index={turnIndex}>
-                  {turn.map(node => (
-                    <Node
-                      sessionId={sessionId}
-                      key={`${node.kind}:${String(node.seq)}`}
-                      node={node}
-                      labels={labels}
-                      onInspect={callId => { navigation.inspect(callId) }}
-                      feedback={feedback}
-                    />
-                  ))}
+                  {items.map((item) => {
+                    if (item.kind === 'tool-activity') {
+                      return (
+                        <ToolActivityGroup
+                          key={`tool-activity:${item.blocks[0]?.callId ?? 'empty'}`}
+                          group={item}
+                          onInspect={callId => { navigation.inspect(callId) }}
+                        />
+                      )
+                    }
+                    return (
+                      <Node
+                        sessionId={sessionId}
+                        key={`${item.kind}:${String(item.seq)}`}
+                        node={item}
+                        labels={labels}
+                        onInspect={callId => { navigation.inspect(callId) }}
+                        feedback={feedback}
+                      />
+                    )
+                  })}
                   {/* The summary closes a turn only once it has settled; a
                       running turn's edits are still arriving. */}
                   {paths.length > 0 && (!last || session?.running !== true)
