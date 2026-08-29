@@ -488,7 +488,7 @@ export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }
   const value = data.value
   return (
     <section className={css.section}>
-      <span className={css.sectionTitle}>{mcpOnly ? t('settings.mcp') : t('settings.plugins')}</span>
+      <span className={css.sectionTitle}>{mcpOnly ? t('settings.mcp') : t('plugins.section.settings')}</span>
       <p className={css.sectionBody}>{mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody')}</p>
       {!mcpOnly ? (
         <div className={css.pluginTabs} role="tablist" aria-label={t('settings.plugins.tabs')}>

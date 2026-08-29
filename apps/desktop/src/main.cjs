@@ -32,6 +32,7 @@ const {
   iconPath: platformIconPath,
   nativeShellState,
   releaseAssetName: platformReleaseAssetName,
+  windowMaterial,
 } = require('./desktop-platform.cjs')
 const {
   GITHUB_MIRROR_PREFIXES,
@@ -48,6 +49,14 @@ const {
   DEFAULT_WINDOW_BOUNDS,
   restoreWindowBounds,
 } = require('./window-state.cjs')
+
+/**
+ * The native backdrop this machine can render, resolved once at startup so the
+ * window options and every later repaint agree on one answer.
+ */
+const WINDOW_MATERIAL = windowMaterial()
+/** Fully transparent window background: the state a backdrop material needs. */
+const TRANSPARENT_SURFACE = '#00000000'
 
 const APP_NAME = 'DeepSeek Harness'
 const RELEASE_MANIFEST_NAME = 'release-manifest.json'
@@ -304,7 +313,11 @@ function syncNativeTheme() {
       try { window.setTitleBarOverlay(theme.titleBar) } catch {}
     }
     if (process.platform === 'win32' && typeof window.setBackgroundColor === 'function') {
-      try { window.setBackgroundColor(theme.surface) } catch {}
+      // A window wearing a backdrop material must keep its transparent
+      // background; repainting it with the theme surface would cover the
+      // material with an opaque sheet on every theme change.
+      const surface = WINDOW_MATERIAL === 'none' ? theme.surface : TRANSPARENT_SURFACE
+      try { window.setBackgroundColor(surface) } catch {}
     }
     if (rendererReady) window.webContents.send('desktop:theme-changed', theme)
   }
@@ -1818,9 +1831,16 @@ async function createApp() {
     DEFAULT_WINDOW_BOUNDS,
   )
   const { isMaximized: shouldMaximize, ...initialBounds } = restoredBounds
+  // Windows 11 backdrops. The material only composites through a fully
+  // transparent window background, so an opaque `backgroundColor` would leave
+  // mica/acrylic invisible — and a transparent one on an OS that cannot render
+  // the material would leave a see-through hole. `windowMaterial` decides
+  // which of those two states this machine is actually in.
   const nativeWindowOptions = process.platform === 'win32'
     ? {
-        backgroundMaterial: 'mica',
+        ...(WINDOW_MATERIAL === 'none'
+          ? {}
+          : { backgroundMaterial: WINDOW_MATERIAL, backgroundColor: TRANSPARENT_SURFACE }),
         titleBarStyle: 'hidden',
         titleBarOverlay: initialTheme.titleBar,
       }

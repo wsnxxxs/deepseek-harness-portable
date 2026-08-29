@@ -4,7 +4,7 @@
   justify-content: space-between;
   gap: var(--zx-space-3);
   min-width: 180px;
-  height: 32px;
+  height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
   border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
   border-radius: var(--zx-radius-md);
@@ -43,7 +43,7 @@
 .chevron {
   flex: none;
   color: var(--zx-label-muted);
-  font-size: 16px;
+  font-size: var(--zx-text-lg);
   line-height: 12px;
   transform: translateY(-1px);
   transition: transform 140ms ease;
@@ -133,7 +133,7 @@
 .check {
   flex: none;
   color: var(--zx-accent);
-  font-size: 14px;
+  font-size: var(--zx-text-md);
   font-weight: 700;
 }
 

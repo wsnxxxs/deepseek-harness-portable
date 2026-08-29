@@ -9,9 +9,10 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/git/GitPanel
  */
 import { useCallback, useEffect, useState } from 'react';
-import { IconBranchOutline16, IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconBranchOutline16, IconChevronDownOutline14, IconFolderOpenOutline16, IconRefreshOutline14, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
 import { useRuntime } from "../state/runtime.js";
+import { useWorkspaceGroups } from "../state/hooks.js";
 import { Button, DiffCount, EmptyState, IconButton, Popover, Spinner, ui } from "../shell/ui.js";
 import { useGitStatus } from "./useGit.js";
 import css from './GitPanel.module.css';
@@ -40,6 +41,7 @@ function codeMark(file) {
 export function GitPanel({ cwd, sessionId, selected, onOpenDiff }) {
     const runtime = useRuntime();
     const t = useT();
+    const { groups } = useWorkspaceGroups();
     const git = useGitStatus(cwd, sessionId);
     const [message, setMessage] = useState('');
     const [committing, setCommitting] = useState(false);
@@ -95,11 +97,20 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }) {
     if (!git.status.repository)
         return _jsx(EmptyState, { children: t('git.notRepository') });
     const status = git.status;
-    return (_jsxs("div", { className: css.panel, children: [_jsxs("div", { className: css.head, children: [_jsx("span", { className: ui.grow, children: t('git.title') }), _jsx(IconButton, { label: t('git.refresh'), onClick: git.refresh, children: git.loading ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}) })] }), _jsxs("div", { className: css.summary, children: [_jsx("span", { className: css.summaryLabel, children: t('git.changes') }), _jsx(DiffCount, { insertions: status.insertions, deletions: status.deletions })] }), _jsxs("div", { className: css.branchRow, children: [_jsx(Popover, { label: t('git.branches'), placement: "down", trigger: _jsxs(_Fragment, { children: [_jsx(IconBranchOutline16, {}), _jsx("span", { children: status.branch ?? 'HEAD' })] }), children: _jsx("div", { className: ui.menuLabel, children: t('git.branchReadOnly') }), rows: branches.map(branch => ({
+    const workspace = groups.find(group => group.path === cwd);
+    return (_jsxs("div", { className: css.panel, children: [_jsxs("div", { className: css.head, children: [_jsx("span", { className: ui.grow, children: t('git.title') }), _jsx(IconButton, { label: t('git.refresh'), onClick: git.refresh, children: git.loading ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}) })] }), _jsxs("div", { className: css.summary, children: [_jsx("span", { className: css.summaryLabel, children: t('git.changes') }), _jsx(DiffCount, { insertions: status.insertions, deletions: status.deletions })] }), _jsx(Popover, { label: t('workspace.select'), placement: "down", trigger: _jsxs(_Fragment, { children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { children: workspace?.title ?? cwd.split(/[\\/\\]/).filter(Boolean).pop() ?? cwd }), _jsx(IconChevronDownOutline14, {})] }), rows: groups.map(group => ({
+                    id: String(group.workspaceId),
+                    label: group.title,
+                    detail: group.path,
+                    icon: _jsx(IconFolderOpenOutline16, {}),
+                    active: group.workspaceId === workspace?.workspaceId,
+                    onSelect: () => { runtime.navigation?.startSession(group.workspaceId); },
+                })), triggerClassName: css.workspaceRow }), _jsxs("div", { className: css.branchRow, children: [_jsx(Popover, { label: t('git.branches'), placement: "down", trigger: _jsxs(_Fragment, { children: [_jsx(IconBranchOutline16, {}), _jsx("span", { children: status.branch ?? 'HEAD' })] }), children: _jsx("div", { className: ui.menuLabel, children: t('git.branchReadOnly') }), rows: branches.map(branch => ({
                             id: branch.name,
                             label: branch.name,
                             detail: branch.current ? t('git.currentBranch') : undefined,
                             disabled: true,
+                            active: branch.current,
                         })), triggerClassName: css.branchRow }), status.ahead > 0 ? _jsx("span", { children: t('git.ahead', { count: status.ahead }) }) : null, status.behind > 0 ? _jsx("span", { children: t('git.behind', { count: status.behind }) }) : null] }), status.files.length === 0
                 ? _jsx(EmptyState, { children: t('git.clean') })
                 : (_jsx("div", { className: css.files, children: status.files.map(file => (_jsxs("button", { type: "button", className: `${css.file} ${selected === file.path ? css.fileActive : ''}`, onClick: () => { onOpenDiff(file.path, file.staged); }, title: file.path, children: [_jsx("span", { className: `${css.code} ${codeClass(file)}`, "aria-hidden": true, children: codeMark(file) }), _jsx("span", { className: css.path, children: _jsx("bdi", { children: file.path }) }), _jsx(DiffCount, { insertions: file.insertions, deletions: file.deletions })] }, `${file.code}:${file.path}`))) })), _jsxs("div", { className: css.commit, children: [_jsx("textarea", { className: css.input, rows: 2, value: message, placeholder: t('git.commitPlaceholder'), onChange: event => { setMessage(event.target.value); } }), _jsxs("div", { className: css.actions, children: [_jsx(Button, { primary: true, disabled: committing || message.trim() === '' || status.files.length === 0, onClick: commit, children: committing ? t('git.committing') : t('git.commit') }), note === undefined

@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /**
  * The conversation column.
  *
@@ -10,8 +10,8 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * flow.
  * @module @dsh-portable/dcode-ui/client/chat/Transcript
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { IconThinkOutline14, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IconCheckOutline16, IconCloseOutline16, IconDownloadOutline16, IconEditOutline16, IconPaperclipOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useChatSnapshot, useSessionSnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -27,6 +27,56 @@ function Reasoning({ text }) {
     const [open, setOpen] = useState(false);
     return (_jsxs("div", { className: css.reasoning, children: [_jsxs("button", { type: "button", className: css.reasoningHead, onClick: () => { setOpen(value => !value); }, children: [_jsx(IconThinkOutline14, {}), t('chat.reasoning'), _jsx("span", { "aria-hidden": true, children: open ? '▾' : '▸' })] }), open ? _jsx("div", { children: text }) : null] }));
 }
+/** Session-authorized image display; the Conversation assembly owns its URL cache. */
+function DurableImage(props) {
+    const runtime = useRuntime();
+    const [src, setSrc] = useState(() => runtime.media?.peekImageUrl(props.sessionId, props.attachment));
+    useEffect(() => {
+        let live = true;
+        const media = runtime.media;
+        const cached = media?.peekImageUrl(props.sessionId, props.attachment);
+        if (cached !== undefined) {
+            setSrc(cached);
+            return () => { live = false; };
+        }
+        if (media === undefined)
+            return () => { live = false; };
+        void media.imageUrl(props.sessionId, props.attachment).then(value => { if (live)
+            setSrc(value); }, () => undefined);
+        return () => { live = false; };
+    }, [props.attachment, props.sessionId, runtime]);
+    return src === undefined
+        ? _jsx("span", { className: css.attachmentPlaceholder, children: props.attachment.name ?? 'image' })
+        : _jsx("img", { className: css.messageImage, src: src, alt: props.attachment.name ?? 'image' });
+}
+/** One durable file reference which can be downloaded from the same session. */
+function DurableFile(props) {
+    const runtime = useRuntime();
+    const label = props.attachment.name ?? 'attachment';
+    return (_jsxs("button", { type: "button", className: css.fileAttachment, title: label, onClick: () => { void runtime.media?.downloadFile(props.sessionId, props.attachment); }, disabled: runtime.media === undefined, children: [_jsx(IconPaperclipOutline16, {}), _jsx("span", { children: label }), _jsx(IconDownloadOutline16, {})] }));
+}
+/** Render message attachments without changing the DCode message layout. */
+function MessageAttachments(props) {
+    const images = [...(props.images ?? [])];
+    const files = [];
+    for (const block of props.content ?? []) {
+        const candidate = block;
+        if (candidate.type === 'image' && candidate.attachment !== undefined) {
+            images.push(candidate.attachment);
+        }
+        else if (candidate.type === 'file' && candidate.attachment !== undefined) {
+            files.push(candidate.attachment);
+        }
+    }
+    if (images.length === 0 && files.length === 0 && (props.previews?.length ?? 0) === 0)
+        return null;
+    return (_jsxs("div", { className: css.messageAttachments, children: [props.previews?.map((image, index) => (_jsx("img", { className: css.messageImage, src: image.previewUrl, alt: image.name ?? 'image' }, `${image.previewUrl}:${String(index)}`))), images.map((attachment, index) => (_jsx(DurableImage, { sessionId: props.sessionId, attachment: attachment }, `${attachment.attachmentId}:${String(index)}`))), files.map((attachment, index) => (_jsx(DurableFile, { sessionId: props.sessionId, attachment: attachment }, `${attachment.attachmentId}:${String(index)}`)))] }));
+}
+/** A user bubble can carry text, images, files, or an image-only prompt. */
+function UserBubble(props) {
+    const text = messageText(props.content);
+    return (_jsxs("div", { className: `${css.user} ${props.className ?? ''}`, children: [text === '' ? null : _jsx("div", { children: text }), _jsx(MessageAttachments, { sessionId: props.sessionId, content: props.content })] }));
+}
 /** One assistant message's visible blocks. Tool calls render as their own cards. */
 function AssistantBlocks(props) {
     return (_jsx("div", { className: css.blockGap, children: props.blocks.map((block, index) => {
@@ -35,6 +85,9 @@ function AssistantBlocks(props) {
             }
             if (block.kind === 'reasoning')
                 return _jsx(Reasoning, { text: block.text }, index);
+            if (block.kind === 'image') {
+                return (_jsx(MessageAttachments, { sessionId: props.sessionId, images: [block.attachment] }, index));
+            }
             // Tool calls are rendered from the paired result nodes, which carry the
             // output; an unpaired call is covered by `runningCalls` below.
             return null;
@@ -56,11 +109,11 @@ function Node(props) {
     const { node } = props;
     switch (node.kind) {
         case 'user':
-            return _jsx("div", { className: css.user, children: messageText(node.content) });
+            return _jsx(UserBubble, { sessionId: props.sessionId, content: node.content });
         case 'steering':
-            return _jsx("div", { className: `${css.user} ${css.steering}`, children: messageText(node.content) });
+            return _jsx(UserBubble, { sessionId: props.sessionId, content: node.content, className: css.steering });
         case 'assistant':
-            return (_jsxs("div", { children: [_jsx(AssistantBlocks, { blocks: node.blocks, streaming: false, labels: props.labels }), _jsx(Stats, { node: node })] }));
+            return (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: props.sessionId, blocks: node.blocks, streaming: false, labels: props.labels }), _jsx(Stats, { node: node })] }));
         case 'tool-result':
             return _jsx(ToolCard, { block: node, onInspect: props.onInspect });
         case 'command':
@@ -78,6 +131,60 @@ function Node(props) {
         default:
             return null;
     }
+}
+/** Queue controls mirror the host queue verbs instead of treating queued text as static output. */
+function QueuedMessageRow(props) {
+    const runtime = useRuntime();
+    const t = useT();
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(props.item.text ?? props.item.preview);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState();
+    const editable = props.item.text !== null;
+    useEffect(() => {
+        if (!editing)
+            setDraft(props.item.text ?? props.item.preview);
+        if (!editable)
+            setEditing(false);
+    }, [editable, editing, props.item.preview, props.item.text]);
+    const apply = useCallback(async (action) => {
+        const session = runtime.binding(props.sessionId)?.session;
+        if (session === undefined || busy)
+            return;
+        setBusy(true);
+        setError(undefined);
+        try {
+            const result = await session.updateQueue(props.item.id, action);
+            if (!result.ok)
+                throw new Error(result.error.message);
+            if (action.kind === 'edit')
+                setEditing(false);
+        }
+        catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+        }
+        finally {
+            setBusy(false);
+        }
+    }, [busy, props.item.id, props.sessionId, runtime]);
+    return (_jsxs("div", { className: `${css.user} ${css.steering} ${css.queueRow}`, children: [_jsx("span", { className: css.stats, children: t('chat.queued') }), editing
+                ? (_jsx("input", { className: css.queueEditor, value: draft, "aria-label": t('chat.editQueued'), autoFocus: true, onChange: event => { setDraft(event.target.value); }, onKeyDown: event => {
+                        if (event.key === 'Escape')
+                            setEditing(false);
+                        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                            event.preventDefault();
+                            if (draft.trim() !== '')
+                                void apply({ kind: 'edit', content: [{ type: 'text', text: draft.trim() }] });
+                        }
+                    } }))
+                : _jsx("span", { className: css.queuePreview, children: props.item.text ?? props.item.preview }), _jsx("div", { className: css.queueActions, children: editing
+                    ? (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: css.queueAction, "aria-label": t('chat.saveQueued'), disabled: busy || draft.trim() === '', onClick: () => { void apply({ kind: 'edit', content: [{ type: 'text', text: draft.trim() }] }); }, children: _jsx(IconCheckOutline16, {}) }), _jsx("button", { type: "button", className: css.queueAction, "aria-label": t('chat.cancelQueuedEdit'), disabled: busy, onClick: () => { setEditing(false); }, children: _jsx(IconCloseOutline16, {}) })] }))
+                    : (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: css.queueAction, "aria-label": t('chat.editQueued'), title: editable ? undefined : t('chat.editQueuedUnsupported'), disabled: busy || !editable, onClick: () => { if (editable)
+                                    setEditing(true); }, children: _jsx(IconEditOutline16, {}) }), _jsx("button", { type: "button", className: css.queueAction, "aria-label": t('chat.removeQueued'), disabled: busy, onClick: () => { void apply({ kind: 'remove' }); }, children: _jsx(IconTrashOutline16, {}) }), _jsx("button", { type: "button", className: css.queueAction, "aria-label": t('chat.steerQueued'), title: props.running ? undefined : t('chat.steerQueuedUnavailable'), disabled: busy || !props.running || props.item.placement !== 'queued', onClick: () => { void apply({ kind: 'steer' }); }, children: _jsx(IconSendOutline14, {}) })] })) }), error === undefined ? null : _jsx("span", { className: css.queueError, children: error })] }));
+}
+/** Local submission echo shown while attachment admission is still in flight. */
+function PendingSubmissionBubble(props) {
+    return (_jsxs("div", { className: css.user, children: [props.submission.text === '' ? null : _jsx("div", { children: props.submission.text }), _jsx(MessageAttachments, { sessionId: props.sessionId, previews: props.submission.images })] }));
 }
 function dynamicGreetingKey() {
     const hour = new Date().getHours();
@@ -140,16 +247,16 @@ export function Transcript({ navigation, sessionId, cwd, blank }) {
                             : null, turns.map((turn, turnIndex) => {
                             const paths = changedPaths(turn);
                             const last = turnIndex === turns.length - 1;
-                            return (_jsxs("div", { className: css.turn, children: [turn.map(node => (_jsx(Node, { node: node, labels: labels, onInspect: callId => { navigation.inspect(callId); } }, `${node.kind}:${String(node.seq)}`))), paths.length > 0 && (!last || session?.running !== true)
+                            return (_jsxs("div", { className: css.turn, children: [turn.map(node => (_jsx(Node, { sessionId: sessionId, node: node, labels: labels, onInspect: callId => { navigation.inspect(callId); } }, `${node.kind}:${String(node.seq)}`))), paths.length > 0 && (!last || session?.running !== true)
                                         ? (_jsx(FileChanges, { paths: paths, cwd: cwd, status: git.status, onOpenDiff: path => { navigation.openDiff(path); }, onChanged: git.refresh }))
                                         : null] }, turn[0]?.seq ?? turnIndex));
                         }), runningCalls.map(call => (_jsx(ToolCard, { block: call, onInspect: callId => { navigation.inspect(callId); } }, call.callId))), partial === null
                             ? null
-                            : (_jsxs("div", { children: [_jsx(AssistantBlocks, { blocks: partial.blocks, streaming: true, labels: labels }), _jsx("span", { className: css.streamingDot, "aria-label": t('chat.thinking') })] })), session?.running === true && partial === null && runningCalls.length === 0
+                            : (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: sessionId, blocks: partial.blocks, streaming: true, labels: labels }), _jsx("span", { className: css.streamingDot, "aria-label": t('chat.thinking') })] })), session?.running === true && partial === null && runningCalls.length === 0
                             ? _jsxs("div", { className: css.stats, children: [t('chat.thinking'), _jsx("span", { className: css.streamingDot })] })
-                            : null, session?.queue.length === 0
+                            : null, session?.pendingSubmissions.map(submission => (_jsx(PendingSubmissionBubble, { sessionId: sessionId, submission: submission }, submission.requestId))), session?.queue.length === 0
                             ? null
-                            : session?.queue.map(item => (_jsxs("div", { className: `${css.user} ${css.steering}`, children: [_jsx("span", { className: css.stats, children: t('chat.queued') }), item.text ?? item.preview] }, item.id))), session?.lastAgentError === null || session?.lastAgentError === undefined
+                            : session?.queue.map(item => (_jsx(QueuedMessageRow, { sessionId: sessionId, item: item, running: session.running }, item.id))), session?.lastAgentError === null || session?.lastAgentError === undefined
                             ? null
                             : (_jsxs("div", { className: `${css.notice} ${css.noticeError}`, children: [_jsx(IconWarningOutline16, {}), session.lastAgentError] }))] })), chat === undefined && !blank ? _jsx(EmptyState, { children: t('chat.loading') }) : null] }));
 }

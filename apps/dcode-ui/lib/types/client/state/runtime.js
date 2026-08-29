@@ -17,6 +17,15 @@
 import { createContext, useContext } from 'react';
 import { createLearningCall, createDcodeApi } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
+/** Stable empty value used before the optional Trajectory target is available. */
+export const EMPTY_TRAJECTORY_SNAPSHOT = {
+    eventNodes: [],
+    eventLocations: new Map(),
+    requests: [],
+    callSchemas: new Map(),
+    partial: null,
+    runningCalls: [],
+};
 /**
  * Build the runtime from a live client context.
  *
@@ -31,21 +40,45 @@ export function createDcodeRuntime(ctx, mode) {
     const sessions = ctx.get('sessions');
     const workspaces = ctx.get('workspaces');
     const uiConversation = ctx.get('uiConversation');
+    const conversation = ctx.get('conversation');
     const carrier = ctx.get('connection');
     const navigation = ctx.get('uiWorkspace');
     const theme = ctx.get('theme');
     const locale = ctx.get('locale');
+    const uiSession = ctx.get('uiSession');
     const settingsScope = ctx.get('settingsScope');
+    const settingsSchema = ctx.get('settingsSchema');
+    const sessionLogDownload = ctx.get('sessionLogDownload');
     const conversationSettings = settingsScope?.bind({ namespace: 'ui-conversation' });
     const fallbackLocale = { active: 'en', locales: [], revision: 0 };
     // One cache per session id: the Chat target face is identity-stable for a
     // binding, and `useSyncExternalStore` needs a stable subscribe reference.
     const feeds = new Map();
+    const trajectoryFeeds = new Map();
     return {
         sessions,
         workspaces,
         navigation,
         remote: ctx.remote,
+        settings: {
+            scope: settingsScope,
+            schema: settingsSchema,
+            describe: settingsScope?.describe?.(),
+        },
+        conversation,
+        input: sessionId => {
+            const actx = sessions.scope(sessionId);
+            if (actx === undefined || conversation === undefined)
+                return undefined;
+            return conversation.input.for(actx);
+        },
+        media: uiConversation === undefined
+            ? undefined
+            : {
+                imageUrl: (sessionId, attachment) => uiConversation.imageUrl(sessionId, attachment),
+                peekImageUrl: (sessionId, attachment) => uiConversation.peekImageUrl(sessionId, attachment),
+                downloadFile: (sessionId, attachment) => uiConversation.downloadFile(sessionId, attachment),
+            },
         theme,
         appearance: createAppearanceStore(ctx, theme),
         busyEnter: {
@@ -59,6 +92,8 @@ export function createDcodeRuntime(ctx, mode) {
             subscribe: listener => locale?.subscribe(listener) ?? (() => { }),
             set: id => { locale?.setLocale(id); },
         },
+        pendingInteractions: uiSession?.pendingInteractions,
+        sessionLogDownload,
         git: createDcodeApi(carrier),
         learningCall: createLearningCall(carrier),
         // The pack registers this namespace itself; an assembly without it falls
@@ -82,6 +117,23 @@ export function createDcodeRuntime(ctx, mode) {
                 subscribe: listener => target.subscribe(listener),
             };
             feeds.set(sessionId, feed);
+            return feed;
+        },
+        trajectoryFeed: (sessionId) => {
+            const cached = trajectoryFeeds.get(sessionId);
+            if (cached !== undefined)
+                return cached;
+            if (uiConversation === undefined)
+                return undefined;
+            const binding = sessions.binding(sessionId);
+            if (binding === undefined)
+                return undefined;
+            const target = uiConversation.binding(binding).target('trajectory');
+            const feed = {
+                getSnapshot: () => target.getSnapshot() ?? EMPTY_TRAJECTORY_SNAPSHOT,
+                subscribe: listener => target.subscribe(listener),
+            };
+            trajectoryFeeds.set(sessionId, feed);
             return feed;
         },
     };

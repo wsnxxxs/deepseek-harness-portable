@@ -1,6 +1,6 @@
 /**
- * The top bar: what is being worked on, where, and on which branch — plus the
- * command entry and the two panel toggles.
+ * The top bar: what is being worked on, where, and on which branch — plus
+ * Session sharing and the inspector toggle.
  *
  * Every value is read live: the title comes from the Session Controller's
  * display title, the workspace from the durable registry, and the branch from
@@ -15,6 +15,6 @@ export interface TopBarProps {
     readonly sessionId: SessionId | undefined;
     readonly cwd: string | undefined;
 }
-/** Task, workspace, branch and the surface controls. */
+/** Task context, the left session rail toggle, sharing, and inspector control. */
 export declare function TopBar({ navigation, sessionId, cwd }: TopBarProps): import("react").JSX.Element;
 //# sourceMappingURL=TopBar.d.ts.map

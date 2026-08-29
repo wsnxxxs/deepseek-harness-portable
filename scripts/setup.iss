@@ -187,7 +187,7 @@ end;
 
 procedure CleanupOrphanRuntimes(const AppDir: String);
 var
-  FindData: TFindData;
+  FindData: TFindRec;
   SearchPath, OrphanPath: String;
 begin
   SearchPath := AddBackslash(AppDir) + '.setup-orphan-runtime-*';

@@ -9,10 +9,12 @@
  * @module @dsh-portable/dcode-ui/client/state/hooks
  */
 import type { SessionListState, SessionSnapshot, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client';
-import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client';
+import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
-import { type Observable } from './runtime.ts';
+import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
+import type { InputState, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
+import { type DcodePendingInteraction, type Observable } from './runtime.ts';
 /**
  * Subscribe to one DSH observable.
  * @param source - the observable, or undefined while none is resolvable.
@@ -32,10 +34,17 @@ export declare function useObservable<T>(source: Observable<T> | undefined, fall
  * @returns the selected value.
  */
 export declare function useObservableSelector<T, S>(source: Observable<T> | undefined, fallback: T, select: (snapshot: T) => S): S;
+/** The shared Conversation input machine plus its current draft state. */
+export declare function useSessionInput(sessionId: SessionId | undefined): {
+    input: SessionInput | undefined;
+    state: InputState;
+};
 /** The Session Controller's list and current selection. */
 export declare function useSessionList(): SessionListState;
 /** The id of the selected session, or undefined in the no-session state. */
 export declare function useCurrentSessionId(): SessionId | undefined;
+/** The current session's pending ask-user-question or plan-review request. */
+export declare function usePendingQuestion(sessionId: SessionId | undefined): DcodePendingInteraction | undefined;
 /** The durable workspace registry. */
 export declare function useWorkspaces(): WorkspaceSnapshot;
 /**
@@ -48,6 +57,15 @@ export declare function useSessionSnapshot(sessionId: SessionId | undefined): Se
  * @param sessionId - session to observe; undefined yields undefined.
  */
 export declare function useChatSnapshot(sessionId: SessionId | undefined): ChatSnapshot | undefined;
+/**
+ * One session's assembled DSH Trajectory ledger.
+ *
+ * This is the same target consumed by the official Trajectory view. DCode only
+ * selects a compact subset for its summary and leaves the full records to the
+ * existing details and diff surfaces.
+ * @param sessionId - session to observe.
+ */
+export declare function useTrajectorySnapshot(sessionId: SessionId | undefined): TrajectorySnapshot | undefined;
 /**
  * Whether the conversation has nothing in it yet — no settled node, no
  * streaming partial, no call in flight.
@@ -72,7 +90,7 @@ export declare function useConversationBlank(sessionId: SessionId | undefined): 
 export declare function useProjectionValue<T>(sessionId: SessionId | undefined, key: string): T | undefined;
 /** Sessions grouped under the workspace that accounts for them, in registry order. */
 export interface WorkspaceGroup {
-    readonly workspaceId: string;
+    readonly workspaceId: WorkspaceId;
     readonly title: string;
     readonly path: string;
     readonly sessions: readonly SessionSummary[];

@@ -10,7 +10,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * @module @dsh-portable/dcode-ui/client/shell/CommandPalette
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16, IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16, IconListPenOutline16, IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useCurrentSessionId, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -116,9 +116,18 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
             id: 'toggle-aside',
             kind: 'action',
             group: t('palette.panels'),
-            label: t('top.toggleAside'),
+            label: t('top.togglePreview'),
             icon: _jsx(IconPanelLeftOutline16, {}),
+            shortcut: commandShortcut('Alt+B'),
             run: () => { navigation.toggleAside(); },
+        },
+        {
+            id: 'toggle-summary',
+            kind: 'action',
+            group: t('palette.panels'),
+            label: t('top.toggleSummary'),
+            icon: _jsx(IconListPenOutline16, {}),
+            run: () => { navigation.toggleSummary(); },
         },
         {
             id: 'changes',
@@ -146,9 +155,9 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
             id: 'plugins',
             kind: 'action',
             group: t('palette.configuration'),
-            label: t('settings.plugins'),
+            label: t('nav.plugins'),
             icon: _jsx(IconCordisPluginOutline14, { size: 16 }),
-            run: () => { navigation.openSettings('plugins'); },
+            run: () => { navigation.show('plugins'); },
         },
         {
             id: 'models',
@@ -163,6 +172,14 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }) {
             group: t('palette.configuration'),
             label: t('settings.usage'),
             run: () => { navigation.openSettings('usage'); },
+        },
+        {
+            id: 'agent-presets',
+            kind: 'action',
+            group: t('palette.configuration'),
+            label: t('settings.agentPresets'),
+            icon: _jsx(IconSparkle16, {}),
+            run: () => { navigation.openSettings('agentPresets'); },
         },
         {
             id: 'official-ui',

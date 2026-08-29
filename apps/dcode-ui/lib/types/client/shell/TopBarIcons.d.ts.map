@@ -1,0 +1,1 @@
+{"version":3,"file":"TopBarIcons.d.ts","sourceRoot":"","sources":["../../../../src/client/shell/TopBarIcons.tsx"],"names":[],"mappings":"AAAA,UAAU,eAAe;IACvB,QAAQ,CAAC,IAAI,CAAC,EAAE,MAAM,CAAA;IACtB,QAAQ,CAAC,SAAS,CAAC,EAAE,MAAM,CAAA;CAC5B;AAED,wBAAgB,kBAAkB,CAAC,EAAE,IAAS,EAAE,SAAS,EAAE,EAAE,eAAe,+BA0B3E;AAED,wBAAgB,cAAc,CAAC,EAAE,IAAS,EAAE,SAAS,EAAE,EAAE,eAAe,+BAgBvE"}

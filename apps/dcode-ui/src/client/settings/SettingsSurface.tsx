@@ -58,7 +58,6 @@ const RAIL: readonly { group: DcodeKey; items: readonly { id: SettingsSection; l
   {
     group: 'settings.group.agent',
     items: [
-      { id: 'plugins', label: 'settings.plugins' },
       { id: 'agentPresets', label: 'settings.agentPresets' },
       { id: 'skills', label: 'settings.skills' },
       { id: 'commands', label: 'settings.commands' },

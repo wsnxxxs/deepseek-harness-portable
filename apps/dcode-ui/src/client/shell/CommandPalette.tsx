@@ -186,9 +186,9 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       id: 'plugins',
       kind: 'action',
       group: t('palette.configuration'),
-      label: t('settings.plugins'),
+      label: t('nav.plugins'),
       icon: <IconCordisPluginOutline14 size={16} />,
-      run: () => { navigation.openSettings('plugins') },
+      run: () => { navigation.show('plugins') },
     },
     {
       id: 'models',

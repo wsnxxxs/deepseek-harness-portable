@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/client/state/hooks
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useRuntime } from "./runtime.js";
+import { EMPTY_TRAJECTORY_SNAPSHOT, useRuntime, } from "./runtime.js";
 /**
  * Subscribe to one DSH observable.
  * @param source - the observable, or undefined while none is resolvable.
@@ -58,6 +58,32 @@ const EMPTY_SESSION_LIST = {
     ids: [], byId: {}, current: undefined, phase: 'pending',
     subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 };
+const EMPTY_PENDING_INTERACTIONS = new Map();
+const EMPTY_INPUT_STATE = {
+    draft: '',
+    imageIds: [],
+    draftRev: 0,
+    phase: 'plain',
+    occurrences: [],
+    queue: [],
+};
+/** The shared Conversation input machine plus its current draft state. */
+export function useSessionInput(sessionId) {
+    const runtime = useRuntime();
+    const input = useMemo(() => (sessionId === undefined ? undefined : runtime.input(sessionId)), [runtime, sessionId]);
+    const state = useObservable(input?.state, EMPTY_INPUT_STATE);
+    return { input, state };
+}
+/** Narrow the shared pending-interaction roster to the ask-user-question face. */
+function questionInteraction(value) {
+    if (value === undefined || !('questions' in value) || !Array.isArray(value.questions))
+        return undefined;
+    if (typeof value.answer !== 'function')
+        return undefined;
+    if (typeof value.cancel !== 'function')
+        return undefined;
+    return value;
+}
 /** The Session Controller's list and current selection. */
 export function useSessionList() {
     const runtime = useRuntime();
@@ -67,6 +93,11 @@ export function useSessionList() {
 export function useCurrentSessionId() {
     const runtime = useRuntime();
     return useObservableSelector(runtime.sessions.list, EMPTY_SESSION_LIST, state => state.current);
+}
+/** The current session's pending ask-user-question or plan-review request. */
+export function usePendingQuestion(sessionId) {
+    const runtime = useRuntime();
+    return useObservableSelector(runtime.pendingInteractions, EMPTY_PENDING_INTERACTIONS, snapshot => questionInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)));
 }
 const EMPTY_WORKSPACES = {
     items: [], order: [], archivedSessionIds: [], state: 'idle', phase: 'loading', error: null,
@@ -104,6 +135,20 @@ export function useChatSnapshot(sessionId) {
     const runtime = useRuntime();
     const source = useMemo(() => (sessionId === undefined ? undefined : runtime.chatFeed(sessionId)), [runtime, sessionId]);
     const snapshot = useObservable(source, undefined);
+    return source === undefined ? undefined : snapshot;
+}
+/**
+ * One session's assembled DSH Trajectory ledger.
+ *
+ * This is the same target consumed by the official Trajectory view. DCode only
+ * selects a compact subset for its summary and leaves the full records to the
+ * existing details and diff surfaces.
+ * @param sessionId - session to observe.
+ */
+export function useTrajectorySnapshot(sessionId) {
+    const runtime = useRuntime();
+    const source = useMemo(() => (sessionId === undefined ? undefined : runtime.trajectoryFeed(sessionId)), [runtime, sessionId]);
+    const snapshot = useObservable(source, EMPTY_TRAJECTORY_SNAPSHOT);
     return source === undefined ? undefined : snapshot;
 }
 /**

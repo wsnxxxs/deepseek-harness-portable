@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /**
- * The right column: Git changes, Goal and Progress, and the details of
+ * The floating right card: Git changes, Goal and Progress, and the details of
  * whatever the operator last clicked.
  *
  * Goal is the host-computed `goal` projection — the same value the official
@@ -10,15 +10,15 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 import { useMemo, useState } from 'react';
-import { IconChecklistOutline14, IconCheckOutline14, IconGoalOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useAsync, useChatSnapshot, useProjectionValue } from "../state/hooks.js";
+import { IconChecklistOutline14, IconCheckOutline14, IconCloseOutline16, IconGoalOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
 import { useRuntime } from "../state/runtime.js";
 import { GitPanel } from "../git/GitPanel.js";
 import { DiffViewer } from "../git/DiffViewer.js";
 import { EmptyState, Pill, Spinner, ui } from "./ui.js";
-import { parseArgs, resultText, summarizeTool } from "../chat/tools.js";
+import { latestTodos, resultText, summarizeTool } from "../chat/tools.js";
 import { AnsiOutput, OutputToolbar } from "../chat/AnsiOutput.js";
 import css from './Aside.module.css';
 /** Walk a tool block and its children depth-first. */
@@ -34,31 +34,14 @@ function* walkCalls(block) {
  * records the whole list on every write, so the last call is the whole plan
  * even when earlier ones fell outside the loaded history window.
  */
-function latestTodos(nodes) {
-    for (let index = nodes.length - 1; index >= 0; index -= 1) {
-        const node = nodes[index];
-        if (node?.kind !== 'tool-result')
-            continue;
-        for (const block of walkCalls(node)) {
-            const name = 'isError' in block ? block.call?.name : block.name;
-            if (name !== 'todo_write')
-                continue;
-            const argsRaw = 'isError' in block ? block.call?.argsRaw : block.argsRaw;
-            const todos = parseArgs(argsRaw).todos;
-            if (!Array.isArray(todos))
-                continue;
-            return todos.filter((row) => typeof row === 'object' && row !== null
-                && typeof row.content === 'string');
-        }
-    }
-    return [];
-}
 /** Goal and Progress. */
 function GoalPanel({ sessionId }) {
     const t = useT();
     const goal = useProjectionValue(sessionId, 'goal');
+    const projectedTodos = useProjectionValue(sessionId, 'todos');
     const chat = useChatSnapshot(sessionId);
-    const todos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat]);
+    const fallbackTodos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat]);
+    const todos = projectedTodos === undefined ? fallbackTodos : projectedTodos ?? [];
     const done = todos.filter(todo => todo.status === 'completed').length;
     return (_jsxs(_Fragment, { children: [_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx(IconGoalOutline16, {}), _jsx("span", { className: ui.grow, children: t('goal.title') }), goal == null
                                 ? null
@@ -68,18 +51,26 @@ function GoalPanel({ sessionId }) {
                         ? _jsx(EmptyState, { children: t('goal.none') })
                         : (_jsx("div", { className: css.goal, children: _jsxs("div", { className: css.goalText, children: [goal.goal.objective, _jsxs("div", { className: css.goalMeta, children: [done, "/", todos.length || '—', " \u00B7 ", goal.roundsStarted, " rounds"] })] }) }))] }), _jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx(IconChecklistOutline14, {}), _jsx("span", { className: ui.grow, children: t('progress.title') }), todos.length === 0 ? null : _jsxs(Pill, { children: [done, "/", todos.length] })] }), todos.length === 0
                         ? _jsx(EmptyState, { children: t('progress.none') })
-                        : todos.map((todo, index) => (_jsxs("div", { className: `${css.step} ${todo.status === 'completed' ? css.stepDone : ''} ${todo.status === 'in_progress' ? css.stepActive : ''}`, children: [_jsx("span", { className: `${css.stepMark} ${todo.status === 'completed' ? css.stepMarkDone : ''}`, "aria-hidden": true, children: todo.status === 'completed' ? _jsx(IconCheckOutline14, {}) : todo.status === 'in_progress' ? '◐' : '○' }), _jsx("span", { children: todo.content })] }, `${String(index)}:${todo.content}`)))] })] }));
+                        : todos.map((todo, index) => (_jsxs("div", { className: `${css.step} ${todo.status === 'completed' ? css.stepDone : ''} ${todo.status === 'in_progress' ? css.stepActive : ''}`, children: [_jsx("span", { className: `${css.stepMark} ${todo.status === 'completed' ? css.stepMarkDone : ''}`, "aria-hidden": true, children: todo.status === 'completed'
+                                        ? _jsx(IconCheckOutline14, {})
+                                        : todo.status === 'in_progress'
+                                            ? _jsx("span", { className: css.stepProgress, "aria-hidden": true })
+                                            : _jsx("span", { className: css.stepPending, "aria-hidden": true }) }), _jsx("span", { children: todo.content })] }, `${String(index)}:${todo.content}`)))] })] }));
 }
 /** Arguments and output of the tool call the operator last opened. */
 function DetailsPanel({ sessionId, callId, cwd, diff, }) {
     const runtime = useRuntime();
     const t = useT();
     const chat = useChatSnapshot(sessionId);
+    const trajectory = useTrajectorySnapshot(sessionId);
     const [wrap, setWrap] = useState(true);
     const block = useMemo(() => {
         if (callId === undefined)
             return undefined;
-        for (const node of chat?.legacy.nodes ?? []) {
+        const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
+            ? chat?.legacy.nodes ?? []
+            : trajectory.eventNodes;
+        for (const node of nodes) {
             if (node.kind !== 'tool-result')
                 continue;
             for (const candidate of walkCalls(node)) {
@@ -87,14 +78,17 @@ function DetailsPanel({ sessionId, callId, cwd, diff, }) {
                     return candidate;
             }
         }
-        for (const running of chat?.legacy.runningCalls ?? []) {
+        const runningCalls = trajectory === undefined || trajectory.runningCalls.length === 0
+            ? chat?.legacy.runningCalls ?? []
+            : trajectory.runningCalls;
+        for (const running of runningCalls) {
             for (const candidate of walkCalls(running)) {
                 if (candidate.callId === callId)
                     return candidate;
             }
         }
         return undefined;
-    }, [chat, callId]);
+    }, [chat, trajectory, callId]);
     const filePath = block === undefined ? diff?.path : undefined;
     const fileRead = useAsync(async () => {
         if (cwd === undefined || filePath === undefined)
@@ -136,7 +130,7 @@ function DetailsPanel({ sessionId, callId, cwd, diff, }) {
                             : _jsx(AnsiOutput, { text: output, wrap: wrap })] }))
                 : null] }));
 }
-/** The right column with its three tabs. */
+/** The docked preview sidebar with its three content views. */
 export function Aside({ navigation, sessionId, cwd }) {
     const t = useT();
     const state = useNavigation(navigation);
@@ -145,7 +139,7 @@ export function Aside({ navigation, sessionId, cwd }) {
         { id: 'goal', label: t('goal.title') },
         { id: 'details', label: t('details.title') },
     ];
-    return (_jsxs("aside", { className: css.aside, "aria-label": t('details.title'), children: [_jsx("div", { className: css.tabs, children: tabs.map(tab => (_jsx("button", { type: "button", className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, children: tab.label }, tab.id))) }), _jsxs("div", { className: css.body, children: [state.aside === 'changes'
+    return (_jsxs("aside", { className: css.aside, "aria-label": t('details.title'), children: [_jsxs("header", { className: css.header, children: [_jsx("span", { className: css.headerTitle, children: t('aside.title') }), _jsx("button", { type: "button", className: css.headerClose, "aria-label": t('aside.close'), onClick: () => { navigation.toggleAside(); }, children: _jsx(IconCloseOutline16, {}) })] }), _jsx("div", { className: css.tabs, role: "tablist", "aria-label": t('aside.title'), children: tabs.map(tab => (_jsx("button", { type: "button", role: "tab", "aria-selected": state.aside === tab.id, className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, children: tab.label }, tab.id))) }), _jsxs("div", { className: css.body, children: [state.aside === 'changes'
                         ? (_jsxs(_Fragment, { children: [_jsx(GitPanel, { cwd: cwd, sessionId: sessionId, selected: state.diff?.path, onOpenDiff: (path, staged) => { navigation.openDiff(path, staged); } }), state.diff === undefined || cwd === undefined
                                     ? null
                                     : (_jsx(DiffViewer, { cwd: cwd, path: state.diff.path, staged: state.diff.staged, onClose: () => { navigation.closeDiff(); } }))] }))

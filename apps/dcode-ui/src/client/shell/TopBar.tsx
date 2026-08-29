@@ -179,14 +179,6 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
           >
             <IconPanelLeftOutline16 className={ui.mirrored} size={14} />
           </IconButton>
-          <IconButton
-            label={t('top.toggleRail')}
-            className={`${css.layoutButton} ${css.railToggle}`}
-            active={state.railOpen}
-            onClick={() => { navigation.toggleRail() }}
-          >
-            <IconPanelLeftOutline16 size={14} />
-          </IconButton>
         </div>
       </div>
     </header>

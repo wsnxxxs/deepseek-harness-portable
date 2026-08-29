@@ -13,7 +13,6 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import { IconCheckOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { UiModeStore } from '../mode.ts'
 import { en, type DcodeKey } from '../locales.ts'
 import css from './InterfaceSettingsSection.module.css'
@@ -43,26 +42,26 @@ export function InterfaceSettingsSection({ mode, t }: InterfaceSettingsSectionPr
     <div className={css.root}>
       <div className={css.title}>{copy('settings.interface')}</div>
       <p className={css.lead}>{copy('settings.interfaceBody')}</p>
-      {/* Official first, then the workbench: one order across every switch
-          surface, so the pair never reads differently in two places. */}
+      {/* Official first, then the workbench: keep the same order across every
+          switch surface, so the pair never reads differently in two places. */}
       <div className={css.choice}>
         <button
           type="button"
           className={`${css.option} ${active === 'official' ? css.optionActive : ''}`}
+          aria-pressed={active === 'official'}
           onClick={() => { mode.set('official') }}
         >
           <span className={css.optionTitle}>{copy('settings.modeOfficial')}</span>
           <span className={css.optionBody}>{copy('settings.modeOfficialBody')}</span>
-          {active === 'official' ? <span className={css.badge}><IconCheckOutline16 /></span> : null}
         </button>
         <button
           type="button"
           className={`${css.option} ${active === 'dcode' ? css.optionActive : ''}`}
+          aria-pressed={active === 'dcode'}
           onClick={() => { mode.set('dcode') }}
         >
           <span className={css.optionTitle}>{copy('settings.modeWorkbench')}</span>
           <span className={css.optionBody}>{copy('settings.modeWorkbenchBody')}</span>
-          {active === 'dcode' ? <span className={css.badge}><IconCheckOutline16 /></span> : null}
         </button>
       </div>
     </div>

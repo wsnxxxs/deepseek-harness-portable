@@ -9,6 +9,8 @@ v1.6.0 是继 v1.5.6 之后的功能与问题修复版本。
 - **Interactive Learning 资料 grounding**：在本机导入受支持的 PDF、DOCX、PPTX、Markdown 和文本资料，按界限检索证据，并在教学回合中保留资料锚点。
 - **概念复习与学习者记忆**：新增结构化概念卡片、复习反馈和可持续的学习进度，便于继续学习。
 - **学习意图路由与视觉活动**：优化 learn/not-learn 路由、教学路线、学习笔记和语义视觉活动。
+- **自适应 DCode 工作台**：让侧栏、会话区、预览区和环境摘要适配紧凑/中等/宽屏窗口；持久化侧栏宽度，并支持快速切换工作区和任务。
+- **插件管理页面**：新增插件市场、已安装和配置三个分区，提供仓库审核、实时任务进度、生命周期操作和重启状态提示。
 
 ## 运行时与兼容性
 
@@ -40,6 +42,8 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 - **Interactive Learning material grounding**: ingest supported PDF, DOCX, PPTX, Markdown, and text material locally, retrieve bounded evidence, and keep source anchors for teaching turns.
 - **Concept review and learner memory**: add structured concept cards, review feedback, and durable learner progress for continued study.
 - **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
+- **Responsive DCode workbench**: adapt the rail, conversation, preview, and environment summary to compact/medium/wide windows; persist rail sizing and provide quick workspace/task switching.
+- **Plugin management surface**: add dedicated Marketplace, Installed, and Configuration sections with repository review gates, live job progress, lifecycle controls, and restart state.
 
 ### Runtime and Compatibility
 

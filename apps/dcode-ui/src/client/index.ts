@@ -112,7 +112,7 @@ export const inject = [
 const ROOT_PRIORITY = -1000
 
 /** Order of the interface item in the classic General settings page. */
-const SETTINGS_GENERAL_ITEM_ORDER = 30
+const SETTINGS_GENERAL_ITEM_ORDER = 5
 
 /**
  * Register the workbench root, and re-register it whenever the mode changes.

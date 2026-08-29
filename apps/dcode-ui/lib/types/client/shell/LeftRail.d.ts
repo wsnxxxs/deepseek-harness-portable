@@ -11,8 +11,9 @@ import { type NavigationStore } from '../state/navigation.ts';
 /** Props of the left rail. */
 export interface LeftRailProps {
     readonly navigation: NavigationStore;
-    readonly onNewTask: () => void;
+    readonly onNewTask: (workspaceId?: string) => void;
+    readonly onOpenWorkspace: () => void;
 }
 /** The task action, scrollable navigation/tree, and account foot. */
-export declare function LeftRail({ navigation, onNewTask }: LeftRailProps): import("react").JSX.Element;
+export declare function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailProps): import("react").JSX.Element;
 //# sourceMappingURL=LeftRail.d.ts.map

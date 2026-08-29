@@ -26,7 +26,7 @@ export function SectionTitle(props) {
 }
 /** A square control that carries an icon and an accessible name. */
 export function IconButton(props) {
-    return (_jsx("button", { type: "button", className: `${css.iconButton} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, title: props.label, "aria-label": props.label, "aria-pressed": props.active, disabled: props.disabled, onClick: props.onClick, children: props.children }));
+    return (_jsx("button", { type: "button", className: `${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, "aria-label": props.label, "aria-pressed": props.active, "data-tooltip": props.label, disabled: props.disabled, onClick: props.onClick, children: props.children }));
 }
 /** A labelled control. */
 export function Button(props) {

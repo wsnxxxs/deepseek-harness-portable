@@ -33,6 +33,37 @@ export function parseArgs(argsRaw) {
         return {};
     }
 }
+/**
+ * Read the newest whole-list todo snapshot from the transcript.
+ *
+ * The live `todos` projection is preferred by surfaces that have it, but this
+ * replay fallback keeps the plan visible while an older connection is still
+ * assembling that projection.
+ */
+export function latestTodos(nodes) {
+    for (let index = nodes.length - 1; index >= 0; index -= 1) {
+        const node = nodes[index];
+        if (node?.kind !== 'tool-result')
+            continue;
+        for (const block of walkCalls(node)) {
+            const name = 'isError' in block ? block.call?.name : block.name;
+            if (name !== 'todo_write')
+                continue;
+            const argsRaw = 'isError' in block ? block.call?.argsRaw : block.argsRaw;
+            const todos = parseArgs(argsRaw).todos;
+            if (!Array.isArray(todos))
+                continue;
+            return todos.filter((row) => {
+                if (typeof row !== 'object' || row === null)
+                    return false;
+                const value = row;
+                return typeof value.content === 'string'
+                    && (value.status === 'pending' || value.status === 'in_progress' || value.status === 'completed');
+            });
+        }
+    }
+    return [];
+}
 /** First string field present among the candidates. */
 function firstString(args, fields) {
     for (const field of fields) {

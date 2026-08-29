@@ -9,37 +9,18 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/shell/LeftRail
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14, IconChevronDownOutline14, IconChevronRightOutline14, IconEllipsisOutline16, IconNewChatOutline16, IconSparkle16, IconTrashOutline16, Modal, relativeTime, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button as PrimitiveButton, IconApiOutline14, IconArchiveOutline20, IconCordisPluginOutline14, IconChevronDownOutline14, IconChevronRightOutline14, IconDataOutline16, IconLinkOutline16, IconEditOutline16, IconEllipsisOutline16, IconFolderClose16, IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark, Modal, relativeTime, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { commandShortcut } from "../platform.js";
 import { useRuntime } from "../state/runtime.js";
 import { useSessionList, useWorkspaceGroups } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
-import { EmptyState, Popover, ui } from "./ui.js";
+import { EmptyState, IconButton, Popover, ui } from "./ui.js";
 import css from './LeftRail.module.css';
 /** Suffix per relative-time bucket; `now` shows the bare word. */
 const AGE_SUFFIX = {
     minutes: 'm', hours: 'h', days: 'd', months: 'mo', years: 'y',
 };
-/** The compact outline language used by the account menu. */
-function AccountGlyph({ children }) {
-    return (_jsx("svg", { "aria-hidden": "true", viewBox: "0 0 20 20", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "1.55", strokeLinecap: "round", strokeLinejoin: "round", children: children }));
-}
-function AccountUserGlyph() {
-    return (_jsxs(AccountGlyph, { children: [_jsx("circle", { cx: "10", cy: "7.1", r: "2.55" }), _jsx("path", { d: "M4.9 16.2c.55-2.35 2.35-3.6 5.1-3.6s4.55 1.25 5.1 3.6" })] }));
-}
-function AccountSettingsGlyph() {
-    return (_jsxs(AccountGlyph, { children: [_jsx("circle", { cx: "10", cy: "10", r: "2.45" }), _jsx("path", { d: "M10 2.9v1.55M10 15.55v1.55M2.9 10h1.55M15.55 10h1.55M4.98 4.98l1.1 1.1M13.92 13.92l1.1 1.1M15.02 4.98l-1.1 1.1M6.08 13.92l-1.1 1.1" }), _jsx("path", { d: "M12.2 3.45l.55 1.55 1.5.65 1.5-.5 1.1 1.1-.5 1.5.65 1.5 1.55.55v1.55l-1.55.55-.65 1.5.5 1.5-1.1 1.1-1.5-.5-1.5.65-.55 1.55H10" })] }));
-}
-function AccountUsageGlyph() {
-    return (_jsxs(AccountGlyph, { children: [_jsx("ellipse", { cx: "8.2", cy: "4.6", rx: "4.55", ry: "2" }), _jsx("path", { d: "M3.65 4.6v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V4.6" }), _jsx("path", { d: "M3.65 8.85v4.25c0 1.1 2.05 2 4.55 2s4.55-.9 4.55-2V8.85" }), _jsx("path", { d: "M15.2 11.1v4.2M13.1 13.2h4.2" })] }));
-}
-function AccountPluginsGlyph() {
-    return (_jsxs(AccountGlyph, { children: [_jsx("circle", { cx: "10", cy: "3.8", r: "1", fill: "currentColor", stroke: "none" }), _jsx("circle", { cx: "10", cy: "16.2", r: "1", fill: "currentColor", stroke: "none" }), _jsx("circle", { cx: "3.8", cy: "10", r: "1", fill: "currentColor", stroke: "none" }), _jsx("circle", { cx: "16.2", cy: "10", r: "1", fill: "currentColor", stroke: "none" }), _jsx("path", { d: "M6.2 6.2l1.55 1.55M12.25 12.25l1.55 1.55M13.8 6.2l-1.55 1.55M7.75 12.25L6.2 13.8" }), _jsx("circle", { cx: "10", cy: "10", r: "2.1" })] }));
-}
-function AccountExternalGlyph() {
-    return (_jsxs(AccountGlyph, { children: [_jsx("path", { d: "M5.2 14.8L15.9 4.1M10.1 4.1h5.8v5.8" }), _jsx("path", { d: "M14.5 12.6v2.7c0 .55-.45 1-1 1H5.1c-.55 0-1-.45-1-1V6.9c0-.55.45-1 1-1h2.7" })] }));
-}
 /** Compact relative age of a session's last update. */
 function useAge() {
     return useCallback((updatedAt) => {
@@ -73,8 +54,28 @@ function SessionRow(props) {
                     },
                 ] })] }));
 }
+/** One project-folder header with collapse, create, rename and remove actions. */
+function WorkspaceRow(props) {
+    const { group, collapsed } = props;
+    const t = useT();
+    return (_jsxs("div", { className: css.groupHeaderShell, children: [_jsxs("button", { type: "button", className: css.groupHeader, onClick: props.onToggle, title: group.path, children: [collapsed ? _jsx(IconChevronRightOutline14, {}) : _jsx(IconChevronDownOutline14, {}), collapsed ? _jsx(IconFolderClose16, {}) : _jsx(IconFolderOpen16, {}), _jsx("span", { className: css.groupName, children: group.title })] }), _jsxs("div", { className: css.groupActions, children: [_jsx(Popover, { label: t('workspace.actions'), placement: "down", align: "end", triggerClassName: css.groupAction, trigger: _jsx(IconEllipsisOutline16, {}), rows: [
+                            {
+                                id: 'rename',
+                                label: t('workspace.rename'),
+                                icon: _jsx(IconEditOutline16, {}),
+                                onSelect: props.onRename,
+                            },
+                            {
+                                id: 'remove',
+                                label: t('workspace.remove'),
+                                icon: _jsx(IconTrashOutline16, {}),
+                                danger: true,
+                                onSelect: props.onRemove,
+                            },
+                        ] }), _jsx(IconButton, { label: t('workspace.newTask'), className: css.groupAction, onClick: props.onNewTask, children: _jsx(IconNewChatOutline16, {}) })] })] }));
+}
 /** The task action, scrollable navigation/tree, and account foot. */
-export function LeftRail({ navigation, onNewTask }) {
+export function LeftRail({ navigation, onNewTask, onOpenWorkspace }) {
     const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
@@ -84,6 +85,13 @@ export function LeftRail({ navigation, onNewTask }) {
     const [collapsed, setCollapsed] = useState(() => new Set());
     const [deleteTarget, setDeleteTarget] = useState();
     const [deleting, setDeleting] = useState(false);
+    const [renameTarget, setRenameTarget] = useState();
+    const [renameDraft, setRenameDraft] = useState('');
+    const [renaming, setRenaming] = useState(false);
+    const [renameError, setRenameError] = useState();
+    const [removeTarget, setRemoveTarget] = useState();
+    const [removing, setRemoving] = useState(false);
+    const [removeError, setRemoveError] = useState();
     const toggleGroup = useCallback((id) => {
         setCollapsed((previous) => {
             const next = new Set(previous);
@@ -92,9 +100,57 @@ export function LeftRail({ navigation, onNewTask }) {
             return next;
         });
     }, []);
-    const hasRows = useMemo(() => ungrouped.length > 0 || groups.some(group => group.sessions.length > 0), [groups, ungrouped]);
-    return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsx("div", { className: css.top, children: _jsxs("button", { type: "button", className: css.action, onClick: onNewTask, children: [_jsx(IconNewChatOutline16, {}), _jsx("span", { className: ui.grow, children: t('nav.newTask') }), _jsx("span", { className: css.shortcut, children: commandShortcut('N') })] }) }), _jsxs("div", { className: `${css.tree} ${ui.scroll}`, children: [_jsxs("div", { className: css.treeActions, children: [_jsxs("button", { type: "button", className: `${css.action} ${state.view === 'settings' && state.settingsSection === 'plugins' ? css.actionActive : ''}`, onClick: () => { navigation.openSettings('plugins'); }, children: [_jsx(IconCordisPluginOutline14, { size: 16 }), _jsx("span", { className: ui.grow, children: t('nav.plugins') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'learning' ? css.actionActive : ''}`, onClick: () => { navigation.show('learning'); }, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: ui.grow, children: t('nav.learning') })] })] }), hasRows
-                        ? (_jsxs(_Fragment, { children: [groups.map(group => (_jsxs("div", { className: css.group, children: [_jsxs("button", { type: "button", className: css.groupHeader, onClick: () => { toggleGroup(group.workspaceId); }, title: group.path, children: [collapsed.has(group.workspaceId) ? _jsx(IconChevronRightOutline14, {}) : _jsx(IconChevronDownOutline14, {}), _jsx("span", { className: css.groupName, children: group.title })] }), collapsed.has(group.workspaceId)
+    const hasRows = useMemo(() => groups.length > 0 || ungrouped.length > 0, [groups, ungrouped]);
+    const openRename = useCallback((group) => {
+        setRenameTarget(group);
+        setRenameDraft(group.title);
+        setRenameError(undefined);
+    }, []);
+    const closeRename = useCallback(() => {
+        if (renaming)
+            return;
+        setRenameTarget(undefined);
+        setRenameError(undefined);
+    }, [renaming]);
+    const confirmRename = useCallback(() => {
+        const target = renameTarget;
+        const title = renameDraft.trim();
+        if (target === undefined || renaming || title === '' || title === target.title)
+            return;
+        setRenaming(true);
+        setRenameError(undefined);
+        void runtime.workspaces.rename(target.workspaceId, title)
+            .then(() => { setRenameTarget(undefined); })
+            .catch((cause) => {
+            setRenameError(cause instanceof Error ? cause.message : String(cause));
+        })
+            .finally(() => { setRenaming(false); });
+    }, [renameDraft, renameTarget, renaming, runtime]);
+    const openRemove = useCallback((group) => {
+        setRemoveTarget(group);
+        setRemoveError(undefined);
+    }, []);
+    const closeRemove = useCallback(() => {
+        if (removing)
+            return;
+        setRemoveTarget(undefined);
+        setRemoveError(undefined);
+    }, [removing]);
+    const confirmRemove = useCallback(() => {
+        const target = removeTarget;
+        if (target === undefined || removing)
+            return;
+        setRemoving(true);
+        setRemoveError(undefined);
+        void runtime.workspaces.delete(target.workspaceId)
+            .then(() => { setRemoveTarget(undefined); })
+            .catch((cause) => {
+            setRemoveError(cause instanceof Error ? cause.message : String(cause));
+        })
+            .finally(() => { setRemoving(false); });
+    }, [removing, removeTarget, runtime]);
+    return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsx("div", { className: css.top, children: _jsxs("button", { type: "button", className: css.action, onClick: () => { onNewTask(); }, children: [_jsx(IconNewChatOutline16, {}), _jsx("span", { className: ui.grow, children: t('nav.newTask') }), _jsx("span", { className: css.shortcut, children: commandShortcut('N') })] }) }), _jsxs("div", { className: `${css.tree} ${ui.scroll}`, children: [_jsxs("div", { className: css.treeActions, children: [_jsxs("button", { type: "button", className: css.action, onClick: onOpenWorkspace, children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { className: ui.grow, children: t('nav.openWorkspace') }), _jsx("span", { className: css.shortcut, children: commandShortcut('O') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`, onClick: () => { navigation.show('plugins'); }, children: [_jsx(IconCordisPluginOutline14, { size: 16 }), _jsx("span", { className: ui.grow, children: t('nav.plugins') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'learning' ? css.actionActive : ''}`, onClick: () => { navigation.show('learning'); }, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: ui.grow, children: t('nav.learning') })] })] }), hasRows ? _jsx("div", { className: css.treeDivider, "aria-hidden": true }) : null, hasRows
+                        ? (_jsxs(_Fragment, { children: [groups.map(group => (_jsxs("div", { className: css.group, children: [_jsx(WorkspaceRow, { group: group, collapsed: collapsed.has(group.workspaceId), onToggle: () => { toggleGroup(group.workspaceId); }, onNewTask: () => { onNewTask(group.workspaceId); }, onRename: () => { openRename(group); }, onRemove: () => { openRemove(group); } }), collapsed.has(group.workspaceId)
                                             ? null
                                             : group.sessions.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => {
                                                     navigation.show('session');
@@ -105,29 +161,41 @@ export function LeftRail({ navigation, onNewTask }) {
                                                     navigation.show('session');
                                                     runtime.sessions.open(session.id);
                                                 }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); }, onDelete: () => { setDeleteTarget(session); } }, session.id)))] }))] }))
-                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsx(Popover, { label: t('account.menu'), placement: "up", align: "start", style: { flex: 1 }, triggerClassName: css.accountTrigger, trigger: (_jsxs(_Fragment, { children: [_jsx("span", { className: css.avatar, "aria-hidden": true, children: _jsx(AccountUserGlyph, {}) }), _jsx("span", { className: css.footName, children: t('app.title') })] })), rows: [
+                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsx(Popover, { label: t('account.menu'), placement: "up", align: "start", style: { flex: 1 }, triggerClassName: css.accountTrigger, trigger: (_jsx(BrandWordmark, { size: 24 })), rows: [
                         {
                             id: 'settings',
                             label: t('nav.settings'),
-                            icon: _jsx(AccountSettingsGlyph, {}),
+                            icon: _jsx(IconSettingsOutline16, { size: 18 }),
                             onSelect: () => { navigation.openSettings('general'); },
                         },
                         {
                             id: 'usage',
                             label: t('account.usage'),
-                            icon: _jsx(AccountUsageGlyph, {}),
+                            icon: _jsx(IconDataOutline16, { size: 18 }),
                             onSelect: () => { navigation.openSettings('usage'); },
+                        },
+                        {
+                            id: 'models',
+                            label: t('settings.models'),
+                            icon: _jsx(IconApiOutline14, { size: 18 }),
+                            onSelect: () => { navigation.openSettings('models'); },
                         },
                         {
                             id: 'plugins',
                             label: t('nav.plugins'),
-                            icon: _jsx(AccountPluginsGlyph, {}),
-                            onSelect: () => { navigation.openSettings('plugins'); },
+                            icon: _jsx(IconCordisPluginOutline14, { size: 18 }),
+                            onSelect: () => { navigation.show('plugins'); },
+                        },
+                        {
+                            id: 'agent-presets',
+                            label: t('settings.agentPresets'),
+                            icon: _jsx(IconSparkle16, {}),
+                            onSelect: () => { navigation.openSettings('agentPresets'); },
                         },
                         {
                             id: 'official',
                             label: t('top.officialUi'),
-                            icon: _jsx(AccountExternalGlyph, {}),
+                            icon: _jsx(IconLinkOutline16, { size: 18 }),
                             onSelect: () => { runtime.mode.set('official'); },
                         },
                     ] }) }), _jsx(Modal, { open: deleteTarget !== undefined, onClose: () => { if (!deleting)
@@ -141,6 +209,11 @@ export function LeftRail({ navigation, onNewTask }) {
                                     .then(() => { setDeleteTarget(undefined); })
                                     .catch(() => { })
                                     .finally(() => { setDeleting(false); });
-                            }, children: t('session.delete') })] })) })] }));
+                            }, children: t('session.delete') })] })) }), _jsxs(Modal, { open: renameTarget !== undefined, onClose: closeRename, title: t('workspace.renameTitle'), closeLabel: t('common.close'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: renaming, onClick: closeRename, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", disabled: renaming || renameDraft.trim() === '' || renameTarget === undefined || renameDraft.trim() === renameTarget.title, onClick: confirmRename, children: t('workspace.rename') })] })), children: [_jsx("input", { className: css.workspaceInput, value: renameDraft, "aria-label": t('workspace.name'), autoFocus: true, disabled: renaming, onChange: event => { setRenameDraft(event.target.value); setRenameError(undefined); }, onKeyDown: event => {
+                            if (event.key !== 'Enter')
+                                return;
+                            event.preventDefault();
+                            confirmRename();
+                        } }), renameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: renameError })] }), _jsxs(Modal, { open: removeTarget !== undefined, onClose: closeRemove, title: t('workspace.removeTitle'), closeLabel: t('common.close'), description: removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title }), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: removing, onClick: closeRemove, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: removing, onClick: confirmRemove, children: t('workspace.remove') })] })), children: [removing ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('workspace.removePending') }) : null, removeError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: removeError })] })] }));
 }
 //# sourceMappingURL=LeftRail.js.map

@@ -50,7 +50,7 @@ export function apply(ctx, config = {}) {
                 };
             }
             return await handleDcodeEndpoint(endpoint, payload);
-        },
+        }, 
         // Same authority the rest of this distribution's private channels use:
         // the surface runs local commands in the operator's own workspace and
         // must not be reachable from an untrusted origin.

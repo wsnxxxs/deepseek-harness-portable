@@ -54,12 +54,15 @@ export const name = 'dcode-ui-client';
  * frameless.
  */
 export const inject = [
-    'slots', 'locale', 'settingsScope', 'sessions', 'workspaces', 'uiConversation',
+    'slots', 'locale', 'settingsScope', 'settingsSchema', 'sessions', 'workspaces', 'conversation', 'uiConversation',
+    'uiSession', 'connection', 'commandUi',
     'remote',
     'remote.session',
     'remote.commands',
     'remote.skills',
     'remote.settings',
+    'remote.credentials',
+    'remote.llm',
     'remote.pluginInventory',
     'remote.subagents',
     'remote.agentPresets',
@@ -74,7 +77,7 @@ export const inject = [
  */
 const ROOT_PRIORITY = -1000;
 /** Order of the interface item in the classic General settings page. */
-const SETTINGS_GENERAL_ITEM_ORDER = 30;
+const SETTINGS_GENERAL_ITEM_ORDER = 5;
 /**
  * Register the workbench root, and re-register it whenever the mode changes.
  * @param ctx - client root context.
@@ -87,7 +90,10 @@ function bindRootRegistration(ctx, mode) {
     const t = bindTranslate(ctx.locale.bind(DCODE_NS));
     // One element tree, created once: a mode flip mounts and unmounts it, and
     // the workbench's own view state survives in `navigation` across the flip.
-    const render = () => createElement(DcodeRuntimeProvider, { value: runtime }, createElement(TranslateProvider, { value: t }, createElement(Workbench, { navigation })));
+    const render = ({ renderSlot }) => createElement(DcodeRuntimeProvider, { value: runtime }, createElement(TranslateProvider, { value: t }, createElement(Workbench, {
+        navigation,
+        renderSettingsSlot: renderSlot,
+    })));
     let active;
     const apply = () => {
         const wanted = mode.get() === 'dcode';
@@ -102,7 +108,12 @@ function bindRootRegistration(ctx, mode) {
         // declaration is already committed, so the callback runs synchronously,
         // and a renderer epoch change re-runs it instead of silently dropping the
         // contribution.
-        active = ctx.slots.inject('root', () => ctx.slots.register({ name: 'root', priority: ROOT_PRIORITY, locale: DCODE_NS }, render));
+        active = ctx.slots.inject('root', () => ctx.slots.register({
+            name: 'root',
+            priority: ROOT_PRIORITY,
+            locale: DCODE_NS,
+            children: { 'settings.section': { kind: 'list', scope: 'root' } },
+        }, render));
     };
     apply();
     const unsubscribe = mode.subscribe(apply);

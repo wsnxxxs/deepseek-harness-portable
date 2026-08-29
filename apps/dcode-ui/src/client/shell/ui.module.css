@@ -38,8 +38,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--zx-space-2);
-  min-width: 26px;
-  height: 26px;
+  min-width: var(--zx-control-xs);
+  height: var(--zx-control-xs);
   padding: 0 var(--zx-space-2);
   border: 1px solid transparent;
   border-radius: var(--zx-radius-md);
@@ -111,7 +111,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--zx-space-2);
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0 var(--zx-space-4);
   border: 1px solid var(--zx-border);
   border-radius: var(--zx-radius-md);

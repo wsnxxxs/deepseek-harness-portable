@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 const { statSync } = require('node:fs')
 const { getLocaleMessages, localeFromSystem, messageForLocale, normalizePreference } = require('./desktop-locale.cjs')
+const { windowMaterial } = require('./desktop-platform.cjs')
 const {
   UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_IPC_CHANNEL, UI_MODE_QUERY_PARAM,
 } = require('@dsh-portable/dcode-ui/ui-mode-contract')
@@ -120,6 +121,18 @@ function initialUiMode() {
   }
   return undefined
 }
+
+/**
+ * What backdrop the native window is actually wearing.
+ *
+ * The same predicate the main process used to decide the window options, so
+ * the page never assumes a material that is not there: a surface that paints
+ * itself translucent on an OS without acrylic would show a see-through hole
+ * rather than a frosted one.
+ */
+contextBridge.exposeInMainWorld('__DSH_DESKTOP_SURFACE__', {
+  material: windowMaterial(),
+})
 
 contextBridge.exposeInMainWorld(UI_MODE_BRIDGE_GLOBAL, {
   // The main process stamps `?view=` onto the URL it loads, so the address is
@@ -243,7 +256,7 @@ if (!isSplashDocument) {
     const style = document.createElement('style')
     style.id = 'dsh-desktop-layout-style'
     style.textContent = `
-      :root { --dsh-titlebar-height: 36px; --dsh-window-surface: #f4f7fb; }
+      :root { --dsh-titlebar-height: 36px; --dsh-window-surface: #f4f7fb; --dsh-desktop-titlebar-height: ${process.platform === 'win32' ? '36px' : '0px'}; }
       html, body { height: 100%; min-height: 0 !important; background: var(--dsh-window-surface) !important; }
       body { overflow: hidden !important; overscroll-behavior: none; }
       body > * { min-height: 0; }
@@ -1254,6 +1267,13 @@ if (!isSplashDocument) {
     document.documentElement.dataset.dshTheme = dark ? 'dark' : 'light'
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
     document.documentElement.style.setProperty('--dsh-titlebar-height', `${Number(theme?.titleBar?.height) || 36}px`)
+    // The exact strip the shell reserved, without the 36px floor above: on a
+    // platform that keeps its native title bar this is 0, and a surface that
+    // offsets by it must not add a phantom gap.
+    document.documentElement.style.setProperty(
+      '--dsh-desktop-titlebar-height',
+      `${Number.isFinite(Number(theme?.titleBar?.height)) ? Number(theme.titleBar.height) : 0}px`,
+    )
     document.documentElement.style.setProperty('--dsh-window-surface', theme?.surface || (dark ? '#0c1220' : '#f4f7fb'))
   })
   ipcRenderer.on('desktop:locale-changed', (_event, payload) => {

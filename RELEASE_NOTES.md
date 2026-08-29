@@ -11,6 +11,8 @@ v1.6.0 is a feature and bug-fix release following v1.5.6.
 - **Interactive Learning material grounding**: ingest supported PDF, DOCX, PPTX, Markdown, and text material locally, retrieve bounded evidence, and keep source anchors for teaching turns.
 - **Concept review and learner memory**: add structured concept cards, review feedback, and durable learner progress for continued study.
 - **Learning intent routing and visuals**: refine learn/not-learn routing, teaching routes, learning notes, and semantic visual activities.
+- **Responsive DCode workbench**: adapt the rail, conversation, preview, and environment summary to compact/medium/wide windows; persist rail sizing and provide quick workspace/task switching.
+- **Plugin management surface**: add dedicated Marketplace, Installed, and Configuration sections with repository review gates, live job progress, lifecycle controls, and restart state.
 
 ## Runtime and Compatibility
 

@@ -47,6 +47,16 @@
   --zx-radius-xl: 14px;
   --zx-radius-pill: 999px;
 
+  /* Control heights. Four steps only, so a button, an input and a rail row
+     that sit on one line share a baseline instead of each picking its own
+     number: `xs` is chrome an operator scans past, `sm` is the labelled
+     button, `md` is anything typed into or navigated with, `lg` is the
+     dialog-weight field. */
+  --zx-control-xs: 26px;
+  --zx-control-sm: 28px;
+  --zx-control-md: 30px;
+  --zx-control-lg: 34px;
+
   /* Ground and surfaces. */
   --zx-bg-app: var(--dsw-alias-bg-base, #0d0d0f);
   --zx-bg-panel: var(--dsw-alias-bg-layer-1, #141416);

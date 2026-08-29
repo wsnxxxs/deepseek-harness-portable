@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0 var(--zx-space-3);
   margin-bottom: var(--zx-space-3);
   border: 0;
@@ -51,7 +51,7 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
-  height: 30px;
+  height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
   border: 0;
   border-radius: var(--zx-radius-md);
@@ -277,7 +277,7 @@
 }
 
 .select {
-  height: 28px;
+  height: var(--zx-control-sm);
   min-width: 140px;
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
@@ -290,7 +290,7 @@
 
 .number {
   width: 84px;
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -304,7 +304,7 @@
 .stepper {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: var(--zx-control-md);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
@@ -348,7 +348,7 @@
 
 .search {
   width: 100%;
-  height: 30px;
+  height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -435,7 +435,7 @@
 
 .fieldInput {
   width: 100%;
-  height: 32px;
+  height: var(--zx-control-md);
   box-sizing: border-box;
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
@@ -568,7 +568,7 @@
 }
 
 .pluginTab {
-  min-height: 28px;
+  min-height: var(--zx-control-sm);
   padding: 0 var(--zx-space-3);
   border: 0;
   border-radius: var(--zx-radius-sm, 6px);

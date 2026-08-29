@@ -24,14 +24,29 @@
 }
 
 .flow {
+  /* The gutter is outside the measure — the reading column is the text, and
+     the composer's shell lines up with it — so a column narrower than the
+     measure has to hand the gutter back or the flow overhangs it. */
+  --zx-flow-gutter: var(--zx-space-5);
   display: flex;
   /* A scroll container's flex child must not shrink below its content. */
   flex: none;
   flex-direction: column;
   gap: var(--zx-space-5);
-  width: min(var(--zx-reading-width), 100%);
+  width: min(var(--zx-reading-width), calc(100% - var(--zx-flow-gutter) * 2));
   margin: 0 auto;
-  padding: var(--zx-space-6) var(--zx-space-5) var(--zx-space-6);
+  padding: var(--zx-space-6) var(--zx-flow-gutter) var(--zx-space-6);
+}
+
+/* A narrow column spends its width on the text rather than on the gutters.
+   The query is against the conversation column the frame declares, and the
+   width it turns on is the composer's, so the two stay on the same edges. */
+@container (max-width: 720px) {
+  .flow {
+    --zx-flow-gutter: var(--zx-space-4);
+    padding-top: var(--zx-space-5);
+    padding-bottom: var(--zx-space-5);
+  }
 }
 
 /* One turn: the user message, the answer, its tool cards, and the closing
@@ -78,7 +93,7 @@
   display: inline-flex;
   align-items: center;
   max-width: 220px;
-  min-height: 30px;
+  min-height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -91,7 +106,7 @@
   align-items: center;
   gap: var(--zx-space-2);
   max-width: 260px;
-  min-height: 30px;
+  min-height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -149,7 +164,7 @@
 .queueEditor {
   min-width: 160px;
   flex: 1 1 160px;
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0 var(--zx-space-2);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-sm);
@@ -175,7 +190,7 @@
   display: grid;
   place-items: center;
   width: 26px;
-  height: 26px;
+  height: var(--zx-control-xs);
   padding: 0;
   border: 0;
   border-radius: var(--zx-radius-pill);

@@ -1,10 +1,17 @@
-/** Workbench frame: rail | center, with a floating inspector card. */
+/**
+ * Workbench frame: rail | conversation | preview sidebar.
+ *
+ * The frame measures its own width and stamps the class it lands in on the
+ * root as `data-dcode-layout`; the panel state that goes with it is fitted in
+ * `state/layout.ts`. Everything here is the default — docked — geometry,
+ * with each class's departure from it collected at the foot of the file.
+ */
 
 .root {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: 1fr;
   background: var(--zx-bg-app);
   color: var(--zx-label);
@@ -20,6 +27,7 @@
 }
 
 .rail {
+  position: relative;
   width: var(--zx-rail-width);
   min-width: var(--zx-rail-width);
   display: flex;
@@ -27,23 +35,80 @@
   border-right: 1px solid var(--zx-border-soft);
   background: var(--zx-bg-panel);
   overflow: hidden;
-  transition: width var(--zx-motion), min-width var(--zx-motion);
+  transition:
+    width var(--zx-motion),
+    min-width var(--zx-motion),
+    transform var(--zx-motion),
+    visibility var(--zx-motion);
 }
 
+/* A forgiving hit target over the divider, with a quiet visible line only
+   while the operator points at it or moves it from the keyboard. */
+.railResizeHandle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  touch-action: none;
+  cursor: col-resize;
+  outline: none;
+}
+
+.railResizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--zx-accent);
+  opacity: 0;
+  transition: opacity var(--zx-motion-fast);
+}
+
+.railResizeHandle:hover::after,
+.railResizeHandle:focus-visible::after,
+.root[data-rail-resizing] .railResizeHandle::after {
+  opacity: 0.8;
+}
+
+.root[data-rail-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.root[data-rail-resizing] .rail {
+  transition: none;
+}
+
+/* Hidden rather than merely zero-width: a collapsed rail must leave the tab
+   order too, in both the docked and the drawer treatment. */
 .railCollapsed {
   width: 0;
   min-width: 0;
   border-right-color: transparent;
+  visibility: hidden;
 }
 
 /* Top bar, transcript, composer, filler. A flex column rather than fixed
    grid rows so the blank phase can hand the leftover height to the filler
    below the composer. */
 .center {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  /* Query container for everything stacked inside it. What the composer, the
+     plan card and the transcript have to fit is this column, which is the
+     window less whatever the rail and the card are holding — so they ask the
+     column rather than the viewport. Deliberately unnamed: CSS Modules hash
+     container names per file, so a name declared here could not be quoted
+     from those stylesheets; each of them queries its nearest container, and
+     this is the only one the frame declares. */
+  container-type: inline-size;
 }
 
 /* The blank phase: the transcript above and this filler below both take an
@@ -61,32 +126,29 @@
   flex: 1 1 0;
 }
 
+/* The preview sidebar: a column of the frame, not a sheet over it, so the
+   panel it carries — changes, goal, the diff viewer — can be worked in
+   while the conversation stays readable beside it. */
 .aside {
-  position: absolute;
-  z-index: 10;
-  top: calc(var(--dsh-desktop-titlebar-height, 0px) + var(--zx-topbar-height) + var(--zx-space-4));
-  right: var(--zx-space-4);
-  width: min(300px, calc(100vw - 32px));
-  height: fit-content;
-  max-height: min(522px, calc(100vh - var(--dsh-desktop-titlebar-height, 0px) - var(--zx-topbar-height) - 28px));
-  min-width: 0;
-  overflow: hidden;
+  width: var(--zx-aside-width);
+  min-width: var(--zx-aside-width);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-xl);
-  background: var(--zx-bg-card);
-  box-shadow: var(--zx-shadow-panel);
-  -webkit-backdrop-filter: blur(20px) saturate(130%);
-  backdrop-filter: blur(20px) saturate(130%);
-  transition: opacity var(--zx-motion), transform var(--zx-motion), visibility var(--zx-motion);
+  overflow: hidden;
+  border-left: 1px solid var(--zx-border-soft);
+  background: var(--zx-bg-panel);
+  transition:
+    width var(--zx-motion),
+    min-width var(--zx-motion),
+    transform var(--zx-motion),
+    visibility var(--zx-motion);
 }
 
 .asideCollapsed {
-  opacity: 0;
-  transform: translateY(-8px);
+  width: 0;
+  min-width: 0;
+  border-left-color: transparent;
   visibility: hidden;
-  pointer-events: none;
 }
 
 /* One full-bleed surface (learning, settings) replacing rail + center + aside. */
@@ -119,12 +181,89 @@
   background: transparent;
 }
 
-@media (max-width: 640px) {
+/* The scrim under a compact drawer. A button so the drawer is dismissible by
+   pointer and by keyboard alike; Escape and the panel's own toggle also
+   close it. */
+.scrim {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: var(--zx-scrim);
+  cursor: default;
+  animation: scrimIn var(--zx-motion) ease-out;
+}
+
+@keyframes scrimIn {
+  from { opacity: 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   Width classes.
+
+   Compact (under 900px of frame): one column. The rail slides over the
+   conversation as a drawer and the card becomes a sheet, because at this
+   width docking either one leaves nothing to read in.
+   --------------------------------------------------------------------------- */
+
+.root[data-dcode-layout='compact'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.root[data-dcode-layout='compact'] .rail {
+  position: absolute;
+  z-index: 30;
+  top: var(--dsh-desktop-titlebar-height, 0px);
+  bottom: 0;
+  left: 0;
+  width: min(var(--zx-rail-width), 86%);
+  min-width: 0;
+  box-shadow: var(--zx-shadow-panel);
+}
+
+/* Slid out rather than squeezed to nothing: the drawer keeps its width so it
+   comes back at full size, and the frame behind it never reflows. */
+.root[data-dcode-layout='compact'] .railCollapsed {
+  width: min(var(--zx-rail-width), 86%);
+  border-right-color: var(--zx-border-soft);
+  transform: translateX(-100%);
+}
+
+/* The sidebar slides in from the right instead of docking, for the same
+   reason the rail does: at this width a column of its own would leave
+   nothing to read in. */
+.root[data-dcode-layout='compact'] .aside {
+  position: absolute;
+  z-index: 30;
+  top: var(--dsh-desktop-titlebar-height, 0px);
+  right: 0;
+  bottom: 0;
+  width: min(var(--zx-aside-width), 86%);
+  min-width: 0;
+  box-shadow: var(--zx-shadow-panel);
+}
+
+.root[data-dcode-layout='compact'] .asideCollapsed {
+  width: min(var(--zx-aside-width), 86%);
+  border-left-color: var(--zx-border-soft);
+  transform: translateX(100%);
+}
+
+/* Wide (1400px of frame and up): the card docks into the gutter without
+   crowding the conversation, so the reading measure takes a little more of
+   the room that is going spare. */
+.root[data-dcode-layout='wide'] {
+  --zx-reading-width: 820px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail,
   .aside {
-    top: calc(var(--dsh-desktop-titlebar-height, 0px) + var(--zx-topbar-height) + var(--zx-space-2));
-    right: var(--zx-space-3);
-    width: min(300px, calc(100vw - 32px));
-    height: fit-content;
-    max-height: min(522px, calc(100vh - var(--dsh-desktop-titlebar-height, 0px) - var(--zx-topbar-height) - 20px));
+    transition: none;
+  }
+
+  .scrim {
+    animation: none;
   }
 }

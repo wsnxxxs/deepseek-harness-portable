@@ -62,13 +62,58 @@ package introduces no mirrored state:
 | Permission mode | the `permissions` projection; writes via `/permission` |
 | Model + reasoning depth | `remote.session.modelCatalog` / `selectModel` |
 | Skills, commands | `remote.skills`, `remote.commands` |
-| Plugins, MCP | `remote.pluginInventory` |
+| Plugin settings, MCP | `remote.pluginInventory` + `remote.settings` |
+| Plugin marketplace, installed inventory | the marketplace Host plugin's `/api/market` routes |
 | Settings namespaces | `remote.settings.describe` |
 | Learning | the Interactive Learning pack's own `VaultLibrary` and channel |
 
 Markdown, math, code, diff and terminal rendering come from
 `@deepseek-ai/dsh-client-ui-primitives`, which is a platform module — shared,
 not bundled.
+
+## Plugins
+
+`WorkbenchView: 'plugins'` is a first-class surface rather than a settings
+page, because installing a plugin is a task with a catalogue, minute-long jobs
+and a safety gate — not a preference. The rail's plugin entry, the account
+menu and the command palette all land on the same place, and the settings
+surface deliberately has no plugin page of its own.
+
+Three sections, one subject:
+
+| Section | Source |
+| --- | --- |
+| 插件市场 — browse, search, install | `GET /api/market/list`, `POST /api/market/install`, polled at `/api/market/install/status` |
+| 已安装 — update, enable, disable, uninstall | `GET /api/market/installed`, `POST /api/market/{update,set-enabled,uninstall}` |
+| 插件配置 — the built-in namespaces | `PluginSettingsSection`, the same component the settings surface renders |
+
+The first two are the [`dsh-plugin-marketplace`][marketplace] Host plugin the
+portable distribution seeds into the web profile
+(`apps/runtime/src/marketplace-bootstrap.ts`). That plugin also ships a client
+half which registers into the *official* settings surface's
+`settings.plugins.tab` slot; the workbench does not render that slot, so it
+speaks to the same HTTP routes and draws them with its own tokens instead of
+carrying a second catalogue or a second notion of "enabled".
+
+[marketplace]: https://github.com/AwesomeHou/dsh-plugin-marketplace
+
+Three properties are load-bearing:
+
+- **The Host is optional.** `src/client/plugins/market.ts` tells a route that
+  was never registered (the SPA shell answers HTML) apart from a marketplace
+  that answered and refused. The first replaces the two marketplace sections
+  with an explanation; 插件配置 does not depend on the Host and keeps working.
+- **Installing is two steps.** A plugin joins the agent's tools, prompts,
+  network reach and local processes, and membership of the GitHub `dsh-plugin`
+  topic is not a review. The primary button opens Portable's review of the
+  repository (`src/client/plugins/audits.ts`, carried in both shipped locales
+  because a machine translation of a security note is not the note) and only
+  the confirm button inside that panel starts an install. A repository with no
+  review record is reported as unverified, never as clean.
+- **Every verb edits the profile, not the process.** So each row carries the
+  four-stage lifecycle strip — installed, available, activated, exposed — which
+  is what distinguishes "switched off" from "switched on, waiting for a
+  restart", and the section carries the restart note.
 
 ## The one thing DSH does not own
 
@@ -168,7 +213,7 @@ is rejected rather than served.
 The frame is deliberately open at the edges:
 
 - `NavigationState` carries the view/panel state; adding a top-level surface is
-  a `WorkbenchView` arm plus a rail entry.
+  a `WorkbenchView` arm plus a rail entry — `plugins` is the worked example.
 - `AsideTab` adds a right-column tab.
 - `SettingsSection` adds a settings section.
 - The `/dcode` channel takes new endpoints by extending `DCODE_ENDPOINTS` and

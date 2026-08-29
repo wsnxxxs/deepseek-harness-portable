@@ -11,6 +11,7 @@
  */
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types';
 import type { ConversationNode } from '@deepseek-ai/dsh-client-ui-chat/client';
+import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client';
 /** How a tool call reads in one line. */
 export interface ToolSummary {
     /** Short action word for the card head (`Ran`, `Read`, `Updated`, …). */
@@ -30,6 +31,14 @@ export type ToolKind = 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'a
  * @returns the parsed object, or an empty object for absent or malformed JSON.
  */
 export declare function parseArgs(argsRaw: string | undefined): Record<string, unknown>;
+/**
+ * Read the newest whole-list todo snapshot from the transcript.
+ *
+ * The live `todos` projection is preferred by surfaces that have it, but this
+ * replay fallback keeps the plan visible while an older connection is still
+ * assembling that projection.
+ */
+export declare function latestTodos(nodes: readonly ConversationNode[]): readonly TodoItem[];
 /**
  * Summarize one tool call for the compact card.
  * @param name - tool name from the call event.

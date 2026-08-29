@@ -243,25 +243,29 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
 
   return (
     <nav className={css.rail} aria-label={t('app.title')}>
+      {/* Only the primary action is pinned. Everything else — the workspace
+          chooser, the two library entries and the task tree — belongs to one
+          scroll, so a long task list can reclaim the rail's whole height
+          instead of squeezing itself under a growing block of chrome. */}
       <div className={css.top}>
         <button type="button" className={css.action} onClick={() => { onNewTask() }}>
           <IconNewChatOutline16 />
           <span className={ui.grow}>{t('nav.newTask')}</span>
           <span className={css.shortcut}>{commandShortcut('N')}</span>
         </button>
-        <button type="button" className={css.action} onClick={onOpenWorkspace}>
-          <IconFolderOpenOutline16 />
-          <span className={ui.grow}>{t('nav.openWorkspace')}</span>
-          <span className={css.shortcut}>{commandShortcut('O')}</span>
-        </button>
       </div>
 
       <div className={`${css.tree} ${ui.scroll}`}>
         <div className={css.treeActions}>
+          <button type="button" className={css.action} onClick={onOpenWorkspace}>
+            <IconFolderOpenOutline16 />
+            <span className={ui.grow}>{t('nav.openWorkspace')}</span>
+            <span className={css.shortcut}>{commandShortcut('O')}</span>
+          </button>
           <button
             type="button"
-            className={`${css.action} ${state.view === 'settings' && state.settingsSection === 'plugins' ? css.actionActive : ''}`}
-            onClick={() => { navigation.openSettings('plugins') }}
+            className={`${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`}
+            onClick={() => { navigation.show('plugins') }}
           >
             <IconCordisPluginOutline14 size={16} />
             <span className={ui.grow}>{t('nav.plugins')}</span>
@@ -275,6 +279,7 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
             <span className={ui.grow}>{t('nav.learning')}</span>
           </button>
         </div>
+        {hasRows ? <div className={css.treeDivider} aria-hidden /> : null}
         {hasRows
           ? (
             <>
@@ -367,7 +372,7 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
               id: 'plugins',
               label: t('nav.plugins'),
               icon: <IconCordisPluginOutline14 size={18} />,
-              onSelect: () => { navigation.openSettings('plugins') },
+              onSelect: () => { navigation.show('plugins') },
             },
             {
               id: 'agent-presets',

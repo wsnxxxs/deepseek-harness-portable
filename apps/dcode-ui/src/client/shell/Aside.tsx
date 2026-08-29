@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from 'react'
 import {
-  IconChecklistOutline14, IconCheckOutline14, IconGoalOutline16,
+  IconChecklistOutline14, IconCheckOutline14, IconCloseOutline16, IconGoalOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -238,7 +238,7 @@ function DetailsPanel({
   )
 }
 
-/** The floating workbench card with its three content views. */
+/** The docked preview sidebar with its three content views. */
 export function Aside({ navigation, sessionId, cwd }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
@@ -253,6 +253,14 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
     <aside className={css.aside} aria-label={t('details.title')}>
       <header className={css.header}>
         <span className={css.headerTitle}>{t('aside.title')}</span>
+        <button
+          type="button"
+          className={css.headerClose}
+          aria-label={t('aside.close')}
+          onClick={() => { navigation.toggleAside() }}
+        >
+          <IconCloseOutline16 />
+        </button>
       </header>
       <div className={css.tabs} role="tablist" aria-label={t('aside.title')}>
         {tabs.map(tab => (

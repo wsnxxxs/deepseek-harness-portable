@@ -41,7 +41,7 @@
   align-items: center;
   gap: var(--zx-space-2);
   max-width: 220px;
-  height: 26px;
+  height: var(--zx-control-xs);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -63,7 +63,7 @@
   justify-content: flex-start;
   min-width: 0;
   max-width: 220px;
-  height: 26px;
+  height: var(--zx-control-xs);
   padding: 0 var(--zx-space-3);
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
@@ -110,7 +110,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--zx-space-2);
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0 var(--zx-space-2);
   border: 1px solid transparent;
   border-radius: var(--zx-radius-md);
@@ -159,7 +159,7 @@
 .layoutGroup > button {
   min-width: 28px;
   width: 28px;
-  height: 28px;
+  height: var(--zx-control-sm);
   padding: 0;
 }
 
@@ -180,13 +180,11 @@
 /* ---------------------------------------------------------------------------
    Compact frames (see `state/layout.ts`) have room for the task title and
    little else, so the chips fall back to their icons — every one of them
-   carries the same text in `title`/`aria-label` — and the rail toggle keeps
-   only its copy at the left edge of the bar.
+   carries the same text in `title`/`aria-label`.
    --------------------------------------------------------------------------- */
 
 [data-dcode-layout='compact'] .chipLabel,
-[data-dcode-layout='compact'] .shareLabel,
-[data-dcode-layout='compact'] .railToggle {
+[data-dcode-layout='compact'] .shareLabel {
   display: none;
 }
 

@@ -14,9 +14,10 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import { fitPanels, initialLayoutSize, LAYOUT_FIT, type LayoutSize } from './layout.ts'
 
 /** The top-level surfaces the left rail selects between. */
-export type WorkbenchView = 'session' | 'learning' | 'settings'
+export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
 
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'goal' | 'details'
@@ -47,24 +48,43 @@ export interface DiffTarget {
 export interface NavigationState {
   readonly view: WorkbenchView
   readonly aside: AsideTab
+  /** Whether the docked preview sidebar is showing. */
   readonly asideOpen: boolean
-  /** Whether the compact, pinned summary above the composer is visible. */
+  /** Whether the environment summary card under the top bar is showing. */
   readonly summaryOpen: boolean
   readonly railOpen: boolean
   readonly paletteOpen: boolean
+  /** Width class the panels are currently fitted to. */
+  readonly layout: LayoutSize
+  /**
+   * Panels the operator has moved away from their width class's default.
+   *
+   * A pin outlives every other state change and is what keeps a class change
+   * from overruling a deliberate choice. Only the docked classes take one:
+   * compact holds the rail as a drawer and the card as a sheet, so a toggle
+   * there is a reveal rather than a preference about the layout.
+   */
+  readonly railPinned: boolean
+  readonly asidePinned: boolean
   readonly settingsSection: SettingsSection
   readonly diff: DiffTarget | undefined
   /** Tool call whose full output the details tab is showing. */
   readonly inspectedCallId: string | undefined
 }
 
+const INITIAL_LAYOUT = initialLayoutSize()
+
 const INITIAL: NavigationState = {
   view: 'session',
   aside: 'changes',
-  asideOpen: true,
-  summaryOpen: true,
-  railOpen: true,
+  asideOpen: LAYOUT_FIT[INITIAL_LAYOUT].asideOpen,
+  // A card the operator summons, never something the frame opens for them.
+  summaryOpen: false,
+  railOpen: LAYOUT_FIT[INITIAL_LAYOUT].railOpen,
   paletteOpen: false,
+  layout: INITIAL_LAYOUT,
+  railPinned: false,
+  asidePinned: false,
   settingsSection: 'general',
   diff: undefined,
   inspectedCallId: undefined,
@@ -80,7 +100,7 @@ export interface NavigationStore {
   show(view: WorkbenchView): void
   /** Open the settings surface at one section. */
   openSettings(section: SettingsSection): void
-  /** Open the aside on one tab. */
+  /** Open the preview sidebar on one tab, dismissing the summary card. */
   openAside(tab: AsideTab): void
   /** Open the diff viewer on one path, which also reveals the aside. */
   openDiff(path: string, staged?: boolean): void
@@ -90,8 +110,19 @@ export interface NavigationStore {
   inspect(callId: string | undefined): void
   togglePalette(open?: boolean): void
   toggleRail(): void
+  /** Close the rail, which is how the compact drawer's scrim dismisses it. */
+  closeRail(): void
   toggleAside(): void
-  toggleSummary(): void
+  /** Show or hide the environment summary card. */
+  toggleSummary(open?: boolean): void
+  /**
+   * Fit the panels to a width class.
+   *
+   * A no-op while the class is unchanged, so every resize inside one class
+   * leaves the panels alone; crossing into another one hands them to
+   * {@link fitPanels}.
+   */
+  fit(size: LayoutSize): void
 }
 
 /**
@@ -102,6 +133,13 @@ export function createNavigationStore(): NavigationStore {
   let state = INITIAL
   const listeners = new Set<() => void>()
   const emit = (): void => { for (const listener of [...listeners]) listener() }
+  /**
+   * Record that a panel was moved by hand, where that says anything.
+   * @param key - the pin to set.
+   * @returns the patch fragment, empty while the frame is compact.
+   */
+  const pin = (key: 'railPinned' | 'asidePinned'): Partial<NavigationState> =>
+    (state.layout === 'compact' ? {} : { [key]: true })
   const patch = (next: Partial<NavigationState>): void => {
     const merged = { ...state, ...next }
     if ((Object.keys(next) as Array<keyof NavigationState>).every(key => Object.is(state[key], merged[key]))) return
@@ -115,16 +153,29 @@ export function createNavigationStore(): NavigationStore {
       return () => { listeners.delete(listener) }
     },
     patch,
-    show: view => { patch({ view, paletteOpen: false }) },
+    // The compact drawer floats over the conversation, so every rail entry
+    // that changes what is showing behind it also dismisses it.
+    show: view => { patch({ view, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false } : {}) }) },
     openSettings: section => { patch({ view: 'settings', settingsSection: section, paletteOpen: false }) },
-    openAside: tab => { patch({ aside: tab, asideOpen: true }) },
-    openDiff: (path, staged = false) => { patch({ diff: { path, staged }, aside: 'changes', asideOpen: true }) },
+    // Picking a row in the summary card is a navigation, so the card gives
+    // way to the panel it just sent the operator to.
+    openAside: tab => { patch({ aside: tab, asideOpen: true, summaryOpen: false, ...pin('asidePinned') }) },
+    openDiff: (path, staged = false) => {
+      patch({ diff: { path, staged }, aside: 'changes', asideOpen: true, ...pin('asidePinned') })
+    },
     closeDiff: () => { patch({ diff: undefined }) },
-    inspect: callId => { patch({ inspectedCallId: callId, aside: 'details', asideOpen: true }) },
+    inspect: callId => {
+      patch({ inspectedCallId: callId, aside: 'details', asideOpen: true, ...pin('asidePinned') })
+    },
     togglePalette: open => { patch({ paletteOpen: open ?? !state.paletteOpen }) },
-    toggleRail: () => { patch({ railOpen: !state.railOpen }) },
-    toggleAside: () => { patch({ asideOpen: !state.asideOpen }) },
-    toggleSummary: () => { patch({ summaryOpen: !state.summaryOpen }) },
+    toggleRail: () => { patch({ railOpen: !state.railOpen, ...pin('railPinned') }) },
+    closeRail: () => { patch({ railOpen: false, ...pin('railPinned') }) },
+    toggleAside: () => { patch({ asideOpen: !state.asideOpen, ...pin('asidePinned') }) },
+    toggleSummary: open => { patch({ summaryOpen: open ?? !state.summaryOpen }) },
+    fit: size => {
+      if (state.layout === size) return
+      patch({ layout: size, ...fitPanels(size, state) })
+    },
   }
 }
 

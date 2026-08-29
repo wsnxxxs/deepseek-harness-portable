@@ -8,7 +8,8 @@
  * @module @dsh-portable/dcode-ui/client/shell/Workbench
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { dcodeScope } from '../tokens.ts'
@@ -17,11 +18,17 @@ import {
   useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups,
 } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
+import { useLayoutSize } from '../state/layout.ts'
+import {
+  clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth,
+} from '../state/rail-width.ts'
+import { useT } from '../state/i18n.ts'
 import { ACRYLIC_ATTRIBUTE } from '../theme.ts'
 import { useAppearance } from './ThemeSwitch.tsx'
 import { TopBar } from './TopBar.tsx'
 import { LeftRail } from './LeftRail.tsx'
 import { Aside } from './Aside.tsx'
+import { SummaryCard } from './SummaryCard.tsx'
 import { Composer } from './Composer.tsx'
 import { PlanCard } from './PlanCard.tsx'
 import { QuestionComposer } from './QuestionComposer.tsx'
@@ -29,6 +36,7 @@ import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
 import { Transcript } from '../chat/Transcript.tsx'
 import { LearningHome } from '../learning/LearningHome.tsx'
+import { PluginsHome } from '../plugins/PluginsHome.tsx'
 import { SettingsSurface } from '../settings/SettingsSurface.tsx'
 import css from './Workbench.module.css'
 
@@ -62,6 +70,7 @@ function useCurrentCwd(sessionId: SessionId | undefined): string | undefined {
 /** The whole modern surface. */
 export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
   const runtime = useRuntime()
+  const t = useT()
   const state = useNavigation(navigation)
   const sessionId = useCurrentSessionId()
   const pendingQuestion = usePendingQuestion(sessionId)
@@ -69,6 +78,64 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
   const blank = useConversationBlank(sessionId)
   const { scheme } = useAppearance()
   const [browsing, setBrowsing] = useState(false)
+  const [railWidth, setRailWidth] = useState(readRailWidth)
+  const [railResizing, setRailResizing] = useState(false)
+  const railDrag = useRef<{ pointerId: number, startX: number, startWidth: number, width: number }>()
+
+  // The frame fits itself to its own width rather than the window's: it is
+  // mounted into a host slot, and how much room that slot has is a fact only
+  // the element can report. The class it lands in drives both the panels
+  // (through the store, so an operator's toggle is not fought over) and the
+  // stylesheet, which reads it off the root as a data attribute.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null)
+  const size = useLayoutSize(frame)
+  useEffect(() => { navigation.fit(size) }, [navigation, size])
+
+  const resizeRail = useCallback((width: number, persist = false) => {
+    const next = clampRailWidth(width)
+    setRailWidth(next)
+    if (persist) writeRailWidth(next)
+    return next
+  }, [])
+
+  const startRailResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    railDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: railWidth,
+      width: railWidth,
+    }
+    setRailResizing(true)
+  }, [railWidth])
+
+  const moveRailResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = railDrag.current
+    if (drag === undefined || drag.pointerId !== event.pointerId) return
+    drag.width = resizeRail(drag.startWidth + event.clientX - drag.startX)
+  }, [resizeRail])
+
+  const finishRailResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = railDrag.current
+    if (drag === undefined || drag.pointerId !== event.pointerId) return
+    writeRailWidth(drag.width)
+    railDrag.current = undefined
+    setRailResizing(false)
+  }, [])
+
+  const resizeRailWithKeyboard = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let next: number | undefined
+    const step = event.shiftKey ? 24 : 8
+    if (event.key === 'ArrowLeft') next = railWidth - step
+    if (event.key === 'ArrowRight') next = railWidth + step
+    if (event.key === 'Home') next = RAIL_WIDTH.min
+    if (event.key === 'End') next = RAIL_WIDTH.max
+    if (next === undefined) return
+    event.preventDefault()
+    resizeRail(next, true)
+  }, [railWidth, resizeRail])
 
   // A native backdrop only shows through a transparent document, and the
   // desktop shell paints an opaque page ground of its own. Clearing it is
@@ -155,8 +222,12 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
         return
       }
       if (event.key === 'Escape') {
-        if (navigation.getSnapshot().paletteOpen) navigation.togglePalette(false)
-        else if (navigation.getSnapshot().diff !== undefined) navigation.closeDiff()
+        const snapshot = navigation.getSnapshot()
+        if (snapshot.paletteOpen) navigation.togglePalette(false)
+        else if (snapshot.summaryOpen) navigation.toggleSummary(false)
+        else if (snapshot.diff !== undefined) navigation.closeDiff()
+        else if (snapshot.layout === 'compact' && snapshot.railOpen) navigation.closeRail()
+        else if (snapshot.layout === 'compact' && snapshot.asideOpen) navigation.toggleAside()
       }
     }
     document.addEventListener('keydown', onKeyDown)
@@ -164,12 +235,19 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
   }, [navigation, newTask, openWorkspace])
 
   const fullSurface = state.view !== 'session'
+  // Compact holds both side panels over the conversation instead of beside
+  // it, so there they need a scrim to dismiss against.
+  const drawer = state.layout === 'compact' && (state.railOpen || state.asideOpen)
 
   return (
     <div
+      ref={setFrame}
       className={css.root}
       {...dcodeScope}
       data-dcode-scheme={scheme}
+      data-dcode-layout={state.layout}
+      data-rail-resizing={railResizing ? '' : undefined}
+      style={{ '--zx-rail-width': `${railWidth}px` } as CSSProperties}
       {...(acrylic ? { [ACRYLIC_ATTRIBUTE]: '' } : {})}
     >
       {fullSurface
@@ -177,33 +255,76 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
           <div className={css.surface}>
             {state.view === 'learning'
               ? <LearningHome navigation={navigation} cwd={cwd} sessionId={sessionId} />
-              : (
-                <SettingsSurface
-                  navigation={navigation}
-                  sessionId={sessionId}
-                  renderSection={renderSettingsSlot}
-                />
-              )}
+              : state.view === 'plugins'
+                ? <PluginsHome navigation={navigation} />
+                : (
+                  <SettingsSurface
+                    navigation={navigation}
+                    sessionId={sessionId}
+                    renderSection={renderSettingsSlot}
+                  />
+                )}
           </div>
         )
         : (
           <>
+            {drawer
+              ? (
+                <button
+                  type="button"
+                  className={css.scrim}
+                  aria-label={t('nav.dismissPanels')}
+                  onClick={() => {
+                    if (state.railOpen) navigation.closeRail()
+                    if (state.asideOpen) navigation.toggleAside()
+                  }}
+                />
+              )
+              : null}
             <div className={`${css.rail} ${state.railOpen ? '' : css.railCollapsed}`}>
               <LeftRail
                 navigation={navigation}
                 onNewTask={newTask}
                 onOpenWorkspace={openWorkspace}
               />
+              {state.railOpen && state.layout !== 'compact'
+                ? (
+                  <div
+                    className={css.railResizeHandle}
+                    role="separator"
+                    aria-label={t('nav.resize')}
+                    aria-orientation="vertical"
+                    aria-valuemin={RAIL_WIDTH.min}
+                    aria-valuemax={RAIL_WIDTH.max}
+                    aria-valuenow={railWidth}
+                    tabIndex={0}
+                    onPointerDown={startRailResize}
+                    onPointerMove={moveRailResize}
+                    onPointerUp={finishRailResize}
+                    onPointerCancel={finishRailResize}
+                    onKeyDown={resizeRailWithKeyboard}
+                    onDoubleClick={() => { resizeRail(RAIL_WIDTH.default, true) }}
+                  />
+                )
+                : null}
             </div>
             <div className={`${css.center} ${blank ? css.centerBlank : ''}`}>
               <TopBar navigation={navigation} sessionId={sessionId} cwd={cwd} />
+              <SummaryCard
+                navigation={navigation}
+                sessionId={sessionId}
+                cwd={cwd}
+                open={state.summaryOpen}
+              />
               <Transcript
                 navigation={navigation}
                 sessionId={sessionId}
                 cwd={cwd}
                 blank={blank}
               />
-              <PlanCard key={sessionId} sessionId={sessionId} open={state.summaryOpen} navigation={navigation} />
+              {/* Content-driven: the plan card shows itself while the task
+                  has a plan or a trace, and collapses on its own header. */}
+              <PlanCard key={sessionId} sessionId={sessionId} navigation={navigation} />
               {pendingQuestion === undefined
                 ? (
                   <Composer

@@ -1,5 +1,5 @@
 /**
- * The right column: Git changes, Goal and Progress, and the details of
+ * The floating right card: Git changes, Goal and Progress, and the details of
  * whatever the operator last clicked.
  *
  * Goal is the host-computed `goal` projection — the same value the official
@@ -10,12 +10,12 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import { type NavigationStore } from '../state/navigation.ts';
-/** Props of the right column. */
+/** Props of the floating right card. */
 export interface AsideProps {
     readonly navigation: NavigationStore;
     readonly sessionId: SessionId | undefined;
     readonly cwd: string | undefined;
 }
-/** The right column with its three tabs. */
+/** The docked preview sidebar with its three content views. */
 export declare function Aside({ navigation, sessionId, cwd }: AsideProps): import("react").JSX.Element;
 //# sourceMappingURL=Aside.d.ts.map

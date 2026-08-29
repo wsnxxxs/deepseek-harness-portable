@@ -1,0 +1,181 @@
+/**
+ * The environment summary card.
+ *
+ * Anchored inside the conversation column rather than the frame, so it hangs
+ * under the control that summons it and never reaches across the preview
+ * sidebar. The column is its containing block (see `Workbench.module.css`).
+ */
+
+.card {
+  position: absolute;
+  z-index: 20;
+  top: calc(var(--zx-topbar-height) + var(--zx-space-2));
+  right: var(--zx-space-4);
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100% - var(--zx-space-4) * 2));
+  max-height: calc(100% - var(--zx-topbar-height) - var(--zx-space-5));
+  overflow: hidden auto;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-xl);
+  background: var(--zx-bg-card);
+  box-shadow: var(--zx-shadow-panel);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+  animation: cardIn var(--zx-motion-fast) ease-out;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  flex: none;
+  min-height: 38px;
+  padding: 0 var(--zx-space-2) 0 var(--zx-space-4);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  color: var(--zx-label);
+  font-size: var(--zx-text-sm);
+  font-weight: 600;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: var(--zx-control-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.close:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--zx-space-2) var(--zx-space-2);
+}
+
+/* One digest line. The action rows are buttons and the inert ones plain
+   boxes, so they share every dimension and differ only in what they do. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: var(--zx-control-lg);
+  padding: 0 var(--zx-space-2);
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
+  color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-sm);
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.rowAction {
+  cursor: pointer;
+}
+
+.rowAction:hover {
+  background: var(--zx-bg-hover);
+}
+
+.rowAction:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.rowIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--zx-label-muted);
+}
+
+.rowLabel {
+  flex: none;
+  color: var(--zx-label);
+}
+
+.rowValue {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+}
+
+.rowChevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--zx-label-faint);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.counts {
+  display: inline-flex;
+  gap: var(--zx-space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.added {
+  color: var(--zx-success);
+}
+
+.removed {
+  color: var(--zx-error);
+}
+
+.muted {
+  color: var(--zx-label-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: 0 var(--zx-space-4) var(--zx-space-4);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}

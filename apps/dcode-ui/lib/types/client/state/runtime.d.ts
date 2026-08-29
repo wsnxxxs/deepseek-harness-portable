@@ -19,11 +19,31 @@ import type { AgentContext, ISessions, SessionBinding, SessionListState, Session
 import type { IWorkspaces, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
+import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client';
+import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client';
+import type { ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
+import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
+import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions';
+import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client';
+import type { SettingsDescribeFace, SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/client';
 import type { UiModeStore } from '../mode.ts';
 import { type DcodeApi } from '../rpc.ts';
 import { type AppearanceStore, type ThemeFace } from '../theme.ts';
 export type { SessionListState, SessionSummary, WorkspaceSnapshot };
+export type { SessionLogDownloadState };
+/** Stable empty value used before the optional Trajectory target is available. */
+export declare const EMPTY_TRAJECTORY_SNAPSHOT: TrajectorySnapshot;
+/** The structured answer carried by the Host's ask-user-question protocol. */
+export type DcodeQuestionAnswer = AskUserQuestionAnswer;
+/** One question item exposed by a pending user interaction. */
+export type DcodeQuestionItem = AskUserQuestionItem;
+/** The small domain face the dcode composer needs from a pending question. */
+export interface DcodePendingInteraction extends SessionPendingInteractionBase {
+    readonly questions: readonly DcodeQuestionItem[];
+    answer(answer: DcodeQuestionAnswer): Promise<void>;
+    cancel(): Promise<void>;
+}
 /** The minimal observable shape every DSH client store exposes. */
 export interface Observable<T> {
     getSnapshot(): T;
@@ -49,6 +69,33 @@ export interface LocaleSnapshot {
 export interface LocaleStore extends Observable<LocaleSnapshot> {
     set(id: string): void;
 }
+/** Existing DSH Session-log exporter exposed to the workbench chrome. */
+export interface SessionLogDownloadFace {
+    readonly store: Observable<SessionLogDownloadState>;
+    download(sessionId: SessionId): Promise<void>;
+}
+/** Official settings services shared by DCode and the registered DSH pages. */
+export interface DcodeSettingsServices {
+    /** Namespace scopes own writes and expose the shared settings snapshot. */
+    readonly scope: SettingsScopeBinderFace | undefined;
+    /** Schema operations used by official settings controllers and editors. */
+    readonly schema: SettingsSchemaService | undefined;
+    /** Shared describe mirror; all settings readers refresh through this face. */
+    readonly describe: SettingsDescribeFace | undefined;
+}
+/** Attachment intake and input state exposed to the DCode composer. */
+export interface DcodeConversationFace {
+    readonly input: ConversationController['input'];
+    createDraftAttachments(files: readonly File[]): readonly ComposerAttachment[];
+    draftAttachmentsFor(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[];
+    releaseDraftImage(id: DraftAttachmentId): void;
+}
+/** Session-authorized durable media helpers used by the transcript. */
+export interface ConversationMediaFace {
+    imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>;
+    peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined;
+    downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>;
+}
 /** The navigation face of `ctx.uiWorkspace`, used for New Task and Open Workspace. */
 export interface WorkspaceNavigation {
     startSession(workspaceId?: string): void;
@@ -70,6 +117,14 @@ export interface DcodeRuntime {
     readonly navigation: WorkspaceNavigation | undefined;
     /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
     readonly remote: ClientRemote;
+    /** Official settings scope/schema/mirror services used by settings sections. */
+    readonly settings: DcodeSettingsServices;
+    /** Shared Conversation service: draft attachments and the per-session input machine. */
+    readonly conversation: ConversationController | undefined;
+    /** Resolve the Conversation input machine for one session. */
+    input(sessionId: SessionId): SessionInput | undefined;
+    /** Session-authorized image/file display helpers from the Conversation assembly. */
+    readonly media: ConversationMediaFace | undefined;
     /** Theme service, when `ui-theme` is part of this assembly. */
     readonly theme: ThemeFace | undefined;
     /** Resolved colour scheme, the theme preference, and the window backdrop. */
@@ -78,6 +133,10 @@ export interface DcodeRuntime {
     readonly busyEnter: BusyEnterStore;
     /** Shared DSH locale registry and preference. */
     readonly locale: LocaleStore;
+    /** Session-scoped pending interactions, when the UI session adapter is present. */
+    readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined;
+    /** Session-log export controller, when the export client plugin is present. */
+    readonly sessionLogDownload: SessionLogDownloadFace | undefined;
     /** Git, diff, undo and file reads over the `/dcode` channel. */
     readonly git: DcodeApi;
     /** The Interactive Learning channel caller, shared with the official UI's learning views. */
@@ -97,6 +156,13 @@ export interface DcodeRuntime {
      */
     chatFeed(sessionId: SessionId): Observable<ChatSnapshot> | undefined;
     /**
+     * Resolve the DSH Trajectory feed for one session.
+     * @param sessionId - session to observe.
+     * @returns an observable over the real trace ledger, or undefined when the
+     *          session has no binding yet.
+     */
+    trajectoryFeed(sessionId: SessionId): Observable<TrajectorySnapshot> | undefined;
+    /**
      * Resolve a session's binding.
      * @param sessionId - session to resolve.
      */
@@ -106,6 +172,20 @@ export interface DcodeRuntime {
      * @param sessionId - session to scope to.
      */
     scope(sessionId: SessionId): AgentContext | undefined;
+}
+interface SettingsScopeFace<T> {
+    getSnapshot(): {
+        readonly value: T | undefined;
+        readonly writable: boolean;
+    };
+    subscribe(listener: () => void): () => void;
+    set(field: string, value: unknown): Promise<void>;
+}
+interface SettingsScopeBinderFace {
+    bind<T>(spec: {
+        namespace: string;
+    }): SettingsScopeFace<T>;
+    describe?(): SettingsDescribeFace;
 }
 /**
  * Build the runtime from a live client context.
