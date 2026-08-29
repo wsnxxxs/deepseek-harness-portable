@@ -15,7 +15,7 @@ import {
   IconDataOutline16, IconLinkOutline16,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
-  IconPlusOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
+  IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
   Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -125,13 +125,6 @@ function WorkspaceRow(props: {
         <span className={css.groupName}>{group.title}</span>
       </button>
       <div className={css.groupActions}>
-        <IconButton
-          label={t('workspace.newTask')}
-          className={css.groupAction}
-          onClick={props.onNewTask}
-        >
-          <IconPlusOutline16 />
-        </IconButton>
         <Popover
           label={t('workspace.actions')}
           placement="down"
@@ -154,6 +147,13 @@ function WorkspaceRow(props: {
             },
           ]}
         />
+        <IconButton
+          label={t('workspace.newTask')}
+          className={css.groupAction}
+          onClick={props.onNewTask}
+        >
+          <IconNewChatOutline16 />
+        </IconButton>
       </div>
     </div>
   )
