@@ -32,6 +32,8 @@ import { type DcodeApi } from '../rpc.ts';
 import { type AppearanceStore, type ThemeFace } from '../theme.ts';
 export type { SessionListState, SessionSummary, WorkspaceSnapshot };
 export type { SessionLogDownloadState };
+/** Stable empty Chat value used while the Conversation target is starting. */
+export declare const EMPTY_CHAT_SNAPSHOT: ChatSnapshot;
 /** Stable empty value used before the optional Trajectory target is available. */
 export declare const EMPTY_TRAJECTORY_SNAPSHOT: TrajectorySnapshot;
 /** The structured answer carried by the Host's ask-user-question protocol. */

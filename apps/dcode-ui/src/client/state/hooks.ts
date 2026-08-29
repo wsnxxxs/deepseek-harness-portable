@@ -179,9 +179,13 @@ export function useSessionSnapshot(sessionId: SessionId | undefined): SessionSna
  */
 export function useChatSnapshot(sessionId: SessionId | undefined): ChatSnapshot | undefined {
   const runtime = useRuntime()
+  // The list is the Session Controller's public eligibility signal. Including
+  // its snapshot prevents an early unresolved binding from being memoized for
+  // the lifetime of an otherwise unchanged session id.
+  const sessions = useSessionList()
   const source = useMemo(
     () => (sessionId === undefined ? undefined : runtime.chatFeed(sessionId)),
-    [runtime, sessionId],
+    [runtime, sessionId, sessions],
   )
   const snapshot = useObservable(source, undefined as ChatSnapshot | undefined)
   return source === undefined ? undefined : snapshot

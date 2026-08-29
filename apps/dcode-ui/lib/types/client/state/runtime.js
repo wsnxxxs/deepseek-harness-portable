@@ -17,6 +17,22 @@
 import { createContext, useContext } from 'react';
 import { createLearningCall, createDcodeApi } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
+const EMPTY_LIST = [];
+/** Stable empty Chat value used while the Conversation target is starting. */
+export const EMPTY_CHAT_SNAPSHOT = {
+    order: EMPTY_LIST,
+    nodes: { get: () => undefined, values: () => EMPTY_LIST },
+    locations: { getTurn: () => EMPTY_LIST, getStep: () => EMPTY_LIST },
+    navigation: { items: () => EMPTY_LIST },
+    timeline: { turnOrder: EMPTY_LIST, turns: new Map() },
+    legacy: {
+        nodes: EMPTY_LIST,
+        turnTimings: new Map(),
+        turnEnds: new Map(),
+        partial: null,
+        runningCalls: EMPTY_LIST,
+    },
+};
 /** Stable empty value used before the optional Trajectory target is available. */
 export const EMPTY_TRAJECTORY_SNAPSHOT = {
     eventNodes: [],
@@ -113,7 +129,7 @@ export function createDcodeRuntime(ctx, mode) {
                 return undefined;
             const target = uiConversation.binding(binding).target('chat');
             const feed = {
-                getSnapshot: () => target.getSnapshot(),
+                getSnapshot: () => target.getSnapshot() ?? EMPTY_CHAT_SNAPSHOT,
                 subscribe: listener => target.subscribe(listener),
             };
             feeds.set(sessionId, feed);

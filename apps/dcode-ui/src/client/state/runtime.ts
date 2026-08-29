@@ -27,7 +27,7 @@ import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/c
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
-  ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput,
+  ComposerAttachment, ConversationController, ConversationTimelineSnapshot, DraftAttachmentId, SessionInput,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
@@ -42,6 +42,24 @@ import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../
 
 export type { SessionListState, SessionSummary, WorkspaceSnapshot }
 export type { SessionLogDownloadState }
+
+const EMPTY_LIST: readonly never[] = []
+
+/** Stable empty Chat value used while the Conversation target is starting. */
+export const EMPTY_CHAT_SNAPSHOT: ChatSnapshot = {
+  order: EMPTY_LIST,
+  nodes: { get: () => undefined, values: () => EMPTY_LIST },
+  locations: { getTurn: () => EMPTY_LIST, getStep: () => EMPTY_LIST },
+  navigation: { items: () => EMPTY_LIST },
+  timeline: { turnOrder: EMPTY_LIST, turns: new Map() } satisfies ConversationTimelineSnapshot,
+  legacy: {
+    nodes: EMPTY_LIST,
+    turnTimings: new Map(),
+    turnEnds: new Map(),
+    partial: null,
+    runningCalls: EMPTY_LIST,
+  },
+}
 
 /** Stable empty value used before the optional Trajectory target is available. */
 export const EMPTY_TRAJECTORY_SNAPSHOT: TrajectorySnapshot = {
@@ -323,7 +341,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
       if (binding === undefined) return undefined
       const target = uiConversation.binding(binding).target('chat')
       const feed: Observable<ChatSnapshot> = {
-        getSnapshot: () => target.getSnapshot() as ChatSnapshot,
+        getSnapshot: () => (target.getSnapshot() as ChatSnapshot | null | undefined) ?? EMPTY_CHAT_SNAPSHOT,
         subscribe: listener => target.subscribe(listener),
       }
       feeds.set(sessionId, feed)
