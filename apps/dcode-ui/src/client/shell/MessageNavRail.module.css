@@ -1,0 +1,123 @@
+.slot {
+  position: sticky;
+  top: 0;
+  z-index: var(--zx-z-sticky);
+  height: 0;
+  pointer-events: none;
+}
+
+.rail {
+  position: absolute;
+  top: min(42vh, 360px);
+  right: var(--zx-space-3);
+  width: 24px;
+  height: min(44vh, 420px);
+  min-height: 96px;
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+
+.line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--zx-border-soft);
+  transform: translateX(-50%);
+}
+
+.dotPosition {
+  position: absolute;
+  top: var(--message-nav-position);
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+}
+
+.dot {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 1px solid var(--zx-border);
+  border-radius: 50%;
+  background: var(--zx-bg-panel);
+  cursor: pointer;
+  transition: width var(--zx-motion-fast), height var(--zx-motion-fast), border-color var(--zx-motion-fast), background var(--zx-motion-fast);
+}
+
+.dot:hover,
+.dot:focus-visible {
+  width: 10px;
+  height: 10px;
+  border-color: var(--zx-label-muted);
+}
+
+.dot:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.dotActive {
+  width: 10px;
+  height: 10px;
+  border-color: var(--zx-accent);
+  background: var(--zx-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);
+}
+
+.tooltip {
+  position: absolute;
+  top: clamp(0px, var(--message-nav-position), calc(100% - 76px));
+  right: calc(100% + var(--zx-space-2));
+  width: min(280px, calc(100cqw - 88px));
+  min-height: 60px;
+  padding: var(--zx-space-3);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-popover);
+  color: var(--zx-label);
+  pointer-events: none;
+  animation: tooltip-in var(--zx-motion-fast) ease-out;
+}
+
+.tooltipMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--zx-space-3);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipPrompt {
+  margin-top: var(--zx-space-2);
+  overflow: hidden;
+  color: var(--zx-label);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateX(4px); }
+}
+
+:global([data-dcode-layout='compact']) .slot {
+  display: none;
+}
+
+@container (max-width: 720px) {
+  .slot { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot { transition: none; }
+  .tooltip { animation: none; }
+}

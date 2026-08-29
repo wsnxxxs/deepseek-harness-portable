@@ -387,6 +387,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 sessionId={sessionId}
                 cwd={cwd}
                 blank={blank}
+                compact={state.layout === 'compact'}
               />
               {/* Content-driven: the plan card only appears while the task has
                   a plan; trace activity lives in the environment summary. */}
