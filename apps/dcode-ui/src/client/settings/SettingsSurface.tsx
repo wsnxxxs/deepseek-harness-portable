@@ -62,8 +62,6 @@ const RAIL: readonly { group: DcodeKey; items: readonly { id: SettingsSection; l
       { id: 'agentPresets', label: 'settings.agentPresets' },
       { id: 'skills', label: 'settings.skills' },
       { id: 'commands', label: 'settings.commands' },
-      { id: 'subagents', label: 'settings.subagents' },
-      { id: 'mcp', label: 'settings.mcp' },
     ],
   },
   {
@@ -1232,9 +1230,9 @@ export function SettingsSurface({ navigation, sessionId, renderSection }: Settin
       case 'models': return official('models', <ModelsSection />)
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
-      case 'plugins': return <PluginSettingsSection />
+      case 'plugins': return official('plugins', <PluginSettingsSection />)
       case 'mcp': return <PluginSettingsSection mcpOnly />
-      case 'agentPresets': return <AgentPresetsSection />
+      case 'agentPresets': return official('agent-presets', <AgentPresetsSection />)
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'memory':
