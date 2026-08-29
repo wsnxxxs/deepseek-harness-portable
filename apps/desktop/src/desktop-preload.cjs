@@ -146,6 +146,15 @@ if (!isSplashDocument) {
   const NATIVE_BRAND_LOGO_SELECTOR = 'svg[viewBox="0 0 182 24"], svg[viewBox="26 0 156 24"]'
   const NATIVE_FISH_LOGO_SELECTOR = 'svg[viewBox="0 0 23.16 17.04"]'
   const DESKTOP_MENU_WIDTH = 248
+  const DARK_THEME_ATTRIBUTE = 'data-ds-dark-theme'
+  let reportedColorScheme
+
+  function reportRendererTheme() {
+    const scheme = document.body.hasAttribute(DARK_THEME_ATTRIBUTE) ? 'dark' : 'light'
+    if (scheme === reportedColorScheme) return
+    reportedColorScheme = scheme
+    ipcRenderer.send('desktop:renderer-theme', { scheme })
+  }
 
   const state = {
     locale: localeFromSystem(typeof navigator === 'object' ? navigator.language : 'en'),
@@ -1320,12 +1329,20 @@ if (!isSplashDocument) {
     ipcRenderer.send('desktop:renderer-ready')
     const reportFirstPaint = () => {
       if (typeof requestAnimationFrame !== 'function') {
+        reportRendererTheme()
         ipcRenderer.send('desktop:renderer-first-paint')
         return
       }
-      requestAnimationFrame(() => requestAnimationFrame(() => ipcRenderer.send('desktop:renderer-first-paint')))
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        reportRendererTheme()
+        ipcRenderer.send('desktop:renderer-first-paint')
+      }))
     }
     reportFirstPaint()
+
+    const themeObserver = new MutationObserver(reportRendererTheme)
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: [DARK_THEME_ATTRIBUTE] })
+    window.addEventListener('unload', () => { themeObserver.disconnect() }, { once: true })
   }
 
   document.addEventListener('click', event => {

@@ -275,8 +275,15 @@ function updateConfig(patch) {
   return updateConfigStore(configPath(), patch, { logger: console })
 }
 
+// Once the renderer has applied the saved app preference, it is the authority
+// for native chrome too. Until then, the OS preference supplies the cold-start
+// palette.
+let rendererColorScheme
+
 function themePayload() {
-  const isDark = nativeTheme.shouldUseDarkColors
+  const isDark = rendererColorScheme === undefined
+    ? nativeTheme.shouldUseDarkColors
+    : rendererColorScheme === 'dark'
   const surface = isDark ? DARK_WINDOW_SURFACE : LIGHT_WINDOW_SURFACE
   return {
     theme: isDark ? 'dark' : 'light',
@@ -1522,6 +1529,14 @@ function registerReleaseNotesIpc() {
   ipcMain.on('desktop:renderer-first-paint', event => {
     if (!isMainRenderer(event.sender)) return
     notifyRendererFirstPaint()
+  })
+
+  ipcMain.on('desktop:renderer-theme', (event, payload = {}) => {
+    if (!isMainRenderer(event.sender)) return
+    const scheme = payload?.scheme
+    if ((scheme !== 'light' && scheme !== 'dark') || scheme === rendererColorScheme) return
+    rendererColorScheme = scheme
+    syncNativeTheme()
   })
 
   ipcMain.on('desktop:splash-action', (event, action = {}) => {
