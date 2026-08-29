@@ -162,3 +162,35 @@
   height: 28px;
   padding: 0;
 }
+
+.layoutButton {
+  border-radius: var(--zx-radius-pill);
+}
+
+.layoutButton[aria-pressed='true'] {
+  background: transparent;
+  color: var(--zx-label-secondary);
+}
+
+.layoutButton:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+/* ---------------------------------------------------------------------------
+   Compact frames (see `state/layout.ts`) have room for the task title and
+   little else, so the chips fall back to their icons — every one of them
+   carries the same text in `title`/`aria-label` — and the rail toggle keeps
+   only its copy at the left edge of the bar.
+   --------------------------------------------------------------------------- */
+
+[data-dcode-layout='compact'] .chipLabel,
+[data-dcode-layout='compact'] .shareLabel,
+[data-dcode-layout='compact'] .railToggle {
+  display: none;
+}
+
+[data-dcode-layout='compact'] .chip,
+[data-dcode-layout='compact'] .workspaceTrigger {
+  padding: 0 var(--zx-space-2);
+}

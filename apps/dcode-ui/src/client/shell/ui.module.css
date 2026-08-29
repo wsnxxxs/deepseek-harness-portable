@@ -51,6 +51,41 @@
   transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
 }
 
+.tooltipTarget {
+  position: relative;
+}
+
+.tooltipTarget::after {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 6px);
+  left: 50%;
+  max-width: 240px;
+  padding: 5px 8px;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-panel);
+  color: var(--zx-label);
+  content: attr(data-tooltip);
+  font-size: var(--zx-text-micro);
+  font-weight: 400;
+  line-height: var(--zx-leading-tight);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -2px);
+  transition: opacity var(--zx-motion-fast), transform var(--zx-motion-fast), visibility var(--zx-motion-fast);
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.tooltipTarget:hover::after,
+.tooltipTarget:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+
 .iconButton:hover:not(:disabled) {
   background: var(--zx-bg-hover);
   color: var(--zx-label);

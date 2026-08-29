@@ -310,7 +310,7 @@
    just above the centred composer rather than floating in its own half. */
 .heroBlank {
   justify-content: flex-end;
-  padding-bottom: var(--zx-space-6);
+  padding-bottom: calc(var(--zx-space-6) + var(--zx-space-4));
 }
 
 .heroGreeting {

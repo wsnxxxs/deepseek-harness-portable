@@ -11,7 +11,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import {
   IconBranchOutline16, IconChevronDownOutline14, IconFolderOpen16, IconFolderOpenOutline16,
-  IconListPenOutline16, IconPanelLeftOutline16, IconShareOutline16,
+  IconPanelLeftOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type SessionLogDownloadState } from '../state/runtime.ts'
@@ -21,6 +21,7 @@ import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { IconButton, Popover, ui } from './ui.tsx'
 import css from './TopBar.module.css'
+import { TopBarDownloadIcon, TopBarListIcon } from './TopBarIcons.tsx'
 
 const EMPTY_SESSION_LOG_STATE: SessionLogDownloadState = { bySession: {} }
 const EMPTY_SUBSCRIBE = (_listener: () => void): (() => void) => () => {}
@@ -75,6 +76,15 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
       : shareStatus === 'error'
         ? t('top.shareFailed')
         : t('top.share')
+  const shareTooltip = shareEntry?.error ?? (
+    shareBusy
+      ? t('top.sharePreparing')
+      : shareStatus === 'success'
+        ? t('top.shareStarted')
+        : shareStatus === 'error'
+          ? t('top.shareFailed')
+          : t('top.shareTooltip')
+  )
   const shareClass = shareStatus === 'success'
     ? css.shareSuccess
     : shareStatus === 'error' ? css.shareError : ''
@@ -138,10 +148,10 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
       <div className={css.actions}>
         <button
           type="button"
-          className={`${css.shareButton} ${shareClass}`}
-          aria-label={shareLabel}
+          className={`${css.shareButton} ${shareClass} ${ui.tooltipTarget}`}
+          aria-label={shareTooltip}
           aria-busy={shareBusy}
-          title={shareEntry?.error ?? shareLabel}
+          data-tooltip={shareTooltip}
           disabled={sessionId === undefined || sessionLogDownload === undefined || shareBusy}
           onClick={() => {
             if (sessionId !== undefined && sessionLogDownload !== undefined) {
@@ -149,30 +159,33 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
             }
           }}
         >
-          <IconShareOutline16 />
-          <span>{shareLabel}</span>
+          <TopBarDownloadIcon size={14} />
+          <span className={css.shareLabel}>{shareLabel}</span>
         </button>
         <div className={css.layoutGroup} role="group" aria-label={t('top.layout')}>
           <IconButton
             label={t('top.toggleSummary')}
+            className={css.layoutButton}
             active={state.summaryOpen}
             onClick={() => { navigation.toggleSummary() }}
           >
-            <IconListPenOutline16 size={16} />
+            <TopBarListIcon size={16} />
           </IconButton>
           <IconButton
             label={t('top.togglePreview')}
+            className={css.layoutButton}
             active={state.asideOpen}
             onClick={() => { navigation.toggleAside() }}
           >
-            <IconPanelLeftOutline16 className={ui.mirrored} />
+            <IconPanelLeftOutline16 className={ui.mirrored} size={14} />
           </IconButton>
           <IconButton
             label={t('top.toggleRail')}
+            className={`${css.layoutButton} ${css.railToggle}`}
             active={state.railOpen}
             onClick={() => { navigation.toggleRail() }}
           >
-            <IconPanelLeftOutline16 />
+            <IconPanelLeftOutline16 size={14} />
           </IconButton>
         </div>
       </div>

@@ -61,10 +61,10 @@ export function IconButton(props: {
   return (
     <button
       type="button"
-      className={`${css.iconButton} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`}
-      title={props.label}
+      className={`${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`}
       aria-label={props.label}
       aria-pressed={props.active}
+      data-tooltip={props.label}
       disabled={props.disabled}
       onClick={props.onClick}
     >
