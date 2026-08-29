@@ -163,8 +163,8 @@ export function Popover(props: {
         const row = rows[active]
         if (row === undefined || row.disabled === true) return
         event.preventDefault()
-        close(true)
         row.onSelect?.()
+        close(true)
         return
       }
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp'
@@ -196,8 +196,8 @@ export function Popover(props: {
 
   const select = useCallback((row: MenuRow) => {
     if (row.disabled === true) return
-    close(true)
     row.onSelect?.()
+    close(true)
   }, [close])
 
   let lastGroup: ReactNode

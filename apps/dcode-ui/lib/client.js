@@ -2729,8 +2729,8 @@ window.__ModuleLoader__.load({
 						const row = rows[active];
 						if (row === void 0 || row.disabled === true) return;
 						event.preventDefault();
-						close(true);
 						row.onSelect?.();
+						close(true);
 						return;
 					}
 					if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
@@ -2760,8 +2760,8 @@ window.__ModuleLoader__.load({
 			}, [active, open]);
 			const select = (0, react.useCallback)((row) => {
 				if (row.disabled === true) return;
-				close(true);
 				row.onSelect?.();
+				close(true);
 			}, [close]);
 			let lastGroup;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {

@@ -83,8 +83,8 @@ export function Popover(props) {
                 if (row === undefined || row.disabled === true)
                     return;
                 event.preventDefault();
-                close(true);
                 row.onSelect?.();
+                close(true);
                 return;
             }
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp'
@@ -118,8 +118,8 @@ export function Popover(props) {
     const select = useCallback((row) => {
         if (row.disabled === true)
             return;
-        close(true);
         row.onSelect?.();
+        close(true);
     }, [close]);
     let lastGroup;
     return (_jsxs("div", { className: css.popoverAnchor, ref: anchorRef, style: props.style, children: [_jsx("button", { ref: triggerRef, type: "button", className: `${css.iconButton} ${open ? css.iconButtonActive : ''} ${props.triggerClassName ?? ''}`, "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": open ? menuId : undefined, "aria-label": props.label, title: props.label, disabled: props.disabled, onClick: () => { setOpen(value => !value); }, children: props.trigger }), open
