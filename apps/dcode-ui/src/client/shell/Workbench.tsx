@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { dcodeScope } from '../tokens.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import {
@@ -35,6 +36,8 @@ import css from './Workbench.module.css'
 export interface WorkbenchProps {
   /** The view-state store shared with the keyboard layer and the palette. */
   readonly navigation: NavigationStore
+  /** Official settings sections rendered inside the DCode settings shell. */
+  readonly renderSettingsSlot?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /**
@@ -57,7 +60,7 @@ function useCurrentCwd(sessionId: SessionId | undefined): string | undefined {
 }
 
 /** The whole modern surface. */
-export function Workbench({ navigation }: WorkbenchProps) {
+export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
   const runtime = useRuntime()
   const state = useNavigation(navigation)
   const sessionId = useCurrentSessionId()
@@ -178,6 +181,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 <SettingsSurface
                   navigation={navigation}
                   sessionId={sessionId}
+                  renderSection={renderSettingsSlot}
                 />
               )}
           </div>

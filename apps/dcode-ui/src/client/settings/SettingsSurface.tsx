@@ -20,6 +20,7 @@ import {
   IconSkillOutline16, IconSparkle16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync, useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
@@ -41,6 +42,8 @@ import type { DcodeRuntime } from '../state/runtime.ts'
 export interface SettingsSurfaceProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
+  /** Official DSH settings section renderer supplied by the root slot. */
+  readonly renderSection?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /** Rail layout: the four DSH settings pages visible in the workbench. */
@@ -1195,7 +1198,7 @@ function UsageSection() {
 }
 
 /** The settings rail and the selected section. */
-export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps) {
+export function SettingsSurface({ navigation, sessionId, renderSection }: SettingsSurfaceProps) {
   const t = useT()
   const state = useNavigation(navigation)
 
@@ -1214,11 +1217,19 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     usage: <IconDataOutline16 />,
   }
 
+  const official = (id: string, fallback: React.ReactNode): React.ReactNode => renderSection === undefined
+    ? fallback
+    : (
+      <div className={css.officialSection} data-dcode-settings-section={id}>
+        {renderSection('settings.section', { close: () => { navigation.show('session') } }, { only: id })}
+      </div>
+    )
+
   const body = (): React.ReactNode => {
     switch (state.settingsSection) {
       case 'general':
       case 'appearance': return <GeneralSection />
-      case 'models': return <ModelsSection />
+      case 'models': return official('models', <ModelsSection />)
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
       case 'plugins': return <PluginSettingsSection />

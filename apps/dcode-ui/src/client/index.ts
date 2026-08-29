@@ -41,6 +41,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugin-inventory/client'
 import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 import type {} from '@deepseek-ai/dsh-client-ui-permission-presets/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-session-log-export/client'
 import { createUiModeStore, type UiModeStore } from './mode.ts'
@@ -126,11 +127,14 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
 
   // One element tree, created once: a mode flip mounts and unmounts it, and
   // the workbench's own view state survives in `navigation` across the flip.
-  const render = (): ReturnType<typeof createElement> =>
+  const render = ({ renderSlot }: PropsRenderSlots<'settings.section'>): ReturnType<typeof createElement> =>
     createElement(
       DcodeRuntimeProvider,
       { value: runtime },
-      createElement(TranslateProvider, { value: t }, createElement(Workbench, { navigation })),
+      createElement(TranslateProvider, { value: t }, createElement(Workbench, {
+        navigation,
+        renderSettingsSlot: renderSlot,
+      })),
     )
 
   let active: (() => void) | undefined
@@ -152,6 +156,7 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
         name: 'root',
         priority: ROOT_PRIORITY,
         locale: DCODE_NS,
+        children: { 'settings.section': { kind: 'list', scope: 'root' } },
       },
       render,
     ))
