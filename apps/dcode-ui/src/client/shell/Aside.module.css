@@ -45,7 +45,7 @@
 .tabs {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 0;
   flex: none;
@@ -83,7 +83,7 @@
   z-index: 2;
   bottom: -1px;
   left: 0;
-  width: calc(100% / 3);
+  width: calc(100% / 4);
   height: 2px;
   border-radius: var(--zx-radius-pill) var(--zx-radius-pill) 0 0;
   background: var(--zx-accent);
@@ -101,6 +101,34 @@
   gap: var(--zx-space-6);
   scrollbar-width: thin;
   scrollbar-color: var(--zx-border) transparent;
+}
+
+.reviewLayout {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
+  gap: var(--zx-space-3);
+  min-height: 0;
+}
+
+.reviewLayout > :only-child {
+  grid-column: 1 / -1;
+}
+
+.terminalSection {
+  min-height: 0;
+  flex: 1;
+}
+
+.terminalOutput {
+  min-height: 260px;
+  max-height: none;
+  flex: 1;
+}
+
+@media (max-width: 620px) {
+  .reviewLayout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .body::-webkit-scrollbar {

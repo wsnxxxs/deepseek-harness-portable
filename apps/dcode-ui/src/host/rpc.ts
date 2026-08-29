@@ -12,7 +12,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  commit, containedRelativePath, readBranches, readDiff, readStatus, undoPaths,
+  commit, containedRelativePath, readBranches, readDiff, readStatus, undoHunk, undoPaths,
 } from './git.ts'
 
 /** Every endpoint this channel answers. */
@@ -117,6 +117,11 @@ export async function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unkn
       }
       case 'git/undo': {
         const cwd = requireCwd(body)
+        if (body.patch !== undefined) {
+          const path = requireString(body, 'path', 4096)
+          const patch = requireString(body, 'patch', 400_000)
+          return { ok: true, value: { outcomes: await undoHunk(cwd, path, patch, body.staged === true) } }
+        }
         const paths = optionalPaths(body, 'paths')
         if (paths === undefined || paths.length === 0) return failure('bad-request', 'paths must list at least one file')
         return { ok: true, value: { outcomes: await undoPaths(cwd, paths) } }
@@ -152,7 +157,7 @@ export async function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unkn
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
     if (message === 'not a git work tree') return failure('not-a-repository', message)
-    if (/^(cwd|path|message|paths)\b/.test(message) || message.startsWith('payload')) {
+    if (/^(cwd|path|patch|message|paths)\b/.test(message) || message.startsWith('payload')) {
       return failure('bad-request', message)
     }
     if ((cause as { code?: unknown } | null)?.code === 'ENOENT') {

@@ -114,6 +114,29 @@
   overflow: hidden;
 }
 
+.directoryGroup {
+  display: contents;
+}
+
+.directory {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  min-height: 24px;
+  padding-right: var(--zx-space-2);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+  font-family: var(--zx-font-mono);
+  border-bottom: 1px solid var(--zx-border-soft);
+}
+
+.directoryChevron {
+  flex: none;
+  width: 12px;
+  color: var(--zx-label-decor);
+  text-align: center;
+}
+
 .file {
   display: flex;
   align-items: center;
@@ -150,9 +173,15 @@
 
 .code {
   flex: none;
-  width: 16px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: var(--zx-radius-pill);
   color: var(--zx-label-tertiary);
   font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  line-height: 16px;
   text-align: center;
 }
 
@@ -166,7 +195,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
   text-align: left;
   font-family: var(--zx-font-mono);
 }

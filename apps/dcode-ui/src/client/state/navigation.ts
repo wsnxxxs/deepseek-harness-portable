@@ -20,10 +20,10 @@ import { fitPanels, initialLayoutSize, LAYOUT_FIT, type LayoutSize } from './lay
 export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
 
 /** Tabs of the right-hand details column. */
-export type AsideTab = 'changes' | 'goal' | 'details'
+export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details'
 
 /** Stable visual and keyboard order of the preview-panel tabs. */
-export const ASIDE_TABS: readonly AsideTab[] = ['changes', 'goal', 'details']
+export const ASIDE_TABS: readonly AsideTab[] = ['changes', 'terminal', 'goal', 'details']
 
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
 export function adjacentAsideTab(tab: AsideTab, direction: -1 | 1): AsideTab {

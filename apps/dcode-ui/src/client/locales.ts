@@ -62,6 +62,8 @@ export const en = {
 
   'aside.title': 'Preview panel',
   'aside.close': 'Close the preview panel',
+  'aside.terminal': 'Terminal',
+  'aside.terminalEmpty': 'No command output in this session yet.',
   'summary.title': 'Environment info',
   'summary.close': 'Close the summary',
   'summary.local': 'Local',
@@ -164,6 +166,12 @@ export const en = {
   'git.binary': 'Binary file',
   'git.truncated': 'Diff truncated',
   'git.noDiff': 'No changes to show',
+  'git.diffMode': 'Diff layout',
+  'git.unified': 'Unified',
+  'git.split': 'Split',
+  'git.copyHunk': 'Copy hunk',
+  'git.revertHunk': 'Revert hunk',
+  'git.revertingHunk': 'Reverting…',
 
   'goal.title': 'Goal',
   'goal.none': 'No goal set for this task.',
@@ -640,6 +648,8 @@ export const zh: Record<DcodeKey, string> = {
 
   'aside.title': '预览面板',
   'aside.close': '关闭预览面板',
+  'aside.terminal': '终端',
+  'aside.terminalEmpty': '当前会话暂无命令输出。',
   'summary.title': '环境信息',
   'summary.close': '关闭摘要',
   'summary.local': '本地',
@@ -742,6 +752,12 @@ export const zh: Record<DcodeKey, string> = {
   'git.binary': '二进制文件',
   'git.truncated': '差异已截断',
   'git.noDiff': '没有可显示的差异',
+  'git.diffMode': '差异布局',
+  'git.unified': '合并',
+  'git.split': '分栏',
+  'git.copyHunk': '复制修改块',
+  'git.revertHunk': '撤销修改块',
+  'git.revertingHunk': '正在撤销…',
 
   'goal.title': '目标',
   'goal.none': '这个任务还没有设定目标。',

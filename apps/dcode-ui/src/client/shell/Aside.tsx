@@ -26,7 +26,7 @@ import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
 import { DiffViewer } from '../git/DiffViewer.tsx'
 import { EmptyState, Pill, Spinner, ui } from './ui.tsx'
-import { latestTodos, resultText, summarizeTool } from '../chat/tools.ts'
+import { latestTodos, parseArgs, resultText, summarizeTool } from '../chat/tools.ts'
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import css from './Aside.module.css'
 
@@ -241,15 +241,65 @@ function DetailsPanel({
   )
 }
 
-/** The docked preview sidebar with its three content views. */
+/** Persistent command output assembled from the current session ledger. */
+function TerminalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
+  const t = useT()
+  const chat = useChatSnapshot(sessionId)
+  const trajectory = useTrajectorySnapshot(sessionId)
+  const [wrap, setWrap] = useState(false)
+  const output = useMemo(() => {
+    const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
+      ? chat?.legacy.nodes ?? []
+      : trajectory.eventNodes
+    const chunks: string[] = []
+    for (const node of nodes) {
+      if (node.kind !== 'tool-result') continue
+      for (const block of walkCalls(node as ToolCallBlock)) {
+        if (!('isError' in block)) continue
+        const name = block.call?.name ?? ''
+        const summary = summarizeTool(name, block.call?.argsRaw)
+        if (summary.kind !== 'run') continue
+        const command = summary.detail || String(parseArgs(block.call?.argsRaw).command ?? name)
+        const text = resultText(block.content)
+        chunks.push(`\u001b[2m$ ${command}\u001b[0m${text === '' ? '' : `\n${text}`}`)
+      }
+    }
+    const running = trajectory === undefined || trajectory.runningCalls.length === 0
+      ? chat?.legacy.runningCalls ?? []
+      : trajectory.runningCalls
+    for (const block of running) {
+      for (const call of walkCalls(block)) {
+        if ('isError' in call) continue
+        const summary = summarizeTool(call.name, call.argsRaw)
+        if (summary.kind === 'run') chunks.push(`\u001b[2m$ ${summary.detail || call.name}\u001b[0m\n\u001b[33m● running…\u001b[0m`)
+      }
+    }
+    return chunks.join('\n\n')
+  }, [chat, trajectory])
+
+  return (
+    <section className={`${css.section} ${css.terminalSection}`}>
+      <header className={css.sectionHead}>
+        <span className={ui.grow}>{t('aside.terminal')}</span>
+        {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
+      </header>
+      {output === ''
+        ? <EmptyState>{t('aside.terminalEmpty')}</EmptyState>
+        : <AnsiOutput text={output} wrap={wrap} className={css.terminalOutput} />}
+    </section>
+  )
+}
+
+/** The docked preview sidebar with its content views. */
 export function Aside({ navigation, sessionId, cwd }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
   const tabPrefix = useId()
-  const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, goal: null, details: null })
+  const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null, details: null })
 
   const labels: Record<AsideTab, string> = {
     changes: t('git.changes'),
+    terminal: t('aside.terminal'),
     goal: t('goal.title'),
     details: t('details.title'),
   }
@@ -315,7 +365,7 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
       >
         {state.aside === 'changes'
           ? (
-            <>
+            <div className={css.reviewLayout}>
               <GitPanel
                 cwd={cwd}
                 sessionId={sessionId}
@@ -332,9 +382,10 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
                     onClose={() => { navigation.closeDiff() }}
                   />
                 )}
-            </>
+            </div>
           )
           : null}
+        {state.aside === 'terminal' ? <TerminalPanel sessionId={sessionId} /> : null}
         {state.aside === 'goal' ? <GoalPanel sessionId={sessionId} /> : null}
         {state.aside === 'details'
           ? <DetailsPanel sessionId={sessionId} callId={state.inspectedCallId} cwd={cwd} diff={state.diff} />

@@ -509,3 +509,47 @@ export async function undoPaths(
   }
   return outcomes
 }
+
+/**
+ * Reverse one exact hunk while retaining a recovery bundle beside ordinary
+ * DCode undo snapshots. The supplied patch is produced by our own diff RPC;
+ * its path is still cross-checked before git sees it.
+ */
+export async function undoHunk(
+  cwd: string,
+  path: string,
+  patch: string,
+  staged: boolean,
+): Promise<readonly GitRestoreOutcome[]> {
+  const root = await workTreeRoot(cwd)
+  if (root === undefined) throw new Error('not a git work tree')
+  const relativePath = containedRelativePath(root, path)
+  if (patch.length === 0 || patch.length > DIFF_CHAR_LIMIT) throw new Error('patch must be a bounded non-empty diff')
+  const headerPath = relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (!new RegExp(`^(?:---|\\+\\+\\+) (?:[ab]/)?${headerPath}$`, 'm').test(patch)) {
+    throw new Error('patch path does not match path')
+  }
+
+  const { copyFile, mkdir, writeFile } = await import('node:fs/promises')
+  const { dirname, join } = await import('node:path')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const recovery = join(root, '.dsh', 'dcode-undo', stamp)
+  const patchPath = join(recovery, 'hunk.patch')
+  await mkdir(dirname(join(recovery, relativePath)), { recursive: true })
+  await writeFile(patchPath, patch, 'utf8')
+  try {
+    await copyFile(join(root, relativePath), join(recovery, relativePath))
+  } catch (cause) {
+    if ((cause as { code?: unknown }).code !== 'ENOENT') throw cause
+  }
+
+  const applied = await git(root, [
+    'apply', '--reverse', '--whitespace=nowarn', ...(staged ? ['--cached'] : []), patchPath,
+  ], { tolerateFailure: true })
+  if (applied.code !== 0) throw new Error(applied.stderr.trim() || 'git could not reverse this hunk')
+  return [{
+    path: relativePath,
+    result: 'restored',
+    movedTo: `.dsh/dcode-undo/${stamp}/${relativePath}`,
+  }]
+}

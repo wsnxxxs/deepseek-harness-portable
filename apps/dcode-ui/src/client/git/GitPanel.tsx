@@ -52,6 +52,81 @@ function codeMark(file: GitFileChange): string {
   }
 }
 
+interface FileTreeNode {
+  readonly name: string
+  readonly path: string
+  readonly file?: GitFileChange
+  readonly children: readonly FileTreeNode[]
+}
+
+/** Build a stable directory-first tree from repository-relative paths. */
+function fileTree(files: readonly GitFileChange[]): readonly FileTreeNode[] {
+  interface MutableNode { name: string; path: string; file?: GitFileChange; children: Map<string, MutableNode> }
+  const root = new Map<string, MutableNode>()
+  for (const file of files) {
+    let level = root
+    let path = ''
+    const parts = file.path.split('/').filter(Boolean)
+    parts.forEach((name, index) => {
+      path = path === '' ? name : `${path}/${name}`
+      let node = level.get(name)
+      if (node === undefined) {
+        node = { name, path, children: new Map() }
+        level.set(name, node)
+      }
+      if (index === parts.length - 1) node.file = file
+      level = node.children
+    })
+  }
+  const freeze = (nodes: Map<string, MutableNode>): readonly FileTreeNode[] => [...nodes.values()]
+    .sort((left, right) => Number(left.file !== undefined) - Number(right.file !== undefined) || left.name.localeCompare(right.name))
+    .map(node => ({ ...node, children: freeze(node.children) }))
+  return freeze(root)
+}
+
+function FileTree({
+  files, staged, selected, onOpenDiff, statsLabel,
+}: {
+  readonly files: readonly GitFileChange[]
+  readonly staged: boolean
+  readonly selected: DiffTarget | undefined
+  readonly onOpenDiff: (path: string, staged: boolean) => void
+  readonly statsLabel: (file: GitFileChange) => string
+}) {
+  const render = (nodes: readonly FileTreeNode[], depth = 0): React.ReactNode => nodes.map((node) => {
+    if (node.file === undefined) {
+      return (
+        <div key={node.path} className={css.directoryGroup}>
+          <div className={css.directory} style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}>
+            <span className={css.directoryChevron} aria-hidden>⌄</span>
+            <span title={node.path}>{node.name}</span>
+          </div>
+          {render(node.children, depth + 1)}
+        </div>
+      )
+    }
+    const file = node.file
+    return (
+      <button
+        key={`${file.code}:${file.path}:${String(staged)}`}
+        type="button"
+        className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
+        style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}
+        onClick={() => { onOpenDiff(file.path, staged) }}
+        title={file.path}
+      >
+        <span className={`${css.code} ${codeClass(file)}`} aria-label={file.status}>{codeMark(file)}</span>
+        <span className={css.path}><bdi>{node.name}</bdi></span>
+        <span className={css.lineBadge} aria-label={statsLabel(file)}>
+          <span className={css.badgeAdded}>+{file.insertions}</span>
+          <span className={css.badgeRemoved}>-{file.deletions}</span>
+        </span>
+      </button>
+    )
+  })
+  return <>{render(fileTree(files))}</>
+}
+
 /** Branch, changed files and the commit entry. */
 export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps) {
   const runtime = useRuntime()
@@ -125,26 +200,14 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
           <span>{label}</span>
           <span className={css.groupCount}>{files.length}</span>
         </div>
-        <div className={css.files}>
-          {files.map(file => (
-            <button
-              key={`${file.code}:${file.path}:${String(staged)}`}
-              type="button"
-              className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
-              onClick={() => { onOpenDiff(file.path, staged) }}
-              title={file.path}
-            >
-              <span className={`${css.code} ${codeClass(file)}`} aria-hidden>{codeMark(file)}</span>
-              <span className={css.path}><bdi>{file.path}</bdi></span>
-              <span
-                className={css.lineBadge}
-                aria-label={t('git.fileStats', { insertions: file.insertions, deletions: file.deletions })}
-              >
-                <span className={css.badgeAdded}>+{file.insertions}</span>
-                <span className={css.badgeRemoved}>-{file.deletions}</span>
-              </span>
-            </button>
-          ))}
+        <div className={css.files} role="tree">
+          <FileTree
+            files={files}
+            staged={staged}
+            selected={selected}
+            onOpenDiff={onOpenDiff}
+            statsLabel={file => t('git.fileStats', { insertions: file.insertions, deletions: file.deletions })}
+          />
         </div>
       </section>
     )

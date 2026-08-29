@@ -15,6 +15,37 @@
   color: var(--zx-label-secondary);
 }
 
+.reviewBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-2);
+}
+
+.modeSwitch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+}
+
+.modeSwitch button,
+.hunkActions button {
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  cursor: pointer;
+}
+
+.modeSwitch button { padding: 3px 8px; }
+.modeSwitch button:hover,
+.hunkActions button:hover { color: var(--zx-label); background: var(--zx-bg-hover); }
+.modeSwitch .modeActive { color: var(--zx-label); background: var(--zx-bg-active); }
+
 .breadcrumbs {
   display: flex;
   align-items: center;
@@ -198,6 +229,61 @@
   background: var(--zx-bg-panel);
   border-top: 1px solid var(--zx-border-soft);
   border-bottom: 1px solid var(--zx-border-soft);
+}
+
+.hunkBlock {
+  display: contents;
+}
+
+.hunkActions {
+  position: sticky;
+  right: var(--zx-space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  margin-left: auto;
+  padding-left: var(--zx-space-2);
+  background: var(--zx-bg-panel);
+}
+
+.hunkActions button:disabled { opacity: 0.5; cursor: wait; }
+
+.splitBody { min-width: 0; }
+
+.splitGrid { min-width: 640px; }
+
+.splitPair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.splitLine {
+  display: flex;
+  min-width: 0;
+  min-height: 1.6em;
+  border-right: 1px solid var(--zx-border-soft);
+  white-space: pre;
+}
+
+.splitNo {
+  position: sticky;
+  left: 0;
+  flex: none;
+  min-width: 4.5ch;
+  padding: 0 var(--zx-space-2);
+  border-right: 1px solid var(--zx-border-soft);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  text-align: right;
+  user-select: none;
+}
+
+.splitText { padding: 0 var(--zx-space-2); }
+
+.errorNote {
+  margin: 0;
+  color: var(--zx-error);
+  font-size: var(--zx-text-micro);
 }
 
 .line.hunk:first-child {

@@ -61,6 +61,7 @@ export interface DcodeApi {
   branches(cwd: string): Promise<DcodeResult<{ branches: readonly GitBranch[] }>>
   commit(cwd: string, message: string, paths?: readonly string[]): Promise<DcodeResult<GitCommitResult>>
   undo(cwd: string, paths: readonly string[]): Promise<DcodeResult<{ outcomes: readonly GitRestoreOutcome[] }>>
+  undoHunk(cwd: string, path: string, patch: string, staged?: boolean): Promise<DcodeResult<{ outcomes: readonly GitRestoreOutcome[] }>>
   readFile(cwd: string, path: string): Promise<DcodeResult<FileRead>>
 }
 
@@ -85,6 +86,7 @@ export function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi {
     branches: cwd => call('git/branches', { cwd }),
     commit: (cwd, message, paths) => call('git/commit', { cwd, message, ...(paths === undefined ? {} : { paths }) }),
     undo: (cwd, paths) => call('git/undo', { cwd, paths }),
+    undoHunk: (cwd, path, patch, staged = false) => call('git/undo', { cwd, path, patch, staged }),
     readFile: (cwd, path) => call('file/read', { cwd, path }),
   }
 }
