@@ -4,8 +4,9 @@
  * A card the top bar summons and dismisses, anchored under its own control at
  * the right of the conversation column — deliberately not the preview
  * sidebar, which is where the same facts are worked rather than read. Every
- * row is the digest of one panel and opens it: the change counts open
- * Changes, the goal opens Goal.
+ * environment row is the digest of one panel and opens it: the change counts
+ * open Changes, the goal opens Goal. Recent trace activity follows those rows
+ * so it stays available without occupying a second floating card.
  *
  * Nothing here is state of its own. The counts come from the same git read
  * the Changes panel uses, the goal from the host projection the official goal

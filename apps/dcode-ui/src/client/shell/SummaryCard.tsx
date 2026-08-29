@@ -4,8 +4,9 @@
  * A card the top bar summons and dismisses, anchored under its own control at
  * the right of the conversation column — deliberately not the preview
  * sidebar, which is where the same facts are worked rather than read. Every
- * row is the digest of one panel and opens it: the change counts open
- * Changes, the goal opens Goal.
+ * environment row is the digest of one panel and opens it: the change counts
+ * open Changes, the goal opens Goal. Recent trace activity follows those rows
+ * so it stays available without occupying a second floating card.
  *
  * Nothing here is state of its own. The counts come from the same git read
  * the Changes panel uses, the goal from the host projection the official goal
@@ -16,14 +17,17 @@
 import { useMemo } from 'react'
 import {
   IconBranchOutline16, IconChecklistOutline14, IconChevronRightOutline14, IconCodeOutline16,
-  IconCloseOutline16, IconFolderOpenOutline16, IconGoalOutline16,
+  IconCloseOutline16, IconFolderOpenOutline16, IconGoalOutline16, IconListPenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactNode } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { useChatSnapshot, useProjectionValue, useWorkspaceGroups } from '../state/hooks.ts'
+import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
+import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
+import type { Translate } from '../locales.ts'
 import type { NavigationStore } from '../state/navigation.ts'
+import { EMPTY_TRAJECTORY_SNAPSHOT } from '../state/runtime.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { latestTodos } from '../chat/tools.ts'
 import { ui } from './ui.tsx'
@@ -41,6 +45,79 @@ export interface SummaryCardProps {
 /** The goal projection's shape, read structurally to avoid a package edge. */
 interface GoalProjectionView {
   readonly goal: { readonly objective: string; readonly phase: string }
+}
+
+type TraceStatus = 'running' | 'done' | 'failed'
+
+interface TraceRow {
+  readonly id: string
+  readonly label: string
+  readonly detail?: string
+  readonly callId?: string
+  readonly status?: TraceStatus
+}
+
+/** Build the small trace ledger from the same snapshot as DSH's full view. */
+function buildTraceRows(snapshot: TrajectorySnapshot, t: Translate): readonly TraceRow[] {
+  const rows: TraceRow[] = snapshot.eventNodes.map((node) => {
+    switch (node.kind) {
+      case 'user':
+        return { id: `event:${node.seq}`, label: t('trace.user') }
+      case 'assistant': {
+        const call = node.blocks.find(block => block.kind === 'tool-call')
+        return {
+          id: `event:${node.seq}`,
+          label: call?.kind === 'tool-call' ? call.name : t('trace.assistant'),
+          callId: call?.kind === 'tool-call' ? call.callId : undefined,
+        }
+      }
+      case 'steering':
+        return { id: `event:${node.seq}`, label: t('trace.steering') }
+      case 'context':
+        return { id: `event:${node.seq}`, label: t('trace.context') }
+      case 'model-retry':
+        return { id: `event:${node.seq}`, label: t('trace.retry'), detail: node.retryState }
+      case 'turn-error':
+        return { id: `event:${node.seq}`, label: t('trace.error'), detail: node.message, status: 'failed' }
+      case 'turn-max-tokens':
+        return { id: `event:${node.seq}`, label: t('trace.limit') }
+      case 'tool-result':
+        return {
+          id: `event:${node.seq}`,
+          label: node.call?.name ?? t('trace.tool'),
+          detail: node.isError ? t('trace.failed') : t('trace.done'),
+          callId: node.callId,
+          status: node.isError ? 'failed' : 'done',
+        }
+      case 'command':
+        return {
+          id: `event:${node.seq}`,
+          label: node.name ?? t('trace.command'),
+          detail: node.outcome?.kind === 'error' ? t('trace.failed') : node.outcome === null ? t('trace.active') : t('trace.done'),
+          status: node.outcome?.kind === 'error' ? 'failed' : node.outcome === null ? 'running' : 'done',
+        }
+      case 'compaction':
+        return { id: `event:${node.seq}`, label: t('trace.compaction') }
+      case 'unknown':
+        return { id: `event:${node.seq}`, label: node.type || t('trace.unknown') }
+    }
+  })
+
+  const seenCalls = new Set(rows.flatMap(row => row.callId === undefined ? [] : [row.callId]))
+  for (const call of snapshot.runningCalls) {
+    if (seenCalls.has(call.callId)) continue
+    rows.push({
+      id: `running:${call.callId}`,
+      label: call.name,
+      detail: t('trace.active'),
+      callId: call.callId,
+      status: 'running',
+    })
+  }
+  if (snapshot.partial !== null) {
+    rows.push({ id: 'partial', label: t('trace.assistant'), detail: t('trace.active'), status: 'running' })
+  }
+  return rows.slice(-8)
 }
 
 /** One digest line: an icon, what it is, and the value it stands for. */
@@ -80,8 +157,13 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
   const goal = useProjectionValue<GoalProjectionView | null>(sessionId, 'goal')
   const projectedTodos = useProjectionValue<readonly TodoItem[] | null>(sessionId, 'todos')
   const chat = useChatSnapshot(sessionId)
+  const trajectory = useTrajectorySnapshot(sessionId)
   const fallbackTodos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat])
   const todos = projectedTodos === undefined ? fallbackTodos : projectedTodos ?? []
+  const traceRows = useMemo(
+    () => buildTraceRows(trajectory ?? EMPTY_TRAJECTORY_SNAPSHOT, t),
+    [trajectory, t],
+  )
 
   const workspace = useMemo(
     () => groups.find(group => group.path === cwd)
@@ -96,6 +178,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
   const dirty = (status?.files.length ?? 0) > 0
   const done = todos.filter(todo => todo.status === 'completed').length
   const objective = goal?.goal.objective
+  const running = trajectory?.runningCalls.length ?? 0
 
   return (
     <section className={css.card} aria-label={t('summary.title')}>
@@ -177,6 +260,51 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
                 />
               )}
           </div>
+        )}
+      {traceRows.length === 0
+        ? null
+        : (
+          <section className={css.trace} aria-label={t('trace.title')}>
+            <div className={css.traceHeader}>
+              <span className={css.traceTitle}><IconListPenOutline16 size={14} />{t('trace.title')}</span>
+              <span className={css.traceStats}>
+                {t('trace.stats', {
+                  events: trajectory?.eventNodes.length ?? 0,
+                  requests: trajectory?.requests.length ?? 0,
+                })}
+                {running > 0 ? ` · ${t('trace.runningCount', { count: running })}` : ''}
+              </span>
+            </div>
+            <ul className={css.traceList}>
+              {traceRows.map(row => (
+                <li key={row.id} className={css.traceItem} data-status={row.status}>
+                  {row.callId === undefined
+                    ? (
+                      <div className={css.traceRow}>
+                        <span className={css.traceDot} aria-hidden />
+                        <span className={css.traceLabel}>{row.label}</span>
+                        {row.detail === undefined ? null : <span className={css.traceDetail}>{row.detail}</span>}
+                      </div>
+                    )
+                    : (
+                      <button
+                        type="button"
+                        className={css.traceRow}
+                        title={t('trace.inspect')}
+                        onClick={() => {
+                          navigation.toggleSummary(false)
+                          navigation.inspect(row.callId)
+                        }}
+                      >
+                        <span className={css.traceDot} aria-hidden />
+                        <span className={css.traceLabel}>{row.label}</span>
+                        {row.detail === undefined ? null : <span className={css.traceDetail}>{row.detail}</span>}
+                      </button>
+                    )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
     </section>
   )

@@ -5163,7 +5163,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\SummaryCard.module.css.mjs
-		const css$15 = ".X_PnOW_card{z-index:var(--zx-z-popover);top:calc(var(--zx-topbar-height) + var(--zx-space-2));right:var(--zx-space-4);width:min(320px, calc(100% - var(--zx-space-4) * 2));max-height:calc(100% - var(--zx-topbar-height) - var(--zx-space-5));border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-panel);backdrop-filter:blur(20px)saturate(130%);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;animation:X_PnOW_cardIn var(--zx-motion-fast) ease-out;flex-direction:column;display:flex;position:absolute;overflow:hidden auto}.X_PnOW_card::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.X_PnOW_card::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}@keyframes X_PnOW_cardIn{0%{opacity:0;transform:translateY(-6px)}}.X_PnOW_header{flex:none}.X_PnOW_title{flex:1;min-width:0}.X_PnOW_close{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.X_PnOW_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.X_PnOW_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rows{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.X_PnOW_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_rowAction{cursor:pointer}.X_PnOW_rowAction:hover{background:var(--zx-bg-hover)}.X_PnOW_rowAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rowIcon{color:var(--zx-label-muted);flex:none;display:inline-flex}.X_PnOW_rowLabel{color:var(--zx-label);flex:none}.X_PnOW_rowValue{align-items:center;gap:var(--zx-space-2);min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);flex:1;justify-content:flex-end;display:flex}.X_PnOW_rowChevron{color:var(--zx-label-tertiary);flex:none;display:inline-flex}.X_PnOW_truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_counts{gap:var(--zx-space-2);font-variant-numeric:tabular-nums;display:inline-flex}.X_PnOW_added{color:var(--zx-success)}.X_PnOW_removed{color:var(--zx-error)}.X_PnOW_muted{color:var(--zx-label-muted)}.X_PnOW_empty{padding:0 var(--zx-space-4) var(--zx-space-4);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);margin:0}@media (prefers-reduced-motion:reduce){.X_PnOW_card{animation:none}}";
+		const css$15 = ".X_PnOW_card{z-index:var(--zx-z-popover);top:calc(var(--zx-topbar-height) + var(--zx-space-2));right:var(--zx-space-4);width:min(320px, calc(100% - var(--zx-space-4) * 2));max-height:calc(100% - var(--zx-topbar-height) - var(--zx-space-5));border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-panel);backdrop-filter:blur(20px)saturate(130%);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;animation:X_PnOW_cardIn var(--zx-motion-fast) ease-out;flex-direction:column;display:flex;position:absolute;overflow:hidden auto}.X_PnOW_card::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.X_PnOW_card::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}@keyframes X_PnOW_cardIn{0%{opacity:0;transform:translateY(-6px)}}.X_PnOW_header{flex:none}.X_PnOW_title{flex:1;min-width:0}.X_PnOW_close{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.X_PnOW_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.X_PnOW_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rows{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.X_PnOW_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_rowAction{cursor:pointer}.X_PnOW_rowAction:hover{background:var(--zx-bg-hover)}.X_PnOW_rowAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rowIcon{color:var(--zx-label-muted);flex:none;display:inline-flex}.X_PnOW_rowLabel{color:var(--zx-label);flex:none}.X_PnOW_rowValue{align-items:center;gap:var(--zx-space-2);min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);flex:1;justify-content:flex-end;display:flex}.X_PnOW_rowChevron{color:var(--zx-label-tertiary);flex:none;display:inline-flex}.X_PnOW_truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_counts{gap:var(--zx-space-2);font-variant-numeric:tabular-nums;display:inline-flex}.X_PnOW_added{color:var(--zx-success)}.X_PnOW_removed{color:var(--zx-error)}.X_PnOW_muted{color:var(--zx-label-muted)}.X_PnOW_empty{padding:0 var(--zx-space-4) var(--zx-space-4);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);margin:0}.X_PnOW_trace{margin:0 var(--zx-space-2) var(--zx-space-2);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-soft)}.X_PnOW_traceHeader{align-items:center;gap:var(--zx-space-2);min-width:0;padding:0 var(--zx-space-2) var(--zx-space-1);color:var(--zx-label-muted);font-size:var(--zx-text-micro);display:flex}.X_PnOW_traceTitle{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-weight:var(--zx-weight-semibold);flex:none;display:inline-flex}.X_PnOW_traceStats{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.X_PnOW_traceList{flex-direction:column;gap:1px;max-height:180px;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}.X_PnOW_traceItem{min-width:0}.X_PnOW_traceRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;padding:4px var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);text-align:left;background:0 0;border:0;display:flex}button.X_PnOW_traceRow{cursor:pointer}button.X_PnOW_traceRow:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.X_PnOW_traceRow:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_traceDot{background:var(--zx-label-tertiary);border-radius:50%;flex:0 0 5px;width:5px;height:5px}.X_PnOW_traceItem[data-status=running] .X_PnOW_traceDot{background:var(--zx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent)}.X_PnOW_traceItem[data-status=done] .X_PnOW_traceDot{background:var(--zx-success)}.X_PnOW_traceItem[data-status=failed] .X_PnOW_traceDot{background:var(--zx-error)}.X_PnOW_traceLabel{min-width:0;color:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_traceDetail{max-width:42%;color:var(--zx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;flex:none;overflow:hidden}@media (prefers-reduced-motion:reduce){.X_PnOW_card{animation:none}}";
 		const tagId$15 = "@dsh-portable/dcode-ui/SummaryCard.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$15) + "]") === null) {
 			const tag = document.createElement("style");
@@ -5190,6 +5190,16 @@ window.__ModuleLoader__.load({
 			"rowValue": "X_PnOW_rowValue",
 			"rows": "X_PnOW_rows",
 			"title": "X_PnOW_title",
+			"trace": "X_PnOW_trace",
+			"traceDetail": "X_PnOW_traceDetail",
+			"traceDot": "X_PnOW_traceDot",
+			"traceHeader": "X_PnOW_traceHeader",
+			"traceItem": "X_PnOW_traceItem",
+			"traceLabel": "X_PnOW_traceLabel",
+			"traceList": "X_PnOW_traceList",
+			"traceRow": "X_PnOW_traceRow",
+			"traceStats": "X_PnOW_traceStats",
+			"traceTitle": "X_PnOW_traceTitle",
 			"truncate": "X_PnOW_truncate"
 		};
 		//#endregion
@@ -5200,14 +5210,96 @@ window.__ModuleLoader__.load({
 		* A card the top bar summons and dismisses, anchored under its own control at
 		* the right of the conversation column — deliberately not the preview
 		* sidebar, which is where the same facts are worked rather than read. Every
-		* row is the digest of one panel and opens it: the change counts open
-		* Changes, the goal opens Goal.
+		* environment row is the digest of one panel and opens it: the change counts
+		* open Changes, the goal opens Goal. Recent trace activity follows those rows
+		* so it stays available without occupying a second floating card.
 		*
 		* Nothing here is state of its own. The counts come from the same git read
 		* the Changes panel uses, the goal from the host projection the official goal
 		* bar renders, and the workspace from the durable registry.
 		* @module @dsh-portable/dcode-ui/client/shell/SummaryCard
 		*/
+		/** Build the small trace ledger from the same snapshot as DSH's full view. */
+		function buildTraceRows(snapshot, t) {
+			const rows = snapshot.eventNodes.map((node) => {
+				switch (node.kind) {
+					case "user": return {
+						id: `event:${node.seq}`,
+						label: t("trace.user")
+					};
+					case "assistant": {
+						const call = node.blocks.find((block) => block.kind === "tool-call");
+						return {
+							id: `event:${node.seq}`,
+							label: call?.kind === "tool-call" ? call.name : t("trace.assistant"),
+							callId: call?.kind === "tool-call" ? call.callId : void 0
+						};
+					}
+					case "steering": return {
+						id: `event:${node.seq}`,
+						label: t("trace.steering")
+					};
+					case "context": return {
+						id: `event:${node.seq}`,
+						label: t("trace.context")
+					};
+					case "model-retry": return {
+						id: `event:${node.seq}`,
+						label: t("trace.retry"),
+						detail: node.retryState
+					};
+					case "turn-error": return {
+						id: `event:${node.seq}`,
+						label: t("trace.error"),
+						detail: node.message,
+						status: "failed"
+					};
+					case "turn-max-tokens": return {
+						id: `event:${node.seq}`,
+						label: t("trace.limit")
+					};
+					case "tool-result": return {
+						id: `event:${node.seq}`,
+						label: node.call?.name ?? t("trace.tool"),
+						detail: node.isError ? t("trace.failed") : t("trace.done"),
+						callId: node.callId,
+						status: node.isError ? "failed" : "done"
+					};
+					case "command": return {
+						id: `event:${node.seq}`,
+						label: node.name ?? t("trace.command"),
+						detail: node.outcome?.kind === "error" ? t("trace.failed") : node.outcome === null ? t("trace.active") : t("trace.done"),
+						status: node.outcome?.kind === "error" ? "failed" : node.outcome === null ? "running" : "done"
+					};
+					case "compaction": return {
+						id: `event:${node.seq}`,
+						label: t("trace.compaction")
+					};
+					case "unknown": return {
+						id: `event:${node.seq}`,
+						label: node.type || t("trace.unknown")
+					};
+				}
+			});
+			const seenCalls = new Set(rows.flatMap((row) => row.callId === void 0 ? [] : [row.callId]));
+			for (const call of snapshot.runningCalls) {
+				if (seenCalls.has(call.callId)) continue;
+				rows.push({
+					id: `running:${call.callId}`,
+					label: call.name,
+					detail: t("trace.active"),
+					callId: call.callId,
+					status: "running"
+				});
+			}
+			if (snapshot.partial !== null) rows.push({
+				id: "partial",
+				label: t("trace.assistant"),
+				detail: t("trace.active"),
+				status: "running"
+			});
+			return rows.slice(-8);
+		}
 		/** One digest line: an icon, what it is, and the value it stands for. */
 		function Row$1(props) {
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
@@ -5254,8 +5346,10 @@ window.__ModuleLoader__.load({
 			const goal = useProjectionValue(sessionId, "goal");
 			const projectedTodos = useProjectionValue(sessionId, "todos");
 			const chat = useChatSnapshot(sessionId);
+			const trajectory = useTrajectorySnapshot(sessionId);
 			const fallbackTodos = (0, react.useMemo)(() => latestTodos(chat?.legacy.nodes ?? []), [chat]);
 			const todos = projectedTodos === void 0 ? fallbackTodos : projectedTodos ?? [];
+			const traceRows = (0, react.useMemo)(() => buildTraceRows(trajectory ?? EMPTY_TRAJECTORY_SNAPSHOT, t), [trajectory, t]);
 			const workspace = (0, react.useMemo)(() => groups.find((group) => group.path === cwd) ?? groups.find((group) => group.sessions.some((row) => row.id === sessionId)), [
 				groups,
 				cwd,
@@ -5267,96 +5361,162 @@ window.__ModuleLoader__.load({
 			const dirty = (status?.files.length ?? 0) > 0;
 			const done = todos.filter((todo) => todo.status === "completed").length;
 			const objective = goal?.goal.objective;
+			const running = trajectory?.runningCalls.length ?? 0;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: SummaryCard_module_css_default.card,
 				"aria-label": t("summary.title"),
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
-					className: `${SummaryCard_module_css_default.header} ${ui.cardHeader}`,
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: SummaryCard_module_css_default.title,
-						children: t("summary.title")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: SummaryCard_module_css_default.close,
-						"aria-label": t("summary.close"),
-						onClick: () => {
-							navigation.toggleSummary(false);
-						},
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, {})
-					})]
-				}), workspace === void 0 && !repository ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-					className: SummaryCard_module_css_default.empty,
-					children: t("chat.empty.noWorkspace")
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: SummaryCard_module_css_default.rows,
-					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
-							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, {}),
-							label: t("git.changes"),
-							title: t("summary.openChanges"),
-							value: !repository ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: SummaryCard_module_css_default.muted,
-								children: t("top.noRepository")
-							}) : dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								className: SummaryCard_module_css_default.counts,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-									className: SummaryCard_module_css_default.added,
-									children: ["+", status?.insertions ?? 0]
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-									className: SummaryCard_module_css_default.removed,
-									children: ["-", status?.deletions ?? 0]
-								})]
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: SummaryCard_module_css_default.muted,
-								children: t("git.clean")
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
+						className: `${SummaryCard_module_css_default.header} ${ui.cardHeader}`,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: SummaryCard_module_css_default.title,
+							children: t("summary.title")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: SummaryCard_module_css_default.close,
+							"aria-label": t("summary.close"),
+							onClick: () => {
+								navigation.toggleSummary(false);
+							},
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, {})
+						})]
+					}),
+					workspace === void 0 && !repository ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: SummaryCard_module_css_default.empty,
+						children: t("chat.empty.noWorkspace")
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: SummaryCard_module_css_default.rows,
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCodeOutline16, {}),
+								label: t("git.changes"),
+								title: t("summary.openChanges"),
+								value: !repository ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: SummaryCard_module_css_default.muted,
+									children: t("top.noRepository")
+								}) : dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									className: SummaryCard_module_css_default.counts,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: SummaryCard_module_css_default.added,
+										children: ["+", status?.insertions ?? 0]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: SummaryCard_module_css_default.removed,
+										children: ["-", status?.deletions ?? 0]
+									})]
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: SummaryCard_module_css_default.muted,
+									children: t("git.clean")
+								}),
+								onOpen: () => {
+									navigation.openAside("changes");
+								}
 							}),
-							onOpen: () => {
-								navigation.openAside("changes");
-							}
-						}),
-						workspace === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
-							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {}),
-							label: t("summary.local"),
-							title: workspace.path,
-							ariaLabel: workspace.path,
-							value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: SummaryCard_module_css_default.truncate,
-								children: workspace.title
+							workspace === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {}),
+								label: t("summary.local"),
+								title: workspace.path,
+								ariaLabel: workspace.path,
+								value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: SummaryCard_module_css_default.truncate,
+									children: workspace.title
+								})
+							}),
+							!repository ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutline16, {}),
+								label: t("top.branch"),
+								value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: SummaryCard_module_css_default.truncate,
+									children: status?.branch ?? (status?.detached === true ? "HEAD" : t("top.branch"))
+								})
+							}),
+							objective === void 0 || objective === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconGoalOutline16, {}),
+								label: t("goal.title"),
+								title: objective,
+								value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: SummaryCard_module_css_default.truncate,
+									children: objective
+								}),
+								onOpen: () => {
+									navigation.openAside("goal");
+								}
+							}),
+							todos.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
+								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChecklistOutline14, { size: 16 }),
+								label: t("plan.title"),
+								value: t("plan.progress", {
+									done,
+									total: todos.length
+								}),
+								onOpen: () => {
+									navigation.openAside("goal");
+								}
 							})
-						}),
-						!repository ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
-							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBranchOutline16, {}),
-							label: t("top.branch"),
-							value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: SummaryCard_module_css_default.truncate,
-								children: status?.branch ?? (status?.detached === true ? "HEAD" : t("top.branch"))
-							})
-						}),
-						objective === void 0 || objective === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
-							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconGoalOutline16, {}),
-							label: t("goal.title"),
-							title: objective,
-							value: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: SummaryCard_module_css_default.truncate,
-								children: objective
-							}),
-							onOpen: () => {
-								navigation.openAside("goal");
-							}
-						}),
-						todos.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row$1, {
-							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChecklistOutline14, { size: 16 }),
-							label: t("plan.title"),
-							value: t("plan.progress", {
-								done,
-								total: todos.length
-							}),
-							onOpen: () => {
-								navigation.openAside("goal");
-							}
-						})
-					]
-				})]
+						]
+					}),
+					traceRows.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+						className: SummaryCard_module_css_default.trace,
+						"aria-label": t("trace.title"),
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: SummaryCard_module_css_default.traceHeader,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: SummaryCard_module_css_default.traceTitle,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconListPenOutline16, { size: 14 }), t("trace.title")]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: SummaryCard_module_css_default.traceStats,
+								children: [t("trace.stats", {
+									events: trajectory?.eventNodes.length ?? 0,
+									requests: trajectory?.requests.length ?? 0
+								}), running > 0 ? ` · ${t("trace.runningCount", { count: running })}` : ""]
+							})]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+							className: SummaryCard_module_css_default.traceList,
+							children: traceRows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
+								className: SummaryCard_module_css_default.traceItem,
+								"data-status": row.status,
+								children: row.callId === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: SummaryCard_module_css_default.traceRow,
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceDot,
+											"aria-hidden": true
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceLabel,
+											children: row.label
+										}),
+										row.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceDetail,
+											children: row.detail
+										})
+									]
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: SummaryCard_module_css_default.traceRow,
+									title: t("trace.inspect"),
+									onClick: () => {
+										navigation.toggleSummary(false);
+										navigation.inspect(row.callId);
+									},
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceDot,
+											"aria-hidden": true
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceLabel,
+											children: row.label
+										}),
+										row.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: SummaryCard_module_css_default.traceDetail,
+											children: row.detail
+										})
+									]
+								})
+							}, row.id))
+						})]
+					})
+				]
 			});
 		}
 		//#endregion
@@ -6247,7 +6407,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\PlanCard.module.css.mjs
-		const css$12 = ".i5uJ_a_dock{width:min(var(--zx-reading-width), 100%);padding:0 var(--zx-space-5) var(--zx-space-3);box-sizing:border-box;flex:none;margin:0 auto}.i5uJ_a_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:color-mix(in srgb, var(--zx-bg-card) 94%, transparent);width:min(380px,100%);box-shadow:var(--zx-shadow-panel);margin-left:auto;overflow:hidden}.i5uJ_a_header{align-items:center;gap:var(--zx-space-3);width:100%;font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.i5uJ_a_header:hover{background:var(--zx-bg-hover)}.i5uJ_a_header:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.i5uJ_a_icon,.i5uJ_a_chevron{color:var(--zx-label-muted);flex:none;place-items:center;display:grid}.i5uJ_a_title{color:var(--zx-label);font-weight:var(--zx-weight-semibold);flex:none}.i5uJ_a_progress{min-width:0;color:var(--zx-label-muted);font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}.i5uJ_a_list{max-height:220px;padding:0 var(--zx-space-3) var(--zx-space-3);flex-direction:column;gap:2px;margin:0;list-style:none;display:flex;overflow-y:auto}.i5uJ_a_item{align-items:flex-start;gap:var(--zx-space-3);min-width:0;padding:var(--zx-space-2) var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);display:flex}.i5uJ_a_item[data-status=in_progress]{background:var(--zx-bg-raised);color:var(--zx-label)}.i5uJ_a_item[data-status=completed]{color:var(--zx-label-tertiary);text-decoration:line-through;text-decoration-color:var(--zx-border)}.i5uJ_a_content{overflow-wrap:anywhere;min-width:0}.i5uJ_a_mark{flex:0 0 16px;place-items:center;width:16px;height:18px;margin-top:1px;display:grid}.i5uJ_a_markDone{color:var(--zx-success)}.i5uJ_a_markActive{color:var(--zx-accent)}.i5uJ_a_markPending{border:1px solid var(--zx-label-tertiary);border-radius:50%;width:12px;height:12px;margin:3px 2px 0}.i5uJ_a_trace{margin:0 var(--zx-space-3) var(--zx-space-3);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-soft)}.i5uJ_a_traceHeader{align-items:center;gap:var(--zx-space-2);min-width:0;padding:0 var(--zx-space-2) var(--zx-space-1);color:var(--zx-label-muted);font-size:var(--zx-text-micro);display:flex}.i5uJ_a_traceTitle{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-weight:var(--zx-weight-semibold);flex:none;display:inline-flex}.i5uJ_a_traceStats{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.i5uJ_a_traceList{flex-direction:column;gap:1px;max-height:148px;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}.i5uJ_a_traceItem{min-width:0}.i5uJ_a_traceRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;padding:4px var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);text-align:left;background:0 0;border:0;display:flex}button.i5uJ_a_traceRow{cursor:pointer}button.i5uJ_a_traceRow:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.i5uJ_a_traceRow:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.i5uJ_a_traceDot{background:var(--zx-label-tertiary);border-radius:50%;flex:0 0 5px;width:5px;height:5px}.i5uJ_a_traceItem[data-status=running] .i5uJ_a_traceDot{background:var(--zx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent)}.i5uJ_a_traceItem[data-status=done] .i5uJ_a_traceDot{background:var(--zx-success)}.i5uJ_a_traceItem[data-status=failed] .i5uJ_a_traceDot{background:var(--zx-error)}.i5uJ_a_traceLabel{min-width:0;color:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.i5uJ_a_traceDetail{max-width:42%;color:var(--zx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;flex:none;overflow:hidden}@container (width<=640px){.i5uJ_a_dock{padding-right:var(--zx-space-4);padding-left:var(--zx-space-4)}.i5uJ_a_card{width:100%}}";
+		const css$12 = ".i5uJ_a_dock{width:min(var(--zx-reading-width), 100%);padding:0 var(--zx-space-5) var(--zx-space-3);box-sizing:border-box;flex:none;margin:0 auto}.i5uJ_a_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:color-mix(in srgb, var(--zx-bg-card) 94%, transparent);width:min(380px,100%);box-shadow:var(--zx-shadow-panel);margin-left:auto;overflow:hidden}.i5uJ_a_header{align-items:center;gap:var(--zx-space-3);width:100%;font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.i5uJ_a_header:hover{background:var(--zx-bg-hover)}.i5uJ_a_header:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.i5uJ_a_icon,.i5uJ_a_chevron{color:var(--zx-label-muted);flex:none;place-items:center;display:grid}.i5uJ_a_title{color:var(--zx-label);font-weight:var(--zx-weight-semibold);flex:none}.i5uJ_a_progress{min-width:0;color:var(--zx-label-muted);font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}.i5uJ_a_list{max-height:220px;padding:0 var(--zx-space-3) var(--zx-space-3);flex-direction:column;gap:2px;margin:0;list-style:none;display:flex;overflow-y:auto}.i5uJ_a_item{align-items:flex-start;gap:var(--zx-space-3);min-width:0;padding:var(--zx-space-2) var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);display:flex}.i5uJ_a_item[data-status=in_progress]{background:var(--zx-bg-raised);color:var(--zx-label)}.i5uJ_a_item[data-status=completed]{color:var(--zx-label-tertiary);text-decoration:line-through;text-decoration-color:var(--zx-border)}.i5uJ_a_content{overflow-wrap:anywhere;min-width:0}.i5uJ_a_mark{flex:0 0 16px;place-items:center;width:16px;height:18px;margin-top:1px;display:grid}.i5uJ_a_markDone{color:var(--zx-success)}.i5uJ_a_markActive{color:var(--zx-accent)}.i5uJ_a_markPending{border:1px solid var(--zx-label-tertiary);border-radius:50%;width:12px;height:12px;margin:3px 2px 0}@container (width<=640px){.i5uJ_a_dock{padding-right:var(--zx-space-4);padding-left:var(--zx-space-4)}.i5uJ_a_card{width:100%}}";
 		const tagId$12 = "@dsh-portable/dcode-ui/PlanCard.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$12) + "]") === null) {
 			const tag = document.createElement("style");
@@ -6270,102 +6430,11 @@ window.__ModuleLoader__.load({
 			"markDone": "i5uJ_a_markDone",
 			"markPending": "i5uJ_a_markPending",
 			"progress": "i5uJ_a_progress",
-			"title": "i5uJ_a_title",
-			"trace": "i5uJ_a_trace",
-			"traceDetail": "i5uJ_a_traceDetail",
-			"traceDot": "i5uJ_a_traceDot",
-			"traceHeader": "i5uJ_a_traceHeader",
-			"traceItem": "i5uJ_a_traceItem",
-			"traceLabel": "i5uJ_a_traceLabel",
-			"traceList": "i5uJ_a_traceList",
-			"traceRow": "i5uJ_a_traceRow",
-			"traceStats": "i5uJ_a_traceStats",
-			"traceTitle": "i5uJ_a_traceTitle"
+			"title": "i5uJ_a_title"
 		};
 		//#endregion
 		//#region src/client/shell/PlanCard.tsx
 		/** The compact live plan card shown above the composer. */
-		/** Build the small trace ledger from the same snapshot as DSH's full view. */
-		function buildTraceRows(snapshot, t) {
-			const rows = snapshot.eventNodes.map((node) => {
-				switch (node.kind) {
-					case "user": return {
-						id: `event:${node.seq}`,
-						label: t("trace.user")
-					};
-					case "assistant": {
-						const call = node.blocks.find((block) => block.kind === "tool-call");
-						return {
-							id: `event:${node.seq}`,
-							label: call?.kind === "tool-call" ? call.name : t("trace.assistant"),
-							callId: call?.kind === "tool-call" ? call.callId : void 0
-						};
-					}
-					case "steering": return {
-						id: `event:${node.seq}`,
-						label: t("trace.steering")
-					};
-					case "context": return {
-						id: `event:${node.seq}`,
-						label: t("trace.context")
-					};
-					case "model-retry": return {
-						id: `event:${node.seq}`,
-						label: t("trace.retry"),
-						detail: node.retryState
-					};
-					case "turn-error": return {
-						id: `event:${node.seq}`,
-						label: t("trace.error"),
-						detail: node.message,
-						status: "failed"
-					};
-					case "turn-max-tokens": return {
-						id: `event:${node.seq}`,
-						label: t("trace.limit")
-					};
-					case "tool-result": return {
-						id: `event:${node.seq}`,
-						label: node.call?.name ?? t("trace.tool"),
-						detail: node.isError ? t("trace.failed") : t("trace.done"),
-						callId: node.callId,
-						status: node.isError ? "failed" : "done"
-					};
-					case "command": return {
-						id: `event:${node.seq}`,
-						label: node.name ?? t("trace.command"),
-						detail: node.outcome?.kind === "error" ? t("trace.failed") : node.outcome === null ? t("trace.active") : t("trace.done"),
-						status: node.outcome?.kind === "error" ? "failed" : node.outcome === null ? "running" : "done"
-					};
-					case "compaction": return {
-						id: `event:${node.seq}`,
-						label: t("trace.compaction")
-					};
-					case "unknown": return {
-						id: `event:${node.seq}`,
-						label: node.type || t("trace.unknown")
-					};
-				}
-			});
-			const seenCalls = new Set(rows.flatMap((row) => row.callId === void 0 ? [] : [row.callId]));
-			for (const call of snapshot.runningCalls) {
-				if (seenCalls.has(call.callId)) continue;
-				rows.push({
-					id: `running:${call.callId}`,
-					label: call.name,
-					detail: t("trace.active"),
-					callId: call.callId,
-					status: "running"
-				});
-			}
-			if (snapshot.partial !== null) rows.push({
-				id: "partial",
-				label: t("trace.assistant"),
-				detail: t("trace.active"),
-				status: "running"
-			});
-			return rows.slice(-8);
-		}
 		function StatusMark({ status }) {
 			if (status === "completed") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: `${PlanCard_module_css_default.mark} ${PlanCard_module_css_default.markDone}`,
@@ -6383,25 +6452,22 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/** Render the current `todos` projection with a transcript replay fallback. */
-		function PlanCard({ sessionId, open = true, navigation }) {
+		function PlanCard({ sessionId, open = true }) {
 			const t = useT();
 			const projectedTodos = useProjectionValue(sessionId, "todos");
 			const chat = useChatSnapshot(sessionId);
-			const trajectory = useTrajectorySnapshot(sessionId);
 			const fallbackTodos = (0, react.useMemo)(() => latestTodos(chat?.legacy.nodes ?? []), [chat]);
 			const todos = projectedTodos === void 0 ? fallbackTodos : projectedTodos ?? [];
-			const traceRows = (0, react.useMemo)(() => buildTraceRows(trajectory ?? EMPTY_TRAJECTORY_SNAPSHOT, t), [trajectory, t]);
 			const [collapsed, setCollapsed] = (0, react.useState)(false);
 			const contentId = (0, react.useId)();
-			if (!open || todos.length === 0 && traceRows.length === 0) return null;
+			if (!open || todos.length === 0) return null;
 			const completed = todos.filter((todo) => todo.status === "completed").length;
-			const running = trajectory?.runningCalls.length ?? 0;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: PlanCard_module_css_default.dock,
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 					className: PlanCard_module_css_default.card,
 					"data-testid": "dcode-plan-card",
-					"aria-label": todos.length > 0 ? t("plan.title") : t("trace.title"),
+					"aria-label": t("plan.title"),
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: `${PlanCard_module_css_default.header} ${ui.cardHeader}`,
@@ -6418,16 +6484,13 @@ window.__ModuleLoader__.load({
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: PlanCard_module_css_default.title,
-								children: todos.length > 0 ? t("plan.title") : t("trace.title")
+								children: t("plan.title")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: PlanCard_module_css_default.progress,
-								children: todos.length > 0 ? t("plan.progress", {
+								children: t("plan.progress", {
 									done: completed,
 									total: todos.length
-								}) : t("trace.stats", {
-									events: trajectory?.eventNodes.length ?? 0,
-									requests: trajectory?.requests.length ?? 0
 								})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -6436,9 +6499,9 @@ window.__ModuleLoader__.load({
 								children: collapsed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, {}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, {})
 							})
 						]
-					}), !collapsed ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					}), !collapsed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						id: contentId,
-						children: [todos.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 							className: PlanCard_module_css_default.list,
 							children: todos.map((todo, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 								className: PlanCard_module_css_default.item,
@@ -6448,67 +6511,7 @@ window.__ModuleLoader__.load({
 									children: todo.content
 								})]
 							}, `${String(index)}:${todo.content}`))
-						}) : null, !collapsed && traceRows.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-							className: PlanCard_module_css_default.trace,
-							"aria-label": t("trace.title"),
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: PlanCard_module_css_default.traceHeader,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-									className: PlanCard_module_css_default.traceTitle,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconListPenOutline16, { size: 14 }), t("trace.title")]
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-									className: PlanCard_module_css_default.traceStats,
-									children: [t("trace.stats", {
-										events: trajectory?.eventNodes.length ?? 0,
-										requests: trajectory?.requests.length ?? 0
-									}), running > 0 ? ` · ${t("trace.runningCount", { count: running })}` : ""]
-								})]
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-								className: PlanCard_module_css_default.traceList,
-								children: traceRows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-									className: PlanCard_module_css_default.traceItem,
-									"data-status": row.status,
-									children: row.callId === void 0 || navigation === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: PlanCard_module_css_default.traceRow,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceDot,
-												"aria-hidden": true
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceLabel,
-												children: row.label
-											}),
-											row.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceDetail,
-												children: row.detail
-											})
-										]
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-										type: "button",
-										className: PlanCard_module_css_default.traceRow,
-										title: t("trace.inspect"),
-										onClick: () => {
-											navigation.inspect(row.callId);
-										},
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceDot,
-												"aria-hidden": true
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceLabel,
-												children: row.label
-											}),
-											row.detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: PlanCard_module_css_default.traceDetail,
-												children: row.detail
-											})
-										]
-									})
-								}, row.id))
-							})]
-						}) : null]
+						})
 					}) : null]
 				})
 			});
@@ -13726,10 +13729,7 @@ window.__ModuleLoader__.load({
 									cwd,
 									blank
 								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PlanCard, {
-									sessionId,
-									navigation
-								}, sessionId),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PlanCard, { sessionId }, sessionId),
 								pendingQuestion === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Composer, {
 									sessionId,
 									blank,

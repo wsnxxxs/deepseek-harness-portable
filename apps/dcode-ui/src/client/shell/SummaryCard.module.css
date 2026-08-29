@@ -178,6 +178,121 @@
   line-height: var(--zx-leading-body);
 }
 
+.trace {
+  margin: 0 var(--zx-space-2) var(--zx-space-2);
+  padding-top: var(--zx-space-2);
+  border-top: 1px solid var(--zx-border-soft);
+}
+
+.traceHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-width: 0;
+  padding: 0 var(--zx-space-2) var(--zx-space-1);
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-micro);
+}
+
+.traceTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  flex: none;
+  color: var(--zx-label-secondary);
+  font-weight: var(--zx-weight-semibold);
+}
+
+.traceStats {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.traceItem {
+  min-width: 0;
+}
+
+.traceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  width: 100%;
+  min-width: 0;
+  padding: 4px var(--zx-space-2);
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  text-align: left;
+}
+
+button.traceRow {
+  cursor: pointer;
+}
+
+button.traceRow:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
+}
+
+.traceRow:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.traceDot {
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--zx-label-tertiary);
+}
+
+.traceItem[data-status='running'] .traceDot {
+  background: var(--zx-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);
+}
+
+.traceItem[data-status='done'] .traceDot {
+  background: var(--zx-success);
+}
+
+.traceItem[data-status='failed'] .traceDot {
+  background: var(--zx-error);
+}
+
+.traceLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceDetail {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  color: var(--zx-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card {
     animation: none;

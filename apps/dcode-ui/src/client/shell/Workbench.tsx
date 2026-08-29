@@ -334,9 +334,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 cwd={cwd}
                 blank={blank}
               />
-              {/* Content-driven: the plan card shows itself while the task
-                  has a plan or a trace, and collapses on its own header. */}
-              <PlanCard key={sessionId} sessionId={sessionId} navigation={navigation} />
+              {/* Content-driven: the plan card only appears while the task has
+                  a plan; trace activity lives in the environment summary. */}
+              <PlanCard key={sessionId} sessionId={sessionId} />
               {pendingQuestion === undefined
                 ? (
                   <Composer
