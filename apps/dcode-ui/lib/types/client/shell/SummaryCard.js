@@ -14,7 +14,7 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  * bar renders, and the workspace from the durable registry.
  * @module @dsh-portable/dcode-ui/client/shell/SummaryCard
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { IconBranchOutline16, IconChecklistOutline14, IconChevronRightOutline14, IconCodeOutline16, IconCloseOutline16, IconFolderOpenOutline16, IconGoalOutline16, IconListPenOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -97,6 +97,7 @@ function Row(props) {
 }
 /** The environment digest, or null while the top bar keeps it closed. */
 export function SummaryCard({ navigation, sessionId, cwd, open }) {
+    const cardRef = useRef(null);
     const t = useT();
     const { groups } = useWorkspaceGroups();
     const git = useGitStatus(cwd, sessionId);
@@ -109,6 +110,32 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
     const traceRows = useMemo(() => buildTraceRows(trajectory ?? EMPTY_TRAJECTORY_SNAPSHOT, t), [trajectory, t]);
     const workspace = useMemo(() => groups.find(group => group.path === cwd)
         ?? groups.find(group => group.sessions.some(row => row.id === sessionId)), [groups, cwd, sessionId]);
+    useEffect(() => {
+        if (!open)
+            return undefined;
+        const onDocumentClick = (event) => {
+            const target = event.target;
+            if (target instanceof Node && cardRef.current?.contains(target) === true)
+                return;
+            navigation.toggleSummary(false);
+        };
+        const onDocumentKeyDown = (event) => {
+            if (event.key !== 'Escape')
+                return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            navigation.toggleSummary(false);
+            window.requestAnimationFrame(() => {
+                document.querySelector('[data-dcode-focus-target="summary"]')?.focus();
+            });
+        };
+        document.addEventListener('click', onDocumentClick);
+        document.addEventListener('keydown', onDocumentKeyDown, true);
+        return () => {
+            document.removeEventListener('click', onDocumentClick);
+            document.removeEventListener('keydown', onDocumentKeyDown, true);
+        };
+    }, [navigation, open]);
     if (!open)
         return null;
     const status = git.status;
@@ -117,7 +144,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
     const done = todos.filter(todo => todo.status === 'completed').length;
     const objective = goal?.goal.objective;
     const running = trajectory?.runningCalls.length ?? 0;
-    return (_jsxs("section", { className: css.card, "aria-label": t('summary.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
+    return (_jsxs("section", { ref: cardRef, className: css.card, "aria-label": t('summary.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
                 ? _jsx("p", { className: css.empty, children: t('chat.empty.noWorkspace') })
                 : (_jsxs("div", { className: css.rows, children: [_jsx(Row, { icon: _jsx(IconCodeOutline16, {}), label: t('git.changes'), title: t('summary.openChanges'), value: !repository
                                 ? _jsx("span", { className: css.muted, children: t('top.noRepository') })

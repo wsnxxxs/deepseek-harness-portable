@@ -14,7 +14,7 @@
  * @module @dsh-portable/dcode-ui/client/shell/SummaryCard
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   IconBranchOutline16, IconChecklistOutline14, IconChevronRightOutline14, IconCodeOutline16,
   IconCloseOutline16, IconFolderOpenOutline16, IconGoalOutline16, IconListPenOutline16,
@@ -151,6 +151,7 @@ function Row(props: {
 
 /** The environment digest, or null while the top bar keeps it closed. */
 export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardProps) {
+  const cardRef = useRef<HTMLElement>(null)
   const t = useT()
   const { groups } = useWorkspaceGroups()
   const git = useGitStatus(cwd, sessionId)
@@ -171,6 +172,32 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
     [groups, cwd, sessionId],
   )
 
+  useEffect(() => {
+    if (!open) return undefined
+
+    const onDocumentClick = (event: MouseEvent): void => {
+      const target = event.target
+      if (target instanceof Node && cardRef.current?.contains(target) === true) return
+      navigation.toggleSummary(false)
+    }
+    const onDocumentKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      navigation.toggleSummary(false)
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[data-dcode-focus-target="summary"]')?.focus()
+      })
+    }
+
+    document.addEventListener('click', onDocumentClick)
+    document.addEventListener('keydown', onDocumentKeyDown, true)
+    return () => {
+      document.removeEventListener('click', onDocumentClick)
+      document.removeEventListener('keydown', onDocumentKeyDown, true)
+    }
+  }, [navigation, open])
+
   if (!open) return null
 
   const status = git.status
@@ -181,7 +208,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
   const running = trajectory?.runningCalls.length ?? 0
 
   return (
-    <section className={css.card} aria-label={t('summary.title')}>
+    <section ref={cardRef} className={css.card} aria-label={t('summary.title')}>
       <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.title}>{t('summary.title')}</span>
         <button
