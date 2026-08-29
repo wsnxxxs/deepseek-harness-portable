@@ -15,7 +15,7 @@ import {
   IconDataOutline16, IconLinkOutline16,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
-  IconPlusOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, IconUserOutline16,
+  IconPlusOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
   Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -342,10 +342,7 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
           style={{ flex: 1 }}
           triggerClassName={css.accountTrigger}
           trigger={(
-            <>
-              <span className={css.avatar} aria-hidden><IconUserOutline16 size={18} /></span>
-              <span className={css.footName}>{t('app.title')}</span>
-            </>
+            <BrandWordmark size={24} />
           )}
           rows={[
             {

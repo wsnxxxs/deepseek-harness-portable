@@ -244,31 +244,11 @@
   border-top: 1px solid var(--zx-border-soft);
 }
 
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--zx-bg-active);
-  color: var(--zx-label-secondary);
-  flex: none;
-}
-
 .accountTrigger {
   width: 100%;
   justify-content: flex-start;
-  padding: 0 var(--zx-space-2) 0 0;
-}
-
-.footName {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--zx-text-xs);
-  color: var(--zx-label-secondary);
+  padding: 0;
+  color: var(--zx-label);
 }
 
 .deleteConfirm {
