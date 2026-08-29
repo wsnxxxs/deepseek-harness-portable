@@ -75,6 +75,36 @@
   white-space: nowrap;
 }
 
+.fileGroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-3);
+}
+
+.fileGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-1);
+  min-width: 0;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--zx-space-1);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-micro);
+  font-weight: var(--zx-weight-medium);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.groupCount {
+  color: var(--zx-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
 .files {
   display: flex;
   flex-direction: column;
@@ -115,6 +145,7 @@
 
 .fileActive {
   background: var(--zx-bg-active);
+  box-shadow: inset 2px 0 0 var(--zx-accent);
 }
 
 .code {
@@ -139,6 +170,25 @@
   text-align: left;
   font-family: var(--zx-font-mono);
 }
+
+.lineBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  flex: none;
+  min-height: var(--zx-control-2xs);
+  padding: 0 var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-raised);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badgeAdded { color: var(--zx-added); }
+.badgeRemoved { color: var(--zx-removed); }
 
 .commit {
   display: flex;

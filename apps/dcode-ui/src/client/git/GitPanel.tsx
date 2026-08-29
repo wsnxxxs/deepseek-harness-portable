@@ -20,6 +20,7 @@ import { useWorkspaceGroups } from '../state/hooks.ts'
 import { Button, DiffCount, EmptyState, IconButton, Popover, Spinner, ui } from '../shell/ui.tsx'
 import { useGitStatus } from './useGit.ts'
 import type { GitFileChange } from '../rpc.ts'
+import type { DiffTarget } from '../state/navigation.ts'
 import css from './GitPanel.module.css'
 
 /** Props of the git panel. */
@@ -27,7 +28,7 @@ export interface GitPanelProps {
   readonly cwd: string | undefined
   readonly sessionId: SessionId | undefined
   /** Path currently shown in the diff viewer. */
-  readonly selected: string | undefined
+  readonly selected: DiffTarget | undefined
   readonly onOpenDiff: (path: string, staged: boolean) => void
 }
 
@@ -113,6 +114,40 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
 
   const status = git.status
   const workspace = groups.find(group => group.path === cwd)
+  const stagedFiles = status.files.filter(file => file.staged)
+  const unstagedFiles = status.files.filter(file => !file.staged)
+
+  const fileGroup = (label: string, files: readonly GitFileChange[], staged: boolean) => files.length === 0
+    ? null
+    : (
+      <section className={css.fileGroup} aria-label={label}>
+        <div className={css.groupHead}>
+          <span>{label}</span>
+          <span className={css.groupCount}>{files.length}</span>
+        </div>
+        <div className={css.files}>
+          {files.map(file => (
+            <button
+              key={`${file.code}:${file.path}:${String(staged)}`}
+              type="button"
+              className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
+              onClick={() => { onOpenDiff(file.path, staged) }}
+              title={file.path}
+            >
+              <span className={`${css.code} ${codeClass(file)}`} aria-hidden>{codeMark(file)}</span>
+              <span className={css.path}><bdi>{file.path}</bdi></span>
+              <span
+                className={css.lineBadge}
+                aria-label={t('git.fileStats', { insertions: file.insertions, deletions: file.deletions })}
+              >
+                <span className={css.badgeAdded}>+{file.insertions}</span>
+                <span className={css.badgeRemoved}>-{file.deletions}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    )
 
   return (
     <div className={css.panel}>
@@ -176,20 +211,9 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
       {status.files.length === 0
         ? <EmptyState>{t('git.clean')}</EmptyState>
         : (
-          <div className={css.files}>
-            {status.files.map(file => (
-              <button
-                key={`${file.code}:${file.path}`}
-                type="button"
-                className={`${css.file} ${selected === file.path ? css.fileActive : ''}`}
-                onClick={() => { onOpenDiff(file.path, file.staged) }}
-                title={file.path}
-              >
-                <span className={`${css.code} ${codeClass(file)}`} aria-hidden>{codeMark(file)}</span>
-                <span className={css.path}><bdi>{file.path}</bdi></span>
-                <DiffCount insertions={file.insertions} deletions={file.deletions} />
-              </button>
-            ))}
+          <div className={css.fileGroups}>
+            {fileGroup(t('git.staged'), stagedFiles, true)}
+            {fileGroup(t('git.unstaged'), unstagedFiles, false)}
           </div>
         )}
 
@@ -205,7 +229,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         <div className={css.actions}>
           <Button
             primary
-            disabled={committing || message.trim() === '' || status.files.length === 0}
+            disabled={committing || message.trim() === '' || stagedFiles.length === 0}
             onClick={commit}
           >
             {committing ? t('git.committing') : t('git.commit')}

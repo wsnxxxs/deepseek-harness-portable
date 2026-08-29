@@ -15,17 +15,63 @@
   color: var(--zx-label-secondary);
 }
 
-.path {
+.breadcrumbs {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  text-align: left;
   font-family: var(--zx-font-mono);
-  color: var(--zx-label);
+  color: var(--zx-label-muted);
 }
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crumb:not(:last-child) {
+  flex: 0 1 auto;
+}
+
+.crumb:last-child {
+  flex: none;
+  max-width: 55%;
+}
+
+.separator {
+  flex: none;
+  padding: 0 var(--zx-space-1);
+  color: var(--zx-label-decor);
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--zx-label);
+  font-weight: var(--zx-weight-medium);
+}
+
+.diffSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  flex: none;
+  min-height: var(--zx-control-2xs);
+  padding: 0 var(--zx-space-2);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-raised);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryAdded { color: var(--zx-added); }
+.summaryRemoved { color: var(--zx-removed); }
 
 .body {
   position: relative;
@@ -81,7 +127,7 @@
 .lineNo {
   min-width: 3.5ch;
   text-align: right;
-  color: var(--zx-label-tertiary);
+  color: var(--zx-label-secondary);
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
@@ -104,8 +150,8 @@
 /* A wash carries the row and a saturated rule marks its edge: the wash alone
    is too weak to scan at a glance, a saturated fill too loud to read on. */
 .added {
-  background: color-mix(in srgb, var(--zx-added) 12%, transparent);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--zx-added) 70%, transparent);
+  background: color-mix(in srgb, var(--zx-added) 18%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--zx-added) 82%, transparent);
 }
 
 .added .sign,
@@ -115,11 +161,16 @@
 
 .added .sign {
   color: var(--zx-added);
+  font-weight: var(--zx-weight-semibold);
+}
+
+.added .gutter {
+  background: color-mix(in srgb, var(--zx-added) 12%, var(--zx-bg-card));
 }
 
 .removed {
-  background: color-mix(in srgb, var(--zx-removed) 12%, transparent);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--zx-removed) 70%, transparent);
+  background: color-mix(in srgb, var(--zx-removed) 18%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--zx-removed) 82%, transparent);
 }
 
 .removed .sign,
@@ -129,6 +180,11 @@
 
 .removed .sign {
   color: var(--zx-removed);
+  font-weight: var(--zx-weight-semibold);
+}
+
+.removed .gutter {
+  background: color-mix(in srgb, var(--zx-removed) 12%, var(--zx-bg-card));
 }
 
 /* Hunk headers stay put while their hunk scrolls, so the range on screen is

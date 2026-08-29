@@ -14,7 +14,7 @@ import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useT } from '../state/i18n.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync } from '../state/hooks.ts'
-import { DiffCount, EmptyState, IconButton, Spinner } from '../shell/ui.tsx'
+import { CopyButton, EmptyState, IconButton, Spinner } from '../shell/ui.tsx'
 import { parsePatch } from './patch.ts'
 import css from './DiffViewer.module.css'
 
@@ -39,14 +39,31 @@ export function DiffViewer({ cwd, path, staged, onClose }: DiffViewerProps) {
     () => (value?.ok === true ? parsePatch(value.value.patch) : []),
     [value],
   )
+  const pathParts = useMemo(() => path.split(/[\\/]/).filter(Boolean), [path])
 
   return (
     <div className={css.viewer}>
       <div className={css.head}>
-        <span className={css.path} title={path}><bdi>{path}</bdi></span>
+        <nav className={css.breadcrumbs} title={path} aria-label={t('git.filePath')}>
+          {pathParts.map((part, index) => (
+            <span className={css.crumb} key={`${String(index)}:${part}`}>
+              {index === 0 ? null : <span className={css.separator} aria-hidden>/</span>}
+              <bdi className={index === pathParts.length - 1 ? css.fileName : undefined}>{part}</bdi>
+            </span>
+          ))}
+        </nav>
         {value?.ok === true
-          ? <DiffCount insertions={value.value.insertions} deletions={value.value.deletions} />
+          ? (
+            <span
+              className={css.diffSummary}
+              title={t('git.fileStats', { insertions: value.value.insertions, deletions: value.value.deletions })}
+            >
+              <span className={css.summaryAdded}>+{value.value.insertions}</span>
+              <span className={css.summaryRemoved}>-{value.value.deletions}</span>
+            </span>
+          )
           : null}
+        <CopyButton text={path} label={t('git.copyPath')} copiedLabel={t('git.pathCopied')} />
         <IconButton label={t('common.close')} onClick={onClose}>
           <IconCloseOutline16 />
         </IconButton>

@@ -18,7 +18,10 @@ import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
-import { useNavigation, type AsideTab, type DiffTarget, type NavigationStore } from '../state/navigation.ts'
+import {
+  adjacentAsideTab, ASIDE_TABS, useNavigation,
+  type AsideTab, type DiffTarget, type NavigationStore,
+} from '../state/navigation.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
 import { DiffViewer } from '../git/DiffViewer.tsx'
@@ -245,24 +248,24 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
   const tabPrefix = useId()
   const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, goal: null, details: null })
 
-  const tabs: readonly { id: AsideTab; label: string }[] = [
-    { id: 'changes', label: t('git.changes') },
-    { id: 'goal', label: t('goal.title') },
-    { id: 'details', label: t('details.title') },
-  ]
+  const labels: Record<AsideTab, string> = {
+    changes: t('git.changes'),
+    goal: t('goal.title'),
+    details: t('details.title'),
+  }
+  const tabs = ASIDE_TABS.map(id => ({ id, label: labels[id] }))
   const panelId = `${tabPrefix}-panel`
   const moveTab = (event: React.KeyboardEvent<HTMLButtonElement>, index: number): void => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
     event.preventDefault()
     const next = event.key === 'Home'
-      ? 0
+      ? ASIDE_TABS[0]
       : event.key === 'End'
-        ? tabs.length - 1
-        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
-    const tab = tabs[next]
-    if (tab === undefined) return
-    navigation.openAside(tab.id)
-    tabRefs.current[tab.id]?.focus()
+        ? ASIDE_TABS[ASIDE_TABS.length - 1]
+        : adjacentAsideTab(tabs[index]?.id ?? state.aside, event.key === 'ArrowRight' ? 1 : -1)
+    if (next === undefined) return
+    navigation.openAside(next)
+    tabRefs.current[next]?.focus()
   }
 
   return (
@@ -296,6 +299,11 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
             {tab.label}
           </button>
         ))}
+        <span
+          className={css.tabIndicator}
+          style={{ transform: `translateX(${String(ASIDE_TABS.indexOf(state.aside) * 100)}%)` }}
+          aria-hidden
+        />
       </div>
       <div
         id={panelId}
@@ -311,7 +319,7 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
               <GitPanel
                 cwd={cwd}
                 sessionId={sessionId}
-                selected={state.diff?.path}
+                selected={state.diff}
                 onOpenDiff={(path, staged) => { navigation.openDiff(path, staged) }}
               />
               {state.diff === undefined || cwd === undefined

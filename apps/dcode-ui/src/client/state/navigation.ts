@@ -22,6 +22,15 @@ export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'goal' | 'details'
 
+/** Stable visual and keyboard order of the preview-panel tabs. */
+export const ASIDE_TABS: readonly AsideTab[] = ['changes', 'goal', 'details']
+
+/** Resolve the next preview tab, wrapping seamlessly at either edge. */
+export function adjacentAsideTab(tab: AsideTab, direction: -1 | 1): AsideTab {
+  const index = ASIDE_TABS.indexOf(tab)
+  return ASIDE_TABS[(index + direction + ASIDE_TABS.length) % ASIDE_TABS.length] ?? 'changes'
+}
+
 /** Settings sections, mirroring the official settings surface's own groups. */
 export type SettingsSection =
   | 'general'

@@ -43,9 +43,11 @@
 }
 
 .tabs {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  gap: var(--zx-space-4);
+  gap: 0;
   flex: none;
   margin: 0 var(--zx-space-3);
   padding: 0 var(--zx-space-1);
@@ -53,7 +55,8 @@
 }
 
 .tab {
-  flex: none;
+  position: relative;
+  z-index: 1;
   min-width: 0;
   height: var(--zx-control-sm);
   padding: 0 var(--zx-space-1);
@@ -73,7 +76,19 @@
 
 .tabActive {
   color: var(--zx-label);
-  box-shadow: inset 0 -1px 0 var(--zx-label-secondary);
+}
+
+.tabIndicator {
+  position: absolute;
+  z-index: 2;
+  bottom: -1px;
+  left: 0;
+  width: calc(100% / 3);
+  height: 2px;
+  border-radius: var(--zx-radius-pill) var(--zx-radius-pill) 0 0;
+  background: var(--zx-accent);
+  pointer-events: none;
+  transition: transform var(--zx-motion);
 }
 
 .body {
@@ -246,7 +261,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tabIndicator,
   .stepProgress {
+    transition: none;
     animation: none;
   }
 }
