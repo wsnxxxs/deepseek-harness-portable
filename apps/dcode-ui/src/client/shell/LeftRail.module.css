@@ -259,6 +259,10 @@
   color: var(--zx-label);
 }
 
+.settingsTrigger {
+  flex: none;
+}
+
 .deleteConfirm {
   color: var(--zx-error);
 }

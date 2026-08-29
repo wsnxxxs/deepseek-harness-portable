@@ -340,6 +340,14 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
       </div>
 
       <div className={css.foot}>
+        <IconButton
+          label={t('nav.settings')}
+          className={css.settingsTrigger}
+          active={state.view === 'settings'}
+          onClick={() => { navigation.openSettings('general') }}
+        >
+          <IconSettingsOutline16 size={18} />
+        </IconButton>
         <Popover
           label={t('account.menu')}
           placement="up"
@@ -350,12 +358,6 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
             <BrandWordmark size={24} />
           )}
           rows={[
-            {
-              id: 'settings',
-              label: t('nav.settings'),
-              icon: <IconSettingsOutline16 size={18} />,
-              onSelect: () => { navigation.openSettings('general') },
-            },
             {
               id: 'usage',
               label: t('account.usage'),

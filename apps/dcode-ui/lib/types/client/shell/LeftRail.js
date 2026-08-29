@@ -161,44 +161,38 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }) {
                                                     navigation.show('session');
                                                     runtime.sessions.open(session.id);
                                                 }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); }, onDelete: () => { setDeleteTarget(session); } }, session.id)))] }))] }))
-                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsx(Popover, { label: t('account.menu'), placement: "up", align: "start", style: { flex: 1 }, triggerClassName: css.accountTrigger, trigger: (_jsx(BrandWordmark, { size: 24 })), rows: [
-                        {
-                            id: 'settings',
-                            label: t('nav.settings'),
-                            icon: _jsx(IconSettingsOutline16, { size: 18 }),
-                            onSelect: () => { navigation.openSettings('general'); },
-                        },
-                        {
-                            id: 'usage',
-                            label: t('account.usage'),
-                            icon: _jsx(IconDataOutline16, { size: 18 }),
-                            onSelect: () => { navigation.openSettings('usage'); },
-                        },
-                        {
-                            id: 'models',
-                            label: t('settings.models'),
-                            icon: _jsx(IconApiOutline14, { size: 18 }),
-                            onSelect: () => { navigation.openSettings('models'); },
-                        },
-                        {
-                            id: 'plugins',
-                            label: t('nav.plugins'),
-                            icon: _jsx(IconCordisPluginOutline14, { size: 18 }),
-                            onSelect: () => { navigation.show('plugins'); },
-                        },
-                        {
-                            id: 'agent-presets',
-                            label: t('settings.agentPresets'),
-                            icon: _jsx(IconSparkle16, {}),
-                            onSelect: () => { navigation.openSettings('agentPresets'); },
-                        },
-                        {
-                            id: 'official',
-                            label: t('top.officialUi'),
-                            icon: _jsx(IconLinkOutline16, { size: 18 }),
-                            onSelect: () => { runtime.mode.set('official'); },
-                        },
-                    ] }) }), _jsx(Modal, { open: deleteTarget !== undefined, onClose: () => { if (!deleting)
+                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsxs("div", { className: css.foot, children: [_jsx(IconButton, { label: t('nav.settings'), className: css.settingsTrigger, active: state.view === 'settings', onClick: () => { navigation.openSettings('general'); }, children: _jsx(IconSettingsOutline16, { size: 18 }) }), _jsx(Popover, { label: t('account.menu'), placement: "up", align: "start", style: { flex: 1 }, triggerClassName: css.accountTrigger, trigger: (_jsx(BrandWordmark, { size: 24 })), rows: [
+                            {
+                                id: 'usage',
+                                label: t('account.usage'),
+                                icon: _jsx(IconDataOutline16, { size: 18 }),
+                                onSelect: () => { navigation.openSettings('usage'); },
+                            },
+                            {
+                                id: 'models',
+                                label: t('settings.models'),
+                                icon: _jsx(IconApiOutline14, { size: 18 }),
+                                onSelect: () => { navigation.openSettings('models'); },
+                            },
+                            {
+                                id: 'plugins',
+                                label: t('nav.plugins'),
+                                icon: _jsx(IconCordisPluginOutline14, { size: 18 }),
+                                onSelect: () => { navigation.show('plugins'); },
+                            },
+                            {
+                                id: 'agent-presets',
+                                label: t('settings.agentPresets'),
+                                icon: _jsx(IconSparkle16, {}),
+                                onSelect: () => { navigation.openSettings('agentPresets'); },
+                            },
+                            {
+                                id: 'official',
+                                label: t('top.officialUi'),
+                                icon: _jsx(IconLinkOutline16, { size: 18 }),
+                                onSelect: () => { runtime.mode.set('official'); },
+                            },
+                        ] })] }), _jsx(Modal, { open: deleteTarget !== undefined, onClose: () => { if (!deleting)
                     setDeleteTarget(undefined); }, title: t('session.deleteTitle'), closeLabel: t('common.close'), description: t('session.deleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", autoFocus: true, disabled: deleting, onClick: () => { if (!deleting)
                                 setDeleteTarget(undefined); }, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: deleting, onClick: () => {
                                 const target = deleteTarget;
