@@ -79,7 +79,7 @@ export function useObservableSelector<T, S>(
 }
 
 const EMPTY_SESSION_LIST: SessionListState = {
-  ids: [], byId: {}, current: undefined, phase: 'pending',
+  ids: [], byId: {}, current: undefined, phase: 'pending', state: 'idle', error: null,
   subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 }
 

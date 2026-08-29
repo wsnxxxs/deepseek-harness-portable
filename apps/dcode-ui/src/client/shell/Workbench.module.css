@@ -46,7 +46,7 @@
    while the operator points at it or moves it from the keyboard. */
 .railResizeHandle {
   position: absolute;
-  z-index: 2;
+  z-index: var(--zx-z-sticky);
   top: 0;
   right: 0;
   bottom: 0;
@@ -166,8 +166,8 @@
 }
 
 .scroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--zx-scrollbar-size);
+  height: var(--zx-scrollbar-size);
 }
 
 .scroll::-webkit-scrollbar-thumb {
@@ -181,12 +181,11 @@
   background: transparent;
 }
 
-/* The scrim under a compact drawer. A button so the drawer is dismissible by
-   pointer and by keyboard alike; Escape and the panel's own toggle also
-   close it. */
+/* The scrim under a compact drawer. It is a pointer-only presentation layer;
+   the drawer controls and Escape provide the keyboard path. */
 .scrim {
   position: absolute;
-  z-index: 20;
+  z-index: var(--zx-z-scrim);
   inset: 0;
   padding: 0;
   border: 0;
@@ -213,7 +212,7 @@
 
 .root[data-dcode-layout='compact'] .rail {
   position: absolute;
-  z-index: 30;
+  z-index: var(--zx-z-drawer);
   top: var(--dsh-desktop-titlebar-height, 0px);
   bottom: 0;
   left: 0;
@@ -235,7 +234,7 @@
    nothing to read in. */
 .root[data-dcode-layout='compact'] .aside {
   position: absolute;
-  z-index: 30;
+  z-index: var(--zx-z-drawer);
   top: var(--dsh-desktop-titlebar-height, 0px);
   right: 0;
   bottom: 0;

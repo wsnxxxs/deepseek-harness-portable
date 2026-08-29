@@ -12,13 +12,9 @@
   align-items: center;
   gap: var(--zx-space-3);
   width: 100%;
-  min-height: 30px;
-  padding: var(--zx-space-2) var(--zx-space-3);
   border: 0;
   background: transparent;
-  color: var(--zx-label-secondary);
   font: inherit;
-  font-size: var(--zx-text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -63,7 +59,7 @@
 
 .chevron {
   flex: none;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-decor);
   transition: transform var(--zx-motion-fast);
 }
 
@@ -87,7 +83,7 @@
 }
 
 .bodyLabel {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -103,7 +99,7 @@
   color: var(--zx-label-secondary);
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-xs);
-  line-height: 1.55;
+  line-height: var(--zx-leading-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

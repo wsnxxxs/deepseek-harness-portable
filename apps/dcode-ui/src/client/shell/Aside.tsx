@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import {
   IconChecklistOutline14, IconCheckOutline14, IconCloseOutline16, IconGoalOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -200,7 +200,7 @@ function DetailsPanel({
         </div>
         {currentFile.value.binary
           ? <EmptyState>{t('git.binary')}</EmptyState>
-          : <pre className={css.pre}>{currentFile.value.text}</pre>}
+          : <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.file')}>{currentFile.value.text}</pre>}
       </section>
     )
   }
@@ -219,7 +219,7 @@ function DetailsPanel({
       </header>
       <div className={css.detailBlock}>
         <span className={css.detailLabel}>{t('details.arguments')}</span>
-        <pre className={css.pre}>{argsRaw ?? '—'}</pre>
+        <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.arguments')}>{argsRaw ?? '—'}</pre>
       </div>
       {settled
         ? (
@@ -229,7 +229,7 @@ function DetailsPanel({
               {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
             </span>
             {output === ''
-              ? <pre className={css.pre}>—</pre>
+              ? <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.output')}>—</pre>
               : <AnsiOutput text={output} wrap={wrap} />}
           </div>
         )
@@ -242,16 +242,32 @@ function DetailsPanel({
 export function Aside({ navigation, sessionId, cwd }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
+  const tabPrefix = useId()
+  const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, goal: null, details: null })
 
   const tabs: readonly { id: AsideTab; label: string }[] = [
     { id: 'changes', label: t('git.changes') },
     { id: 'goal', label: t('goal.title') },
     { id: 'details', label: t('details.title') },
   ]
+  const panelId = `${tabPrefix}-panel`
+  const moveTab = (event: React.KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
+    event.preventDefault()
+    const next = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? tabs.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    const tab = tabs[next]
+    if (tab === undefined) return
+    navigation.openAside(tab.id)
+    tabRefs.current[tab.id]?.focus()
+  }
 
   return (
     <aside className={css.aside} aria-label={t('details.title')}>
-      <header className={css.header}>
+      <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.headerTitle}>{t('aside.title')}</span>
         <button
           type="button"
@@ -263,20 +279,32 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
         </button>
       </header>
       <div className={css.tabs} role="tablist" aria-label={t('aside.title')}>
-        {tabs.map(tab => (
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
+            ref={element => { tabRefs.current[tab.id] = element }}
             type="button"
             role="tab"
+            id={`${tabPrefix}-${tab.id}`}
             aria-selected={state.aside === tab.id}
+            aria-controls={panelId}
+            tabIndex={state.aside === tab.id ? 0 : -1}
             className={`${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`}
             onClick={() => { navigation.openAside(tab.id) }}
+            onKeyDown={event => { moveTab(event, index) }}
           >
             {tab.label}
           </button>
         ))}
       </div>
-      <div className={css.body}>
+      <div
+        id={panelId}
+        className={css.body}
+        role="tabpanel"
+        tabIndex={0}
+        aria-labelledby={`${tabPrefix}-${state.aside}`}
+        aria-label={tabs.find(tab => tab.id === state.aside)?.label}
+      >
         {state.aside === 'changes'
           ? (
             <>

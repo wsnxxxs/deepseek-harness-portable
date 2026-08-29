@@ -13,14 +13,14 @@
  * @module @dsh-portable/dcode-ui/client/plugins/MarketSection
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button as PrimitiveButton, IconChevronRightOutline14, IconRefreshOutline14,
   IconRightUpOutline14, IconSearchOutline16, Modal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useT } from '../state/i18n.ts'
-import { Button, EmptyState, IconButton, Spinner } from '../shell/ui.tsx'
+import { Button, EmptyState, IconButton, Pill, Spinner } from '../shell/ui.tsx'
 import type { DcodeKey, Translate } from '../locales.ts'
 import { auditFor, type AuditLocale } from './audits.ts'
 import {
@@ -29,6 +29,7 @@ import {
 import { JobOutput, JobProgress } from './JobProgress.tsx'
 import { useOperations, type Operation } from './useJob.ts'
 import css from './PluginsHome.module.css'
+import ui from '../shell/ui.module.css'
 
 /** How long the search box waits before it asks the Host again. */
 const SEARCH_DEBOUNCE_MS = 300
@@ -114,6 +115,7 @@ function MarketCard(props: MarketCardProps): ReactNode {
     () => reviewRows(item.fullName, props.locale, t),
     [item.fullName, props.locale, t],
   )
+  const reviewId = useId()
   const running = operation?.status === 'running'
   const failed = operation?.status === 'failed'
   // A repository the Host already reports as present stays installed across a
@@ -122,16 +124,16 @@ function MarketCard(props: MarketCardProps): ReactNode {
 
   return (
     <article className={css.card}>
-      <div className={css.cardHead}>
+      <div className={`${css.cardHead} ${ui.cardHeader}`}>
         <div className={css.identity}>
           <a className={css.name} href={item.url} target="_blank" rel="noreferrer">{item.fullName}</a>
-          <span className={reviewed ? `${css.tag} ${css.tagSuccess}` : `${css.tag} ${css.tagWarn}`}>
+          <Pill className={reviewed ? css.tagSuccess : css.tagWarn}>
             {t(reviewed ? 'plugins.reviewed' : 'plugins.unreviewed')}
-          </span>
+          </Pill>
         </div>
         <div className={css.actions}>
           {installed
-            ? <span className={`${css.tag} ${css.tagSuccess}`}>{t('plugins.installed')}</span>
+            ? <Pill className={css.tagSuccess}>{t('plugins.installed')}</Pill>
             : (
               <Button
                 primary={!props.reviewOpen}
@@ -144,15 +146,16 @@ function MarketCard(props: MarketCardProps): ReactNode {
         </div>
       </div>
 
-      {item.description === ''
-        ? null
-        : <p className={css.description}>{item.description}</p>}
+      <div className={css.cardBody}>
+        {item.description === ''
+          ? null
+          : <p className={css.description}>{item.description}</p>}
 
       <div className={css.facts}>
-        <span className={css.tag}>{t('plugins.stars', { count: item.stars })}</span>
-        {item.language === '' ? null : <span className={css.tag}>{item.language}</span>}
+        <Pill>{t('plugins.stars', { count: item.stars })}</Pill>
+        {item.language === '' ? null : <Pill>{item.language}</Pill>}
         {installed && item.needsRestart
-          ? <span className={`${css.tag} ${css.tagWarn}`}>{t('plugins.pendingTag')}</span>
+          ? <Pill className={css.tagWarn}>{t('plugins.pendingTag')}</Pill>
           : null}
         {/* The description is the one field upstream writes in whatever
             language it likes, so its translation sits with the other facts
@@ -175,15 +178,19 @@ function MarketCard(props: MarketCardProps): ReactNode {
       {installed
         ? null
         : (
-          <details className={css.review} open={props.reviewOpen}>
-            <summary
+          <div className={`${css.review} ${props.reviewOpen ? css.reviewOpen : ''}`}>
+            <button
+              type="button"
               className={css.reviewSummary}
-              onClick={(event) => { event.preventDefault(); props.onToggleReview() }}
+              aria-expanded={props.reviewOpen}
+              aria-controls={reviewId}
+              onClick={props.onToggleReview}
             >
               <span className={css.reviewChevron}><IconChevronRightOutline14 /></span>
               {t('plugins.reviewOpen')}
-            </summary>
-            <div className={css.reviewBody}>
+            </button>
+            {props.reviewOpen
+              ? <div id={reviewId} className={css.reviewBody} role="region" aria-label={t('plugins.reviewOpen')}>
               <div className={css.reviewGrid}>
                 {rows.map(row => (
                   <Fragment key={row.label}>
@@ -201,8 +208,9 @@ function MarketCard(props: MarketCardProps): ReactNode {
                 </Button>
                 <span className={css.statusLine}>{t('plugins.review.note')}</span>
               </div>
-            </div>
-          </details>
+                </div>
+              : null}
+          </div>
         )}
 
       {operation === undefined
@@ -226,6 +234,7 @@ function MarketCard(props: MarketCardProps): ReactNode {
               : null}
           </>
         )}
+      </div>
     </article>
   )
 }
@@ -250,6 +259,8 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   const [reviewOpen, setReviewOpen] = useState<string | undefined>()
   const [translation, setTranslation] = useState<TranslationState | undefined>()
   const [nonce, setNonce] = useState(0)
+  const moreLoading = useRef(false)
+  const moreController = useRef<AbortController | null>(null)
   const { operations, start, cancel } = useOperations(client)
 
   useEffect(() => {
@@ -261,6 +272,10 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   // changes; further pages are appended by the button below the list.
   useEffect(() => {
     const controller = new AbortController()
+    moreController.current?.abort()
+    moreController.current = null
+    moreLoading.current = false
+    setPage(undefined)
     setLoading(true)
     setFailure(undefined)
     void client.list(query, 1, controller.signal)
@@ -269,21 +284,45 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
         if (answer.ok) setPage(answer.value)
         else setFailure(answer.error)
       })
-      .catch(() => {})
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          setFailure(cause instanceof Error ? cause.message : String(cause))
+        }
+      })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => { controller.abort() }
+    return () => {
+      controller.abort()
+      moreController.current?.abort()
+      moreController.current = null
+      moreLoading.current = false
+    }
   }, [client, query, nonce])
 
   const loadMore = useCallback(() => {
     const current = page
-    if (current === undefined || loading) return
+    if (current === undefined || loading || moreLoading.current) return
+    const controller = new AbortController()
+    moreController.current = controller
+    moreLoading.current = true
     setLoading(true)
-    void client.list(query, current.page + 1)
+    void client.list(query, current.page + 1, controller.signal)
       .then((answer) => {
+        if (controller.signal.aborted) return
         if (!answer.ok) { setFailure(answer.error); return }
-        setPage({ ...answer.value, items: [...current.items, ...answer.value.items] })
+        setFailure(undefined)
+        setPage(previous => previous === undefined
+          ? answer.value
+          : { ...answer.value, items: [...previous.items, ...answer.value.items] })
       })
-      .finally(() => { setLoading(false) })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setFailure(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        if (moreController.current !== controller) return
+        moreController.current = null
+        moreLoading.current = false
+        if (!controller.signal.aborted) setLoading(false)
+      })
   }, [client, loading, page, query])
 
   const translate = useCallback((item: MarketItem) => {
@@ -302,6 +341,10 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
           loading: false,
           ...answer.ok ? { text: answer.value } : { error: answer.error },
         })
+    }).catch((cause: unknown) => {
+      setTranslation(previous => previous?.name !== item.fullName
+        ? previous
+        : { ...previous, loading: false, error: cause instanceof Error ? cause.message : String(cause) })
     })
   }, [client])
 
@@ -348,20 +391,16 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
 
       {failure === undefined
         ? null
-        : <div className={css.error}>{t('plugins.syncFailed', { error: failure })}</div>}
+        : <div className={css.error} role="alert">{t('plugins.syncFailed', { error: failure })}</div>}
       {page?.error === undefined
         ? null
-        : <div className={css.error}>{t('plugins.syncFailed', { error: page.error })}</div>}
+        : <div className={css.error} role="alert">{t('plugins.syncFailed', { error: page.error })}</div>}
 
       {items.length === 0
         ? (
-          <EmptyState>
-            {loading
-              ? <Spinner />
-              : query === ''
-                ? t('plugins.emptyMarket')
-                : t('plugins.emptySearch', { query })}
-          </EmptyState>
+          loading
+            ? <div className={css.loadingState} role="status"><Spinner size="sm" />{t('plugins.loading')}</div>
+            : <EmptyState>{query === '' ? t('plugins.emptyMarket') : t('plugins.emptySearch', { query })}</EmptyState>
         )
         : (
           <div className={css.list}>

@@ -8,7 +8,7 @@
 
 .card {
   position: absolute;
-  z-index: 20;
+  z-index: var(--zx-z-popover);
   top: calc(var(--zx-topbar-height) + var(--zx-space-2));
   right: var(--zx-space-4);
   display: flex;
@@ -27,6 +27,18 @@
   animation: cardIn var(--zx-motion-fast) ease-out;
 }
 
+.card::-webkit-scrollbar {
+  width: var(--zx-scrollbar-size);
+  height: var(--zx-scrollbar-size);
+}
+
+.card::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-border);
+  background-clip: padding-box;
+}
+
 @keyframes cardIn {
   from {
     opacity: 0;
@@ -35,20 +47,12 @@
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-2);
   flex: none;
-  min-height: 38px;
-  padding: 0 var(--zx-space-2) 0 var(--zx-space-4);
 }
 
 .title {
   flex: 1;
   min-width: 0;
-  color: var(--zx-label);
-  font-size: var(--zx-text-sm);
-  font-weight: 600;
 }
 
 .close {
@@ -139,7 +143,7 @@
 .rowChevron {
   display: inline-flex;
   flex: none;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .truncate {

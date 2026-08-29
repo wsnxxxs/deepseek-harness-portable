@@ -96,6 +96,11 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         && !menuRef.current?.contains(target)) close(false)
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      const handled = event.key === 'Escape' || event.key === 'Tab'
+        || event.key === 'ArrowDown' || event.key === 'ArrowUp'
+        || event.key === 'Home' || event.key === 'End'
+        || event.key === 'Enter' || event.key === ' '
+      if (handled) event.stopPropagation()
       if (event.key === 'Escape') {
         event.preventDefault()
         close()
@@ -132,12 +137,12 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
     }
     const onViewportChange = (): void => { updatePosition() }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
     window.addEventListener('resize', onViewportChange)
     window.addEventListener('scroll', onViewportChange, true)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('resize', onViewportChange)
       window.removeEventListener('scroll', onViewportChange, true)
     }

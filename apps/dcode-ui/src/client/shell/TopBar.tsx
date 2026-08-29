@@ -94,6 +94,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
       <IconButton
         label={state.railOpen ? t('nav.collapse') : t('nav.expand')}
         active={state.railOpen}
+        dataFocusTarget="rail"
         onClick={() => { navigation.toggleRail() }}
       >
         <IconPanelLeftOutline16 />
@@ -167,6 +168,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
             label={t('top.toggleSummary')}
             className={css.layoutButton}
             active={state.summaryOpen}
+            dataFocusTarget="summary"
             onClick={() => { navigation.toggleSummary() }}
           >
             <TopBarListIcon size={16} />
@@ -175,6 +177,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
             label={t('top.togglePreview')}
             className={css.layoutButton}
             active={state.asideOpen}
+            dataFocusTarget="aside"
             onClick={() => { navigation.toggleAside() }}
           >
             <IconPanelLeftOutline16 className={ui.mirrored} size={14} />

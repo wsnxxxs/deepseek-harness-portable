@@ -11,7 +11,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { dcodeScope } from '../tokens.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import {
@@ -44,8 +43,6 @@ import css from './Workbench.module.css'
 export interface WorkbenchProps {
   /** The view-state store shared with the keyboard layer and the palette. */
   readonly navigation: NavigationStore
-  /** Official settings sections rendered inside the DCode settings shell. */
-  readonly renderSettingsSlot?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /**
@@ -68,7 +65,7 @@ function useCurrentCwd(sessionId: SessionId | undefined): string | undefined {
 }
 
 /** The whole modern surface. */
-export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
+export function Workbench({ navigation }: WorkbenchProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
@@ -137,6 +134,12 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
     resizeRail(next, true)
   }, [railWidth, resizeRail])
 
+  const restoreOverlayFocus = useCallback((target: 'rail' | 'aside' | 'summary') => {
+    window.requestAnimationFrame(() => {
+      frame?.querySelector<HTMLElement>(`[data-dcode-focus-target="${target}"]`)?.focus()
+    })
+  }, [frame])
+
   // A native backdrop only shows through a transparent document, and the
   // desktop shell paints an opaque page ground of its own. Clearing it is
   // scoped to this component's lifetime, so the official interface — which
@@ -201,6 +204,7 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
         navigation.togglePalette()
         return
       }
+      if (navigation.getSnapshot().paletteOpen) return
       if (meta && event.key.toLowerCase() === 'n') {
         event.preventDefault()
         newTask()
@@ -222,17 +226,27 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
         return
       }
       if (event.key === 'Escape') {
+        event.preventDefault()
         const snapshot = navigation.getSnapshot()
         if (snapshot.paletteOpen) navigation.togglePalette(false)
-        else if (snapshot.summaryOpen) navigation.toggleSummary(false)
-        else if (snapshot.diff !== undefined) navigation.closeDiff()
-        else if (snapshot.layout === 'compact' && snapshot.railOpen) navigation.closeRail()
-        else if (snapshot.layout === 'compact' && snapshot.asideOpen) navigation.toggleAside()
+        else if (snapshot.summaryOpen) {
+          navigation.toggleSummary(false)
+          restoreOverlayFocus('summary')
+        } else if (snapshot.diff !== undefined) {
+          navigation.closeDiff()
+          restoreOverlayFocus('aside')
+        } else if (snapshot.layout === 'compact' && snapshot.railOpen) {
+          navigation.closeRail()
+          restoreOverlayFocus('rail')
+        } else if (snapshot.layout === 'compact' && snapshot.asideOpen) {
+          navigation.toggleAside()
+          restoreOverlayFocus('aside')
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [navigation, newTask, openWorkspace])
+  }, [navigation, newTask, openWorkspace, restoreOverlayFocus])
 
   const fullSurface = state.view !== 'session'
   // Compact holds both side panels over the conversation instead of beside
@@ -261,7 +275,6 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
                   <SettingsSurface
                     navigation={navigation}
                     sessionId={sessionId}
-                    renderSection={renderSettingsSlot}
                   />
                 )}
           </div>
@@ -270,10 +283,9 @@ export function Workbench({ navigation, renderSettingsSlot }: WorkbenchProps) {
           <>
             {drawer
               ? (
-                <button
-                  type="button"
+                <div
                   className={css.scrim}
-                  aria-label={t('nav.dismissPanels')}
+                  role="presentation"
                   onClick={() => {
                     if (state.railOpen) navigation.closeRail()
                     if (state.asideOpen) navigation.toggleAside()

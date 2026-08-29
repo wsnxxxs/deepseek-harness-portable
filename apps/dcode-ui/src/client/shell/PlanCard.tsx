@@ -1,6 +1,6 @@
 /** The compact live plan card shown above the composer. */
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   IconCheckOutline14, IconChevronDownOutline14, IconChevronRightOutline14,
   IconChecklistOutline14, IconListPenOutline16,
@@ -14,7 +14,7 @@ import type { Translate } from '../locales.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { EMPTY_TRAJECTORY_SNAPSHOT } from '../state/runtime.ts'
 import { latestTodos } from '../chat/tools.ts'
-import { Spinner } from './ui.tsx'
+import { Spinner, ui } from './ui.tsx'
 import css from './PlanCard.module.css'
 
 export interface PlanCardProps {
@@ -103,7 +103,7 @@ function StatusMark({ status }: { status: TodoItem['status'] }) {
     return <span className={`${css.mark} ${css.markDone}`} aria-hidden><IconCheckOutline14 /></span>
   }
   if (status === 'in_progress') {
-    return <span className={`${css.mark} ${css.markActive}`} aria-hidden><Spinner /></span>
+    return <span className={`${css.mark} ${css.markActive}`} aria-hidden><Spinner size="sm" /></span>
   }
   return <span className={`${css.mark} ${css.markPending}`} aria-hidden />
 }
@@ -121,6 +121,7 @@ export function PlanCard({ sessionId, open = true, navigation }: PlanCardProps) 
     [trajectory, t],
   )
   const [collapsed, setCollapsed] = useState(false)
+  const contentId = useId()
 
   if (!open || (todos.length === 0 && traceRows.length === 0)) return null
 
@@ -131,8 +132,9 @@ export function PlanCard({ sessionId, open = true, navigation }: PlanCardProps) 
       <section className={css.card} data-testid="dcode-plan-card" aria-label={todos.length > 0 ? t('plan.title') : t('trace.title')}>
         <button
           type="button"
-          className={css.header}
+          className={`${css.header} ${ui.cardHeader}`}
           aria-expanded={!collapsed}
+          aria-controls={contentId}
           onClick={() => { setCollapsed(value => !value) }}
         >
           <span className={css.icon} aria-hidden><IconChecklistOutline14 size={16} /></span>
@@ -146,7 +148,8 @@ export function PlanCard({ sessionId, open = true, navigation }: PlanCardProps) 
             {collapsed ? <IconChevronRightOutline14 /> : <IconChevronDownOutline14 />}
           </span>
         </button>
-        {!collapsed && todos.length > 0
+        {!collapsed ? <div id={contentId}>
+          {todos.length > 0
           ? (
             <ul className={css.list}>
               {todos.map((todo, index) => (
@@ -197,6 +200,7 @@ export function PlanCard({ sessionId, open = true, navigation }: PlanCardProps) 
             </section>
           )
           : null}
+        </div> : null}
       </section>
     </div>
   )

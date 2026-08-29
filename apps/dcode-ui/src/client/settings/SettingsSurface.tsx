@@ -12,7 +12,7 @@
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14,
   IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16,
@@ -20,12 +20,12 @@ import {
   IconSkillOutline16, IconSparkle16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync, useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore, type SettingsSection } from '../state/navigation.ts'
-import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
+import { Button, EmptyState, Spinner, ui } from '../shell/ui.tsx'
+import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ThemeSwitch } from '../shell/ThemeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
@@ -42,8 +42,6 @@ import type { DcodeRuntime } from '../state/runtime.ts'
 export interface SettingsSurfaceProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
-  /** Official DSH settings section renderer supplied by the root slot. */
-  readonly renderSection?: PropsRenderSlots<'settings.section'>['renderSlot']
 }
 
 /** Rail layout: the four DSH settings pages visible in the workbench. */
@@ -143,7 +141,7 @@ function GeneralSection() {
   const theme = runtime.theme
   // ThemeRuntime emits one revision for both palette and font-size writes.
   // The appearance store carries that notification while remaining optional.
-  const themeKey = (): string => {
+  const themeKey = useCallback((): string => {
     const current = theme?.getTheme()
     return current === undefined
       ? ''
@@ -151,7 +149,7 @@ function GeneralSection() {
         current.preference ?? '', current.fontSize, current.active.id,
         ...(current.themes ?? []).map(entry => entry.id),
       ].join(':')
-  }
+  }, [theme])
   const themeState = useSyncExternalStore(
     runtime.appearance.subscribe,
     themeKey,
@@ -490,22 +488,27 @@ function ModelProviderCard(props: {
     : credentialDeclared
       ? css.statusDotMissing
       : css.statusDotNeutral
+  const editorId = `dcode-provider-editor-${props.row.id.replace(/[^a-z0-9_-]/gi, '-')}`
 
   return (
     <div className={css.providerCard}>
-      <div className={css.providerHead}>
-        <span className={`${css.statusDot} ${statusClass}`} aria-label={statusLabel} title={statusLabel} />
+      <div className={`${css.providerHead} ${ui.cardHeader}`}>
+        <span className={`${css.statusDot} ${statusClass}`} role="img" aria-label={statusLabel} title={statusLabel} />
         <div className={css.rowText}>
           <div className={css.rowTitle}>{props.row.name}</div>
           <div className={css.rowBody}>{props.row.id}{props.row.active ? '' : ` · ${t('settings.models.inactive')}`}</div>
         </div>
         {editable
-          ? <Button onClick={() => { setOpen(value => !value); setFailure(undefined) }}>{open ? t('common.close') : t('common.edit')}</Button>
+          ? <Button
+            ariaExpanded={open}
+            ariaControls={editorId}
+            onClick={() => { setOpen(value => !value); setFailure(undefined) }}
+          >{open ? t('common.close') : t('common.edit')}</Button>
           : <span className={css.badge}>{t('common.readOnly')}</span>}
       </div>
       {open
         ? (
-          <div className={css.providerEditor}>
+          <div className={css.providerEditor} id={editorId}>
             <label className={css.field}>
               <span className={css.fieldLabel}>{t('settings.models.apiKey')}</span>
               <input
@@ -640,10 +643,11 @@ function SkillsSection({ sessionId }: { sessionId: SessionId | undefined }) {
         className={css.search}
         value={query}
         placeholder={t('common.search')}
+        aria-label={t('common.search')}
         onChange={event => { setQuery(event.target.value) }}
       />
       {rows.length === 0
-        ? <EmptyState>{t('composer.noSkills')}</EmptyState>
+        ? <EmptyState>{t('settings.skillsEmpty')}</EmptyState>
         : (
           <div className={css.card}>
             {rows.map(skill => (
@@ -678,7 +682,7 @@ function CommandsSection({ sessionId }: { sessionId: SessionId | undefined }) {
   return (
     <Section title={t('settings.commands')} body={t('settings.count', { count: rows.length })}>
       {rows.length === 0
-        ? <EmptyState>{t('settings.empty')}</EmptyState>
+        ? <EmptyState>{t('settings.commandsEmpty')}</EmptyState>
         : (
           <div className={css.card}>
             {rows.map(command => (
@@ -717,7 +721,7 @@ function PluginsSection({ mcpOnly }: { mcpOnly: boolean }) {
   return (
     <Section title={mcpOnly ? t('settings.mcp') : t('settings.plugins')} body={t('settings.count', { count: rows.length })}>
       {rows.length === 0
-        ? <EmptyState>{t('settings.empty')}</EmptyState>
+        ? <EmptyState>{t('settings.inventoryEmpty')}</EmptyState>
         : (
           <div className={css.card}>
             {rows.map(entry => (
@@ -784,17 +788,6 @@ function AgentPresetsSection() {
     }
   }, [hostDefault, presets, selectedDefault])
 
-  useEffect(() => {
-    if (dialog === undefined) return undefined
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || dialogBusy) return
-      setDialog(undefined)
-      setDialogError(undefined)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [dialog, dialogBusy])
-
   const saveDefault = useCallback((id: string) => {
     if (id === defaultId || savingDefault) return
     const previous = defaultId
@@ -823,6 +816,9 @@ function AgentPresetsSection() {
     setDialogError(undefined)
     setViewContent(undefined)
   }
+
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  useModalFocus(dialog !== undefined, dialogRef, { onClose: () => { closeDialog() } })
 
   const beginCopy = (from: string): void => {
     setCopyId('')
@@ -916,7 +912,7 @@ function AgentPresetsSection() {
   return (
     <Section title={t('settings.agentPresets')} body={t('settings.agentPresetsBody')}>
       {presets.length === 0
-        ? <EmptyState>{t('settings.empty')}</EmptyState>
+        ? <EmptyState>{t('settings.presetsEmpty')}</EmptyState>
         : (
           <>
             <div className={css.card}>
@@ -973,8 +969,8 @@ function AgentPresetsSection() {
       {dialog === undefined
         ? null
         : (
-          <div className={css.dialogBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog() }}>
-            <div className={css.dialog} role="dialog" aria-modal="true" aria-labelledby="dcode-settings-dialog-title">
+          <div className={css.dialogBackdrop} role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) closeDialog() }}>
+            <div ref={dialogRef} className={css.dialog} role="dialog" aria-modal="true" aria-labelledby="dcode-settings-dialog-title" tabIndex={-1}>
               {dialog.kind === 'copy'
                 ? (
                   <>
@@ -1005,7 +1001,7 @@ function AgentPresetsSection() {
                         <div id="dcode-settings-dialog-title" className={css.dialogTitle}>{t('settings.agentPresets.view')}</div>
                         <Button onClick={closeDialog} disabled={dialogBusy}>{t('common.close')}</Button>
                       </div>
-                      {dialogBusy ? <EmptyState><Spinner /></EmptyState> : viewContent === undefined ? <div className={css.inlineError} role="alert">{dialogError ?? t('common.error')}</div> : <pre className={css.viewerCode}>{viewContent}</pre>}
+                      {dialogBusy ? <EmptyState><Spinner /></EmptyState> : viewContent === undefined ? <div className={css.inlineError} role="alert">{dialogError ?? t('common.error')}</div> : <pre className={css.viewerCode} tabIndex={0} role="region" aria-label={t('settings.agentPresets.view')}>{viewContent}</pre>}
                     </>
                   )
                   : (
@@ -1054,7 +1050,7 @@ function SubagentsSection({ sessionId }: { sessionId: SessionId | undefined }) {
   return (
     <Section title={t('settings.subagents')} body={t('settings.count', { count: members.length })}>
       {members.length === 0
-        ? <EmptyState>{t('settings.empty')}</EmptyState>
+        ? <EmptyState>{t('settings.subagentsEmpty')}</EmptyState>
         : (
           <div className={css.card}>
             {members.map(member => (
@@ -1092,23 +1088,26 @@ function NamespaceSection({ title, body, match }: { title: string; body: string;
 
   return (
     <Section title={title} body={body}>
-      {described.loading ? <EmptyState><Spinner /></EmptyState> : null}
-      {described.error !== undefined ? <EmptyState>{described.error}</EmptyState> : null}
-      {described.value?.ok === false ? <EmptyState>{described.value.error.message}</EmptyState> : null}
-      {namespaces.length === 0 && !described.loading && described.error === undefined
-        ? <EmptyState>{t('settings.empty')}</EmptyState>
-        : (
-          <div className={css.card}>
-            {namespaces.map(view => (
-              <Row
-                key={view.ns}
-                title={view.ns}
-                body={`${t('settings.namespace')} · ${view.applies}`}
-                control={<span className={css.rowMono}>{JSON.stringify(view.value)}</span>}
-              />
-            ))}
-          </div>
-        )}
+      {described.loading
+        ? <EmptyState><Spinner /></EmptyState>
+        : described.error !== undefined
+          ? <div role="alert"><EmptyState>{described.error}</EmptyState></div>
+          : described.value?.ok === false
+            ? <div role="alert"><EmptyState>{described.value.error.message}</EmptyState></div>
+            : namespaces.length === 0
+              ? <EmptyState>{t('settings.namespaceEmpty')}</EmptyState>
+              : (
+                <div className={css.card}>
+                  {namespaces.map(view => (
+                    <Row
+                      key={view.ns}
+                      title={view.ns}
+                      body={`${t('settings.namespace')} · ${view.applies}`}
+                      control={<span className={css.rowMono}>{JSON.stringify(view.value)}</span>}
+                    />
+                  ))}
+                </div>
+              )}
       {described.value?.ok === true && described.value.value.hasDocument
         ? <Button onClick={openDocument}>{t('settings.openOfficialSettings')}</Button>
         : null}
@@ -1135,7 +1134,17 @@ function UsageSection() {
     return (
       <Section title={t('settings.usage')} body={t('settings.usageBody')}>
         <div className={css.card}>
-          <div className={css.usageStatus}>{t('settings.usageLoading')}</div>
+          <div className={css.usageStatus} role="status">{t('settings.usageLoading')}</div>
+        </div>
+      </Section>
+    )
+  }
+
+  if (list.state === 'error') {
+    return (
+      <Section title={t('settings.usage')} body={t('settings.usageBody')}>
+        <div className={css.card} role="alert">
+          <div className={css.usageStatus}>{list.error?.message ?? t('settings.usageError')}</div>
         </div>
       </Section>
     )
@@ -1195,7 +1204,7 @@ function UsageSection() {
 }
 
 /** The settings rail and the selected section. */
-export function SettingsSurface({ navigation, sessionId, renderSection }: SettingsSurfaceProps) {
+export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps) {
   const t = useT()
   const state = useNavigation(navigation)
 
@@ -1214,24 +1223,19 @@ export function SettingsSurface({ navigation, sessionId, renderSection }: Settin
     usage: <IconDataOutline16 />,
   }
 
-  const official = (id: string, fallback: React.ReactNode): React.ReactNode => renderSection === undefined
-    ? fallback
-    : (
-      <div className={css.officialSection} data-dcode-settings-section={id}>
-        {renderSection('settings.section', { close: () => { navigation.show('session') } }, { only: id })}
-      </div>
-    )
-
+  // `settings.section` is declared by the official settings shell, and a slot
+  // has exactly one declarer, so the workbench cannot own a renderSlot for it.
+  // Every page below is therefore DCode's own implementation.
   const body = (): React.ReactNode => {
     switch (state.settingsSection) {
       case 'general':
       case 'appearance': return <GeneralSection />
-      case 'models': return official('models', <ModelsSection />)
+      case 'models': return <ModelsSection />
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
-      case 'plugins': return official('plugins', <PluginSettingsSection />)
+      case 'plugins': return <PluginSettingsSection />
       case 'mcp': return <PluginSettingsSection mcpOnly />
-      case 'agentPresets': return official('agent-presets', <AgentPresetsSection />)
+      case 'agentPresets': return <AgentPresetsSection />
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'memory':
@@ -1260,6 +1264,7 @@ export function SettingsSurface({ navigation, sessionId, renderSection }: Settin
                 key={item.id}
                 type="button"
                 className={`${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`}
+                aria-current={state.settingsSection === item.id ? 'page' : undefined}
                 onClick={() => { navigation.openSettings(item.id) }}
               >
                 {icons[item.id] ?? <IconFollowsystemOutline16 />}

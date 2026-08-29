@@ -6,7 +6,7 @@
   min-width: 180px;
   height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
-  border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: color-mix(in srgb, var(--zx-bg-card) 80%, transparent);
   color: var(--zx-label);
@@ -30,7 +30,7 @@
 
 .trigger:disabled {
   cursor: default;
-  opacity: 0.55;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .triggerValue {
@@ -46,7 +46,7 @@
   font-size: var(--zx-text-lg);
   line-height: 12px;
   transform: translateY(-1px);
-  transition: transform 140ms ease;
+  transition: transform var(--zx-motion-fast);
 }
 
 .chevronOpen {
@@ -55,7 +55,7 @@
 
 .menu {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--zx-z-menu);
   display: flex;
   flex-direction: column;
   max-height: min(280px, calc(100vh - 16px));
@@ -66,12 +66,11 @@
   background: color-mix(in srgb, var(--zx-bg-overlay) 82%, transparent);
   color: var(--zx-label);
   box-shadow:
-    0 18px 44px rgb(0 0 0 / 34%),
-    0 4px 12px rgb(0 0 0 / 20%),
+    var(--zx-shadow-dialog),
     inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(135%);
   backdrop-filter: blur(20px) saturate(135%);
-  animation: menuIn 120ms ease-out;
+  animation: menuIn var(--zx-motion-fast);
 }
 
 .option {
@@ -103,7 +102,7 @@
 .option:disabled {
   cursor: default;
   color: var(--zx-label-muted);
-  opacity: 0.6;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .option:focus-visible {
@@ -134,7 +133,7 @@
   flex: none;
   color: var(--zx-accent);
   font-size: var(--zx-text-md);
-  font-weight: 700;
+  font-weight: var(--zx-weight-semibold);
 }
 
 @keyframes menuIn {

@@ -3,7 +3,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  z-index: 70;
+  z-index: var(--zx-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;

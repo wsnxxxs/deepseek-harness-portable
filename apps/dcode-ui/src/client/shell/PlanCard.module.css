@@ -23,13 +23,9 @@
   align-items: center;
   gap: var(--zx-space-3);
   width: 100%;
-  min-height: 38px;
-  padding: var(--zx-space-2) var(--zx-space-3);
   border: 0;
   background: transparent;
-  color: var(--zx-label-secondary);
   font: inherit;
-  font-size: var(--zx-text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -54,7 +50,7 @@
 .title {
   flex: none;
   color: var(--zx-label);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
 }
 
 .progress {
@@ -96,7 +92,7 @@
 }
 
 .item[data-status='completed'] {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   text-decoration: line-through;
   text-decoration-color: var(--zx-border);
 }
@@ -123,18 +119,11 @@
   color: var(--zx-accent);
 }
 
-.markActive :global(.spinner) {
-  width: 13px;
-  height: 13px;
-  border-color: color-mix(in srgb, var(--zx-accent) 26%, transparent);
-  border-top-color: var(--zx-accent);
-}
-
 .markPending {
   width: 12px;
   height: 12px;
   margin: 3px 2px 0;
-  border: 1px solid var(--zx-label-faint);
+  border: 1px solid var(--zx-label-tertiary);
   border-radius: 50%;
 }
 
@@ -160,7 +149,7 @@
   gap: var(--zx-space-2);
   flex: none;
   color: var(--zx-label-secondary);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
 }
 
 .traceStats {
@@ -220,7 +209,7 @@ button.traceRow:hover {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--zx-label-faint);
+  background: var(--zx-label-tertiary);
 }
 
 .traceItem[data-status='running'] .traceDot {
@@ -248,7 +237,7 @@ button.traceRow:hover {
   flex: none;
   max-width: 42%;
   overflow: hidden;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

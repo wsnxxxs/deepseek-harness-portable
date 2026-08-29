@@ -53,7 +53,7 @@
 }
 
 .shortcut {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -214,7 +214,7 @@
 }
 
 .rowTime {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -268,7 +268,7 @@
   min-height: var(--zx-control-lg);
   padding: 0 var(--zx-space-3);
   box-sizing: border-box;
-  border: 1px solid var(--zx-border);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-raised);
   color: var(--zx-label);

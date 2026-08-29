@@ -11,7 +11,8 @@
  * @module @dsh-portable/dcode-ui/client/learning/LearningHome
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { Component, Suspense, useCallback, useMemo, useState } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
 import {
   IconChevronLeftOutline14, IconGoalOutline16, IconQuestionOutline14,
   IconSkillOutline16, IconSparkle16,
@@ -22,6 +23,7 @@ import { useRuntime } from '../state/runtime.ts'
 import { useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
+import type { Translate } from '../locales.ts'
 import { EmptyState } from '../shell/ui.tsx'
 import css from './LearningHome.module.css'
 
@@ -50,6 +52,29 @@ const MODES: readonly LearningMode[] = [
   { id: 'problem', titleKey: 'learning.problem', bodyKey: 'learning.problemBody' },
   { id: 'material', titleKey: 'learning.material', bodyKey: 'learning.materialBody' },
 ]
+
+class LearningBoundary extends Component<{ children: ReactNode; t: Translate }, { error?: string }> {
+  state: { error?: string } = {}
+
+  static getDerivedStateFromError(error: unknown): { error: string } {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+
+  componentDidCatch(_error: unknown, _info: ErrorInfo): void {
+    // The visible fallback is the recovery surface; no duplicate logging is
+    // needed here because the pack owns its own diagnostics.
+  }
+
+  render(): ReactNode {
+    return this.state.error === undefined
+      ? this.props.children
+      : (
+        <div role="alert">
+          <EmptyState>{this.props.t('learning.error', { error: this.state.error })}</EmptyState>
+        </div>
+      )
+  }
+}
 
 /** Learning entry points, the current learning session, and the vault. */
 export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) {
@@ -137,6 +162,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
               type="button"
               className={`${css.railItem} ${section === entry.id ? css.railItemActive : ''}`}
               onClick={() => { setSection(entry.id) }}
+              aria-current={section === entry.id ? 'page' : undefined}
             >
               {entry.label}
             </button>
@@ -172,7 +198,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
                     </button>
                   ))}
                 </div>
-                {failure === undefined ? null : <p className={css.note}>{failure}</p>}
+                {failure === undefined ? null : <p className={css.note} role="alert">{failure}</p>}
                 {cwd === undefined ? <p className={css.note}>{t('learning.needsWorkspace')}</p> : null}
               </>
             )
@@ -217,7 +243,11 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
                     <div className={css.library}>
                       {/* The pack's own library surface, driven by the same
                           `/interactive-learning` endpoints the classic UI uses. */}
-                      <VaultLibrary cwd={cwd} call={runtime.learningCall} t={runtime.learningT} embedded />
+                      <LearningBoundary t={t}>
+                        <Suspense fallback={<div role="status"><EmptyState>{t('learning.loading')}</EmptyState></div>}>
+                          <VaultLibrary cwd={cwd} call={runtime.learningCall} t={runtime.learningT} embedded />
+                        </Suspense>
+                      </LearningBoundary>
                     </div>
                   )}
               </>

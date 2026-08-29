@@ -11,43 +11,13 @@
 
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { IconCheckOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconCheckOutline14, IconCheckOutline16, IconCopyOutline16, writeClipboard,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './ui.module.css'
 
 /** Class names other modules compose against (they own their own layout). */
 export const ui = css
-
-/** A bordered card with an optional header row. */
-export function Card(props: {
-  title?: ReactNode
-  actions?: ReactNode
-  children?: ReactNode
-  className?: string
-}) {
-  return (
-    <section className={`${css.card} ${props.className ?? ''}`}>
-      {props.title === undefined && props.actions === undefined
-        ? null
-        : (
-          <header className={css.cardHeader}>
-            <span className={css.grow}>{props.title}</span>
-            {props.actions}
-          </header>
-        )}
-      {props.children}
-    </section>
-  )
-}
-
-/** A panel section heading with optional trailing controls. */
-export function SectionTitle(props: { children: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className={css.sectionTitle}>
-      <span>{props.children}</span>
-      {props.actions}
-    </div>
-  )
-}
 
 /** A square control that carries an icon and an accessible name. */
 export function IconButton(props: {
@@ -57,6 +27,7 @@ export function IconButton(props: {
   active?: boolean
   disabled?: boolean
   className?: string
+  dataFocusTarget?: string
 }) {
   return (
     <button
@@ -65,6 +36,7 @@ export function IconButton(props: {
       aria-label={props.label}
       aria-pressed={props.active}
       data-tooltip={props.label}
+      data-dcode-focus-target={props.dataFocusTarget}
       disabled={props.disabled}
       onClick={props.onClick}
     >
@@ -81,13 +53,21 @@ export function Button(props: {
   disabled?: boolean
   title?: string
   className?: string
+  autoFocus?: boolean
+  ariaLabel?: string
+  ariaExpanded?: boolean
+  ariaControls?: string
 }) {
   return (
     <button
       type="button"
       className={`${css.button} ${props.primary === true ? css.buttonPrimary : ''} ${props.className ?? ''}`}
       disabled={props.disabled}
+      autoFocus={props.autoFocus}
       title={props.title}
+      aria-label={props.ariaLabel}
+      aria-expanded={props.ariaExpanded}
+      aria-controls={props.ariaControls}
       onClick={props.onClick}
     >
       {props.children}
@@ -146,18 +126,56 @@ export function Popover(props: {
 }) {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const rowRefs = useRef<Record<number, HTMLButtonElement | null>>({})
+  const [active, setActive] = useState(0)
   const menuId = useId()
+  const rows = props.rows ?? []
+
+  const firstEnabled = useCallback((from: number, direction: 1 | -1): number => {
+    for (let index = from; index >= 0 && index < rows.length; index += direction) {
+      if (rows[index]?.disabled !== true) return index
+    }
+    return -1
+  }, [rows])
+
+  const close = useCallback((restoreFocus = false) => {
+    setOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (!open) return undefined
     const onPointerDown = (event: PointerEvent): void => {
-      if (anchorRef.current?.contains(event.target as Node) === true) return
-      setOpen(false)
+      if (event.target instanceof Node && anchorRef.current?.contains(event.target) === true) return
+      close()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      setOpen(false)
+      if (!(event.target instanceof Node) || anchorRef.current?.contains(event.target) !== true) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        close(true)
+        return
+      }
+      if (rows.length === 0) return
+      if (event.key === 'Enter' || event.key === ' ') {
+        const row = rows[active]
+        if (row === undefined || row.disabled === true) return
+        event.preventDefault()
+        close(true)
+        row.onSelect?.()
+        return
+      }
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp'
+        && event.key !== 'Home' && event.key !== 'End') return
+      event.preventDefault()
+      const next = event.key === 'Home'
+        ? firstEnabled(0, 1)
+        : event.key === 'End'
+          ? firstEnabled(rows.length - 1, -1)
+          : firstEnabled(active + (event.key === 'ArrowDown' ? 1 : -1), event.key === 'ArrowDown' ? 1 : -1)
+      if (next >= 0) setActive(next)
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('keydown', onKeyDown, true)
@@ -165,19 +183,29 @@ export function Popover(props: {
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('keydown', onKeyDown, true)
     }
-  }, [open])
+  }, [active, close, firstEnabled, open, rows])
+
+  useEffect(() => {
+    if (!open) return
+    setActive(firstEnabled(0, 1))
+  }, [firstEnabled, open])
+
+  useEffect(() => {
+    if (open && active >= 0) rowRefs.current[active]?.focus()
+  }, [active, open])
 
   const select = useCallback((row: MenuRow) => {
     if (row.disabled === true) return
-    setOpen(false)
+    close(true)
     row.onSelect?.()
-  }, [])
+  }, [close])
 
   let lastGroup: ReactNode
 
   return (
     <div className={css.popoverAnchor} ref={anchorRef} style={props.style}>
       <button
+        ref={triggerRef}
         type="button"
         className={`${css.iconButton} ${open ? css.iconButtonActive : ''} ${props.triggerClassName ?? ''}`}
         aria-haspopup="menu"
@@ -198,7 +226,7 @@ export function Popover(props: {
             className={`${css.popover} ${props.placement === 'down' ? css.popoverDown : css.popoverUp} ${props.align === 'end' ? css.popoverRight : ''} ${props.popoverClassName ?? ''}`}
           >
             {props.children}
-            {props.rows?.map((row) => {
+            {rows.map((row, index) => {
               const heading = row.group !== undefined && row.group !== lastGroup
                 ? <div className={css.menuLabel}>{row.group}</div>
                 : null
@@ -207,9 +235,11 @@ export function Popover(props: {
                 <Fragment key={row.id}>
                   {heading}
                   <button
+                    ref={(node) => { rowRefs.current[index] = node }}
                     type="button"
                     role="menuitem"
                     disabled={row.disabled}
+                    tabIndex={index === active ? 0 : -1}
                     className={`${css.menuItem} ${row.active === true ? css.menuItemActive : ''} ${row.danger === true ? css.menuItemDanger : ''}`}
                     onClick={() => { select(row) }}
                   >
@@ -236,6 +266,36 @@ export function EmptyState(props: { children: ReactNode }) {
 }
 
 /** An indeterminate progress mark. */
-export function Spinner() {
-  return <span className={css.spinner} aria-hidden />
+export function Spinner(props: { size?: 'sm' | 'md' } = {}) {
+  return <span className={`${css.spinner} ${props.size === 'sm' ? css.spinnerSmall : ''}`} aria-hidden />
+}
+
+/** Shared clipboard action with consistent transient success feedback. */
+export function CopyButton(props: {
+  text: string
+  label: string
+  copiedLabel: string
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = useCallback(() => {
+    if (copied) return
+    void writeClipboard(props.text).then((ok) => {
+      if (!ok) return
+      setCopied(true)
+      window.setTimeout(() => { setCopied(false) }, 1500)
+    })
+  }, [copied, props.text])
+  return (
+    <>
+      <IconButton
+        label={copied ? props.copiedLabel : props.label}
+        className={props.className}
+        onClick={copy}
+      >
+        {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
+      </IconButton>
+      {copied ? <span className={css.visuallyHidden} role="status">{props.copiedLabel}</span> : null}
+    </>
+  )
 }

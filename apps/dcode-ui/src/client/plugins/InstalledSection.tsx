@@ -17,7 +17,7 @@ import {
   Button as PrimitiveButton, IconRefreshOutline14, Modal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useT } from '../state/i18n.ts'
-import { Button, EmptyState, IconButton, Spinner } from '../shell/ui.tsx'
+import { Button, EmptyState, IconButton, Pill, Spinner } from '../shell/ui.tsx'
 import type { DcodeKey } from '../locales.ts'
 import {
   lifecycleSteps, pendingRestart,
@@ -26,6 +26,7 @@ import {
 import { JobOutput, JobProgress } from './JobProgress.tsx'
 import { useOperations, type Operation } from './useJob.ts'
 import css from './PluginsHome.module.css'
+import ui from '../shell/ui.module.css'
 
 /** Name of each lifecycle stage. */
 const STEP_NAME: Readonly<Record<LifecycleStep['id'], DcodeKey>> = {
@@ -91,7 +92,7 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
   const busy = operation?.status === 'running'
   return (
     <article className={css.card}>
-      <div className={css.cardHead}>
+      <div className={`${css.cardHead} ${ui.cardHeader}`}>
         <div className={css.identity}>
           {plugin.homepage === undefined
             ? <span className={css.name}>{plugin.name}</span>
@@ -100,17 +101,17 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
                 {plugin.name}
               </a>
             )}
-          {props.self ? <span className={`${css.tag} ${css.tagAccent}`}>{t('plugins.selfTag')}</span> : null}
+          {props.self ? <Pill className={css.tagAccent}>{t('plugins.selfTag')}</Pill> : null}
           {plugin.updateAvailable && plugin.latestVersion !== undefined
             ? (
-              <span className={`${css.tag} ${css.tagAccent}`}>
+              <Pill className={css.tagAccent}>
                 {t('plugins.updateTag', { version: plugin.latestVersion })}
-              </span>
+              </Pill>
             )
             : null}
-          {plugin.enabled ? null : <span className={`${css.tag} ${css.tagMuted}`}>{t('plugins.disabledTag')}</span>}
+          {plugin.enabled ? null : <Pill className={css.tagMuted}>{t('plugins.disabledTag')}</Pill>}
           {pendingRestart(plugin)
-            ? <span className={`${css.tag} ${css.tagWarn}`}>{t('plugins.pendingTag')}</span>
+            ? <Pill className={css.tagWarn}>{t('plugins.pendingTag')}</Pill>
             : null}
         </div>
         <div className={css.actions}>
@@ -136,16 +137,17 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
         </div>
       </div>
 
-      <div className={css.facts}>
-        <span className={css.tag}>
-          {plugin.version === undefined
-            ? t('plugins.versionUnknown')
-            : t('plugins.version', { version: plugin.version })}
-        </span>
-        {plugin.latestVersion === undefined || plugin.latestVersion === plugin.version
-          ? null
-          : <span className={css.tag}>{t('plugins.latestVersion', { version: plugin.latestVersion })}</span>}
-      </div>
+      <div className={css.cardBody}>
+        <div className={css.facts}>
+          <Pill>
+            {plugin.version === undefined
+              ? t('plugins.versionUnknown')
+              : t('plugins.version', { version: plugin.version })}
+          </Pill>
+          {plugin.latestVersion === undefined || plugin.latestVersion === plugin.version
+            ? null
+            : <Pill>{t('plugins.latestVersion', { version: plugin.latestVersion })}</Pill>}
+        </div>
 
       {plugin.description === undefined
         ? null
@@ -175,6 +177,7 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
               : null}
           </>
         )}
+      </div>
     </article>
   )
 }
@@ -219,23 +222,21 @@ export function InstalledSection(props: InstalledSectionProps): ReactNode {
 
       {props.error === undefined
         ? null
-        : <div className={css.error}>{t('plugins.readFailed', { error: props.error })}</div>}
+        : <div className={css.error} role="alert">{t('plugins.readFailed', { error: props.error })}</div>}
       {props.snapshot?.error === undefined
         ? null
-        : <div className={css.error}>{t('plugins.readFailed', { error: props.snapshot.error })}</div>}
+        : <div className={css.error} role="alert">{t('plugins.readFailed', { error: props.snapshot.error })}</div>}
 
       {plugins.length === 0
         ? (
-          <EmptyState>
-            {props.loading
-              ? <Spinner />
-              : (
-                <>
-                  {t('plugins.emptyInstalled')}
-                  <Button primary onClick={props.onBrowse}>{t('plugins.browseMarket')}</Button>
-                </>
-              )}
-          </EmptyState>
+          props.loading
+            ? <div className={css.loadingState} role="status"><Spinner size="sm" />{t('plugins.loading')}</div>
+            : (
+              <EmptyState>
+                {t('plugins.emptyInstalled')}
+                <Button primary onClick={props.onBrowse}>{t('plugins.browseMarket')}</Button>
+              </EmptyState>
+            )
         )
         : (
           <div className={css.list}>

@@ -126,6 +126,19 @@ export function useOperations(client: MarketClient): OperationRunner {
           output: job.output,
         })
         if (job.ok) onSuccess?.()
+      }).catch((cause: unknown) => {
+        if (!live.current) return
+        failures += 1
+        if (failures >= POLL_FAILURE_LIMIT) {
+          stopTimer(key)
+          put(key, {
+            status: 'failed',
+            job: undefined,
+            jobId,
+            error: cause instanceof Error ? cause.message : String(cause),
+            output: '',
+          })
+        }
       })
     }, POLL_INTERVAL_MS)
     timers.current.set(key, timer)
@@ -152,6 +165,15 @@ export function useOperations(client: MarketClient): OperationRunner {
       }
       put(key, { status: 'running', job: undefined, jobId, error: undefined, output: '' })
       poll(key, jobId, onSuccess)
+    }).catch((cause: unknown) => {
+      if (!live.current) return
+      put(key, {
+        status: 'failed',
+        job: undefined,
+        jobId: undefined,
+        error: cause instanceof Error ? cause.message : String(cause),
+        output: '',
+      })
     })
   }, [poll, put])
 

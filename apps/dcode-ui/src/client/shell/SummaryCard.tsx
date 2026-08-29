@@ -26,6 +26,7 @@ import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { latestTodos } from '../chat/tools.ts'
+import { ui } from './ui.tsx'
 import css from './SummaryCard.module.css'
 
 /** Props of the summary card. */
@@ -48,6 +49,7 @@ function Row(props: {
   label: string
   value: ReactNode
   title?: string
+  ariaLabel?: string
   onOpen?: () => void
 }) {
   const body = (
@@ -61,7 +63,7 @@ function Row(props: {
     </>
   )
   if (props.onOpen === undefined) {
-    return <div className={css.row} title={props.title}>{body}</div>
+    return <div className={css.row} title={props.title} role={props.ariaLabel === undefined ? undefined : 'note'} tabIndex={props.ariaLabel === undefined ? undefined : 0} aria-label={props.ariaLabel}>{body}</div>
   }
   return (
     <button type="button" className={`${css.row} ${css.rowAction}`} title={props.title} onClick={props.onOpen}>
@@ -97,7 +99,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
 
   return (
     <section className={css.card} aria-label={t('summary.title')}>
-      <header className={css.header}>
+      <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.title}>{t('summary.title')}</span>
         <button
           type="button"
@@ -136,6 +138,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
                   icon={<IconFolderOpenOutline16 />}
                   label={t('summary.local')}
                   title={workspace.path}
+                  ariaLabel={workspace.path}
                   value={<span className={css.truncate}>{workspace.title}</span>}
                 />
               )}

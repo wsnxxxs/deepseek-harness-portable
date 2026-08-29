@@ -1,3 +1,6 @@
+/* This page intentionally follows the official settings token domain
+   (`--dsw-alias-*`), not the DCode workbench scale; its card is mounted in the
+   classic settings shell as well as the portable surface. */
 .section {
   display: flex;
   flex-direction: column;
@@ -110,8 +113,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 560px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+:global([data-dcode-layout='compact']) .grid {
+  grid-template-columns: 1fr;
 }

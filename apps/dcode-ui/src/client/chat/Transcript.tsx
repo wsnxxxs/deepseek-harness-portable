@@ -10,11 +10,14 @@
  * @module @dsh-portable/dcode-ui/client/chat/Transcript
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  IconCheckOutline16, IconCloseFill14, IconCloseOutline16, IconDownloadOutline16,
-  IconEditOutline16, IconPaperclipOutline16, IconSendOutline14, IconThinkOutline14,
-  IconTrashOutline16, IconWarningOutline16, MarkdownText,
+  IconBranchOutline16, IconCheckOutline16, IconCloseFill14, IconCloseOutline16,
+  IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconLikeOutline16,
+  IconPaperclipOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
+  IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -31,7 +34,8 @@ import { useChatSnapshot, useSessionSnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
-import { Button, EmptyState } from '../shell/ui.tsx'
+import { Button, CopyButton, Spinner } from '../shell/ui.tsx'
+import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
 import { changedPaths, messageText, splitTurns } from './tools.ts'
@@ -50,18 +54,190 @@ export interface TranscriptProps {
   readonly blank: boolean
 }
 
+type FeedbackRating = 'positive' | 'negative'
+
+interface FeedbackItem {
+  readonly messageId: string
+  readonly rating: FeedbackRating
+  readonly version: string
+}
+
+interface FeedbackFailure {
+  readonly code?: string
+  readonly message?: string
+}
+
+type FeedbackBusinessResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: FeedbackFailure }
+
+type FeedbackCarrier<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: FeedbackFailure }
+
+interface MessageFeedbackRemote {
+  list(request: { sessionId: SessionId }): Promise<FeedbackCarrier<FeedbackBusinessResult<{ items: readonly FeedbackItem[] }>>>
+  put(request: {
+    sessionId: SessionId
+    messageId: string
+    rating: FeedbackRating
+    ifVersion: string | null
+  }): Promise<FeedbackCarrier<FeedbackBusinessResult<FeedbackItem>>>
+  delete(request: {
+    sessionId: SessionId
+    messageId: string
+    ifVersion: string
+  }): Promise<FeedbackCarrier<FeedbackBusinessResult<{ absent: true }>>>
+}
+
+interface MessageFeedbackState {
+  readonly enabled: boolean
+  readonly items: ReadonlyMap<string, FeedbackItem>
+  readonly pending: ReadonlySet<string>
+  readonly error: string | undefined
+  toggle(messageId: string, rating: FeedbackRating): Promise<string | undefined>
+}
+
+function feedbackError(error: FeedbackFailure | undefined): Error {
+  return new Error(error?.message ?? error?.code ?? 'feedback request failed')
+}
+
+/** Read and mutate the durable feedback sidecar shared by assistant rows. */
+function useMessageFeedback(sessionId: SessionId | undefined): MessageFeedbackState {
+  const runtime = useRuntime()
+  const remote = (runtime.remote as unknown as { messageFeedback?: MessageFeedbackRemote }).messageFeedback
+  const [items, setItems] = useState<ReadonlyMap<string, FeedbackItem>>(() => new Map())
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set())
+  const [error, setError] = useState<string | undefined>(undefined)
+  const itemsRef = useRef<ReadonlyMap<string, FeedbackItem>>(new Map())
+  const pendingRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    let live = true
+    const empty = new Map<string, FeedbackItem>()
+    itemsRef.current = empty
+    setItems(empty)
+    setError(undefined)
+    if (sessionId === undefined || remote === undefined) return () => { live = false }
+    void remote.list({ sessionId }).then((carried) => {
+      if (!live) return
+      if (!carried.ok) throw feedbackError(carried.error)
+      const result = carried.value
+      if (!result.ok) throw feedbackError(result.error)
+      const next = new Map(result.value.items.map(item => [item.messageId, item]))
+      itemsRef.current = next
+      setItems(next)
+    }).catch((cause: unknown) => {
+      if (!live) return
+      setError(cause instanceof Error ? cause.message : String(cause))
+    })
+    return () => { live = false }
+  }, [remote, sessionId])
+
+  const toggle = useCallback(async (messageId: string, rating: FeedbackRating): Promise<string | undefined> => {
+    if (sessionId === undefined || remote === undefined || pendingRef.current.has(messageId)) return undefined
+    pendingRef.current.add(messageId)
+    setPending(new Set(pendingRef.current))
+    setError(undefined)
+    const current = itemsRef.current.get(messageId)
+    try {
+      if (current?.rating === rating) {
+        const carried = await remote.delete({ sessionId, messageId, ifVersion: current.version })
+        if (!carried.ok) throw feedbackError(carried.error)
+        if (!carried.value.ok) throw feedbackError(carried.value.error)
+        const next = new Map(itemsRef.current)
+        next.delete(messageId)
+        itemsRef.current = next
+        setItems(next)
+      } else {
+        const carried = await remote.put({
+          sessionId,
+          messageId,
+          rating,
+          ifVersion: current?.version ?? null,
+        })
+        if (!carried.ok) throw feedbackError(carried.error)
+        if (!carried.value.ok) throw feedbackError(carried.value.error)
+        const next = new Map(itemsRef.current)
+        next.set(messageId, carried.value.value)
+        itemsRef.current = next
+        setItems(next)
+      }
+      return undefined
+    } catch (cause: unknown) {
+      return cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      pendingRef.current.delete(messageId)
+      setPending(new Set(pendingRef.current))
+    }
+  }, [remote, sessionId])
+
+  return { enabled: remote !== undefined, items, pending, error, toggle }
+}
+
+/** Click-to-expand image viewer for durable and local message images. */
+function ImageLightbox(props: { src: string; alt: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const close = useCallback(() => { setOpen(false) }, [])
+  useModalFocus(open, panelRef, { onClose: close })
+  return (
+    <>
+      <button
+        type="button"
+        className={css.imageButton}
+        aria-label={t('chat.image.open')}
+        onClick={() => { setOpen(true) }}
+      >
+        <img className={css.messageImage} src={props.src} alt={props.alt} />
+      </button>
+      {open
+        ? createPortal(
+          <div
+            className={css.lightboxBackdrop}
+            onPointerDown={event => { if (event.target === event.currentTarget) close() }}
+          >
+            <div
+              ref={panelRef}
+              className={css.lightbox}
+              role="dialog"
+              aria-modal="true"
+              aria-label={props.alt}
+              tabIndex={-1}
+            >
+              <button type="button" className={css.lightboxClose} aria-label={t('chat.image.close')} onClick={close}>
+                <IconCloseFill14 />
+              </button>
+              <img className={css.lightboxImage} src={props.src} alt={props.alt} />
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
+    </>
+  )
+}
+
 /** Reasoning text, folded by default. */
 function Reasoning({ text }: { text: string }) {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const panelId = useId()
   return (
     <div className={css.reasoning}>
-      <button type="button" className={css.reasoningHead} onClick={() => { setOpen(value => !value) }}>
+      <button
+        type="button"
+        className={css.reasoningHead}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => { setOpen(value => !value) }}
+      >
         <IconThinkOutline14 />
         {t('chat.reasoning')}
         <span aria-hidden>{open ? '▾' : '▸'}</span>
       </button>
-      {open ? <div>{text}</div> : null}
+      {open ? <div id={panelId} role="region">{text}</div> : null}
     </div>
   )
 }
@@ -89,7 +265,7 @@ function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachment
 
   return src === undefined
     ? <span className={css.attachmentPlaceholder}>{props.attachment.name ?? 'image'}</span>
-    : <img className={css.messageImage} src={src} alt={props.attachment.name ?? 'image'} />
+    : <ImageLightbox src={src} alt={props.attachment.name ?? 'image'} />
 }
 
 /** One durable file reference which can be downloaded from the same session. */
@@ -134,8 +310,7 @@ function MessageAttachments(props: {
   return (
     <div className={css.messageAttachments}>
       {props.previews?.map((image, index) => (
-        <img
-          className={css.messageImage}
+        <ImageLightbox
           key={`${image.previewUrl}:${String(index)}`}
           src={image.previewUrl}
           alt={image.name ?? 'image'}
@@ -213,10 +388,107 @@ function Stats({ node }: { node: AssistantMessageNode }) {
   const model = node.provenance?.model
   if (total === undefined && model === undefined) return null
   return (
-    <div className={css.stats}>
+    <div className={css.stats} role="status" aria-live="polite">
       {model === undefined ? null : <span>{model}</span>}
       {total === undefined ? null : <span>{t('chat.tokens', { count: total })}</span>}
       {node.interrupted === true ? <span>{t('chat.interrupted')}</span> : null}
+    </div>
+  )
+}
+
+function assistantText(blocks: readonly AssistantBlock[]): string {
+  return blocks.flatMap(block => block.kind === 'text' ? [block.text] : []).join('')
+}
+
+/** Copy, feedback, and branch actions for one settled assistant answer. */
+function AssistantActions(props: {
+  sessionId: SessionId
+  node: AssistantMessageNode
+  feedback: MessageFeedbackState
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const [branching, setBranching] = useState(false)
+  const [branchError, setBranchError] = useState<string | undefined>(undefined)
+  const [feedbackError, setFeedbackError] = useState<string | undefined>(undefined)
+  const text = assistantText(props.node.blocks)
+  const messageId = props.node.messageId === undefined ? undefined : String(props.node.messageId)
+  const item = messageId === undefined ? undefined : props.feedback.items.get(messageId)
+  const pending = messageId === undefined ? false : props.feedback.pending.has(messageId)
+
+  const branch = useCallback(async () => {
+    if (branching) return
+    setBranching(true)
+    setBranchError(undefined)
+    try {
+      const child = await runtime.sessions.fork({
+        sessionId: props.sessionId,
+        atSeq: props.node.seq,
+        increaseTitle: true,
+      })
+      runtime.sessions.open(child)
+    } catch (cause: unknown) {
+      setBranchError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBranching(false)
+    }
+  }, [branching, props.node.seq, props.sessionId, runtime])
+
+  const rate = useCallback((rating: FeedbackRating) => {
+    if (messageId === undefined) return
+    setFeedbackError(undefined)
+    void props.feedback.toggle(messageId, rating).then((failure) => {
+      if (failure !== undefined) setFeedbackError(failure)
+    })
+  }, [messageId, props.feedback])
+
+  return (
+    <div className={css.messageActions}>
+      {text === '' ? null : (
+        <CopyButton
+          text={text}
+          label={t('chat.message.copy')}
+          copiedLabel={t('chat.message.copied')}
+          className={css.messageAction}
+        />
+      )}
+      {props.feedback.enabled && messageId !== undefined
+        ? (
+          <>
+            <button
+              type="button"
+              className={`${css.messageAction} ${item?.rating === 'positive' ? css.messageActionActive : ''}`}
+              aria-label={t('chat.feedback.positive')}
+              aria-pressed={item?.rating === 'positive'}
+              disabled={pending}
+              onClick={() => { rate('positive') }}
+            >
+              <IconLikeOutline16 />
+            </button>
+            <button
+              type="button"
+              className={`${css.messageAction} ${item?.rating === 'negative' ? css.messageActionActive : ''}`}
+              aria-label={t('chat.feedback.negative')}
+              aria-pressed={item?.rating === 'negative'}
+              disabled={pending}
+              onClick={() => { rate('negative') }}
+            >
+              <IconDislikeOutline16 />
+            </button>
+          </>
+        )
+        : null}
+      <button
+        type="button"
+        className={css.messageAction}
+        aria-label={t('chat.message.branch')}
+        disabled={branching}
+        onClick={() => { void branch() }}
+      >
+        {branching ? <Spinner size="sm" /> : <IconBranchOutline16 />}
+      </button>
+      {branchError === undefined ? null : <span className={css.actionError} role="alert">{t('chat.message.branchFailed', { error: branchError })}</span>}
+      {feedbackError === undefined ? null : <span className={css.actionError} role="alert">{t('chat.feedback.failed', { error: feedbackError })}</span>}
     </div>
   )
 }
@@ -227,6 +499,7 @@ function Node(props: {
   node: ConversationNode
   labels: MarkdownLabels
   onInspect: (callId: string) => void
+  feedback: MessageFeedbackState
 }) {
   const t = useT()
   const { node } = props
@@ -239,6 +512,7 @@ function Node(props: {
       return (
         <div>
           <AssistantBlocks sessionId={props.sessionId} blocks={node.blocks} streaming={false} labels={props.labels} />
+          <AssistantActions sessionId={props.sessionId} node={node} feedback={props.feedback} />
           <Stats node={node} />
         </div>
       )
@@ -265,7 +539,7 @@ function Node(props: {
       return <div className={`${css.notice} ${css.noticeWarn}`}><IconWarningOutline16 />{t('chat.maxTokens')}</div>
     case 'turn-error':
       return (
-        <div className={`${css.notice} ${css.noticeError}`}>
+        <div className={`${css.notice} ${css.noticeError}`} role="alert">
           <IconWarningOutline16 />
           {node.message === '' ? node.code ?? t('common.error') : node.message}
         </div>
@@ -379,7 +653,7 @@ function QueuedMessageRow(props: {
             </>
           )}
       </div>
-      {error === undefined ? null : <span className={css.queueError}>{error}</span>}
+      {error === undefined ? null : <span className={css.queueError} role="alert">{error}</span>}
     </div>
   )
 }
@@ -401,6 +675,39 @@ function dynamicGreetingKey(): DcodeKey {
   return 'chat.empty.evening'
 }
 
+/** Compact index for jumping between loaded conversation turns. */
+function TurnNavigator(props: {
+  turns: readonly (readonly ConversationNode[])[]
+  scrollerRef: RefObject<HTMLDivElement | null>
+}) {
+  const t = useT()
+  const [active, setActive] = useState(0)
+  if (props.turns.length < 2) return null
+  return (
+    <nav className={css.turnNavigator} aria-label={t('chat.turnNavigation.label')}>
+      {props.turns.map((_turn, index) => (
+        <button
+          type="button"
+          key={index}
+          className={css.turnButton}
+          aria-label={t('chat.turnNavigation.turn', { count: index + 1 })}
+          aria-current={active === index ? 'true' : undefined}
+          onClick={() => {
+            const target = props.scrollerRef.current?.querySelector<HTMLElement>(`[data-turn-index="${String(index)}"]`)
+            target?.scrollIntoView({
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+              block: 'start',
+            })
+            setActive(index)
+          }}
+        >
+          {index + 1}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 /** The scrolling conversation, its turn summaries and its streaming tail. */
 export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProps) {
   const runtime = useRuntime()
@@ -408,6 +715,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
   const chat = useChatSnapshot(sessionId)
   const session = useSessionSnapshot(sessionId)
   const git = useGitStatus(cwd, sessionId)
+  const feedback = useMessageFeedback(sessionId)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
 
@@ -452,8 +760,12 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
     )
   }
 
+  if (chat === undefined && !blank) {
+    return <div className={css.loadingState} role="status"><Spinner size="sm" />{t('chat.loading')}</div>
+  }
+
   return (
-    <div className={css.scroller} ref={scrollerRef}>
+    <div className={css.scroller} ref={scrollerRef} tabIndex={0} role="region" aria-label={t('chat.transcript')}>
       {blank
         ? (
           // Bottom-aligned rather than centred: the frame is already holding
@@ -467,7 +779,15 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
           </div>
         )
         : (
-          <div className={css.flow}>
+          <>
+            <TurnNavigator turns={turns} scrollerRef={scrollerRef} />
+            <div className={css.flow}>
+            {feedback.error === undefined ? null : (
+              <div className={`${css.notice} ${css.noticeError}`} role="alert">
+                <IconWarningOutline16 />
+                {t('chat.feedback.failed', { error: feedback.error })}
+              </div>
+            )}
             {session?.hasMore === true
               ? (
                 <Button
@@ -484,7 +804,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               const paths = changedPaths(turn)
               const last = turnIndex === turns.length - 1
               return (
-                <div className={css.turn} key={turn[0]?.seq ?? turnIndex}>
+                <div className={css.turn} key={turn[0]?.seq ?? turnIndex} data-turn-index={turnIndex}>
                   {turn.map(node => (
                     <Node
                       sessionId={sessionId}
@@ -492,6 +812,7 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
                       node={node}
                       labels={labels}
                       onInspect={callId => { navigation.inspect(callId) }}
+                      feedback={feedback}
                     />
                   ))}
                   {/* The summary closes a turn only once it has settled; a
@@ -524,12 +845,12 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
               : (
                 <div>
                   <AssistantBlocks sessionId={sessionId} blocks={partial.blocks} streaming labels={labels} />
-                  <span className={css.streamingDot} aria-label={t('chat.thinking')} />
+                  <span className={css.streamingDot} role="status" aria-label={t('chat.thinking')} />
                 </div>
               )}
 
             {session?.running === true && partial === null && runningCalls.length === 0
-              ? <div className={css.stats}>{t('chat.thinking')}<span className={css.streamingDot} /></div>
+              ? <div className={css.stats} role="status" aria-live="polite">{t('chat.thinking')}<span className={css.streamingDot} /></div>
               : null}
 
             {session?.pendingSubmissions.map(submission => (
@@ -554,14 +875,14 @@ export function Transcript({ navigation, sessionId, cwd, blank }: TranscriptProp
             {session?.lastAgentError === null || session?.lastAgentError === undefined
               ? null
               : (
-                <div className={`${css.notice} ${css.noticeError}`}>
+                <div className={`${css.notice} ${css.noticeError}`} role="alert">
                   <IconWarningOutline16 />
                   {session.lastAgentError}
                 </div>
               )}
-          </div>
+            </div>
+          </>
         )}
-      {chat === undefined && !blank ? <EmptyState>{t('chat.loading')}</EmptyState> : null}
     </div>
   )
 }

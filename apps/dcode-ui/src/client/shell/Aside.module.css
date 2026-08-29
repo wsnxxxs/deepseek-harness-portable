@@ -9,12 +9,7 @@
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-2);
   flex: none;
-  min-height: 42px;
-  padding: 0 var(--zx-space-2) 0 var(--zx-space-4);
 }
 
 .headerClose {
@@ -45,9 +40,6 @@
 .headerTitle {
   flex: 1;
   min-width: 0;
-  color: var(--zx-label-secondary);
-  font-size: var(--zx-text-sm);
-  font-weight: 600;
 }
 
 .tabs {
@@ -97,7 +89,7 @@
 }
 
 .body::-webkit-scrollbar {
-  width: 10px;
+  width: var(--zx-scrollbar-size);
 }
 
 .body::-webkit-scrollbar-thumb {
@@ -119,7 +111,7 @@
   gap: var(--zx-space-2);
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .goal {
@@ -142,7 +134,7 @@
 
 .goalMeta {
   margin-top: var(--zx-space-1);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -158,7 +150,7 @@
 }
 
 .stepDone {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   text-decoration: line-through;
   text-decoration-color: var(--zx-border);
 }
@@ -170,7 +162,7 @@
 .stepMark {
   flex: none;
   margin-top: 2px;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-decor);
 }
 
 .stepMarkDone {
@@ -193,7 +185,7 @@
 }
 
 .stepPending {
-  border: 1px solid var(--zx-label-faint);
+  border: 1px solid var(--zx-label-tertiary);
 }
 
 @keyframes zx-step-spin {
@@ -214,7 +206,7 @@
 }
 
 .detailLabel {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -232,7 +224,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--zx-space-2);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -248,7 +240,13 @@
   color: var(--zx-label-secondary);
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-xs);
-  line-height: 1.55;
+  line-height: var(--zx-leading-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepProgress {
+    animation: none;
+  }
 }

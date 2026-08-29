@@ -12,7 +12,9 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
+  min-height: var(--zx-control-lg);
   padding: var(--zx-space-3) var(--zx-space-4);
+  font-weight: var(--zx-weight-medium);
   font-size: var(--zx-text-xs);
   color: var(--zx-label-secondary);
 }
@@ -28,7 +30,7 @@
   gap: var(--zx-space-3);
   padding: var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);
   font-size: var(--zx-text-xs);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
   color: var(--zx-label-secondary);
   letter-spacing: 0.02em;
 }
@@ -57,19 +59,19 @@
 
 .tooltipTarget::after {
   position: absolute;
-  z-index: 90;
+  z-index: var(--zx-z-tooltip);
   top: calc(100% + 6px);
   left: 50%;
   max-width: 240px;
   padding: 5px 8px;
-  border: 1px solid var(--zx-border);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-sm);
   background: var(--zx-bg-overlay);
   box-shadow: var(--zx-shadow-panel);
   color: var(--zx-label);
   content: attr(data-tooltip);
   font-size: var(--zx-text-micro);
-  font-weight: 400;
+  font-weight: var(--zx-weight-normal);
   line-height: var(--zx-leading-tight);
   pointer-events: none;
   opacity: 0;
@@ -92,7 +94,7 @@
 }
 
 .iconButton:disabled {
-  opacity: 0.45;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 
@@ -113,7 +115,7 @@
   gap: var(--zx-space-2);
   height: var(--zx-control-sm);
   padding: 0 var(--zx-space-4);
-  border: 1px solid var(--zx-border);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-raised);
   color: var(--zx-label);
@@ -129,7 +131,7 @@
 }
 
 .button:disabled {
-  opacity: 0.45;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 
@@ -152,7 +154,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--zx-space-1);
-  height: 20px;
+  height: var(--zx-control-2xs);
   padding: 0 var(--zx-space-2);
   border-radius: var(--zx-radius-pill);
   background: var(--zx-bg-raised);
@@ -205,7 +207,7 @@
 
 .popover {
   position: absolute;
-  z-index: 40;
+  z-index: var(--zx-z-popover);
   min-width: 200px;
   max-width: 340px;
   max-height: 60vh;
@@ -216,8 +218,7 @@
   background: var(--zx-bg-overlay);
   background: color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);
   box-shadow:
-    0 16px 38px rgb(0 0 0 / 30%),
-    0 3px 9px rgb(0 0 0 / 18%),
+    var(--zx-shadow-popover),
     inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(130%);
   backdrop-filter: blur(20px) saturate(130%);
@@ -304,7 +305,7 @@
 
 .menuLabel {
   padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
 }
 
@@ -325,8 +326,8 @@
 }
 
 .scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--zx-scrollbar-size);
+  height: var(--zx-scrollbar-size);
 }
 
 .scroll::-webkit-scrollbar-thumb {
@@ -343,12 +344,29 @@
 
 .spinner {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: var(--zx-spinner-md);
+  height: var(--zx-spinner-md);
   border: 1.5px solid var(--zx-border);
   border-top-color: var(--zx-label-secondary);
   border-radius: 50%;
   animation: zx-spin 700ms linear infinite;
+}
+
+.spinnerSmall {
+  width: var(--zx-spinner-sm);
+  height: var(--zx-spinner-sm);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes zx-spin {

@@ -26,7 +26,17 @@ export function ModelUsageSection({ useSessions, t }: ModelUsageSectionProps): R
       <section className={css.section}>
         <h2 className={css.title}>{t('settings.modelUsage')}</h2>
         <p className={css.intro}>{t('settings.modelUsageBody')}</p>
-        <div className={css.status}>{t('settings.usageLoading')}</div>
+        <div className={css.status} role="status">{t('settings.usageLoading')}</div>
+      </section>
+    )
+  }
+
+  if (list.state === 'error') {
+    return (
+      <section className={css.section}>
+        <h2 className={css.title}>{t('settings.modelUsage')}</h2>
+        <p className={css.intro}>{t('settings.modelUsageBody')}</p>
+        <div className={css.status} role="alert">{list.error?.message ?? t('settings.usageError')}</div>
       </section>
     )
   }

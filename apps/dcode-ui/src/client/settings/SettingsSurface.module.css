@@ -2,6 +2,7 @@
 
 .surface {
   display: grid;
+  position: relative;
   grid-template-columns: 240px 1fr;
   width: 100%;
   min-width: 0;
@@ -43,7 +44,7 @@
 
 .group {
   padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-1);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
 }
 
@@ -98,7 +99,7 @@
 
 .title {
   font-size: var(--zx-text-2xl);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
   color: var(--zx-label);
 }
 
@@ -138,7 +139,7 @@
   color: var(--zx-label);
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-2xl);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
   line-height: 1.1;
 }
 
@@ -173,7 +174,7 @@
   color: var(--zx-label);
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-lg);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -184,10 +185,12 @@
   font-size: var(--zx-text-xs);
 }
 
-@media (min-width: 680px) {
-  .usageGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.usageGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+:global([data-dcode-layout='compact']) .usageGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .card {
@@ -280,7 +283,7 @@
   height: var(--zx-control-sm);
   min-width: 140px;
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-panel);
   color: var(--zx-label);
@@ -292,7 +295,7 @@
   width: 84px;
   height: var(--zx-control-sm);
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-panel);
   color: var(--zx-label);
@@ -305,7 +308,7 @@
   display: inline-flex;
   align-items: center;
   height: var(--zx-control-md);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   overflow: hidden;
@@ -330,7 +333,7 @@
 
 .stepperButton:disabled {
   cursor: default;
-  opacity: 0.4;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .stepperButton:focus-visible {
@@ -350,7 +353,7 @@
   width: 100%;
   height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label);
@@ -365,7 +368,7 @@
 }
 
 .badge {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
 }
@@ -384,11 +387,8 @@
 }
 
 .providerHead {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-3);
   min-width: 0;
-  padding: var(--zx-space-4) var(--zx-space-5);
+  flex: none;
 }
 
 .statusDot {
@@ -396,7 +396,7 @@
   height: 8px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--zx-label-faint);
+  background: var(--zx-label-tertiary);
 }
 
 .statusDotGood {
@@ -405,12 +405,12 @@
 }
 
 .statusDotMissing {
-  background: var(--zx-warning, #d9a441);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-warning, #d9a441) 14%, transparent);
+  background: var(--zx-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-warn) 14%, transparent);
 }
 
 .statusDotNeutral {
-  background: var(--zx-label-faint);
+  background: var(--zx-label-tertiary);
 }
 
 .providerEditor {
@@ -438,7 +438,7 @@
   height: var(--zx-control-md);
   box-sizing: border-box;
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label);
@@ -453,7 +453,7 @@
 }
 
 .fieldInput:disabled {
-  opacity: 0.55;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .editorActions {
@@ -472,14 +472,14 @@
 }
 
 .dialogBackdrop {
-  position: fixed;
-  z-index: 80;
+  position: absolute;
+  z-index: var(--zx-z-dialog);
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--zx-space-6);
-  background: rgb(0 0 0 / 42%);
+  background: var(--zx-scrim);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
 }
@@ -495,7 +495,7 @@
   border: 1px solid var(--zx-border);
   border-radius: var(--zx-radius-lg);
   background: var(--zx-bg-overlay);
-  box-shadow: var(--zx-shadow-card), 0 18px 48px rgb(0 0 0 / 28%);
+  box-shadow: var(--zx-shadow-dialog);
   overflow: hidden auto;
 }
 
@@ -509,7 +509,7 @@
 .dialogTitle {
   color: var(--zx-label);
   font-size: var(--zx-text-lg);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .dialogBody {
@@ -610,10 +610,8 @@
 }
 
 .pluginCardHeader {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--zx-space-4);
-  padding: var(--zx-space-4) var(--zx-space-5);
+  min-width: 0;
+  flex: none;
 }
 
 .pluginCardHeader > .badge {
@@ -643,7 +641,7 @@
 }
 
 .resetButton {
-  height: 22px;
+  min-height: var(--zx-control-xs);
   padding: 0 var(--zx-space-2);
   color: var(--zx-label-muted);
   font-size: var(--zx-text-micro);
@@ -659,10 +657,10 @@
 .switch {
   position: relative;
   width: 38px;
-  height: 22px;
+  height: var(--zx-control-xs);
   flex: 0 0 auto;
   padding: 2px;
-  border: 1px solid var(--zx-border);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-pill);
   background: var(--zx-bg-raised);
   cursor: pointer;
@@ -676,7 +674,7 @@
 
 .switch:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .switchThumb {
@@ -802,25 +800,23 @@
 
 .notice {
   padding: var(--zx-space-3) var(--zx-space-4);
-  border: 1px solid color-mix(in srgb, var(--zx-warning, #d9a441) 35%, var(--zx-border-soft));
+  border: 1px solid color-mix(in srgb, var(--zx-warn) 35%, var(--zx-border-soft));
   border-radius: var(--zx-radius-md);
-  background: color-mix(in srgb, var(--zx-warning, #d9a441) 8%, var(--zx-bg-card));
+  background: color-mix(in srgb, var(--zx-warn) 8%, var(--zx-bg-card));
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
   line-height: var(--zx-leading-body);
 }
 
-@media (max-width: 560px) {
-  .providerHead {
-    align-items: flex-start;
-  }
+:global([data-dcode-layout='compact']) .providerHead {
+  align-items: flex-start;
+}
 
-  .providerHead > button {
-    flex: 0 0 auto;
-  }
+:global([data-dcode-layout='compact']) .providerHead > button {
+  flex: 0 0 auto;
+}
 
-  .presetActions {
-    align-items: flex-end;
-    flex-direction: column;
-  }
+:global([data-dcode-layout='compact']) .presetActions {
+  align-items: flex-end;
+  flex-direction: column;
 }

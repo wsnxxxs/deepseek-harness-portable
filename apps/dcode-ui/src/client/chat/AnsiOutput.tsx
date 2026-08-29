@@ -9,9 +9,10 @@
  * @module @dsh-portable/dcode-ui/client/chat/AnsiOutput
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useT } from '../state/i18n.ts'
 import { hasAnsi, parseAnsi, stripAnsi, type AnsiSpan } from './ansi.ts'
+import { CopyButton } from '../shell/ui.tsx'
 import css from './AnsiOutput.module.css'
 
 /** Props of the output block. */
@@ -28,7 +29,7 @@ function spanStyle(span: AnsiSpan): React.CSSProperties | undefined {
   const style: React.CSSProperties = {}
   if (span.fg !== undefined) style.color = span.fg
   if (span.bg !== undefined) style.background = span.bg
-  if (span.bold === true) style.fontWeight = 600
+  if (span.bold === true) style.fontWeight = 'var(--zx-weight-semibold)'
   if (span.dim === true) style.opacity = 0.65
   if (span.italic === true) style.fontStyle = 'italic'
   if (span.underline === true || span.strike === true) {
@@ -58,7 +59,12 @@ export function AnsiOutput({ text, wrap, className }: AnsiOutputProps) {
     ))
 
   return (
-    <pre className={`${css.output} ${wrap ? css.wrap : css.nowrap} ${className ?? ''}`}>
+    <pre
+      className={`${css.output} ${wrap ? css.wrap : css.nowrap} ${className ?? ''}`}
+      tabIndex={0}
+      role="region"
+      aria-label={t('details.output')}
+    >
       {body}
       {document?.truncated === true ? <span className={css.truncated}>{`\n${t('chat.outputTruncated')}`}</span> : null}
     </pre>
@@ -80,19 +86,6 @@ export interface OutputToolbarProps {
  */
 export function OutputToolbar({ text, wrap, onWrap }: OutputToolbarProps) {
   const t = useT()
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!copied) return undefined
-    const timer = setTimeout(() => { setCopied(false) }, 1400)
-    return () => { clearTimeout(timer) }
-  }, [copied])
-
-  const copy = useCallback(() => {
-    void navigator.clipboard?.writeText(stripAnsi(text))
-      .then(() => { setCopied(true) })
-      .catch(() => { setCopied(false) })
-  }, [text])
 
   return (
     <span className={css.toolbar}>
@@ -104,9 +97,11 @@ export function OutputToolbar({ text, wrap, onWrap }: OutputToolbarProps) {
       >
         {t('chat.wrap')}
       </button>
-      <button type="button" className={css.action} onClick={copy}>
-        {copied ? t('common.copied') : t('common.copy')}
-      </button>
+      <CopyButton
+        text={stripAnsi(text)}
+        label={t('common.copy')}
+        copiedLabel={t('common.copied')}
+      />
     </span>
   )
 }

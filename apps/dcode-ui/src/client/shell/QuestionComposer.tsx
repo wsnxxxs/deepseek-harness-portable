@@ -1,6 +1,6 @@
 /** Codex-style composer takeover for ask-user-question and plan review waits. */
 
-import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import {
   IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14,
   IconChecklistOutline14, IconCloseOutline16, IconEditOutline16,
@@ -102,7 +102,13 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
   })))
   const [busy, setBusy] = useState<'answer' | 'cancel' | null>(null)
   const [error, setError] = useState<string | undefined>()
+  const optionRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const question = questions[index]
+  const hasOptions = (question?.options?.length ?? 0) > 0
+
+  useEffect(() => {
+    if (hasOptions) optionRefs.current[0]?.focus()
+  }, [index, pending.key])
 
   const updateDraft = (update: (draft: DraftAnswer) => DraftAnswer): void => {
     setDrafts(current => current.map((draft, draftIndex) => draftIndex === index ? update(draft) : draft))
@@ -135,7 +141,6 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
 
   if (question === undefined) return null
   const draft = drafts[index] ?? { selected: [], custom: '', skipped: false }
-  const hasOptions = (question.options?.length ?? 0) > 0
 
   const choose = (label: string): void => {
     updateDraft(current => question.multiSelect === true
@@ -192,6 +197,19 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
     continueFlow()
   }
 
+  const moveOption = (event: KeyboardEvent<HTMLButtonElement>, optionIndex: number): void => {
+    if (question.multiSelect === true) return
+    const direction = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
+      : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 0
+    if (direction === 0) return
+    event.preventDefault()
+    const count = question.options?.length ?? 0
+    const next = (optionIndex + direction + count) % count
+    optionRefs.current[next]?.focus()
+  }
+
+  const selectedOptionIndex = question.options?.findIndex(option => draft.selected.includes(option.label)) ?? -1
+
   return (
     <div className={css.frame} data-question-key={pending.key}>
       <section className={css.card} aria-labelledby={`question-${pending.key}-${String(index)}`}>
@@ -224,19 +242,28 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
               <MarkdownText text={question.detail} labels={labels} />
             </div>
           )}
-          <div className={css.options} role={question.multiSelect === true ? 'group' : 'radiogroup'}>
-            {(question.options ?? []).map((option, optionIndex) => {
+          <div className={css.options}>
+            <div
+              className={css.optionGroup}
+              role={question.multiSelect === true ? 'group' : 'radiogroup'}
+              aria-label={question.question}
+            >
+              {(question.options ?? []).map((option, optionIndex) => {
               const selected = draft.selected.includes(option.label)
               const display = parseRecommendedLabel(option.label)
               return (
                 <button
+                  ref={(node) => { optionRefs.current[optionIndex] = node }}
                   type="button"
                   key={`${option.label}-${String(optionIndex)}`}
                   className={`${css.option} ${selected ? css.optionSelected : ''}`}
                   role={question.multiSelect === true ? 'checkbox' : 'radio'}
                   aria-checked={selected}
+                  tabIndex={question.multiSelect === true
+                    || (selectedOptionIndex >= 0 ? selected : optionIndex === 0) ? 0 : -1}
                   disabled={busy !== null}
                   onClick={() => { choose(option.label) }}
+                  onKeyDown={event => { moveOption(event, optionIndex) }}
                 >
                   <span className={question.multiSelect === true
                     ? `${css.checkbox} ${selected ? css.checkboxSelected : ''}`
@@ -252,7 +279,8 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
                   </span>
                 </button>
               )
-            })}
+              })}
+            </div>
             {hasOptions ? (
               <label className={`${css.customRow} ${draft.custom !== '' ? css.customRowActive : ''}`}>
                 <span className={question.multiSelect === true
@@ -268,6 +296,7 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
                   value={draft.custom}
                   disabled={busy !== null}
                   placeholder={t('question.custom')}
+                  aria-label={t('question.custom')}
                   onChange={changeCustom}
                   onKeyDown={continueFromCustom}
                 />
@@ -280,6 +309,7 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
                 value={draft.custom}
                 disabled={busy !== null}
                 placeholder={t('question.custom')}
+                aria-label={t('question.custom')}
                 onChange={changeCustom}
                 onKeyDown={continueFromCustom}
               />
@@ -308,11 +338,11 @@ function QuestionFlow({ pending }: { pending: DcodePendingInteraction }) {
               <IconChevronRightOutline14 />
             </button>
           </div>
-          <div className={css.feedback} role="status">{error}</div>
+          <div className={css.feedback} role="alert">{error}</div>
           <div className={css.footerActions}>
             <Button disabled={busy !== null} onClick={skip}>{t('question.skip')}</Button>
             <Button primary disabled={busy !== null || !answerable(draft)} onClick={continueFlow}>
-              {busy === 'answer' ? <><Spinner />{t('question.submitting')}</> : index === questions.length - 1 ? t('question.submit') : t('question.continue')}
+              {busy === 'answer' ? <><Spinner size="sm" />{t('question.submitting')}</> : index === questions.length - 1 ? t('question.submit') : t('question.continue')}
             </Button>
           </div>
         </footer>
@@ -353,7 +383,7 @@ function PlanReviewCard({ pending, review }: { pending: DcodePendingInteraction;
           </div>
         </div>
         <footer className={css.reviewFooter}>
-          <div className={css.feedback} role="status">{error}</div>
+          <div className={css.feedback} role="alert">{error}</div>
           <div className={css.footerActions}>
             <Button disabled={busy} onClick={() => { settle(() => pending.cancel()) }}>
               {t('question.discuss')}
@@ -369,11 +399,12 @@ function PlanReviewCard({ pending, review }: { pending: DcodePendingInteraction;
             )}
             <Button
               primary
+              autoFocus
               disabled={busy}
               title={review.approve.description}
               onClick={() => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })) }}
             >
-              {busy ? <><Spinner />{t('question.submitting')}</> : t('question.approve')}
+              {busy ? <><Spinner size="sm" />{t('question.submitting')}</> : t('question.approve')}
             </Button>
           </div>
         </footer>

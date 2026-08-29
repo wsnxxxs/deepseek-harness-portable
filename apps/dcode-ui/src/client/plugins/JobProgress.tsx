@@ -82,9 +82,9 @@ export function JobProgress({ operation, onCancel }: JobProgressProps): ReactNod
   const indeterminate = percent === undefined
   const parts = job === undefined ? [] : statistics(job, t)
   return (
-    <div className={css.progress} role="status" aria-live="polite">
+    <div className={css.progress} role="region" aria-live="off" aria-label={t('plugins.progress.label')}>
       <div className={css.progressHead}>
-        <span className={css.progressPhase}>
+        <span className={css.progressPhase} role="status" aria-live="polite">
           {t(job === undefined ? 'plugins.phase.pending' : PHASE_KEY[job.phase])}
         </span>
         <span className={css.progressPercent}>{indeterminate ? '…' : `${String(percent)}%`}</span>
@@ -96,8 +96,10 @@ export function JobProgress({ operation, onCancel }: JobProgressProps): ReactNod
       <div
         className={css.progressTrack}
         role="progressbar"
+        aria-label={t('plugins.progress.label')}
         aria-valuemin={0}
         aria-valuemax={100}
+        aria-valuetext={indeterminate ? t('plugins.progress.indeterminate') : `${String(percent)}%`}
         {...(indeterminate ? {} : { 'aria-valuenow': percent })}
       >
         <div
@@ -108,7 +110,7 @@ export function JobProgress({ operation, onCancel }: JobProgressProps): ReactNod
       {job === undefined || job.step === '' ? null : <div className={css.progressStep}>{job.step}</div>}
       {job === undefined || job.log.length === 0
         ? null
-        : <pre className={css.log}>{job.log.slice(-LOG_LINES).join('\n')}</pre>}
+        : <pre className={css.log} tabIndex={0} role="region" aria-label={t('details.output')}>{job.log.slice(-LOG_LINES).join('\n')}</pre>}
     </div>
   )
 }
@@ -122,6 +124,7 @@ const FAILURE_OUTPUT = 800
  * @returns the output block, or null when the Host sent none.
  */
 export function JobOutput({ operation }: { operation: Operation }): ReactNode {
+  const t = useT()
   if (operation.status !== 'failed' || operation.output === '') return null
-  return <pre className={css.log}>{operation.output.slice(-FAILURE_OUTPUT)}</pre>
+  return <pre className={css.log} tabIndex={0} role="region" aria-label={t('details.output')}>{operation.output.slice(-FAILURE_OUTPUT)}</pre>
 }

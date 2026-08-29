@@ -69,7 +69,7 @@
 
 .railGroup {
   padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-1);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
 }
 
@@ -90,7 +90,7 @@
 
 .title {
   font-size: var(--zx-text-2xl);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
   color: var(--zx-label);
 }
 
@@ -128,7 +128,7 @@
 }
 
 .mode:disabled {
-  opacity: 0.5;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 

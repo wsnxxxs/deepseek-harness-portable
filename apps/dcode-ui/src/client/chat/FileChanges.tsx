@@ -13,10 +13,10 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import { IconEditOutline16, IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconEditOutline16, IconRefreshOutline14, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
-import { DiffCount, Spinner } from '../shell/ui.tsx'
+import { DiffCount, Spinner, ui } from '../shell/ui.tsx'
 import type { GitStatus } from '../rpc.ts'
 import css from './FileChanges.module.css'
 
@@ -32,6 +32,11 @@ export interface FileChangesProps {
   readonly onOpenDiff: (path: string) => void
   /** Re-read the working tree after an undo. */
   readonly onChanged: () => void
+}
+
+interface UndoNote {
+  readonly text: string
+  readonly kind: 'success' | 'error'
 }
 
 /** Split a path into its directory prefix and file name for two-tone display. */
@@ -63,7 +68,9 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
   const runtime = useRuntime()
   const t = useT()
   const [undoing, setUndoing] = useState(false)
-  const [note, setNote] = useState<string | undefined>(undefined)
+  const [note, setNote] = useState<UndoNote | undefined>(undefined)
+  const [confirmingUndo, setConfirmingUndo] = useState(false)
+  const [acknowledgedUndo, setAcknowledgedUndo] = useState(false)
 
   const totals = useMemo(() => paths.reduce(
     (sum, path) => {
@@ -78,32 +85,39 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
     setUndoing(true)
     setNote(undefined)
     void runtime.git.undo(cwd, paths).then((result) => {
-      setUndoing(false)
       if (!result.ok) {
-        setNote(result.error.message)
+        setNote({ text: result.error.message, kind: 'error' })
         return
       }
       const reverted = result.value.outcomes.filter(outcome => outcome.result !== 'skipped')
       const quarantined = result.value.outcomes.filter(outcome => outcome.result === 'quarantined')
-      setNote(quarantined.length === 0
-        ? t('changes.undone', { count: reverted.length })
-        : `${t('changes.undone', { count: reverted.length })} · ${quarantined.map(o => o.movedTo ?? o.path).join(', ')}`)
+      setNote({
+        text: quarantined.length === 0
+          ? t('changes.undone', { count: reverted.length })
+          : `${t('changes.undone', { count: reverted.length })} · ${quarantined.map(o => o.movedTo ?? o.path).join(', ')}`,
+        kind: 'success',
+      })
       onChanged()
-    })
+    }).catch((cause: unknown) => {
+      setNote({ text: cause instanceof Error ? cause.message : String(cause), kind: 'error' })
+    }).finally(() => { setUndoing(false) })
   }, [runtime, cwd, paths, onChanged, t])
 
   if (paths.length === 0) return null
 
   return (
     <section className={css.card}>
-      <header className={css.head}>
+      <header className={`${css.head} ${ui.cardHeader}`}>
         <span className={css.title}>{t('changes.count', { count: paths.length })}</span>
         <DiffCount insertions={totals.insertions} deletions={totals.deletions} />
         <button
           type="button"
           className={css.undo}
           disabled={undoing || cwd === undefined || !runtime.git.available}
-          onClick={undo}
+          onClick={() => {
+            setAcknowledgedUndo(false)
+            setConfirmingUndo(true)
+          }}
           title={t('changes.undo')}
         >
           {undoing ? <Spinner /> : <IconRefreshOutline14 />}
@@ -129,7 +143,31 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
           </button>
         )
       })}
-      {note === undefined ? null : <p className={css.note}>{note}</p>}
+      {note === undefined
+        ? null
+        : <p className={`${css.note} ${note.kind === 'error' ? css.noteError : ''}`} role={note.kind === 'error' ? 'alert' : 'status'}>{note.text}</p>}
+      <RiskConfirmation
+        open={confirmingUndo}
+        title={t('changes.undoConfirmTitle')}
+        description={t('changes.undoConfirmBody')}
+        acknowledgeLabel={t('changes.undoConfirmAcknowledge')}
+        cancelLabel={t('common.cancel')}
+        closeLabel={t('common.close')}
+        confirmLabel={t('changes.undo')}
+        acknowledged={acknowledgedUndo}
+        disabled={undoing}
+        onAcknowledgedChange={setAcknowledgedUndo}
+        onCancel={() => {
+          setAcknowledgedUndo(false)
+          setConfirmingUndo(false)
+        }}
+        onConfirm={() => {
+          if (!acknowledgedUndo) return
+          setAcknowledgedUndo(false)
+          setConfirmingUndo(false)
+          undo()
+        }}
+      />
     </section>
   )
 }

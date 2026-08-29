@@ -5,7 +5,7 @@
   align-items: stretch;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-panel);
 }
@@ -38,7 +38,7 @@
 }
 
 .segment:disabled {
-  opacity: 0.5;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 

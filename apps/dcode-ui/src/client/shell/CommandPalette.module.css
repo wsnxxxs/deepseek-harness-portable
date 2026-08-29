@@ -3,7 +3,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  z-index: 60;
+  z-index: var(--zx-z-modal);
   display: flex;
   justify-content: center;
   padding-top: 12vh;
@@ -47,7 +47,7 @@
 }
 
 .input::placeholder {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .filters {
@@ -58,7 +58,7 @@
 }
 
 .filter {
-  height: 24px;
+  min-height: var(--zx-control-xs);
   padding: 0 var(--zx-space-3);
   border: 1px solid transparent;
   border-radius: var(--zx-radius-pill);
@@ -89,7 +89,7 @@
 
 .group {
   padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
 }
 
@@ -124,7 +124,7 @@
 
 .rowDetail {
   min-width: 0;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -134,7 +134,7 @@
 
 .shortcut {
   flex: none;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

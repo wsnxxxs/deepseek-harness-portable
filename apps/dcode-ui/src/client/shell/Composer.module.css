@@ -8,10 +8,11 @@
 
 .shell {
   box-sizing: border-box;
+  position: relative;
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto;
   border: 1px solid color-mix(in srgb, var(--zx-label) 14%, transparent);
-  border-radius: 20px;
+  border-radius: var(--zx-radius-2xl);
   background: var(--zx-bg-card);
   box-shadow: var(--zx-shadow-panel);
   transition: border-color var(--zx-motion), box-shadow var(--zx-motion);
@@ -20,6 +21,30 @@
 .shellFocused {
   border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
   box-shadow: var(--zx-shadow-panel), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
+}
+
+.dropActive {
+  border-color: var(--zx-accent);
+}
+
+.dropOverlay {
+  position: absolute;
+  z-index: var(--zx-z-sticky);
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zx-space-1);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--zx-bg-card) 92%, var(--zx-accent));
+  color: var(--zx-label);
+  pointer-events: none;
+}
+
+.dropOverlay span {
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
 }
 
 .inputArea {
@@ -48,7 +73,7 @@
 }
 
 .input::placeholder {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .fileInput {
@@ -76,7 +101,7 @@
   max-width: 230px;
   min-height: var(--zx-control-lg);
   padding: 4px 26px 4px 5px;
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: color-mix(in srgb, var(--zx-bg-panel) 78%, var(--zx-bg-card));
   color: var(--zx-label-secondary);
@@ -106,7 +131,7 @@
 }
 
 .attachmentMeta {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   white-space: nowrap;
 }
@@ -117,8 +142,8 @@
   right: 4px;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: var(--zx-control-xs);
+  height: var(--zx-control-xs);
   padding: 0;
   border: 0;
   border-radius: var(--zx-radius-pill);
@@ -134,7 +159,7 @@
 
 .attachmentRemove:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .attachmentRemove:focus-visible {
@@ -180,7 +205,7 @@
 
 .attachButton:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: var(--zx-opacity-disabled);
 }
 
 .attachButton:focus-visible {
@@ -221,7 +246,7 @@
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-sm);
   line-height: 20px;
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .controlTrigger {
@@ -232,7 +257,7 @@
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-sm);
   line-height: 20px;
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .controlTrigger:hover:not(:disabled) {
@@ -240,7 +265,7 @@
 }
 
 .controlTrigger:disabled {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .permissionRead {
@@ -327,7 +352,7 @@
   background: var(--zx-label);
   color: var(--zx-bg-app);
   cursor: pointer;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  box-shadow: var(--zx-shadow-card);
   transition: background var(--zx-motion-fast), opacity var(--zx-motion-fast), transform var(--zx-motion-fast);
 }
 
@@ -337,7 +362,7 @@
 }
 
 .send:disabled {
-  opacity: 0.38;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 
@@ -376,7 +401,7 @@
   align-items: center;
   gap: var(--zx-space-2);
   padding: var(--zx-space-1) var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label-secondary);

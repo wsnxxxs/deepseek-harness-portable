@@ -10,7 +10,7 @@
   color: var(--zx-label-secondary);
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-xs);
-  line-height: 1.55;
+  line-height: var(--zx-leading-code);
   /* Programs assume 8, but 8 in a side column wastes half the width. */
   tab-size: 4;
   scrollbar-width: thin;
@@ -18,8 +18,8 @@
 }
 
 .output::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--zx-scrollbar-size);
+  height: var(--zx-scrollbar-size);
 }
 
 .output::-webkit-scrollbar-thumb {
@@ -41,7 +41,7 @@
 }
 
 .truncated {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-style: italic;
 }
 
@@ -53,11 +53,12 @@
 }
 
 .action {
+  min-height: var(--zx-control-xs);
   border: 0;
   border-radius: var(--zx-radius-sm);
   padding: 2px var(--zx-space-2);
   background: transparent;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font: inherit;
   font-size: var(--zx-text-micro);
   text-transform: none;

@@ -42,8 +42,8 @@
 }
 
 .body::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--zx-scrollbar-size);
+  height: var(--zx-scrollbar-size);
 }
 
 .body::-webkit-scrollbar-thumb {
@@ -67,7 +67,7 @@
 .gutter {
   position: sticky;
   left: 0;
-  z-index: 1;
+  z-index: var(--zx-z-base);
   display: flex;
   flex: none;
   gap: var(--zx-space-3);
@@ -81,7 +81,7 @@
 .lineNo {
   min-width: 3.5ch;
   text-align: right;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
@@ -91,7 +91,7 @@
   flex: none;
   width: 2ch;
   padding-left: var(--zx-space-2);
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   user-select: none;
 }
 
@@ -136,7 +136,7 @@
 .hunk {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: var(--zx-z-sticky);
   gap: var(--zx-space-3);
   padding: 2px var(--zx-space-3);
   background: var(--zx-bg-panel);
@@ -162,7 +162,7 @@
 }
 
 .meta {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-style: italic;
 }
 

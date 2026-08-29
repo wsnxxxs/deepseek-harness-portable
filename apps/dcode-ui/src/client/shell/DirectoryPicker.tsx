@@ -11,13 +11,14 @@
  * @module @dsh-portable/dcode-ui/client/shell/DirectoryPicker
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   IconCloseOutline16, IconFolderClose16, IconFolderOpenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
 import { Button, IconButton, Spinner } from './ui.tsx'
+import { useModalFocus } from './use-modal-focus.ts'
 import css from './DirectoryPicker.module.css'
 
 /** One directory row as the host reports it. */
@@ -51,6 +52,7 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
   const [target, setTarget] = useState<string | undefined>(undefined)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   const browse = useCallback((path?: string) => {
     const navigation = runtime.navigation
@@ -75,15 +77,7 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
 
   useEffect(() => { browse(undefined) }, [browse])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      onCancel()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => { document.removeEventListener('keydown', onKeyDown, true) }
-  }, [onCancel])
+  useModalFocus(true, panelRef, { onClose: onCancel })
 
   return (
     <div
@@ -91,7 +85,7 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
       role="presentation"
       onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel() }}
     >
-      <div className={css.panel} role="dialog" aria-modal="true" aria-label={t('nav.openWorkspace')}>
+      <div ref={panelRef} className={css.panel} role="dialog" aria-modal="true" aria-label={t('nav.openWorkspace')} tabIndex={-1}>
         <header className={css.head}>
           <IconFolderOpenOutline16 />
           <span className={css.title}>{t('nav.openWorkspace')}</span>
@@ -112,10 +106,10 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
             </div>
           )}
 
-        <div className={css.list}>
+        <div className={css.list} role="region" aria-label={t('directory.contents')} tabIndex={0}>
           {loading ? <div className={css.empty}><Spinner /></div> : null}
           {!loading && listing !== undefined && listing.entries.length === 0
-            ? <div className={css.empty}>{t('settings.empty')}</div>
+            ? <div className={css.empty}>{t('directory.empty')}</div>
             : null}
           {listing?.entries.map(entry => (
             <button
@@ -131,7 +125,7 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
           ))}
         </div>
 
-        {error === undefined ? null : <div className={css.error}>{error}</div>}
+        {error === undefined ? null : <div className={css.error} role="alert">{error}</div>}
 
         <footer className={css.foot}>
           <span className={css.path} title={target}><bdi>{target ?? ''}</bdi></span>
@@ -141,7 +135,7 @@ export function DirectoryPicker({ onPicked, onCancel }: DirectoryPickerProps) {
             disabled={target === undefined}
             onClick={() => { if (target !== undefined) onPicked(target) }}
           >
-            {t('learning.open')}
+            {t('directory.open')}
           </Button>
         </footer>
       </div>

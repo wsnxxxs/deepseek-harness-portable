@@ -12,7 +12,7 @@
   gap: var(--zx-space-2);
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .summary {
@@ -120,7 +120,7 @@
 .code {
   flex: none;
   width: 16px;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
   font-family: var(--zx-font-mono);
   text-align: center;
 }
@@ -150,7 +150,7 @@
   width: 100%;
   min-height: 30px;
   padding: var(--zx-space-2) var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label);

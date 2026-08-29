@@ -16,7 +16,7 @@
   max-height: min(60vh, 520px);
   overflow: hidden;
   border: 1px solid var(--zx-border);
-  border-radius: 18px;
+  border-radius: var(--zx-radius-2xl);
   background: var(--zx-bg-card);
   box-shadow: var(--zx-shadow-panel);
 }
@@ -44,7 +44,7 @@
   min-width: 0;
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
 }
 
 .headerActions,
@@ -81,7 +81,7 @@
 }
 
 .iconButton:disabled {
-  opacity: 0.4;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 
@@ -105,7 +105,7 @@
   margin: 0;
   color: var(--zx-label);
   font-size: var(--zx-text-md);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
   line-height: var(--zx-leading-body);
 }
 
@@ -122,6 +122,10 @@
   flex-direction: column;
   gap: 2px;
   margin-top: var(--zx-space-3);
+}
+
+.optionGroup {
+  display: contents;
 }
 
 .option,
@@ -170,12 +174,12 @@
   width: 18px;
   height: 18px;
   margin-top: 1px;
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .radio,
 .checkbox {
-  border: 1px solid var(--zx-label-faint);
+  border: 1px solid var(--zx-border-control);
 }
 
 .radio {
@@ -203,7 +207,7 @@
 
 .optionLabel {
   color: inherit;
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .description {
@@ -215,9 +219,9 @@
   padding: 1px var(--zx-space-2);
   border-radius: var(--zx-radius-pill);
   background: var(--zx-accent-soft);
-  color: var(--zx-accent);
+  color: var(--zx-on-accent-soft);
   font-size: var(--zx-text-micro);
-  font-weight: 600;
+  font-weight: var(--zx-weight-semibold);
 }
 
 .customRow {
@@ -239,14 +243,14 @@
 
 .customInput::placeholder,
 .freeInput::placeholder {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .freeInput {
   width: 100%;
   min-height: 54px;
   padding: var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-lg);
   box-sizing: border-box;
 }
@@ -278,13 +282,6 @@
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.footerActions :global(.spinner) {
-  width: 11px;
-  height: 11px;
-  border-color: color-mix(in srgb, currentColor 26%, transparent);
-  border-top-color: currentColor;
 }
 
 @container (max-width: 640px) {

@@ -72,6 +72,9 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
     let live = true
     void runtime.git.branches(cwd).then((result) => {
       if (live && result.ok) setBranches(result.value.branches)
+      if (live && !result.ok) setNote({ text: result.error.message, error: true })
+    }).catch((cause: unknown) => {
+      if (live) setNote({ text: cause instanceof Error ? cause.message : String(cause), error: true })
     })
     return () => { live = false }
   }, [runtime, cwd, git.status])
@@ -96,7 +99,9 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
       setMessage('')
       setNote({ text: t('git.committed', { commit: result.value.commit ?? '' }), error: false })
       git.refresh()
-    })
+    }).catch((cause: unknown) => {
+      setNote({ text: cause instanceof Error ? cause.message : String(cause), error: true })
+    }).finally(() => { setCommitting(false) })
   }, [runtime, cwd, message, git, t])
 
   if (git.unavailable) return <EmptyState>{t('git.unavailable')}</EmptyState>
@@ -193,6 +198,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
           className={css.input}
           rows={2}
           value={message}
+          aria-label={t('git.commitPlaceholder')}
           placeholder={t('git.commitPlaceholder')}
           onChange={event => { setMessage(event.target.value) }}
         />
@@ -206,7 +212,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
           </Button>
           {note === undefined
             ? null
-            : <span className={`${css.note} ${note.error ? css.noteError : ''}`}>{note.text}</span>}
+            : <span className={`${css.note} ${note.error ? css.noteError : ''}`} role={note.error ? 'alert' : 'status'}>{note.text}</span>}
         </div>
       </div>
     </div>

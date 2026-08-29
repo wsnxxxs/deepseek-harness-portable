@@ -1,0 +1,127 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: grid;
+  place-items: center;
+  width: var(--zx-control-sm);
+  height: var(--zx-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--zx-bg-hover);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.track,
+.fill {
+  fill: none;
+  stroke-width: 2;
+}
+
+.track {
+  stroke: var(--zx-border);
+}
+
+.fill {
+  stroke: var(--zx-label-secondary);
+  stroke-linecap: round;
+}
+
+.panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--zx-space-2));
+  z-index: var(--zx-z-popover);
+  width: 264px;
+  box-sizing: border-box;
+  padding: var(--zx-space-4);
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-popover);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+}
+
+.header,
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+}
+
+.header b {
+  color: var(--zx-label);
+  font-weight: var(--zx-weight-medium);
+}
+
+.figures {
+  margin-left: auto;
+  color: var(--zx-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  display: flex;
+  gap: 1px;
+  height: 4px;
+  margin: var(--zx-space-3) 0;
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-hover);
+  overflow: hidden;
+}
+
+.segment {
+  min-width: 2px;
+  height: 100%;
+  background: var(--zx-label-secondary);
+}
+
+.system,
+.swatch.system { background: #8b9bb8; }
+.tools,
+.swatch.tools { background: #a78bfa; }
+.messages,
+.swatch.messages { background: #5aa7ff; }
+
+.rows {
+  margin: 0;
+}
+
+.row {
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.row dt,
+.row dd {
+  margin: 0;
+}
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--zx-space-2);
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+.row dd {
+  color: var(--zx-label);
+  font-variant-numeric: tabular-nums;
+}

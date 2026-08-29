@@ -90,7 +90,14 @@ function useInventory(client: ReturnType<typeof createMarketClient>): InventoryS
             unavailable: answer.unavailable,
           })
       })
-      .catch(() => {})
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setState(previous => ({
+          ...previous,
+          loading: false,
+          error: cause instanceof Error ? cause.message : String(cause),
+        }))
+      })
     return () => { controller.abort() }
   }, [client, nonce])
 
@@ -194,6 +201,7 @@ export function PluginsHome({ navigation }: PluginsHomeProps): ReactNode {
             <button
               type="button"
               className={`${css.railItem} ${section === entry.id ? css.railItemActive : ''}`}
+              aria-current={section === entry.id ? 'page' : undefined}
               onClick={() => { setSection(entry.id) }}
             >
               {entry.icon}

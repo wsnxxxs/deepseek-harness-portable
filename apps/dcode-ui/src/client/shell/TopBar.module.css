@@ -27,13 +27,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--zx-text-sm);
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
   color: var(--zx-label);
 }
 
 .titleMuted {
   color: var(--zx-label-muted);
-  font-weight: 400;
+  font-weight: var(--zx-weight-normal);
 }
 
 .chip {
@@ -43,7 +43,7 @@
   max-width: 220px;
   height: var(--zx-control-xs);
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label-secondary);
@@ -65,7 +65,7 @@
   max-width: 220px;
   height: var(--zx-control-xs);
   padding: 0 var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   color: var(--zx-label-secondary);
@@ -129,7 +129,7 @@
 }
 
 .shareButton:disabled {
-  opacity: 0.45;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 

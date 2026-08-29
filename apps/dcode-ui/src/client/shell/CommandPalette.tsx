@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/client/shell/CommandPalette
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16,
@@ -22,6 +22,7 @@ import type { NavigationStore } from '../state/navigation.ts'
 import { THEME_PREFERENCES, type ThemePreference } from '../theme.ts'
 import type { DcodeKey } from '../locales.ts'
 import { commandShortcut } from '../platform.ts'
+import { useModalFocus } from './use-modal-focus.ts'
 import css from './CommandPalette.module.css'
 
 /** Locale key per theme preference, for the palette's three theme rows. */
@@ -80,8 +81,13 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
   const [active, setActive] = useState(0)
   const [files, setFiles] = useState<readonly { path: string; label?: string }[]>([])
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const listId = useId()
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useModalFocus(true, panelRef, {
+    initialFocusRef: inputRef,
+    onClose: () => { navigation.togglePalette(false) },
+  })
 
   // File candidates come from the Host index, re-queried as the operator types.
   useEffect(() => {
@@ -263,7 +269,7 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
     return matching
   }, [actions, list, files, filter, query, t, navigation, runtime])
 
-  useEffect(() => { setActive(0) }, [query, filter])
+  useEffect(() => { setActive(0) }, [query, filter, rows.length])
 
   const choose = useCallback((row: PaletteRow | undefined) => {
     if (row === undefined) return
@@ -274,7 +280,7 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
   const onKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActive(index => Math.min(index + 1, rows.length - 1))
+      setActive(index => Math.max(0, Math.min(index + 1, rows.length - 1)))
       return
     }
     if (event.key === 'ArrowUp') {
@@ -305,31 +311,38 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
         if (event.target === event.currentTarget) navigation.togglePalette(false)
       }}
     >
-      <div className={css.panel} role="dialog" aria-modal="true" aria-label={t('nav.commandPalette')}>
+      <div ref={panelRef} className={css.panel} role="dialog" aria-modal="true" aria-label={t('nav.commandPalette')} tabIndex={-1}>
         <div className={css.search}>
           <IconSearchOutline16 />
           <input
             ref={inputRef}
             className={css.input}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-label={t('palette.placeholder')}
+            aria-expanded={true}
+            aria-controls={listId}
+            aria-activedescendant={rows[active] === undefined ? undefined : `palette-row-${String(active)}`}
             value={query}
             placeholder={t('palette.placeholder')}
             onChange={event => { setQuery(event.target.value) }}
             onKeyDown={onKeyDown}
           />
         </div>
-        <div className={css.filters}>
+        <div className={css.filters} role="group" aria-label={t('palette.filter')}>
           {filters.map(entry => (
             <button
               key={entry.id}
               type="button"
               className={`${css.filter} ${filter === entry.id ? css.filterActive : ''}`}
+              aria-pressed={filter === entry.id}
               onClick={() => { setFilter(entry.id) }}
             >
               {entry.label}
             </button>
           ))}
         </div>
-        <div className={css.list}>
+        <div className={css.list} id={listId} role="listbox" aria-label={t('palette.results')}>
           {rows.length === 0 ? <div className={css.empty}>{t('palette.empty')}</div> : null}
           {rows.map((row, index) => {
             const heading = row.group === lastGroup ? null : <div className={css.group} key={`g:${row.group}`}>{row.group}</div>
@@ -338,7 +351,10 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
               <div key={row.id}>
                 {heading}
                 <button
+                  id={`palette-row-${String(index)}`}
                   type="button"
+                  role="option"
+                  aria-selected={index === active}
                   className={`${css.row} ${index === active ? css.rowActive : ''}`}
                   onPointerEnter={() => { setActive(index) }}
                   onClick={() => { choose(row) }}

@@ -28,6 +28,7 @@ import {
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
 import { Popover, type MenuRow } from './ui.tsx'
+import { ContextMeter } from './ContextMeter.tsx'
 import css from './Composer.module.css'
 
 /** Props of the composer. */
@@ -147,6 +148,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
   const [fallbackDraft, setFallbackDraft] = useState('')
   const [focused, setFocused] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [dragActive, setDragActive] = useState(false)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -161,14 +163,23 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
 
   // Restore this session's draft on a task switch, and persist the outgoing one.
   const previousSession = useRef<SessionId | undefined>(undefined)
+  const fallbackDraftRef = useRef(fallbackDraft)
+  const inputRefForDraft = useRef(input)
+  fallbackDraftRef.current = fallbackDraft
+  inputRefForDraft.current = input
   useEffect(() => {
     const outgoing = previousSession.current
-    if (outgoing !== undefined) drafts.set(outgoing, fallbackDraft)
+    if (outgoing !== undefined && inputRefForDraft.current === undefined) {
+      drafts.set(outgoing, fallbackDraftRef.current)
+    }
     setFallbackDraft(sessionId === undefined ? '' : drafts.get(sessionId) ?? '')
     setError(undefined)
     previousSession.current = sessionId
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the draft is captured, not observed
   }, [sessionId])
+
+  useEffect(() => {
+    if (sessionId !== undefined && input === undefined) drafts.set(sessionId, fallbackDraft)
+  }, [fallbackDraft, input, sessionId])
 
   // Grow with content up to the stylesheet's cap. The card's width decides how
   // many lines the draft wraps to, so observe the card itself rather than only
@@ -286,6 +297,24 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
       setError(cause instanceof Error ? cause.message : String(cause))
     }
   }, [conversation, input, t])
+
+  const onPaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files: File[] = []
+    for (const item of Array.from(event.clipboardData.items)) {
+      if (!item.type.startsWith('image/')) continue
+      const file = item.getAsFile()
+      if (file !== null) files.push(file)
+    }
+    if (files.length === 0) return
+    event.preventDefault()
+    addAttachments(files)
+  }, [addAttachments])
+
+  const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragActive(false)
+    addAttachments(Array.from(event.dataTransfer.files))
+  }, [addAttachments])
 
   const removeAttachment = useCallback((id: DraftAttachmentId) => {
     if (input === undefined || conversation === undefined) return
@@ -427,7 +456,28 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
           </div>
         )
         : null}
-      <div ref={shellRef} className={`${css.shell} ${focused ? css.shellFocused : ''}`}>
+      <div
+        ref={shellRef}
+        className={`${css.shell} ${focused ? css.shellFocused : ''} ${dragActive ? css.dropActive : ''}`}
+        onDragEnter={event => {
+          if (event.dataTransfer.types.includes('Files')) setDragActive(true)
+        }}
+        onDragOver={event => {
+          if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+        }}
+        onDragLeave={event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false)
+        }}
+        onDrop={onDrop}
+      >
+        {dragActive
+          ? (
+            <div className={css.dropOverlay} role="status">
+              <strong>{t('composer.dropFiles')}</strong>
+              <span>{t('composer.dropFilesHint')}</span>
+            </div>
+          )
+          : null}
         <div className={css.inputArea}>
           <textarea
             ref={inputRef}
@@ -440,6 +490,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
               : running ? t('composer.placeholderRunning') : t('composer.placeholder')}
             onChange={event => { updateDraft(event.target.value) }}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            aria-label={t('composer.placeholder')}
             onFocus={() => { setFocused(true) }}
             onBlur={() => { setFocused(false) }}
           />
@@ -462,7 +514,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
             event.currentTarget.value = ''
           }}
         />
-        {error === undefined ? null : <div className={css.error}>{error}</div>}
+        {error === undefined ? null : <div className={css.error} role="alert">{error}</div>}
         <div className={css.controls}>
           <div className={css.leadingControls}>
             <button
@@ -538,6 +590,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerPro
               }
               rows={reasoningRows}
             />
+            <ContextMeter sessionId={sessionId} />
             {running
               ? (
                 <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>

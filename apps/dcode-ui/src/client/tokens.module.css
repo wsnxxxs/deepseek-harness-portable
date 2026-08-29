@@ -29,7 +29,9 @@
   --zx-text-xl: 20px;
   --zx-text-2xl: 26px;
   --zx-leading-tight: 1.35;
+  --zx-leading-snug: 1.4;
   --zx-leading-body: 1.65;
+  --zx-leading-code: 1.55;
 
   /* Spacing. A 4px base with named steps so panels stay on one rhythm. */
   --zx-space-1: 4px;
@@ -45,6 +47,7 @@
   --zx-radius-md: 8px;
   --zx-radius-lg: 10px;
   --zx-radius-xl: 14px;
+  --zx-radius-2xl: 20px;
   --zx-radius-pill: 999px;
 
   /* Control heights. Four steps only, so a button, an input and a rail row
@@ -56,6 +59,16 @@
   --zx-control-sm: 28px;
   --zx-control-md: 30px;
   --zx-control-lg: 34px;
+  --zx-control-2xs: 20px;
+  --zx-control-xl: 44px;
+  --zx-spinner-md: 12px;
+  --zx-spinner-sm: 10px;
+  --zx-scrollbar-size: 8px;
+
+  --zx-weight-normal: 400;
+  --zx-weight-medium: 500;
+  --zx-weight-semibold: 600;
+  --zx-opacity-disabled: 0.45;
 
   /* Ground and surfaces. */
   --zx-bg-app: var(--dsw-alias-bg-base, #0d0d0f);
@@ -69,12 +82,15 @@
   /* Hairlines. Two weights only: a structural divider and a card edge. */
   --zx-border: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 11%, transparent);
   --zx-border-soft: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 7%, transparent);
+  --zx-border-control: color-mix(in srgb, var(--zx-label) 38%, transparent);
 
   /* Label ramp. */
   --zx-label: var(--dsw-alias-label-primary, #ececee);
   --zx-label-secondary: var(--dsw-alias-label-secondary, #a9aab0);
-  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 72%, transparent);
-  --zx-label-faint: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 48%, transparent);
+  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 78%, transparent);
+  --zx-label-faint: var(--zx-label-decor);
+  --zx-label-tertiary: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 68%, transparent);
+  --zx-label-decor: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 48%, transparent);
 
   /* Accents.
 
@@ -86,6 +102,7 @@
   --zx-accent: var(--dsw-alias-brand-primary, #4c8dff);
   --zx-on-accent: var(--dsw-alias-bg-base, #0d0d0f);
   --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 18%, transparent);
+  --zx-on-accent-soft: #8ab4ff;
   --zx-success: var(--dsw-alias-state-success-primary, #3fb950);
   --zx-warn: var(--dsw-alias-state-warn-primary, #d29922);
   --zx-error: var(--dsw-alias-state-error-primary, #f85149);
@@ -97,7 +114,7 @@
      truecolour codes carry their own value and never reach these. Tuned for a
      near-black ground: the first eight are lifted off pure hues so they stay
      legible, and index 0 is a visible grey rather than the background. */
-  --zx-ansi-0: #4b5263;
+  --zx-ansi-0: #7d8698;
   --zx-ansi-1: #e06c75;
   --zx-ansi-2: #98c379;
   --zx-ansi-3: #e5c07b;
@@ -105,7 +122,7 @@
   --zx-ansi-5: #c678dd;
   --zx-ansi-6: #56b6c2;
   --zx-ansi-7: #cbd0d8;
-  --zx-ansi-8: #6b7280;
+  --zx-ansi-8: #8b93a1;
   --zx-ansi-9: #ff7b86;
   --zx-ansi-10: #b3e08e;
   --zx-ansi-11: #f2d08a;
@@ -118,9 +135,22 @@
 
   --zx-scrim: rgb(0 0 0 / 46%);
 
-  --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 55%, transparent);
+  --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);
   --zx-shadow-panel: 0 12px 32px rgb(0 0 0 / 34%), 0 2px 6px rgb(0 0 0 / 22%);
   --zx-shadow-card: 0 1px 2px rgb(0 0 0 / 18%);
+  --zx-shadow-popover: 0 16px 38px rgb(0 0 0 / 30%), 0 3px 9px rgb(0 0 0 / 18%);
+  --zx-shadow-dialog: 0 18px 44px rgb(0 0 0 / 34%), 0 4px 12px rgb(0 0 0 / 20%);
+  --zx-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);
+
+  --zx-z-base: 0;
+  --zx-z-sticky: 10;
+  --zx-z-scrim: 20;
+  --zx-z-drawer: 30;
+  --zx-z-popover: 40;
+  --zx-z-modal: 60;
+  --zx-z-dialog: 80;
+  --zx-z-menu: 90;
+  --zx-z-tooltip: 100;
 
   --zx-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
@@ -184,12 +214,16 @@
   --zx-label-secondary: var(--dsw-alias-label-secondary, #59606b);
   /* Held higher than the dark ramp: fading toward white loses contrast faster
      than fading toward black. */
-  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 82%, transparent);
-  --zx-label-faint: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 60%, transparent);
+  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 90%, transparent);
+  --zx-label-faint: var(--zx-label-decor);
+  --zx-label-tertiary: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 68%, transparent);
+  --zx-label-decor: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 48%, transparent);
 
   --zx-accent: var(--dsw-alias-brand-primary, #2563eb);
   --zx-on-accent: var(--dsw-alias-bg-base, #fff);
   --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #2563eb) 12%, transparent);
+  --zx-on-accent-soft: #1a45b0;
+  --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);
   --zx-success: var(--dsw-alias-state-success-primary, #1a7f37);
   --zx-warn: var(--dsw-alias-state-warn-primary, #9a6700);
   --zx-error: var(--dsw-alias-state-error-primary, #cf222e);
@@ -200,6 +234,8 @@
      reads as dirt, a blue-grey one as depth. */
   --zx-shadow-panel: 0 12px 32px rgb(15 23 42 / 12%), 0 2px 6px rgb(15 23 42 / 6%);
   --zx-shadow-card: 0 1px 2px rgb(15 23 42 / 6%);
+  --zx-shadow-popover: 0 16px 38px rgb(15 23 42 / 16%), 0 3px 9px rgb(15 23 42 / 8%);
+  --zx-shadow-dialog: 0 18px 44px rgb(15 23 42 / 18%), 0 4px 12px rgb(15 23 42 / 8%);
 
   /* Terminal palette, darkened so coloured output survives a white ground —
      bright cyan and yellow are unreadable on white at their dark values. */
@@ -211,14 +247,14 @@
   --zx-ansi-5: #8250df;
   --zx-ansi-6: #0b6b73;
   --zx-ansi-7: #57606a;
-  --zx-ansi-8: #6e7781;
+  --zx-ansi-8: #616a75;
   --zx-ansi-9: #a40e26;
   --zx-ansi-10: #0d5620;
   --zx-ansi-11: #6b4600;
   --zx-ansi-12: #0a4a9e;
   --zx-ansi-13: #6f42c1;
   --zx-ansi-14: #0a5c63;
-  --zx-ansi-15: #8c959f;
+  --zx-ansi-15: #5b6470;
   --zx-ansi-fg: var(--zx-label);
   --zx-ansi-bg: var(--zx-bg-card);
   --zx-scrim: rgb(15 23 42 / 24%);
@@ -256,4 +292,15 @@ body[data-dcode-acrylic] {
   --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 74%, transparent);
   --zx-bg-card: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 82%, transparent);
   --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 94%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dcode-scope] *,
+  [data-dcode-scope] *::before,
+  [data-dcode-scope] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }

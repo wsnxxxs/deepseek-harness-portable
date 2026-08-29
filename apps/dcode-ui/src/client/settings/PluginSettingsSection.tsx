@@ -1,6 +1,6 @@
 /** DCode-owned plugin settings over the existing settings and inventory remotes. */
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
   CredentialInfo, JsonValue, ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
@@ -10,7 +10,7 @@ import type { DcodeRuntime } from '../state/runtime.ts'
 import { useAsync } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
-import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
+import { Button, EmptyState, Spinner, ui } from '../shell/ui.tsx'
 import css from './SettingsSurface.module.css'
 
 type PluginFieldType = 'number' | 'text'
@@ -182,7 +182,7 @@ function PluginSettingsCard(props: {
 
   return (
     <section className={css.pluginCard}>
-      <header className={css.pluginCardHeader}>
+      <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
           <div className={css.rowTitle}>{props.title}</div>
           <div className={css.rowBody}>{props.description}</div>
@@ -287,7 +287,7 @@ function VisionBridgeCard(props: {
 
   return (
     <section className={css.pluginCard}>
-      <header className={css.pluginCardHeader}>
+      <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
           <div className={css.rowTitle}>{t('settings.plugins.visionTitle')}</div>
           <div className={css.rowBody}>{t('settings.plugins.visionDescription')}</div>
@@ -381,7 +381,7 @@ function SubagentModelCard(props: {
 
   return (
     <section className={css.pluginCard}>
-      <header className={css.pluginCardHeader}>
+      <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
           <div className={css.rowTitle}>{t('settings.plugins.subagentModelSelectionTitle')}</div>
           <div className={css.rowBody}>{t('settings.plugins.subagentModelSelectionDescription')}</div>
@@ -439,7 +439,7 @@ function PluginConfigSection(props: { data: PluginSettingsData; onReload: () => 
   if (subagent !== undefined) cards.push(<SubagentModelCard key={subagent.ns} namespace={subagent} writable={props.data.settings?.writable === true} catalog={props.data.catalog} onReload={props.onReload} />)
   return (
     <div className={css.pluginConfigList}>
-      {props.data.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.plugins.credentialWarning')}: ${props.data.credentialError}`}</div>}
+      {props.data.credentialError === undefined ? null : <div className={css.notice} role="alert">{`${t('settings.plugins.credentialWarning')}: ${props.data.credentialError}`}</div>}
       {cards.length === 0 ? <EmptyState>{t('settings.plugins.emptyConfig')}</EmptyState> : cards}
     </div>
   )
@@ -453,7 +453,7 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean }):
   const filtered = entries.filter(entry => `${entry.moduleName} ${entry.entryId}`.toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <div className={css.pluginInventory}>
-      <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} onChange={event => { setQuery(event.target.value) }} />
+      <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} aria-label={t('settings.plugins.search')} onChange={event => { setQuery(event.target.value) }} />
       <div className={css.inventoryHeading}><span className={css.sectionTitle}>{t('settings.plugins.inventoryTitle')}</span><span className={css.badge}>{filtered.length}</span></div>
       {filtered.length === 0 ? <EmptyState>{t('settings.plugins.emptyInventory')}</EmptyState> : (
         <div className={css.card}>
@@ -461,11 +461,11 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean }):
             const open = expanded === entry.entryId
             return (
               <div className={css.inventoryRow} key={entry.entryId}>
-                <button type="button" className={css.inventoryButton} aria-expanded={open} onClick={() => { setExpanded(current => current === entry.entryId ? undefined : entry.entryId) }}>
+                <button type="button" className={css.inventoryButton} aria-expanded={open} aria-controls={`plugin-entry-${entry.entryId}`} onClick={() => { setExpanded(current => current === entry.entryId ? undefined : entry.entryId) }}>
                   <span className={css.rowText}><span className={css.rowTitle}>{entry.moduleName}</span><span className={css.rowBody}>{entry.enabled ? entry.fiberPhase ?? t('settings.plugins.unobserved') : t('settings.plugins.disabled')}</span></span>
                   <span className={css.badge}>{entry.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled')}</span>
                 </button>
-                {open ? <code className={css.inventoryDetails}>{entry.entryId}</code> : null}
+                {open ? <code id={`plugin-entry-${entry.entryId}`} className={css.inventoryDetails}>{entry.entryId}</code> : null}
               </div>
             )
           })}
@@ -481,6 +481,25 @@ export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }
   const t = useT()
   const data = useAsync(async () => await loadPluginSettings(runtime, !mcpOnly), [runtime, mcpOnly])
   const [tab, setTab] = useState<'config' | 'inventory'>(mcpOnly ? 'inventory' : 'config')
+  const tabPrefix = useId()
+  const tabRefs = useRef<Record<'config' | 'inventory', HTMLButtonElement | null>>({ config: null, inventory: null })
+  const tabs: readonly { id: 'config' | 'inventory'; label: string }[] = [
+    { id: 'config', label: t('settings.plugins.configTab') },
+    { id: 'inventory', label: t('settings.plugins.inventoryTab') },
+  ]
+  const moveTab = (event: React.KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
+    event.preventDefault()
+    const next = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? tabs.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    const nextTab = tabs[next]
+    if (nextTab === undefined) return
+    setTab(nextTab.id)
+    tabRefs.current[nextTab.id]?.focus()
+  }
 
   if (data.loading && data.value === undefined) return <EmptyState><Spinner /></EmptyState>
   if (data.error !== undefined && data.value === undefined) return <EmptyState>{data.error}</EmptyState>
@@ -492,11 +511,31 @@ export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }
       <p className={css.sectionBody}>{mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody')}</p>
       {!mcpOnly ? (
         <div className={css.pluginTabs} role="tablist" aria-label={t('settings.plugins.tabs')}>
-          <button type="button" role="tab" aria-selected={tab === 'config'} className={`${css.pluginTab} ${tab === 'config' ? css.pluginTabActive : ''}`} onClick={() => { setTab('config') }}>{t('settings.plugins.configTab')}</button>
-          <button type="button" role="tab" aria-selected={tab === 'inventory'} className={`${css.pluginTab} ${tab === 'inventory' ? css.pluginTabActive : ''}`} onClick={() => { setTab('inventory') }}>{t('settings.plugins.inventoryTab')}</button>
+          {tabs.map((entry, index) => (
+            <button
+              key={entry.id}
+              ref={element => { tabRefs.current[entry.id] = element }}
+              id={`${tabPrefix}-${entry.id}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              aria-controls={`${tabPrefix}-panel`}
+              tabIndex={tab === entry.id ? 0 : -1}
+              className={`${css.pluginTab} ${tab === entry.id ? css.pluginTabActive : ''}`}
+              onClick={() => { setTab(entry.id) }}
+              onKeyDown={event => { moveTab(event, index) }}
+            >{entry.label}</button>
+          ))}
         </div>
       ) : null}
-      {!mcpOnly && tab === 'config' ? <PluginConfigSection data={value} onReload={data.reload} /> : <PluginInventory data={value} mcpOnly={mcpOnly} />}
+      <div
+        id={`${tabPrefix}-panel`}
+        role="tabpanel"
+        tabIndex={0}
+        aria-labelledby={mcpOnly ? undefined : `${tabPrefix}-${tab}`}
+      >
+        {!mcpOnly && tab === 'config' ? <PluginConfigSection data={value} onReload={data.reload} /> : <PluginInventory data={value} mcpOnly={mcpOnly} />}
+      </div>
     </section>
   )
 }

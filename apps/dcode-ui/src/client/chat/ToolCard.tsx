@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/client/chat/ToolCard
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   IconBrowseOutline16, IconChecklistOutline14, IconChevronRightOutline14,
   IconCodeOutline16, IconEditOutline16, IconSearchOutline16, IconSkillOutline16,
@@ -17,7 +17,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { useT } from '../state/i18n.ts'
-import { Spinner } from '../shell/ui.tsx'
+import { Spinner, ui } from '../shell/ui.tsx'
 import { AnsiOutput, OutputToolbar } from './AnsiOutput.tsx'
 import { resultText, summarizeTool, type ToolKind } from './tools.ts'
 import css from './ToolCard.module.css'
@@ -54,6 +54,7 @@ export interface ToolCardProps {
 export function ToolCard({ block, onInspect }: ToolCardProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const contentId = useId()
   // Wrap is per card and per session: an operator reading a wide table turns
   // it off once, and the next card they open is a stack trace that wants it on.
   const [wrap, setWrap] = useState(true)
@@ -76,8 +77,9 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
       <div className={css.card}>
         <button
           type="button"
-          className={css.head}
+          className={`${css.head} ${ui.cardHeader}`}
           aria-expanded={open}
+          aria-controls={contentId}
           onClick={() => {
             setOpen(value => !value)
             onInspect?.(block.callId)
@@ -92,13 +94,13 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
         </button>
         {open
           ? (
-            <div className={css.body}>
+            <div className={css.body} id={contentId}>
               {argsRaw === undefined || argsRaw.trim() === ''
                 ? null
                 : (
                   <>
                     <span className={css.bodyLabel}>{t('details.arguments')}</span>
-                    <pre className={css.output}>{argsRaw}</pre>
+                    <pre className={css.output} tabIndex={0} role="region" aria-label={t('details.arguments')}>{argsRaw}</pre>
                   </>
                 )}
               {settled
@@ -109,7 +111,7 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
                       {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
                     </span>
                     {output === ''
-                      ? <pre className={css.output}>—</pre>
+                      ? <pre className={css.output} tabIndex={0} role="region" aria-label={t('details.output')}>—</pre>
                       : (
                         <AnsiOutput
                           text={output}

@@ -11,9 +11,6 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
-  padding: var(--zx-space-3) var(--zx-space-4);
-  font-size: var(--zx-text-xs);
-  color: var(--zx-label);
 }
 
 .title {
@@ -22,14 +19,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: var(--zx-weight-medium);
 }
 
 .undo {
   display: inline-flex;
   align-items: center;
   gap: var(--zx-space-2);
-  height: 22px;
+  min-height: var(--zx-control-xs);
   padding: 0 var(--zx-space-2);
   border: 0;
   border-radius: var(--zx-radius-sm);
@@ -47,7 +44,7 @@
 }
 
 .undo:disabled {
-  opacity: 0.5;
+  opacity: var(--zx-opacity-disabled);
   cursor: default;
 }
 
@@ -89,7 +86,7 @@
 }
 
 .dir {
-  color: var(--zx-label-faint);
+  color: var(--zx-label-tertiary);
 }
 
 .note {
@@ -98,4 +95,8 @@
   color: var(--zx-label-muted);
   font-size: var(--zx-text-micro);
   line-height: var(--zx-leading-body);
+}
+
+.noteError {
+  color: var(--zx-error);
 }
