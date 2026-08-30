@@ -20,7 +20,7 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
 @@ -1520,8 +1528,12 @@ export default {
 -
 +
-    async function fetchPage(q, page, perPage) {
+     async function fetchPage(q, page, perPage) {
        const params = new URLSearchParams({ q, per_page: String(perPage), page: String(page) })
 -      params.set('sort', 'stars')
 -      params.set('order', 'desc')
