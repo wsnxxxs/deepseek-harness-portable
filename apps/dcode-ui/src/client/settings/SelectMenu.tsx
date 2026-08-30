@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SelectMenu.module.css'
 
 export interface SelectMenuOption {
@@ -229,7 +230,9 @@ export function SelectMenu({ value, options, onChange, ariaLabel, placeholder, d
         <span className={`${css.triggerValue} ${selected === undefined ? css.triggerPlaceholder : ''}`}>
           {selected?.label ?? placeholder ?? value}
         </span>
-        <span className={`${css.chevron} ${open ? css.chevronOpen : ''}`} aria-hidden>⌄</span>
+        <span className={`${css.chevron} ${open ? css.chevronOpen : ''}`} aria-hidden>
+          <IconChevronDownOutline14 size={12} />
+        </span>
       </button>
       {list}
     </>

@@ -48,16 +48,21 @@
 }
 
 .chevron {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
   flex: none;
+  border-radius: var(--zx-radius-sm);
   color: var(--zx-label-muted);
-  font-size: var(--zx-text-lg);
-  line-height: 12px;
-  transform: translateY(-1px);
-  transition: transform var(--zx-motion-fast);
+  pointer-events: none;
+  transition: transform var(--zx-motion-fast), color var(--zx-motion-fast), background var(--zx-motion-fast);
 }
 
 .chevronOpen {
-  transform: rotate(180deg) translateY(1px);
+  color: var(--zx-label-secondary);
+  background: color-mix(in srgb, var(--zx-label) 7%, transparent);
+  transform: rotate(180deg);
 }
 
 .menu {

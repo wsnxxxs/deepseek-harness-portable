@@ -602,6 +602,22 @@
   box-shadow: none;
 }
 
+.addSelect > button {
+  position: relative;
+}
+
+.addSelect > button > span:first-child > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--zx-label-muted);
+}
+
+.addSelect > button > span:last-child {
+  position: absolute;
+  right: var(--zx-space-4);
+}
+
 .addSelect > button:hover:not(:disabled),
 .addButton:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--zx-accent) 58%, var(--zx-border));
