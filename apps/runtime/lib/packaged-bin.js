@@ -722,6 +722,21 @@ async function main() {
         await ctx.get('loader')?.await();
         if (ctx.get('loader') !== undefined)
             await assertEntriesActivated(ctx, NAME);
+        // The client registry starts while the Loader tree is still activating.
+        // Reconcile once against the settled entry set before publishing the web
+        // URL; otherwise a cold post-install process can permanently serve an HTML
+        // graph without the client-modules bootstrap while the next process works.
+        const clientModules = ctx.get('clientModules');
+        if (clientModules === undefined)
+            throw new Error(`${NAME}: client module host is missing after Loader activation`);
+        clientModules.reconcileLoadedEntries();
+        const clientGraph = clientModules.graph();
+        const hasClientModulesBootstrap = clientGraph.entries.some(entry => entry.id === '@deepseek-ai/dsh-client-modules')
+            && clientGraph.batches.some(batch => batch.phase === 'bootstrap'
+                && batch.entries.includes('@deepseek-ai/dsh-client-modules'));
+        if (!hasClientModulesBootstrap) {
+            throw new Error(`${NAME}: client module bootstrap is missing after settled Loader reconciliation`);
+        }
         traceBoot('loader:complete');
         if (process.platform === 'win32') {
             adaptWin32SubprocessRuntime(ctx.get('subprocess'));
