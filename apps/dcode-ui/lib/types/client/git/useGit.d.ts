@@ -29,6 +29,15 @@ export interface GitState extends GitSnapshot {
     readonly unavailable: boolean;
     /** Re-read the working tree now, for every consumer of this workspace. */
     readonly refresh: () => void;
+    /** The explicit index operation currently running in this panel. */
+    readonly mutation: {
+        readonly kind: 'stage' | 'unstage';
+        readonly paths: readonly string[];
+    } | undefined;
+    /** Stage paths, returning an error message on refusal. */
+    readonly stage: (paths: readonly string[]) => Promise<string | undefined>;
+    /** Unstage paths, returning an error message on refusal. */
+    readonly unstage: (paths: readonly string[]) => Promise<string | undefined>;
 }
 /**
  * Read one workspace's git status.

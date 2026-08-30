@@ -1,5 +1,5 @@
 /**
- * The out-of-session entry: 学习库 at the sidebar foot.
+ * The out-of-session entry: 资料库 at the sidebar foot.
  *
  * The panel and the keep action both live inside a conversation, which leaves
  * the most ordinary case unserved — a person opens the app, is not in a

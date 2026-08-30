@@ -67,6 +67,10 @@ export function createDcodeRuntime(ctx, mode) {
     const sessionLogDownload = ctx.get('sessionLogDownload');
     const conversationSettings = settingsScope?.bind({ namespace: 'ui-conversation' });
     const fallbackLocale = { active: 'en', locales: [], revision: 0 };
+    // Cordis contextualizes a nested service with a fresh traceable Proxy on
+    // every property read. Capture this namespace once so React sees one
+    // identity for the owning Runtime's whole lifetime.
+    const messageFeedback = ctx.remote.messageFeedback;
     // One cache per session id: the Chat target face is identity-stable for a
     // binding, and `useSyncExternalStore` needs a stable subscribe reference.
     const feeds = new Map();
@@ -76,6 +80,7 @@ export function createDcodeRuntime(ctx, mode) {
         workspaces,
         navigation,
         remote: ctx.remote,
+        messageFeedback,
         settings: {
             scope: settingsScope,
             schema: settingsSchema,

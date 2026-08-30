@@ -67,9 +67,8 @@ const SPLASH_PAGE_NAME = 'splash.html'
 const RELEASE_HISTORY_LIMIT = 20
 const RECENT_WORKSPACES_LIMIT = 5
 // The Windows shell hides the native title bar and reserves its 36px overlay
-// in the renderer. macOS keeps the native title bar, so the web surface must
-// not add a second synthetic title-bar gap.
-const DESKTOP_TITLEBAR_HEIGHT = process.platform === 'win32' ? 36 : 0
+// in the renderer, so the web surface must not add a second gap.
+const DESKTOP_TITLEBAR_HEIGHT = 36
 const LIGHT_WINDOW_SURFACE = '#f4f7fb'
 const DARK_WINDOW_SURFACE = '#0c1220'
 // The first packaged launch may reconcile the embedded marketplace before the
@@ -309,10 +308,10 @@ function themePayload() {
 function syncNativeTheme() {
   const theme = themePayload()
   if (window !== undefined && !window.isDestroyed()) {
-    if (process.platform === 'win32' && typeof window.setTitleBarOverlay === 'function') {
+    if (typeof window.setTitleBarOverlay === 'function') {
       try { window.setTitleBarOverlay(theme.titleBar) } catch {}
     }
-    if (process.platform === 'win32' && typeof window.setBackgroundColor === 'function') {
+    if (typeof window.setBackgroundColor === 'function') {
       // A window wearing a backdrop material must keep its transparent
       // background; repainting it with the theme surface would cover the
       // material with an opaque sheet on every theme change.
@@ -546,11 +545,6 @@ function decodeWslDistroList(raw) {
 }
 
 function probeShellAvailability() {
-  if (process.platform !== 'win32') {
-    shellState = nativeShellState()
-    sendShellState()
-    return Promise.resolve(shellState)
-  }
   return new Promise((resolve) => {
     const child = spawn('wsl.exe', ['-l', '-q'], {
       windowsHide: true,
@@ -559,14 +553,14 @@ function probeShellAvailability() {
     const chunks = []
     child.stdout.on('data', chunk => { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)) })
     child.on('error', () => {
-      shellState = { ...nativeShellState('win32'), probed: true, available: false, distros: [] }
+      shellState = { ...nativeShellState(), probed: true, available: false, distros: [] }
       sendShellState()
       resolve(shellState)
     })
     child.on('close', code => {
       const distros = decodeWslDistroList(Buffer.concat(chunks))
       const isAvailable = code === 0 && distros.length > 0
-      shellState = { ...nativeShellState('win32'), probed: true, available: isAvailable, distros }
+      shellState = { ...nativeShellState(), probed: true, available: isAvailable, distros }
       sendShellState()
       resolve(shellState)
     })
@@ -584,17 +578,12 @@ function sendShellState(sender) {
 async function showShellGuideDialog(sender) {
   await probeShellAvailability().catch(() => {})
   const isInstalled = shellState.available
-  const isNative = shellState.native === true
-  const nativeMissing = isNative && !isInstalled
-  const title = desktopText(isNative ? 'shell.nativeDialogTitle' : 'shell.dialogTitle')
-  const message = isInstalled
-    ? desktopText(isNative ? 'shell.nativeMessage' : 'shell.readyMessage')
-    : desktopText(nativeMissing ? 'shell.nativeMissingMessage' : 'shell.missingMessage')
-  const detail = isInstalled
-    ? desktopText(isNative ? 'shell.nativeDetail' : 'shell.readyDetail', { distros: shellState.distros.join(', ') || 'Default' })
-    : desktopText(nativeMissing ? 'shell.nativeMissingDetail' : 'shell.missingDetail')
-
-  const buttons = isInstalled || isNative
+  const title = desktopText('shell.dialogTitle')
+  const message = desktopText(isInstalled ? 'shell.readyMessage' : 'shell.missingMessage')
+  const detail = desktopText(isInstalled ? 'shell.readyDetail' : 'shell.missingDetail', {
+    distros: shellState.distros.join(', ') || 'Default',
+  })
+  const buttons = isInstalled
     ? [desktopText('shell.ok')]
     : [desktopText('shell.copyInstallCmd'), desktopText('shell.ok')]
 
@@ -605,10 +594,10 @@ async function showShellGuideDialog(sender) {
     detail,
     buttons,
     defaultId: 0,
-    cancelId: isInstalled || isNative ? 0 : 1,
+    cancelId: isInstalled ? 0 : 1,
   })
 
-  if (!isInstalled && !nativeMissing && result.response === 0) {
+  if (!isInstalled && result.response === 0) {
     clipboard.writeText('wsl --install')
     sendDiagnosticsResult(sender, { kind: 'success', message: desktopText('shell.cmdCopied') })
   }
@@ -627,7 +616,7 @@ function diagnosticsText() {
     `Chrome: ${process.versions.chrome || 'unknown'}`,
     `Node: ${process.versions.node || 'unknown'}`,
     `Platform: ${process.platform} ${process.arch}`,
-    `Shell: ${shellState.native ? 'POSIX shell' : 'WSL available'}: ${shellState.available ? `yes (${shellState.distros.join(', ') || 'default'})` : 'no'}`,
+    `Shell: WSL available: ${shellState.available ? `yes (${shellState.distros.join(', ') || 'default'})` : 'no'}`,
     `Workspace: ${workspace()}`,
     `Harness URL: ${harnessUrl || 'unavailable'}`,
     '',
@@ -1229,24 +1218,18 @@ function safeHttpsUrl(value) {
   }
 }
 
-function releaseAssetName(version) {
-  return platformReleaseAssetName(version, process.platform, process.arch)
-}
-
 function normalizePortableRelease(value) {
   const source = value && typeof value === 'object' ? value : {}
   const normalized = normalizeReleaseNotes(source)
   const explicitAssetName = typeof source.assetName === 'string' && source.assetName.trim() !== ''
     ? source.assetName.trim()
     : undefined
-  const targetAssetName = releaseAssetName(normalized.version)
+  const targetAssetName = platformReleaseAssetName(normalized.version)
   return {
     ...normalized,
-    // The shared release-notes parser has a historical Windows ZIP fallback.
-    // Never let that fallback leak into a Linux or macOS update lookup.
-    assetName: targetAssetName
-      || explicitAssetName
-      || (process.platform === 'win32' ? normalized.assetName : undefined),
+    // The shared release-notes parser has a historical Windows ZIP fallback,
+    // which is exactly the asset this target installs.
+    assetName: targetAssetName || explicitAssetName || normalized.assetName,
     assetUrl: safeHttpsUrl(source.assetUrl || source.browser_download_url),
     assetDigest: typeof source.assetDigest === 'string' ? source.assetDigest.trim() : '',
     assetSize: Number(source.assetSize) || 0,
@@ -1294,7 +1277,7 @@ async function queryLatestVersion(options = {}) {
           const data = await fetchJson(url, timeoutMs, { headers: { 'Cache-Control': 'no-cache' } })
           const version = (data.tag_name || '').replace(/^v/i, '')
           if (!isValidSemver(version)) return
-          const platformAssetName = releaseAssetName(version)
+          const platformAssetName = platformReleaseAssetName(version)
           const platformAsset = Array.isArray(data.assets)
             ? data.assets.find(asset => asset?.name === platformAssetName)
             : undefined
@@ -1324,7 +1307,7 @@ async function queryLatestVersion(options = {}) {
           const version = typeof data?.version === 'string' ? data.version.replace(/^v/i, '').trim() : ''
           if (!isValidSemver(version)) return
           const tagName = `v${version}`
-          const assetName = releaseAssetName(version)
+          const assetName = platformReleaseAssetName(version)
           const relUrl = `https://github.com/${PORTABLE_RELEASE_REPO}/releases/tag/${tagName}`
           onCandidate({
             ...normalizeReleaseNotes({
@@ -1365,10 +1348,10 @@ async function queryReleaseHistory() {
       .map(release => {
         const version = String(release.tag_name || '').replace(/^v/, '')
         const platformAsset = Array.isArray(release.assets)
-          ? release.assets.find(asset => asset?.name === releaseAssetName(version))
+          ? release.assets.find(asset => asset?.name === platformReleaseAssetName(version))
           : undefined
-        // Do not advertise a release without this platform's asset.
-        if (process.platform !== 'win32' && platformAsset === undefined) return undefined
+        // Do not advertise a release without the Windows portable asset.
+        if (platformAsset === undefined) return undefined
         return normalizeReleaseNotes({
           ...release,
           releaseUrl: release.html_url || `https://github.com/${PORTABLE_RELEASE_REPO}/releases`,
@@ -1788,7 +1771,7 @@ function menuItems() {
     { label: desktopText('menu.checkUpdates'), click: () => { void checkForUpdates(true) } },
     { label: desktopText('menu.aboutAndUpdates'), click: () => { openInAppReleaseNotes({ mode: 'history' }) } },
     { type: 'separator' },
-    { label: desktopText('menu.quit'), accelerator: process.platform === 'darwin' ? 'Command+Q' : 'Alt+F4', click: () => app.quit() },
+    { label: desktopText('menu.quit'), accelerator: 'Alt+F4', click: () => app.quit() },
   ]
 }
 
@@ -1819,15 +1802,13 @@ async function createApp() {
   // mica/acrylic invisible — and a transparent one on an OS that cannot render
   // the material would leave a see-through hole. `windowMaterial` decides
   // which of those two states this machine is actually in.
-  const nativeWindowOptions = process.platform === 'win32'
-    ? {
-        ...(WINDOW_MATERIAL === 'none'
-          ? {}
-          : { backgroundMaterial: WINDOW_MATERIAL, backgroundColor: TRANSPARENT_SURFACE }),
-        titleBarStyle: 'hidden',
-        titleBarOverlay: initialTheme.titleBar,
-      }
-    : {}
+  const nativeWindowOptions = {
+    ...(WINDOW_MATERIAL === 'none'
+      ? {}
+      : { backgroundMaterial: WINDOW_MATERIAL, backgroundColor: TRANSPARENT_SURFACE }),
+    titleBarStyle: 'hidden',
+    titleBarOverlay: initialTheme.titleBar,
+  }
 
   window = new BrowserWindow({
     ...initialBounds,
@@ -1837,9 +1818,9 @@ async function createApp() {
     title: APP_NAME,
     icon: iconPath(),
     backgroundColor: initialTheme.surface,
-    // macOS users expect the application menu in the system menu bar. The
-    // custom in-page menu remains available from the Web UI logo/tray.
-    autoHideMenuBar: process.platform !== 'darwin',
+    // Hide the native menu bar; the application menu and the in-page menu
+    // remain available from the Web UI logo and the system tray.
+    autoHideMenuBar: true,
     ...nativeWindowOptions,
     webPreferences: {
       contextIsolation: true,
@@ -1895,8 +1876,8 @@ async function createApp() {
     tray.on('click', () => window !== undefined && window.isVisible() ? window.hide() : showWindow())
     tray.on('double-click', () => showWindow())
   } catch (error) {
-    // Some Linux sessions expose no usable system tray (for example a bare
-    // Wayland compositor). The app menu and in-page menu remain available.
+    // A locked-down or remote session can refuse the notification area. The
+    // application menu and the in-page menu remain available.
     tray = undefined
     console.warn(`System tray unavailable: ${errorMessage(error)}`)
   }
@@ -1931,9 +1912,7 @@ async function createApp() {
   }, 4000).unref()
 }
 
-const portableLaunchGate = process.platform === 'win32'
-  ? evaluateUpdateLaunch(findPortableRoot(__dirname), process.argv)
-  : { allowed: true }
+const portableLaunchGate = evaluateUpdateLaunch(findPortableRoot(__dirname), process.argv)
 if (!portableLaunchGate.allowed) {
   dialog.showErrorBox(
     `${APP_NAME} update recovery required`,

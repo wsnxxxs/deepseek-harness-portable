@@ -10,12 +10,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button as PrimitiveButton, IconApiOutline14, IconArchiveOutline20, IconCordisPluginOutline14,
+  Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
-  IconDataOutline16, IconLinkOutline16,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
-  IconFolderOpen16, IconFolderOpenOutline16, IconNewChatOutline16,
-  IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, BrandWordmark,
+  IconFolderOpen16, IconNewChatOutline16,
+  IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16,
   Modal, relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -32,7 +31,6 @@ import css from './LeftRail.module.css'
 export interface LeftRailProps {
   readonly navigation: NavigationStore
   readonly onNewTask: (workspaceId?: string) => void
-  readonly onOpenWorkspace: () => void
 }
 
 /** Suffix per relative-time bucket; `now` shows the bare word. */
@@ -182,7 +180,7 @@ function WorkspaceRow(props: {
 }
 
 /** The task action, scrollable navigation/tree, and account foot. */
-export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailProps) {
+export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
@@ -350,16 +348,11 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
 
   return (
     <nav className={css.rail} aria-label={t('app.title')}>
-      {/* Only the primary action is pinned. Everything else — the workspace
-          chooser, the two library entries and the task tree — belongs to one
-          scroll, so a long task list can reclaim the rail's whole height
-          instead of squeezing itself under a growing block of chrome. */}
+      {/* Only search and the primary action are pinned. Everything else —
+          the two library entries and the task tree — belongs to one scroll,
+          so a long task list can reclaim the rail's whole height instead of
+          squeezing itself under a growing block of chrome. */}
       <div className={css.top}>
-        <button type="button" className={css.action} onClick={() => { onNewTask() }}>
-          <IconNewChatOutline16 />
-          <span className={ui.grow}>{t('nav.newTask')}</span>
-          <span className={css.shortcut}>{commandShortcut('N')}</span>
-        </button>
         <label className={css.searchField}>
           <IconSearchOutline16 />
           <input
@@ -382,6 +375,11 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
           />
           <span className={css.searchShortcut}>/</span>
         </label>
+        <button type="button" className={css.action} onClick={() => { onNewTask() }}>
+          <IconNewChatOutline16 />
+          <span className={ui.grow}>{t('nav.newTask')}</span>
+          <span className={css.shortcut}>{commandShortcut('N')}</span>
+        </button>
       </div>
 
       <div
@@ -395,11 +393,6 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
         }}
       >
         <div className={css.treeActions}>
-          <button type="button" className={css.action} onClick={onOpenWorkspace}>
-            <IconFolderOpenOutline16 />
-            <span className={ui.grow}>{t('nav.openWorkspace')}</span>
-            <span className={css.shortcut}>{commandShortcut('O')}</span>
-          </button>
           <button
             type="button"
             className={`${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`}
@@ -474,56 +467,14 @@ export function LeftRail({ navigation, onNewTask, onOpenWorkspace }: LeftRailPro
       </div>
 
       <div className={css.foot}>
-        <IconButton
-          label={t('nav.settings')}
-          className={css.settingsTrigger}
-          active={state.view === 'settings'}
+        <button
+          type="button"
+          className={`${css.settingsTrigger} ${state.view === 'settings' ? css.settingsTriggerActive : ''}`}
           onClick={() => { navigation.openSettings('general') }}
         >
-          <IconSettingsOutline16 size={18} />
-        </IconButton>
-        <Popover
-          label={t('account.menu')}
-          placement="up"
-          align="start"
-          style={{ flex: 1 }}
-          triggerClassName={css.accountTrigger}
-          trigger={(
-            <BrandWordmark size={24} />
-          )}
-          rows={[
-            {
-              id: 'usage',
-              label: t('account.usage'),
-              icon: <IconDataOutline16 size={18} />,
-              onSelect: () => { navigation.openSettings('usage') },
-            },
-            {
-              id: 'models',
-              label: t('settings.models'),
-              icon: <IconApiOutline14 size={18} />,
-              onSelect: () => { navigation.openSettings('models') },
-            },
-            {
-              id: 'plugins',
-              label: t('nav.plugins'),
-              icon: <IconCordisPluginOutline14 size={18} />,
-              onSelect: () => { navigation.show('plugins') },
-            },
-            {
-              id: 'agent-presets',
-              label: t('settings.agentPresets'),
-              icon: <IconSparkle16 />,
-              onSelect: () => { navigation.openSettings('agentPresets') },
-            },
-            {
-              id: 'official',
-              label: t('top.officialUi'),
-              icon: <IconLinkOutline16 size={18} />,
-              onSelect: () => { runtime.mode.set('official') },
-            },
-          ]}
-        />
+          <IconSettingsOutline16 />
+          <span>{t('nav.settings')}</span>
+        </button>
       </div>
       <Modal
         open={sessionRenameTarget !== undefined}

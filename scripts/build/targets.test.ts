@@ -31,8 +31,8 @@ test('target specs own native assets, release formats, updater, and mode expecta
 })
 
 test('legacy platform/arch resolution goes through the target registry', () => {
-  assert.equal(getTargetSpecFor('darwin', 'arm64').id, 'darwin-arm64')
-  assert.throws(() => getTargetSpecFor('darwin', 'x64'), /unsupported build target/)
+  assert.equal(getTargetSpecFor('win32', 'x64').id, 'win32-x64')
+  assert.throws(() => getTargetSpecFor('win32', 'arm64'), /unsupported build target/)
 })
 
 test('mode support levels are ordered by contract fidelity', () => {

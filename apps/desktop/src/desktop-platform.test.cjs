@@ -8,52 +8,30 @@ const {
   windowsBuild,
 } = require('./desktop-platform.cjs')
 
-test('Linux uses native POSIX shell state', () => {
-  assert.deepEqual(nativeShellState('linux', path => path === '/bin/bash'), {
-    platform: 'linux',
-    native: true,
-    available: true,
-    probed: true,
-    distros: ['POSIX Bash'],
-    executable: '/bin/bash',
-  })
-})
-
-test('native POSIX shell state reports a missing bash executable', () => {
-  assert.deepEqual(nativeShellState('linux', () => false), {
-    platform: 'linux',
-    native: true,
+test('the shell starts unprobed and WSL-backed', () => {
+  assert.deepEqual(nativeShellState(), {
+    platform: 'win32',
+    native: false,
     available: false,
-    probed: true,
+    probed: false,
     distros: [],
-    executable: '/bin/bash',
+    executable: 'wsl.exe',
   })
 })
 
-test('browser commands are platform-native', () => {
-  assert.deepEqual(browserCommand('https://example.test', 'linux'), {
-    command: 'xdg-open',
-    args: ['https://example.test'],
-    options: {},
-  })
-  assert.deepEqual(browserCommand('https://example.test', 'darwin'), {
-    command: 'open',
-    args: ['https://example.test'],
-    options: {},
-  })
-  assert.deepEqual(browserCommand('https://example.test', 'win32'), {
+test('the browser opens through the Windows shell', () => {
+  assert.deepEqual(browserCommand('https://example.test'), {
     command: 'cmd.exe',
     args: ['/d', '/s', '/c', 'start', '', 'https://example.test'],
     options: { windowsHide: true },
   })
 })
 
-test('release assets are platform-specific', () => {
-  assert.equal(releaseAssetName('1.2.3', 'linux', 'x64'), 'DeepSeek-Harness-1.2.3-linux-x64.AppImage')
-  assert.equal(releaseAssetName('1.2.3', 'linux', 'arm64'), 'DeepSeek-Harness-1.2.3-linux-arm64.AppImage')
-  assert.equal(releaseAssetName('1.2.3', 'darwin', 'arm64'), 'DeepSeek-Harness-1.2.3-darwin-arm64.dmg')
-  assert.equal(releaseAssetName('1.2.3', 'win32', 'x64'), 'DeepSeek-Harness-1.2.3-win32-x64.zip')
-  assert.equal(releaseAssetName('0.0.0', 'linux', 'x64'), undefined)
+test('release assets name the Windows portable ZIP', () => {
+  assert.equal(releaseAssetName('1.2.3'), 'DeepSeek-Harness-1.2.3-win32-x64.zip')
+  assert.equal(releaseAssetName('0.0.0'), undefined)
+  assert.equal(releaseAssetName('not-a-version'), undefined)
+  assert.equal(releaseAssetName(undefined), undefined)
 })
 
 test('window build numbers come out of the release string', () => {
@@ -73,7 +51,4 @@ test('the window material is the strongest backdrop the OS can render', () => {
   assert.equal(windowMaterial('win32', '10.0.22620'), 'mica')
   // Windows 10 has neither, and must keep an opaque window surface.
   assert.equal(windowMaterial('win32', '10.0.19045'), 'none')
-  // Nothing else takes a backdrop material at all.
-  assert.equal(windowMaterial('darwin', '23.0.0'), 'none')
-  assert.equal(windowMaterial('linux', '6.5.0'), 'none')
 })

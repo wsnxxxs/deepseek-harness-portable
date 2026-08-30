@@ -10,11 +10,12 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  */
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dcodeScope } from "../tokens.js";
-import { useNavigation } from "../state/navigation.js";
-import { useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups, } from "../state/hooks.js";
+import { compactOverlayOf, useNavigation, } from "../state/navigation.js";
+import { useConversationBlank, useCurrentSessionId, usePendingQuestion, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups, } from "../state/hooks.js";
 import { useRuntime } from "../state/runtime.js";
 import { useLayoutSize } from "../state/layout.js";
 import { clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth, } from "../state/rail-width.js";
+import { clampAsideWidth, ASIDE_WIDTH, readAsideWidth, writeAsideWidth, } from "../state/aside-width.js";
 import { useT } from "../state/i18n.js";
 import { ACRYLIC_ATTRIBUTE } from "../theme.js";
 import { useAppearance } from "./ThemeSwitch.js";
@@ -32,7 +33,42 @@ import { Transcript } from "../chat/Transcript.js";
 import { LearningHome } from "../learning/LearningHome.js";
 import { PluginsHome } from "../plugins/PluginsHome.js";
 import { SettingsSurface } from "../settings/SettingsSurface.js";
+import { useModelReadiness } from "../settings/readiness.js";
+import { useGitStatus } from "../git/useGit.js";
 import css from './Workbench.module.css';
+const COMPACT_OVERLAY_HISTORY_KEY = '__dcodeCompactOverlay';
+function historyOverlay(value) {
+    if (typeof value !== 'object' || value === null)
+        return undefined;
+    const overlay = value[COMPACT_OVERLAY_HISTORY_KEY];
+    return overlay === 'rail' || overlay === 'aside' || overlay === 'summary' ? overlay : undefined;
+}
+function historyStateWithOverlay(overlay) {
+    const current = typeof history.state === 'object' && history.state !== null
+        ? history.state
+        : {};
+    return { ...current, [COMPACT_OVERLAY_HISTORY_KEY]: overlay };
+}
+function failedCallIn(block) {
+    for (let index = block.subCalls.length - 1; index >= 0; index -= 1) {
+        const failed = failedCallIn(block.subCalls[index]);
+        if (failed !== undefined)
+            return failed;
+    }
+    return 'isError' in block && block.isError ? block.callId : undefined;
+}
+/** Most recent failure that the Details panel can inspect. */
+function latestFailure(nodes) {
+    for (let index = nodes.length - 1; index >= 0; index -= 1) {
+        const node = nodes[index];
+        if (node?.kind === 'tool-result') {
+            const callId = failedCallIn(node);
+            if (callId !== undefined)
+                return { hasError: true, callId };
+        }
+    }
+    return { hasError: false };
+}
 /** Keep a settings initialization failure local to the replaceable surface. */
 class SettingsBoundary extends Component {
     state = {};
@@ -53,6 +89,31 @@ class SettingsBoundary extends Component {
             return this.props.children;
         return (_jsx("div", { className: css.surfaceFailure, role: "alert", children: _jsxs(EmptyState, { children: [_jsx("span", { children: this.props.t('settings.loadFailed', { error: this.state.error }) }), _jsxs("div", { className: css.surfaceFailureActions, children: [_jsx(Button, { onClick: this.props.onBack, children: this.props.t('nav.backToWorkspace') }), _jsx(Button, { primary: true, onClick: () => { this.setState({ error: undefined }); }, children: this.props.t('common.retry') })] })] }) }));
     }
+}
+function ReadinessCard(props) {
+    const complete = [
+        props.hasWorkspace,
+        props.hasSession,
+        props.model.model === 'ready',
+        props.model.credential === 'ready',
+    ].filter(Boolean).length;
+    const missing = [
+        !props.hasWorkspace
+            ? { label: props.t('readiness.workspace'), action: props.t('readiness.openWorkspace'), onClick: props.onOpenWorkspace }
+            : undefined,
+        props.hasWorkspace && !props.hasSession
+            ? { label: props.t('readiness.session'), action: props.t('readiness.newTask'), onClick: props.onNewTask }
+            : undefined,
+        props.hasSession && props.model.model === 'missing'
+            ? { label: props.t('readiness.model'), action: props.t('readiness.selectModel'), onClick: props.onSelectModel }
+            : undefined,
+        props.model.model === 'ready' && props.model.credential === 'missing'
+            ? { label: props.t('readiness.credential', { provider: props.model.provider ?? '' }), action: props.t('readiness.configureKey'), onClick: props.onConfigureProvider }
+            : undefined,
+    ].filter((item) => item !== undefined);
+    if (missing.length === 0)
+        return null;
+    return (_jsxs("div", { className: css.readiness, "aria-label": props.t('readiness.title'), children: [_jsxs("div", { className: css.readinessSummary, children: [_jsx("span", { className: css.readinessCheck, "aria-hidden": true, children: "\u2713" }), _jsx("span", { children: props.t('readiness.complete', { count: complete, total: 4 }) })] }), missing.map(item => (_jsxs("div", { className: css.readinessItem, children: [_jsx("span", { children: item.label }), _jsx(Button, { onClick: item.onClick, children: item.action })] }, item.label)))] }));
 }
 /**
  * Resolve the working directory of the current session, which every
@@ -79,15 +140,34 @@ export function Workbench({ navigation }) {
     const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
+    const compactOverlay = compactOverlayOf(state);
     const sessionId = useCurrentSessionId();
     const pendingQuestion = usePendingQuestion(sessionId);
     const cwd = useCurrentCwd(sessionId);
     const blank = useConversationBlank(sessionId);
-    const { scheme } = useAppearance();
+    const git = useGitStatus(cwd, sessionId);
+    const trajectory = useTrajectorySnapshot(sessionId);
+    const goal = useProjectionValue(sessionId, 'goal');
+    const modelReadiness = useModelReadiness(sessionId);
+    const { groups } = useWorkspaceGroups();
+    const { scheme, fontSize } = useAppearance();
     const [browsing, setBrowsing] = useState(false);
     const [railWidth, setRailWidth] = useState(readRailWidth);
     const [railResizing, setRailResizing] = useState(false);
     const railDrag = useRef();
+    const [asideWidth, setAsideWidth] = useState(readAsideWidth);
+    const [asideResizing, setAsideResizing] = useState(false);
+    const asideDrag = useRef();
+    const taskContext = useMemo(() => {
+        const failure = latestFailure(trajectory?.eventNodes ?? []);
+        return {
+            hasChanges: (git.status?.files.length ?? 0) > 0,
+            hasError: failure.hasError,
+            goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
+            failedCallId: failure.callId,
+        };
+    }, [git.status, goal, trajectory]);
+    useEffect(() => { navigation.setWorkspace(cwd); }, [cwd, navigation]);
     // The frame fits itself to its own width rather than the window's: it is
     // mounted into a host slot, and how much room that slot has is a fact only
     // the element can report. The class it lands in drives both the panels
@@ -146,11 +226,131 @@ export function Workbench({ navigation }) {
         event.preventDefault();
         resizeRail(next, true);
     }, [railWidth, resizeRail]);
+    const resizeAside = useCallback((width, persist = false) => {
+        const next = clampAsideWidth(width);
+        setAsideWidth(next);
+        if (persist)
+            writeAsideWidth(next);
+        return next;
+    }, []);
+    const startAsideResize = useCallback((event) => {
+        if (event.button !== 0)
+            return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        asideDrag.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startWidth: asideWidth,
+            width: asideWidth,
+        };
+        setAsideResizing(true);
+    }, [asideWidth]);
+    const moveAsideResize = useCallback((event) => {
+        const drag = asideDrag.current;
+        if (drag === undefined || drag.pointerId !== event.pointerId)
+            return;
+        drag.width = resizeAside(drag.startWidth + drag.startX - event.clientX);
+    }, [resizeAside]);
+    const finishAsideResize = useCallback((event) => {
+        const drag = asideDrag.current;
+        if (drag === undefined || drag.pointerId !== event.pointerId)
+            return;
+        writeAsideWidth(drag.width);
+        asideDrag.current = undefined;
+        setAsideResizing(false);
+    }, []);
+    const resizeAsideWithKeyboard = useCallback((event) => {
+        let next;
+        const step = event.shiftKey ? 24 : 8;
+        if (event.key === 'ArrowLeft')
+            next = asideWidth + step;
+        if (event.key === 'ArrowRight')
+            next = asideWidth - step;
+        if (event.key === 'Home')
+            next = ASIDE_WIDTH.min;
+        if (event.key === 'End')
+            next = ASIDE_WIDTH.max;
+        if (next === undefined)
+            return;
+        event.preventDefault();
+        resizeAside(next, true);
+    }, [asideWidth, resizeAside]);
     const restoreOverlayFocus = useCallback((target) => {
         window.requestAnimationFrame(() => {
             frame?.querySelector(`[data-dcode-focus-target="${target}"]`)?.focus();
         });
     }, [frame]);
+    const dismissCompactOverlay = useCallback(() => {
+        const overlay = compactOverlayOf(navigation.getSnapshot());
+        navigation.closeCompactOverlay();
+        if (overlay !== undefined)
+            restoreOverlayFocus(overlay);
+    }, [navigation, restoreOverlayFocus]);
+    // A compact overlay owns one same-URL history entry. Browser Back therefore
+    // dismisses it before it can leave the workbench; closing it through its
+    // button, scrim, or Escape consumes that entry in the same way. Replacing
+    // the marker when overlays switch keeps the mutually-exclusive hand-off to
+    // a single history step, and Forward can restore the marked overlay.
+    const previousCompactOverlay = useRef();
+    const overlayFromPopState = useRef(false);
+    const programmaticHistoryBack = useRef(false);
+    const compactOverlayRef = useRef(compactOverlay);
+    compactOverlayRef.current = compactOverlay;
+    useEffect(() => {
+        const onPopState = (event) => {
+            if (programmaticHistoryBack.current) {
+                programmaticHistoryBack.current = false;
+                return;
+            }
+            const current = compactOverlayRef.current;
+            if (current !== undefined) {
+                overlayFromPopState.current = true;
+                dismissCompactOverlay();
+                return;
+            }
+            const forwardOverlay = historyOverlay(event.state);
+            if (forwardOverlay !== undefined && navigation.getSnapshot().layout === 'compact') {
+                overlayFromPopState.current = true;
+                navigation.openCompactOverlay(forwardOverlay);
+            }
+        };
+        window.addEventListener('popstate', onPopState);
+        return () => {
+            window.removeEventListener('popstate', onPopState);
+            if (historyOverlay(history.state) !== undefined) {
+                const next = { ...history.state };
+                delete next[COMPACT_OVERLAY_HISTORY_KEY];
+                history.replaceState(next, '');
+            }
+        };
+    }, [dismissCompactOverlay, navigation]);
+    useEffect(() => {
+        const previous = previousCompactOverlay.current;
+        previousCompactOverlay.current = compactOverlay;
+        if (previous === compactOverlay)
+            return;
+        if (compactOverlay !== undefined) {
+            if (overlayFromPopState.current) {
+                overlayFromPopState.current = false;
+                return;
+            }
+            if (previous === undefined)
+                history.pushState(historyStateWithOverlay(compactOverlay), '');
+            else
+                history.replaceState(historyStateWithOverlay(compactOverlay), '');
+            return;
+        }
+        if (previous !== undefined) {
+            if (overlayFromPopState.current) {
+                overlayFromPopState.current = false;
+            }
+            else if (historyOverlay(history.state) !== undefined) {
+                programmaticHistoryBack.current = true;
+                history.back();
+            }
+        }
+    }, [compactOverlay]);
     // A native backdrop only shows through a transparent document, and the
     // desktop shell paints an opaque page ground of its own. Clearing it is
     // scoped to this component's lifetime, so the official interface — which
@@ -172,12 +372,15 @@ export function Workbench({ navigation }) {
         document.body.setAttribute('data-dcode-scope', '');
         document.body.setAttribute('data-dcode-scheme', scheme);
         document.body.setAttribute(ACRYLIC_ATTRIBUTE, '');
+        document.body.style.setProperty('--dsh-content-font-size', `${fontSize}px`);
+        document.body.style.setProperty('--zx-font-size-base', `${fontSize}px`);
         return () => {
             document.body.removeAttribute('data-dcode-scope');
             document.body.removeAttribute('data-dcode-scheme');
             document.body.removeAttribute(ACRYLIC_ATTRIBUTE);
+            document.body.style.removeProperty('--zx-font-size-base');
         };
-    }, [scheme]);
+    }, [scheme, fontSize]);
     const newTask = useCallback((workspaceId) => {
         navigation.show('session');
         runtime.navigation?.startSession(workspaceId);
@@ -206,6 +409,13 @@ export function Workbench({ navigation }) {
         })
             .catch(() => { setBrowsing(true); });
     }, [runtime, adoptWorkspace]);
+    const selectModel = useCallback(() => {
+        frame?.querySelector('[data-dcode-model-select] button[aria-haspopup]')?.click();
+    }, [frame]);
+    const configureProvider = useCallback(() => {
+        if (modelReadiness.provider !== undefined)
+            navigation.openProviderSettings(modelReadiness.provider);
+    }, [modelReadiness.provider, navigation]);
     // The global keyboard layer. Registered on the document so it works while
     // focus is inside the composer, and scoped to this surface's lifetime.
     useEffect(() => {
@@ -243,6 +453,8 @@ export function Workbench({ navigation }) {
                 const snapshot = navigation.getSnapshot();
                 if (snapshot.paletteOpen)
                     navigation.togglePalette(false);
+                else if (compactOverlayOf(snapshot) !== undefined)
+                    dismissCompactOverlay();
                 else if (snapshot.summaryOpen) {
                     navigation.toggleSummary(false);
                     restoreOverlayFocus('summary');
@@ -251,41 +463,37 @@ export function Workbench({ navigation }) {
                     navigation.closeDiff();
                     restoreOverlayFocus('aside');
                 }
-                else if (snapshot.layout === 'compact' && snapshot.railOpen) {
-                    navigation.closeRail();
-                    restoreOverlayFocus('rail');
-                }
-                else if (snapshot.layout === 'compact' && snapshot.asideOpen) {
-                    navigation.toggleAside();
-                    restoreOverlayFocus('aside');
-                }
             }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => { document.removeEventListener('keydown', onKeyDown); };
-    }, [navigation, newTask, openWorkspace, restoreOverlayFocus]);
+    }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus]);
     const fullSurface = state.view !== 'session';
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
-    const drawer = state.layout === 'compact' && (state.railOpen || state.asideOpen);
-    return (_jsxs("div", { ref: setFrame, className: css.root, ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, style: { '--zx-rail-width': `${railWidth}px` }, [ACRYLIC_ATTRIBUTE]: '', children: [fullSurface
+    const overlayOpen = compactOverlay !== undefined;
+    return (_jsxs("div", { ref: setFrame, className: css.root, ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, "data-aside-resizing": asideResizing ? '' : undefined, style: {
+            '--zx-rail-width': `${railWidth}px`,
+            '--zx-aside-width': `${asideWidth}px`,
+            '--zx-font-size-base': `${fontSize}px`,
+            '--dsh-content-font-size': `${fontSize}px`,
+        }, [ACRYLIC_ATTRIBUTE]: '', children: [fullSurface
                 ? (_jsx("div", { className: css.surface, children: state.view === 'learning'
                         ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
                         : state.view === 'plugins'
                             ? _jsx(PluginsHome, { navigation: navigation })
                             : (_jsx(SettingsBoundary, { resetKey: state.settingsSection, t: t, onBack: () => { navigation.show('session'); }, children: _jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId }) })) }))
-                : (_jsxs(_Fragment, { children: [drawer
-                            ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: () => {
-                                    if (state.railOpen)
-                                        navigation.closeRail();
-                                    if (state.asideOpen)
-                                        navigation.toggleAside();
-                                } }))
-                            : null, _jsxs("div", { className: `${css.rail} ${state.railOpen ? '' : css.railCollapsed}`, children: [_jsx(LeftRail, { navigation: navigation, onNewTask: newTask, onOpenWorkspace: openWorkspace }), state.railOpen && state.layout !== 'compact'
+                : (_jsxs(_Fragment, { children: [overlayOpen
+                            ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: dismissCompactOverlay }))
+                            : null, _jsxs("div", { className: `${css.rail} ${state.railOpen ? '' : css.railCollapsed}`, children: [_jsx(LeftRail, { navigation: navigation, onNewTask: newTask }), state.railOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.railResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": RAIL_WIDTH.min, "aria-valuemax": RAIL_WIDTH.max, "aria-valuenow": railWidth, tabIndex: 0, onPointerDown: startRailResize, onPointerMove: moveRailResize, onPointerUp: finishRailResize, onPointerCancel: finishRailResize, onKeyDown: resizeRailWithKeyboard, onDoubleClick: () => { resizeRail(RAIL_WIDTH.default, true); } }))
-                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen }), _jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank }), _jsx(PlanCard, { sessionId: sessionId }, sessionId), pendingQuestion === undefined
-                                    ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace }))
-                                    : _jsx(QuestionComposer, { pending: pendingQuestion }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsx("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd }) })] })), state.paletteOpen
+                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), _jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank, compact: state.layout === 'compact' }), _jsxs("div", { className: css.composerSeat, children: [_jsx(PlanCard, { sessionId: sessionId }, sessionId), blank
+                                            ? (_jsx(ReadinessCard, { hasWorkspace: groups.length > 0, hasSession: sessionId !== undefined, model: modelReadiness, onOpenWorkspace: openWorkspace, onNewTask: () => { newTask(groups[0]?.workspaceId); }, onSelectModel: selectModel, onConfigureProvider: configureProvider, t: t }))
+                                            : null, pendingQuestion === undefined
+                                            ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace, readiness: modelReadiness, onSelectModel: selectModel, onConfigureProvider: configureProvider }))
+                                            : _jsx(QuestionComposer, { pending: pendingQuestion })] }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsxs("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: [state.asideOpen && state.layout !== 'compact'
+                                    ? (_jsx("div", { className: css.asideResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": ASIDE_WIDTH.min, "aria-valuemax": ASIDE_WIDTH.max, "aria-valuenow": asideWidth, tabIndex: 0, onPointerDown: startAsideResize, onPointerMove: moveAsideResize, onPointerUp: finishAsideResize, onPointerCancel: finishAsideResize, onKeyDown: resizeAsideWithKeyboard, onDoubleClick: () => { resizeAside(ASIDE_WIDTH.default, true); } }))
+                                    : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext })] })] })), state.paletteOpen
                 ? (_jsx(CommandPalette, { navigation: navigation, onNewTask: newTask, onOpenWorkspace: openWorkspace }))
                 : null, browsing
                 ? (_jsx(DirectoryPicker, { onPicked: (path) => {

@@ -21,6 +21,14 @@ export declare const MARKET_BASE = "/api/market";
 export declare const MARKET_PAGE_SIZE = 50;
 /** GitHub topic the Host syncs the catalogue from. */
 export declare const MARKET_TOPIC_URL = "https://github.com/topics/dsh-plugin";
+/** Which catalogue the Host was asked to return. */
+export type MarketScope = 'curated' | 'explore';
+/** Explicit marketplace metadata. Unknown is preferable to an inferred claim. */
+export type PluginCategory = 'interface' | 'vision' | 'design' | 'automation' | 'developer' | 'other' | 'unknown';
+export type ReviewStatus = 'reviewed' | 'unreviewed' | 'unknown';
+export type CompatibilityStatus = 'compatible' | 'incompatible' | 'unknown';
+export type MaintenanceStatus = 'active' | 'stale' | 'unknown';
+export type MarketSource = 'portable-curated' | 'github-topic' | 'unknown';
 /** How far a plugin has travelled from "package on disk" to "loaded". */
 export type PluginExposure = 'boot-configured' | 'pending-restart' | 'stale' | 'inactive' | 'unknown';
 /** Phases the Host reports while an install or update job runs. */
@@ -33,6 +41,14 @@ export interface MarketItem {
     readonly stars: number;
     readonly language: string;
     readonly homepage: string;
+    readonly updatedAt: string;
+    readonly source: MarketSource;
+    readonly featured: boolean;
+    readonly featuredSource: string | undefined;
+    readonly category: PluginCategory;
+    readonly reviewStatus: ReviewStatus;
+    readonly compatibility: CompatibilityStatus;
+    readonly maintenance: MaintenanceStatus;
     /** Already present in the profile, as reported by the Host. */
     readonly installed: boolean;
     /** Installed, but the harness has not restarted onto it yet. */
@@ -48,6 +64,8 @@ export interface MarketPage {
     readonly fetchedAt: number;
     /** A sync failure the Host reports alongside whatever it still had cached. */
     readonly error: string | undefined;
+    /** Runtime platform reported by the Host; empty on older Hosts. */
+    readonly platform: string;
 }
 /** One plugin installed into the web profile. */
 export interface InstalledPlugin {
@@ -173,7 +191,7 @@ export declare function lifecycleSteps(plugin: InstalledPlugin): readonly Lifecy
 export declare function pendingRestart(plugin: InstalledPlugin): boolean;
 /** The marketplace calls the workbench makes. */
 export interface MarketClient {
-    list(query: string, page: number, signal?: AbortSignal): Promise<MarketResult<MarketPage>>;
+    list(query: string, page: number, signal?: AbortSignal, scope?: MarketScope): Promise<MarketResult<MarketPage>>;
     installed(signal?: AbortSignal): Promise<MarketResult<InstalledSnapshot>>;
     /** Start an install; answers a job id, or `undefined` on a synchronous Host. */
     install(spec: string): Promise<MarketResult<string | undefined>>;

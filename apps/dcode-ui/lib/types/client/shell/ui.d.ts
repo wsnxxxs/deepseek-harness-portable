@@ -11,6 +11,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 /** Class names other modules compose against (they own their own layout). */
 export declare const ui: Record<string, string>;
+/** The shared material-glint class for live Tool and Thinking surfaces. */
+export declare function shimmerActive(active?: boolean): string;
 /** A square control that carries an icon and an accessible name. */
 export declare function IconButton(props: {
     label: string;
@@ -20,6 +22,7 @@ export declare function IconButton(props: {
     disabled?: boolean;
     className?: string;
     dataFocusTarget?: string;
+    tooltipAlign?: 'center' | 'right';
 }): import("react").JSX.Element;
 /** A labelled control. */
 export declare function Button(props: {

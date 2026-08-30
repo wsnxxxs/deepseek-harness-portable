@@ -57,12 +57,6 @@ export class RuntimeHandshake {
   }
 }
 
-export function electronExecutable(product: string, target: TargetSpec): string {
-  return target.platform === 'darwin'
-    ? join(product, 'Contents', 'MacOS', 'DeepSeek Harness')
-    : product
-}
-
 export interface PackagedSmokeOptions {
   readonly product: string
   readonly appResources: string
@@ -228,7 +222,7 @@ export async function runPackagedSmoke(options: PackagedSmokeOptions): Promise<P
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'dsh-packaged-smoke-'))
   const dshHome = join(temporaryRoot, '.dsh')
   await stageStaleManagedFallback(dshHome)
-  const executable = electronExecutable(options.product, options.target)
+  const executable = options.product
   const entry = join(options.appResources, 'lib', 'packaged-bin.js')
   let output = ''
   let readiness: Promise<void> | undefined

@@ -21,6 +21,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client';
+import type { MessageFeedbackRemote } from '@deepseek-ai/dsh-client-ui-message-feedback/client';
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
@@ -119,6 +120,8 @@ export interface DcodeRuntime {
     readonly navigation: WorkspaceNavigation | undefined;
     /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
     readonly remote: ClientRemote;
+    /** Stable feedback namespace captured once for this Runtime's lifetime. */
+    readonly messageFeedback: MessageFeedbackRemote | undefined;
     /** Official settings scope/schema/mirror services used by settings sections. */
     readonly settings: DcodeSettingsServices;
     /** Shared Conversation service: draft attachments and the per-session input machine. */

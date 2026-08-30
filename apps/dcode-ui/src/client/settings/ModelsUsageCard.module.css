@@ -1,0 +1,321 @@
+/* Official-settings face of the shared usage card (see UsageCards.tsx). It
+   deliberately follows the official token domain (`--dsw-alias-*`) and the
+   page's fixed type scale rather than the DCode `--zx-*` workbench scale,
+   because it is mounted in the classic settings shell through the Models
+   page's `settings.models.footer` extension seat. The class contract is
+   UsageCardStyles; the workbench face is UsageCards.module.css. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary, #0b0e14);
+}
+
+.intro {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform, #f1f3f7);
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  container: dcode-usage / inline-size;
+
+  /* Categorical chart palette. `--dsw-alias-brand-primary` is the platform's
+     NEUTRAL brand token (near-black in light, near-white in dark), so the
+     series come off the chromatic DeepSeek statics and the state colors
+     instead; each alias read carries a fallback, since a bare undeclared
+     alias would drop the whole declaration. */
+  --dcode-usage-series-1: var(--dsw-static-deepseek-450, #5686fe);
+  --dcode-usage-series-2: var(--dsw-static-deepseek-300, #b7c8fe);
+  --dcode-usage-series-3: var(--dsw-alias-state-success-primary, #1a7f37);
+  --dcode-usage-series-4: var(--dsw-alias-state-warn-label, #9a6700);
+  --dcode-usage-series-5: var(--dsw-alias-state-error-primary, #cf222e);
+  --dcode-usage-series-6: var(--dsw-static-deepseek-500, #4176e6);
+  --dcode-usage-series-7: var(--dsw-alias-label-tertiary, #8b93a1);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tabs,
+.ranges {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+
+.tab,
+.range {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.tab:hover,
+.range:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  color: var(--dsw-alias-label-primary, #0b0e14);
+}
+
+.tabActive,
+.tabActive:hover,
+.rangeActive,
+.rangeActive:hover {
+  background: var(--dsw-alias-bg-layer-2, #ffffff);
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  font-weight: 500;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #0b0e14);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+/* --- overview ---------------------------------------------------------- */
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+
+.statLabel {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.statValue {
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatRow {
+  display: flex;
+  gap: 3px;
+}
+
+.heatCell {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+/* One intensity ramp, off the same chromatic base as the first chart series
+   so "busier day" reads as "more colour" in either scheme. */
+.level0 { background: var(--dsw-alias-bg-layer-1, #ffffff); }
+.level1 { background: color-mix(in srgb, var(--dcode-usage-series-1) 28%, var(--dsw-alias-bg-layer-1, #ffffff)); }
+.level2 { background: color-mix(in srgb, var(--dcode-usage-series-1) 52%, var(--dsw-alias-bg-layer-1, #ffffff)); }
+.level3 { background: color-mix(in srgb, var(--dcode-usage-series-1) 76%, var(--dsw-alias-bg-layer-1, #ffffff)); }
+.level4 { background: var(--dcode-usage-series-1); }
+
+/* --- models ------------------------------------------------------------ */
+
+.chart {
+  display: flex;
+  gap: 8px;
+  height: 180px;
+}
+
+.axis {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  min-width: 40px;
+}
+
+.axisTick {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The widest range packs half a year into the card, so the columns must be
+   free to shrink below a readable bar width and read as a dense profile
+   instead of overflowing. */
+.plot {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+  padding-top: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+}
+
+.column {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  min-width: 0;
+  height: 100%;
+}
+
+/* Column height is the day's share of the peak; the segments inside split
+   that height by `flex-grow`, so one stack needs no per-segment maths. */
+.stack {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 100%;
+  min-height: 1px;
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+}
+
+.segment {
+  display: block;
+  flex-basis: 0;
+  width: 100%;
+}
+
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 48px;
+}
+
+.tick {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legendName {
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  font-size: 13px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legendTokens {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.legendShare {
+  min-width: 48px;
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.footnote,
+.empty {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* The classic settings shell does not publish the workbench's
+   `data-dcode-layout` attribute, so this face sizes itself against its own
+   width instead of the viewport: the Models page is narrower than the window
+   it sits in, and a viewport media query would break at the wrong moment. */
+@container dcode-usage (max-width: 560px) {
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .legendRow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .legendTokens {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}

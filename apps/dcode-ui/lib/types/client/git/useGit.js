@@ -12,7 +12,7 @@
  * workspace issues no git processes at all.
  * @module @dsh-portable/dcode-ui/client/git/useGit
  */
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useRuntime } from "../state/runtime.js";
 import { useSessionSnapshot } from "../state/hooks.js";
 const EMPTY = { status: undefined, loading: false, pending: true, error: undefined };
@@ -91,6 +91,8 @@ function load(runtime, cwd, force) {
 export function useGitStatus(cwd, sessionId) {
     const runtime = useRuntime();
     const session = useSessionSnapshot(sessionId);
+    const [mutation, setMutation] = useState(undefined);
+    const mutationRef = useRef(undefined);
     const record = useMemo(() => cwd === undefined ? undefined : recordFor(cwd), [cwd]);
     const subscribe = useCallback((listener) => {
         if (cwd === undefined || record === undefined)
@@ -119,6 +121,35 @@ export function useGitStatus(cwd, sessionId) {
         if (cwd !== undefined)
             load(runtime, cwd, true);
     }, [runtime, cwd]);
+    const mutate = useCallback(async (kind, paths) => {
+        if (cwd === undefined)
+            return 'no workspace selected';
+        if (mutationRef.current !== undefined)
+            return 'another Git operation is already running';
+        const next = { kind, paths: [...paths] };
+        mutationRef.current = next;
+        setMutation(next);
+        try {
+            const result = kind === 'stage'
+                ? await runtime.git.stage(cwd, paths)
+                : await runtime.git.unstage(cwd, paths);
+            return result.ok ? undefined : result.error.message;
+        }
+        catch (cause) {
+            return cause instanceof Error ? cause.message : String(cause);
+        }
+        finally {
+            load(runtime, cwd, true);
+            mutationRef.current = undefined;
+            setMutation(undefined);
+        }
+    }, [runtime, cwd]);
+    const stage = useCallback(async (paths) => await mutate('stage', paths), [mutate]);
+    const unstage = useCallback(async (paths) => await mutate('unstage', paths), [mutate]);
+    useEffect(() => {
+        mutationRef.current = undefined;
+        setMutation(undefined);
+    }, [cwd]);
     // First read for a workspace nobody has looked at yet.
     useEffect(() => {
         if (cwd !== undefined)
@@ -141,6 +172,6 @@ export function useGitStatus(cwd, sessionId) {
         globalThis.addEventListener?.('focus', onFocus);
         return () => { globalThis.removeEventListener?.('focus', onFocus); };
     }, [cwd, refresh]);
-    return useMemo(() => ({ ...snapshot, unavailable: !runtime.git.available, refresh }), [snapshot, runtime, refresh]);
+    return useMemo(() => ({ ...snapshot, unavailable: !runtime.git.available, refresh, mutation, stage, unstage }), [snapshot, runtime, refresh, mutation, stage, unstage]);
 }
 //# sourceMappingURL=useGit.js.map

@@ -22,6 +22,7 @@ import { EMPTY_TRAJECTORY_SNAPSHOT } from "../state/runtime.js";
 import { useGitStatus } from "../git/useGit.js";
 import { latestTodos } from "../chat/tools.js";
 import { ui } from "./ui.js";
+import { useModalFocus } from "./use-modal-focus.js";
 import css from './SummaryCard.module.css';
 /** Build the small trace ledger from the same snapshot as DSH's full view. */
 function buildTraceRows(snapshot, t) {
@@ -96,7 +97,7 @@ function Row(props) {
     return (_jsx("button", { type: "button", className: `${css.row} ${css.rowAction}`, title: props.title, onClick: props.onOpen, children: body }));
 }
 /** The environment digest, or null while the top bar keeps it closed. */
-export function SummaryCard({ navigation, sessionId, cwd, open }) {
+export function SummaryCard({ navigation, sessionId, cwd, open, compact }) {
     const cardRef = useRef(null);
     const t = useT();
     const { groups } = useWorkspaceGroups();
@@ -110,12 +111,16 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
     const traceRows = useMemo(() => buildTraceRows(trajectory ?? EMPTY_TRAJECTORY_SNAPSHOT, t), [trajectory, t]);
     const workspace = useMemo(() => groups.find(group => group.path === cwd)
         ?? groups.find(group => group.sessions.some(row => row.id === sessionId)), [groups, cwd, sessionId]);
+    useModalFocus(open && compact, cardRef, { onClose: () => { navigation.toggleSummary(false); } });
     useEffect(() => {
-        if (!open)
+        if (!open || compact)
             return undefined;
-        const onDocumentClick = (event) => {
+        const onDocumentPointerDown = (event) => {
             const target = event.target;
             if (target instanceof Node && cardRef.current?.contains(target) === true)
+                return;
+            if (target instanceof Element
+                && target.closest('[data-dcode-focus-target="summary"]') !== null)
                 return;
             navigation.toggleSummary(false);
         };
@@ -129,13 +134,13 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
                 document.querySelector('[data-dcode-focus-target="summary"]')?.focus();
             });
         };
-        document.addEventListener('click', onDocumentClick);
+        document.addEventListener('pointerdown', onDocumentPointerDown);
         document.addEventListener('keydown', onDocumentKeyDown, true);
         return () => {
-            document.removeEventListener('click', onDocumentClick);
+            document.removeEventListener('pointerdown', onDocumentPointerDown);
             document.removeEventListener('keydown', onDocumentKeyDown, true);
         };
-    }, [navigation, open]);
+    }, [compact, navigation, open]);
     if (!open)
         return null;
     const status = git.status;
@@ -144,7 +149,7 @@ export function SummaryCard({ navigation, sessionId, cwd, open }) {
     const done = todos.filter(todo => todo.status === 'completed').length;
     const objective = goal?.goal.objective;
     const running = trajectory?.runningCalls.length ?? 0;
-    return (_jsxs("section", { ref: cardRef, className: css.card, "aria-label": t('summary.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
+    return (_jsxs("section", { ref: cardRef, className: css.card, "aria-label": t('summary.title'), "aria-modal": compact ? true : undefined, role: compact ? 'dialog' : undefined, tabIndex: compact ? -1 : undefined, children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('summary.title') }), _jsx("button", { type: "button", className: css.close, "aria-label": t('summary.close'), onClick: () => { navigation.toggleSummary(false); }, children: _jsx(IconCloseOutline16, {}) })] }), workspace === undefined && !repository
                 ? _jsx("p", { className: css.empty, children: t('chat.empty.noWorkspace') })
                 : (_jsxs("div", { className: css.rows, children: [_jsx(Row, { icon: _jsx(IconCodeOutline16, {}), label: t('git.changes'), title: t('summary.openChanges'), value: !repository
                                 ? _jsx("span", { className: css.muted, children: t('top.noRepository') })

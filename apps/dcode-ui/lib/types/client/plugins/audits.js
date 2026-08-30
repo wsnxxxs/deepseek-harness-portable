@@ -17,6 +17,10 @@
 const REVIEWED = {
     'omdsh-dev/dsh-genui': {
         reviewed: true,
+        featured: true,
+        featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+        category: 'interface',
+        compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
         contract: {
             en: '^0.1.0-rc.6 (no exact-profile compatibility claim for rc7/Portable)',
             zh: '^0.1.0-rc.6（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -48,6 +52,10 @@ const REVIEWED = {
     },
     'anionex/dsh-vision-toolkit': {
         reviewed: true,
+        featured: true,
+        featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+        category: 'vision',
+        compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
         contract: {
             en: '^0.1.0-rc.6 (no exact-profile compatibility claim for rc7/Portable)',
             zh: '^0.1.0-rc.6（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -79,6 +87,10 @@ const REVIEWED = {
     },
     'zseven-w/dsh-openpencil': {
         reviewed: true,
+        featured: true,
+        featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+        category: 'design',
+        compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
         contract: {
             en: 'Several ^0.1.0-rc.6 packages (no exact-profile compatibility claim for rc7/Portable)',
             zh: '多个 ^0.1.0-rc.6 包（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -116,5 +128,9 @@ const REVIEWED = {
  */
 export function auditFor(fullName) {
     return REVIEWED[fullName.toLowerCase()];
+}
+/** Repositories that have a real bundled review record. */
+export function reviewedRepositories() {
+    return Object.keys(REVIEWED);
 }
 //# sourceMappingURL=audits.js.map

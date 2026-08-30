@@ -10,7 +10,9 @@
  * @module @dsh-portable/dcode-ui/client/chat/tools
  */
 /** Tools that change files on disk. */
-const MUTATING = new Set(['write', 'edit', 'str_replace_editor']);
+const MUTATING = new Set([
+    'write', 'edit', 'str_replace_editor', 'write_to_file', 'replace_file_content',
+]);
 /** Argument fields that name a path, in the order they are consulted. */
 const PATH_FIELDS = ['file_path', 'path', 'notebook_path', 'target', 'filename'];
 /**
@@ -92,24 +94,40 @@ export function summarizeTool(name, argsRaw) {
     switch (name) {
         case 'bash':
         case 'pwsh':
+        case 'shell':
+        case 'run':
+        case 'exec':
+        case 'exec_command':
+        case 'powershell':
         case 'terminal_send':
+        case 'run_command':
             return { ...base, kind: 'run', detail: oneLine(firstString(args, ['command', 'input', 'script']) ?? '') };
         case 'read':
+        case 'view_file':
+        case 'read_file':
         case 'read_image':
         case 'read_attachment':
             return { ...base, kind: 'read', detail: oneLine(path ?? '') };
         case 'write':
+        case 'write_to_file':
             return { ...base, kind: 'write', detail: oneLine(path ?? '') };
         case 'edit':
         case 'str_replace_editor':
+        case 'replace_file_content':
             return { ...base, kind: 'edit', detail: oneLine(path ?? '') };
         case 'glob':
         case 'grep':
+        case 'grep_search':
+        case 'list_dir':
+        case 'list_directory':
         case 'session_search':
         case 'fs_search':
             return { ...base, kind: 'search', detail: oneLine(firstString(args, ['pattern', 'query', 'regex']) ?? '') };
         case 'web_search':
+        case 'search_web':
+        case 'search_query':
         case 'web_fetch':
+        case 'fetch_url':
             return { ...base, kind: 'web', detail: oneLine(firstString(args, ['query', 'url']) ?? '') };
         case 'todo_write':
         case 'create_goal':
@@ -130,6 +148,123 @@ export function summarizeTool(name, argsRaw) {
             return { ...base, kind: 'other', detail: oneLine(typeof fallback?.[1] === 'string' ? fallback[1] : '') };
         }
     }
+}
+/** Milliseconds spent in one settled tool call, when both event times are available. */
+export function toolDurationMs(block) {
+    if (!('isError' in block) || block.callTime === null)
+        return undefined;
+    return Math.max(0, block.time - block.callTime);
+}
+/** Compact tool timing shared by individual cards and activity summaries. */
+export function formatToolDuration(ms) {
+    return `${(Math.max(0, ms) / 1000).toFixed(1)}s`;
+}
+/** Displayable line changes for file-writing cards, when the tool retained enough data. */
+export function toolChangeStats(block) {
+    if (!('isError' in block) || block.isError)
+        return undefined;
+    const meta = typeof block.meta === 'object' && block.meta !== null
+        ? block.meta
+        : {};
+    const numberField = (names) => {
+        for (const name of names) {
+            const value = meta[name];
+            if (typeof value === 'number' && Number.isFinite(value))
+                return Math.max(0, Math.round(value));
+        }
+        return undefined;
+    };
+    const additions = numberField(['additions', 'insertions', 'linesAdded', 'added']);
+    const deletions = numberField(['deletions', 'removals', 'linesRemoved', 'removed']);
+    if (additions !== undefined || deletions !== undefined) {
+        return { additions: additions ?? 0, deletions: deletions ?? 0 };
+    }
+    const output = resultText(block.content);
+    const diffLines = output.split('\n');
+    const diffAdditions = diffLines.filter(line => line.startsWith('+') && !line.startsWith('+++')).length;
+    const diffDeletions = diffLines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
+    if (diffAdditions > 0 || diffDeletions > 0) {
+        return { additions: diffAdditions, deletions: diffDeletions };
+    }
+    const name = block.call?.name ?? '';
+    const args = parseArgs(block.call?.argsRaw);
+    const countLines = (value) => typeof value === 'string' && value !== '' ? value.split(/\r?\n/).length : 0;
+    if (name === 'replace_file_content' || name === 'edit' || name === 'str_replace_editor') {
+        const before = firstString(args, ['old_str', 'old_string', 'old_content']);
+        const after = firstString(args, ['new_str', 'new_string', 'new_content']);
+        if (before !== undefined || after !== undefined) {
+            return { additions: countLines(after), deletions: countLines(before) };
+        }
+    }
+    if (name === 'write_to_file' || name === 'write') {
+        const content = firstString(args, ['content', 'text']);
+        if (content !== undefined)
+            return { additions: countLines(content), deletions: 0 };
+    }
+    return undefined;
+}
+/** An error anywhere in a ToolCallBlock tree must remain visually explicit. */
+function hasToolError(block) {
+    if ('isError' in block && block.isError)
+        return true;
+    return block.subCalls.some(hasToolError);
+}
+/** Whether a result is safe to hide inside a lightweight activity disclosure. */
+function aggregatableActivity(node) {
+    if (node.kind !== 'tool-result' || hasToolError(node))
+        return false;
+    const summary = summarizeTool(node.call?.name ?? '', node.call?.argsRaw);
+    return !summary.mutating && (summary.kind === 'read' || summary.kind === 'search' || summary.kind === 'web');
+}
+/**
+ * Collapse consecutive successful read/search results into transcript groups.
+ * A single action stays as an ordinary ToolCard; consecutive exploration is
+ * folded by default, and errors always break a run.
+ */
+export function aggregateToolActivity(nodes) {
+    const items = [];
+    let run = [];
+    const flush = () => {
+        if (run.length < 2) {
+            items.push(...run);
+            run = [];
+            return;
+        }
+        let readCount = 0;
+        let searchCount = 0;
+        const files = new Set();
+        const durations = run.map(toolDurationMs);
+        for (const block of run) {
+            const kind = summarizeTool(block.call?.name ?? '', block.call?.argsRaw).kind;
+            for (const path of summarizeTool(block.call?.name ?? '', block.call?.argsRaw).files)
+                files.add(path);
+            if (kind === 'read')
+                readCount += 1;
+            if (kind === 'search' || kind === 'web')
+                searchCount += 1;
+        }
+        items.push({
+            kind: 'tool-activity',
+            blocks: run,
+            readCount,
+            searchCount,
+            fileCount: files.size === 0 ? run.length : files.size,
+            durationMs: durations.every((value) => value !== undefined)
+                ? durations.reduce((total, value) => total + value, 0)
+                : undefined,
+        });
+        run = [];
+    };
+    for (const node of nodes) {
+        if (aggregatableActivity(node)) {
+            run.push(node);
+            continue;
+        }
+        flush();
+        items.push(node);
+    }
+    flush();
+    return items;
 }
 /**
  * Flatten a tool result's content blocks into displayable text.

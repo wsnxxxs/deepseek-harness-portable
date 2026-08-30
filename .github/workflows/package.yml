@@ -11,48 +11,6 @@ jobs:
   verify:
     uses: ./.github/workflows/verify.yml
 
-  linux-x64:
-    needs: verify
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.21.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec tsx scripts/build/client-manifest-bridge.ts
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools bubblewrap
-      - name: Download Electron runtime
-        env:
-          ELECTRON_DISABLE_SANDBOX: '1'
-        run: pnpm --filter dsh-desktop-web-pkg exec electron --version
-      - name: Configure Electron sandbox helper
-        run: |
-          electron_sandbox="$(find . -path '*/electron/dist/chrome-sandbox' -print -quit)"
-          test -n "$electron_sandbox"
-          sudo chown root:root "$electron_sandbox"
-          sudo chmod 4755 "$electron_sandbox"
-      - run: test "$(node -p 'process.platform + "-" + process.arch')" = linux-x64
-      - run: pnpm run desktop:package:linux
-      - name: Verify current Linux release names
-        shell: bash
-        run: |
-          version="$(node -p "require('./apps/desktop/package.json').distributionVersion")"
-          test -f "dist-desktop/electron/verified/linux-x64/DeepSeek-Harness-${version}-linux-x64.AppImage"
-          test -f "dist-desktop/electron/verified/linux-x64/DeepSeek-Harness-${version}-linux-x64.deb"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verified-linux-x64
-          path: dist-desktop/electron/verified/linux-x64
-          if-no-files-found: error
-          compression-level: 0
-
   windows-x64-wsl:
     needs: verify
     runs-on: [self-hosted, Windows, X64, dsh-wsl, inno-setup]
@@ -79,30 +37,5 @@ jobs:
         with:
           name: verified-win32-x64
           path: dist-desktop/electron/verified/win32-x64
-          if-no-files-found: error
-          compression-level: 0
-
-  macos-arm64:
-    needs: verify
-    runs-on: [self-hosted, macOS, ARM64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.21.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec tsx scripts/build/client-manifest-bridge.ts
-      - run: test "$(node -p 'process.platform + "-" + process.arch')" = darwin-arm64
-      - run: pnpm run desktop:package:mac
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verified-darwin-arm64
-          path: dist-desktop/electron/verified/darwin-arm64
           if-no-files-found: error
           compression-level: 0

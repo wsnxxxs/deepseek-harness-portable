@@ -74,18 +74,69 @@ function definitionById(definitions: readonly PatchDefinition[], id: string): Pa
 
 export function patchDirectoryPickerWorker(source: string): string {
   let output = source
-  const oldReadUtf16 = `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && bytes[end] !== 0) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`
-  const currentReadUtf16 = `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && !(bytes[end] === 0 && bytes[end + 1] === 0)) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`
-  const newReadUtf16 = `function readUtf16(koffi, address) {\n\treturn koffi.decode.string16(address);\n}`
+  // Crash-safe UTF-16 read: `koffi.view` is fatally broken under the Electron
+  // 43 runtime (Node 24.18.1, V8 15.0-electron) — the external-buffer N-API
+  // call fails and koffi's exception path aborts the worker with
+  // `FATAL ERROR: Error::New napi_get_last_error_info` (exit 134), even for a
+  // valid pointer. Verified 2026-08-29: the identical call works under
+  // standalone Node 22.22.2 / 24.16.0 and aborts under Electron-as-Node, and
+  // the copy-out form below works under Electron-as-Node. Copy the string out
+  // with lstrlenW + RtlMoveMemory instead; this also removes the fixed
+  // 32768-byte over-read past the CoTaskMemAlloc'd path.
+  const safeReadUtf16 = `function readUtf16(koffi, address) {
+\tconst kernel32 = koffi.load("kernel32.dll");
+\tconst lstrlenW = kernel32.func("__stdcall", "lstrlenW", "int", ["void *"]);
+\tconst rtlMoveMemory = kernel32.func("__stdcall", "RtlMoveMemory", "void *", ["void *", "void *", "uintptr"]);
+\tconst length = lstrlenW(address);
+\tif (length <= 0) return "";
+\tconst bytes = Buffer.alloc((length + 1) * 2);
+\trtlMoveMemory(bytes, address, (length + 1) * 2);
+\treturn bytes.toString("utf16le", 0, length * 2);
+}`
+  // Known upstream shapes of the koffi.view-based readUtf16 (two terminator
+  // scan variants); either is replaced wholesale by the copy-out form above.
+  const viewReadUtf16Variants = [
+    `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && bytes[end] !== 0) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`,
+    `function readUtf16(koffi, address) {\n\tconst bytes = Buffer.from(koffi.view(address, 32768));\n\tlet end = 0;\n\twhile (end + 1 < bytes.length && !(bytes[end] === 0 && bytes[end + 1] === 0)) end += 2;\n\treturn bytes.toString("utf16le", 0, end);\n}`,
+  ]
   const oldPost = `const post = (message) => {\n\t/* v8 ignore next 3 -- disconnect needs a live IPC channel the unit lane must not sever (built-worker.e2e.ts owns the real close path). */\n\tsend(message, () => {\n\t\tif (process.connected) process.disconnect();\n\t});\n};`
   const newPost = `const post = (message) => {\n\tsend(message);\n};`
-  if (output.includes(oldReadUtf16)) output = output.replace(oldReadUtf16, newReadUtf16)
+  for (const variant of viewReadUtf16Variants) {
+    if (output.includes(variant)) {
+      output = output.replace(variant, safeReadUtf16)
+      break
+    }
+  }
+  if (!output.includes(safeReadUtf16)) {
+    throw new Error('directory-picker worker readUtf16 no longer matches a known koffi.view implementation; re-review the upstream source before patching')
+  }
   if (output.includes(oldPost)) output = output.replace(oldPost, newPost)
-  // alpha.1 already carries the corrected UTF-16 terminator scan. The
-  // distribution patch only needs to retain that implementation while adding
-  // the non-interactive health probe and the portable IPC send behavior.
-  if ((!output.includes(newReadUtf16) && !output.includes(currentReadUtf16)) || !output.includes(newPost)) {
+  if (!output.includes(newPost)) {
     throw new Error('directory-picker worker no longer matches the reviewed memory/IPC implementation')
+  }
+  // Report startup-guard failures over IPC instead of dying at the top level.
+  // A throw before the async IIFE is an uncaught exception: the process exits
+  // without posting, so the driver can only report "exited before reporting a
+  // result" with no cause attached.
+  const oldGuards = `const title = process.env.DSH_DIALOG_TITLE ?? "";
+if (title === "") throw new Error("win32-dialog-worker: DSH_DIALOG_TITLE is required");
+if (process.send === void 0) throw new Error("win32-dialog-worker must run as a child process with an IPC channel");`
+  const newGuards = `const title = process.env.DSH_DIALOG_TITLE ?? "";
+const ipcMissing = process.send === void 0;
+const failStartup = (reason) => {
+\tprocess.stderr.write(reason + "\\n");
+\tif (!ipcMissing) process.send({ kind: "error", message: reason }, () => process.exit(1));
+\tprocess.exit(1);
+};
+if (title === "") failStartup("win32-dialog-worker: DSH_DIALOG_TITLE is required");
+if (ipcMissing) failStartup("win32-dialog-worker must run as a child process with an IPC channel");`
+  if (output.includes(oldGuards)) output = output.replace(oldGuards, newGuards)
+  // Catch anything else reaching the top level (failed koffi import, native
+  // abort) so the driver reports a cause instead of a bare exit.
+  if (output.includes('const failStartup =') && !output.includes('process.on("uncaughtException"')) {
+    const anchor = `const send = process.send.bind(process);`
+    if (!output.includes(anchor)) throw new Error('directory-picker worker send anchor is missing')
+    output = output.replace(anchor, `${anchor}\nprocess.on("uncaughtException", (error) => {\n\tfailStartup(error instanceof Error ? error.stack ?? error.message : String(error));\n});\nprocess.on("unhandledRejection", (error) => {\n\tfailStartup(error instanceof Error ? error.stack ?? error.message : String(error));\n});`)
   }
   if (!output.includes('DSH_DIRECTORY_PICKER_IPC_PROBE')) {
     const disconnect = `process.on("disconnect", () => process.exit(0));`

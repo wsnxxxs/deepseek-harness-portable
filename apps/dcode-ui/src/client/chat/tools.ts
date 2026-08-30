@@ -160,7 +160,10 @@ export function summarizeTool(name: string, argsRaw: string | undefined): ToolSu
     case 'fs_search':
       return { ...base, kind: 'search', detail: oneLine(firstString(args, ['pattern', 'query', 'regex']) ?? '') }
     case 'web_search':
+    case 'search_web':
+    case 'search_query':
     case 'web_fetch':
+    case 'fetch_url':
       return { ...base, kind: 'web', detail: oneLine(firstString(args, ['query', 'url']) ?? '') }
     case 'todo_write':
     case 'create_goal':
@@ -248,7 +251,7 @@ function hasToolError(block: ToolCallBlock): boolean {
 function aggregatableActivity(node: ConversationNode): node is ToolResultNode {
   if (node.kind !== 'tool-result' || hasToolError(node)) return false
   const summary = summarizeTool(node.call?.name ?? '', node.call?.argsRaw)
-  return !summary.mutating && (summary.kind === 'read' || summary.kind === 'search')
+  return !summary.mutating && (summary.kind === 'read' || summary.kind === 'search' || summary.kind === 'web')
 }
 
 /**
@@ -274,7 +277,7 @@ export function aggregateToolActivity(nodes: readonly ConversationNode[]): reado
       const kind = summarizeTool(block.call?.name ?? '', block.call?.argsRaw).kind
       for (const path of summarizeTool(block.call?.name ?? '', block.call?.argsRaw).files) files.add(path)
       if (kind === 'read') readCount += 1
-      if (kind === 'search') searchCount += 1
+      if (kind === 'search' || kind === 'web') searchCount += 1
     }
     items.push({
       kind: 'tool-activity',

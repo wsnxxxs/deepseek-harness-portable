@@ -3,7 +3,7 @@
 .card {
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
-  background: var(--zx-bg-card);
+  background: var(--zx-bg-surface-1);
   overflow: hidden;
 }
 
@@ -50,14 +50,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--zx-accent) 72%, white);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--zx-accent) 55%, transparent);
-  animation: toolPulse 1.6s ease-in-out infinite;
-}
-
-@keyframes toolPulse {
-  0%, 100% { opacity: 0.32; transform: scale(0.72); }
-  50% { opacity: 0.9; transform: scale(1.15); }
+  background: var(--zx-accent);
 }
 
 .verb {
@@ -111,12 +104,37 @@
   transform: rotate(90deg);
 }
 
+.disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 260ms cubic-bezier(.2, .78, .2, 1), opacity 180ms ease;
+}
+
+.disclosureOpen {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.disclosureClip {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .body {
   border-top: 1px solid var(--zx-border-soft);
   padding: var(--zx-space-3);
   display: flex;
   flex-direction: column;
   gap: var(--zx-space-3);
+}
+
+.toolbarDuration {
+  flex: none;
+  color: var(--zx-label-tertiary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Section label with its controls pushed to the far edge. */
@@ -163,5 +181,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .runningGlyph::before { animation: none; opacity: 0.7; }
+  .disclosure { transition: none; }
 }

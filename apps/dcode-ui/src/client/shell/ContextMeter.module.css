@@ -45,8 +45,11 @@
   right: 0;
   bottom: calc(100% + var(--zx-space-2));
   z-index: var(--zx-z-popover);
-  width: 264px;
+  width: min(264px, calc(100vw - var(--zx-space-4) * 2));
+  max-width: calc(100vw - var(--zx-space-4) * 2);
+  max-height: calc(100dvh - var(--zx-space-4) * 2);
   box-sizing: border-box;
+  overflow: hidden auto;
   padding: var(--zx-space-4);
   border: 1px solid var(--zx-border);
   border-radius: var(--zx-radius-lg);

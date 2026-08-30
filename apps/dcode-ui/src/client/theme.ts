@@ -27,7 +27,11 @@ export const THEME_PREFERENCES: readonly ThemePreference[] = ['light', 'dark', '
 /** Global the desktop preload publishes the resolved window backdrop on. */
 export const SURFACE_BRIDGE_GLOBAL = '__DSH_DESKTOP_SURFACE__'
 
-/** Body/root attribute marking a document whose ground must stay translucent. */
+/**
+ * Body/root attribute marking a document whose ground must stay translucent.
+ * Token surfaces and panel styles use this single presence selector, keeping
+ * the Windows 11 native material and the browser fallback on the same path.
+ */
 export const ACRYLIC_ATTRIBUTE = 'data-dcode-acrylic'
 
 /** Root attribute carrying the resolved scheme to the token stylesheet. */
@@ -58,6 +62,15 @@ export interface ThemeFace {
   setFontSize?(px: number): void
 }
 
+/** Default base content font size in pixels. */
+export const DEFAULT_FONT_SIZE = 14
+
+/** Minimum supported interface font size in pixels. */
+export const FONT_SIZE_MIN = 11
+
+/** Maximum supported interface font size in pixels. */
+export const FONT_SIZE_MAX = 22
+
 /** The event bus slice this module subscribes to. */
 interface EventSource {
   on(name: 'theme/change', listener: () => void): () => void
@@ -69,12 +82,18 @@ export interface AppearanceStore {
   getScheme(): ColorScheme
   /** What the user chose, which may be `system`. */
   getPreference(): ThemePreference
+  /** The interface content font size in pixels (11..22, default 14). */
+  getFontSize(): number
   /** Whether this assembly can write the preference at all. */
   readonly canSet: boolean
+  /** Whether this assembly can write the font size. */
+  readonly canSetFontSize: boolean
   /** The native backdrop; `none` on the web and on Windows 10 and older. */
   readonly material: WindowMaterial
   /** Switch the preference. A no-op where {@link canSet} is false. */
   set(preference: ThemePreference): void
+  /** Change the font size in pixels. Clamped to {@link FONT_SIZE_MIN}..{@link FONT_SIZE_MAX}. */
+  setFontSize(px: number): void
   subscribe(listener: () => void): () => void
 }
 
@@ -131,12 +150,38 @@ export function createAppearanceStore(
     return media?.matches === true ? 'dark' : 'light'
   }
 
+  const getFontSize = (): number => {
+    const size = theme?.getTheme().fontSize
+    if (typeof size === 'number' && !Number.isNaN(size) && size > 0) return size
+    if (typeof document !== 'undefined') {
+      const raw = document.body.style.getPropertyValue('--dsh-content-font-size')
+        || document.body.style.getPropertyValue('--zx-font-size-base')
+      const parsed = parseInt(raw, 10)
+      if (!Number.isNaN(parsed) && parsed > 0) return parsed
+    }
+    return DEFAULT_FONT_SIZE
+  }
+
+  const setFontSize = (px: number): void => {
+    const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(px)))
+    if (theme?.setFontSize !== undefined) {
+      theme.setFontSize(clamped)
+    } else if (typeof document !== 'undefined') {
+      document.body.style.setProperty('--dsh-content-font-size', `${clamped}px`)
+      document.body.style.setProperty('--zx-font-size-base', `${clamped}px`)
+      notify()
+    }
+  }
+
   return {
     getScheme,
     getPreference: () => asThemePreference(theme?.getTheme().preference) ?? 'system',
+    getFontSize,
     canSet: theme?.setTheme !== undefined,
+    canSetFontSize: theme?.setFontSize !== undefined || typeof document !== 'undefined',
     material: readWindowMaterial(),
     set: (preference) => { theme?.setTheme?.(preference) },
+    setFontSize,
     subscribe: (listener) => {
       listeners.add(listener)
       if (sourceDisposers === undefined) {
@@ -148,7 +193,7 @@ export function createAppearanceStore(
         }
         if (typeof MutationObserver === 'function' && typeof document !== 'undefined') {
           const observer = new MutationObserver(notify)
-          observer.observe(document.body, { attributes: true, attributeFilter: [DARK_BODY_ATTRIBUTE] })
+          observer.observe(document.body, { attributes: true, attributeFilter: [DARK_BODY_ATTRIBUTE, 'style'] })
           disposers.push(() => { observer.disconnect() })
         }
         if (media !== undefined) {

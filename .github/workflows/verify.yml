@@ -45,7 +45,6 @@ jobs:
             exit 1
           fi
       - run: pnpm run test:dirty
-      - run: sh scripts/install-unix.test.sh
       - run: pnpm run readme:check
       - name: Presets contain no host-platform branches
         shell: bash

@@ -13,56 +13,38 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14, IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16, IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14, IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16, IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16, IconPlusOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useAsync, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
 import { Button, EmptyState, Spinner, ui } from "../shell/ui.js";
 import { useModalFocus } from "../shell/use-modal-focus.js";
-import { ThemeSwitch } from "../shell/ThemeSwitch.js";
+import { ThemeSwitch, useAppearance } from "../shell/ThemeSwitch.js";
+import { UiModeSwitch } from "../shell/UiModeSwitch.js";
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from "./usage.js";
+import { UsageCards, usageCardStyles } from "./UsageCards.js";
+import usageCardClasses from './UsageCards.module.css';
 import { SelectMenu } from "./SelectMenu.js";
 import { PluginSettingsSection } from "./PluginSettingsSection.js";
+import { providerReadiness, providerRemovable, visibleProviderRows, } from "./provider-readiness.js";
 import css from './SettingsSurface.module.css';
-/** Rail layout: the four DSH settings pages visible in the workbench. */
+/** Rail layout: the settings pages visible in the workbench. */
 const RAIL = [
-    {
-        group: 'settings.group.basics',
-        items: [
-            { id: 'general', label: 'settings.general' },
-            { id: 'models', label: 'settings.models' },
-        ],
-    },
-    {
-        group: 'settings.group.agent',
-        items: [
-            { id: 'agentPresets', label: 'settings.agentPresets' },
-            { id: 'skills', label: 'settings.skills' },
-            { id: 'commands', label: 'settings.commands' },
-        ],
-    },
-    {
-        group: 'settings.group.data',
-        items: [
-            { id: 'usage', label: 'settings.usage' },
-        ],
-    },
+    { id: 'general', label: 'settings.general' },
+    { id: 'models', label: 'settings.models' },
+    { id: 'agentPresets', label: 'settings.agentPresets' },
+    { id: 'plugins', label: 'settings.plugins' },
+    { id: 'commands', label: 'settings.commands' },
+    { id: 'usage', label: 'settings.usage' },
 ];
 /** A titled block with an explanatory line. */
 function Section(props) {
-    return (_jsxs("section", { className: css.section, children: [_jsx("span", { className: css.sectionTitle, children: props.title }), props.body === undefined ? null : _jsx("p", { className: css.sectionBody, children: props.body }), props.children] }));
+    return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.sectionTitle, children: props.title }), props.body === undefined ? null : _jsx("p", { className: css.sectionBody, children: props.body }), props.children] }));
 }
 /** One settings row: label, explanation, and a control. */
 function Row(props) {
     return (_jsxs("div", { className: css.row, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.title }), props.body === undefined ? null : _jsx("div", { className: css.rowBody, children: props.body })] }), props.control] }));
-}
-/** The front-end switch, one of the workbench's four switch entry points. */
-function InterfaceSection() {
-    const runtime = useRuntime();
-    const t = useT();
-    const mode = useSyncExternalStore(runtime.mode.subscribe, runtime.mode.get, runtime.mode.get);
-    return (_jsx(Section, { title: t('settings.interface'), body: t('settings.interfaceBody'), children: _jsxs("div", { className: css.choice, children: [_jsxs("button", { type: "button", className: `${css.option} ${mode === 'official' ? css.optionActive : ''}`, onClick: () => { runtime.mode.set('official'); }, children: [_jsxs("span", { className: css.optionTitle, children: [_jsx(IconSettingsOutline16, {}), t('settings.modeOfficial')] }), _jsx("span", { className: css.rowBody, children: t('settings.modeOfficialBody') })] }), _jsxs("button", { type: "button", className: `${css.option} ${mode === 'dcode' ? css.optionActive : ''}`, onClick: () => { runtime.mode.set('dcode'); }, children: [_jsxs("span", { className: css.optionTitle, children: [_jsx(IconSparkle16, {}), t('settings.modeWorkbench')] }), _jsx("span", { className: css.rowBody, children: t('settings.modeWorkbenchBody') })] })] }) }));
 }
 /** Language, appearance, busy Enter, and the front-end switch. */
 function GeneralSection() {
@@ -83,6 +65,7 @@ function GeneralSection() {
             ].join(':');
     }, [theme]);
     const themeState = useSyncExternalStore(runtime.appearance.subscribe, themeKey, themeKey);
+    const { fontSize, setFontSize, canSetFontSize } = useAppearance();
     const snapshot = useMemo(() => theme?.getTheme(), [theme, themeState]);
     // Anything a plugin registered beyond the two built-in palettes.
     const custom = (snapshot?.themes ?? []).filter(entry => entry.id !== 'light' && entry.id !== 'dark');
@@ -94,12 +77,12 @@ function GeneralSection() {
                             : (_jsx(Row, { title: t('settings.themeCustom'), control: (_jsx(SelectMenu, { value: snapshot?.preference ?? snapshot?.active.id ?? 'system', ariaLabel: t('settings.themeCustom'), options: [
                                         { id: 'system', label: t('theme.system') },
                                         ...(snapshot?.themes ?? []).map(entry => ({ id: entry.id, label: entry.id })),
-                                    ], onChange: (value) => { theme?.setTheme?.(value); } })) })), _jsx(Row, { title: t('settings.fontSize'), control: theme?.setFontSize === undefined
-                                ? _jsx("span", { className: css.badge, children: snapshot?.fontSize ?? '—' })
-                                : (_jsxs("span", { className: css.stepper, children: [_jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} −`, disabled: (snapshot?.fontSize ?? 14) <= 11, onClick: () => { theme.setFontSize?.(Math.max(11, (snapshot?.fontSize ?? 14) - 1)); }, children: "\u2212" }), _jsx("span", { className: css.stepperValue, children: snapshot?.fontSize ?? 14 }), _jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} +`, disabled: (snapshot?.fontSize ?? 14) >= 22, onClick: () => { theme.setFontSize?.(Math.min(22, (snapshot?.fontSize ?? 14) + 1)); }, children: "+" })] })) })] }) }), _jsx(Section, { title: t('settings.busyEnter'), body: t('settings.busyEnterBody'), children: _jsx("div", { className: css.card, children: _jsx(Row, { title: t('settings.busyEnter'), control: (_jsx(SelectMenu, { value: busyEnter, ariaLabel: t('settings.busyEnter'), options: [
+                                    ], onChange: (value) => { theme?.setTheme?.(value); } })) })), _jsx(Row, { title: t('settings.interface'), body: t('settings.interfaceBody'), control: _jsx(UiModeSwitch, {}) }), _jsx(Row, { title: t('settings.fontSize'), control: !canSetFontSize
+                                ? _jsx("span", { className: css.badge, children: fontSize })
+                                : (_jsxs("span", { className: css.stepper, children: [_jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} −`, disabled: fontSize <= 11, onClick: () => { setFontSize(Math.max(11, fontSize - 1)); }, children: "\u2212" }), _jsx("span", { className: css.stepperValue, children: fontSize }), _jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} +`, disabled: fontSize >= 22, onClick: () => { setFontSize(Math.min(22, fontSize + 1)); }, children: "+" })] })) })] }) }), _jsx(Section, { title: t('settings.busyEnter'), body: t('settings.busyEnterBody'), children: _jsx("div", { className: css.card, children: _jsx(Row, { title: t('settings.busyEnter'), control: (_jsx(SelectMenu, { value: busyEnter, ariaLabel: t('settings.busyEnter'), options: [
                                 { id: 'queue', label: t('settings.busyEnter.queue') },
                                 { id: 'steer', label: t('settings.busyEnter.steer') },
-                            ], disabled: !runtime.busyEnter.writable, onChange: (value) => { runtime.busyEnter.set(value); } })) }) }) }), _jsx(InterfaceSection, {})] }));
+                            ], disabled: !runtime.busyEnter.writable, onChange: (value) => { runtime.busyEnter.set(value); } })) }) }) })] }));
 }
 function objectAt(source, path) {
     let current = source;
@@ -169,7 +152,7 @@ function modelProviderRows(registered, configurable, namespaces, credentials) {
     }
     return rows;
 }
-async function loadModelSettings(runtime) {
+export async function loadModelSettings(runtime) {
     const [catalog, registered, configurable, described] = await Promise.all([
         runtime.remote.session.modelCatalog(),
         runtime.remote.llm.listProviders(),
@@ -209,23 +192,47 @@ async function loadModelSettings(runtime) {
     }
     return {
         catalog: catalog.value,
-        providers: modelProviderRows(registered.value, configurable.value, described.value.namespaces, credentials),
+        providers: modelProviderRows(registered.value, configurable.value, described.value.namespaces, credentials).map(row => {
+            const failure = catalog.value.failures.find(candidate => candidate.id === row.id);
+            return {
+                ...row,
+                ...credentialError === undefined ? {} : { credentialError },
+                ...failure === undefined ? {} : { providerError: failure.message },
+            };
+        }),
         writable: described.value.writable,
         hasDocument: described.value.hasDocument,
         ...credentialError === undefined ? {} : { credentialError },
     };
 }
+function providerReadinessLabel(readiness, t) {
+    switch (readiness.reason) {
+        case 'missing-api-key': return t('settings.models.keyMissing');
+        case 'not-configured': return t('settings.models.notConfigured');
+        case 'credential-configured': return t('settings.models.keyConfigured');
+        case 'key-not-required': return t('settings.models.keyNotRequired');
+        case 'credential-error': return readiness.detail === undefined
+            ? t('settings.models.credentialErrorUnknown')
+            : t('settings.models.credentialError', { error: readiness.detail });
+        case 'provider-error': return t('settings.models.providerError', { error: readiness.detail ?? t('common.error') });
+        case 'configuration-error': return readiness.detail === undefined
+            ? t('settings.models.configurationErrorUnknown')
+            : t('settings.models.configurationError', { error: readiness.detail });
+    }
+}
 function ModelProviderCard(props) {
     const runtime = useRuntime();
     const t = useT();
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(props.initiallyOpen === true);
     const [baseURL, setBaseURL] = useState(() => stringAt(props.row.profile, ['baseURL']) ?? '');
     const [apiKey, setApiKey] = useState('');
     const [busy, setBusy] = useState(false);
     const [failure, setFailure] = useState();
+    const [deleting, setDeleting] = useState(false);
     const profileEditable = props.writable && props.row.namespace !== undefined && props.row.settingsNs !== '';
     const keyEditable = props.row.credential?.writable !== false;
     const editable = profileEditable || keyEditable;
+    const removable = profileEditable && providerRemovable(props.row);
     useEffect(() => {
         if (open)
             return;
@@ -278,10 +285,12 @@ function ModelProviderCard(props) {
             }
             if (ops.length === 0 && apiKey.trim().length === 0) {
                 setOpen(false);
+                props.onClose?.();
                 return;
             }
             setOpen(false);
             props.onReload();
+            props.onSaved?.();
         }
         catch (cause) {
             setFailure(cause instanceof Error ? cause.message : String(cause));
@@ -290,34 +299,154 @@ function ModelProviderCard(props) {
             setBusy(false);
         }
     };
-    const credentialConfigured = props.row.credential?.configured === true;
-    const credentialDeclared = stringAt(props.row.profile, ['apiKeyEnv']) !== undefined;
-    const statusLabel = credentialConfigured
-        ? t('settings.models.keyConfigured')
-        : credentialDeclared
-            ? t('settings.models.keyMissing')
-            : props.row.profile === undefined
-                ? t('settings.models.notConfigured')
-                : t('settings.models.keyNotRequired');
-    const statusClass = credentialConfigured
+    const remove = async () => {
+        if (deleting || !removable)
+            return;
+        if (!window.confirm(t('settings.models.deleteConfirm', { name: props.row.name })))
+            return;
+        setDeleting(true);
+        setFailure(undefined);
+        try {
+            if (props.row.credential?.configured === true) {
+                const credential = await runtime.remote.credentials.unset(props.row.credentialRef);
+                if (!credential.ok)
+                    throw new Error(credential.error.message);
+            }
+            const response = await runtime.remote.settings.mutate(props.row.settingsNs, [{ op: 'unset', path: [...props.row.settingsPath] }], undefined);
+            if (!response.ok)
+                throw new Error(response.error.message);
+            props.onReload();
+        }
+        catch (cause) {
+            setFailure(cause instanceof Error ? cause.message : String(cause));
+        }
+        finally {
+            setDeleting(false);
+        }
+    };
+    const requiresApiKey = props.row.settingsNs === ''
+        ? false
+        : props.row.profile === undefined
+            ? undefined
+            : stringAt(props.row.profile, ['apiKeyEnv']) !== undefined;
+    const readinessFacts = {
+        active: props.row.active,
+        configured: props.row.profile !== undefined || props.row.settingsNs === '',
+        requiresApiKey,
+        credential: props.row.credential,
+        ...props.row.credentialError === undefined ? {} : { credentialError: props.row.credentialError },
+        ...props.row.providerError === undefined ? {} : { providerError: props.row.providerError },
+        ...failure === undefined ? {} : { configurationError: failure },
+    };
+    const readiness = providerReadiness(readinessFacts);
+    const statusLabel = providerReadinessLabel(readiness, t);
+    const statusClass = readiness.kind === 'ready'
         ? css.statusDotGood
-        : credentialDeclared
+        : readiness.kind === 'unconfigured'
             ? css.statusDotMissing
-            : css.statusDotNeutral;
+            : readiness.kind === 'error'
+                ? css.statusDotError
+                : css.statusDotNeutral;
     const editorId = `dcode-provider-editor-${props.row.id.replace(/[^a-z0-9_-]/gi, '-')}`;
-    return (_jsxs("div", { className: css.providerCard, children: [_jsxs("div", { className: `${css.providerHead} ${ui.cardHeader}`, children: [_jsx("span", { className: `${css.statusDot} ${statusClass}`, role: "img", "aria-label": statusLabel, title: statusLabel }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.row.name }), _jsxs("div", { className: css.rowBody, children: [props.row.id, props.row.active ? '' : ` · ${t('settings.models.inactive')}`] })] }), editable
-                        ? _jsx(Button, { ariaExpanded: open, ariaControls: editorId, onClick: () => { setOpen(value => !value); setFailure(undefined); }, children: open ? t('common.close') : t('common.edit') })
-                        : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), open
-                ? (_jsxs("div", { className: css.providerEditor, id: editorId, children: [_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.apiKey') }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: apiKey, placeholder: props.row.credential?.configured === true ? t('settings.models.keyConfiguredHint') : t('settings.models.keyPlaceholder'), disabled: busy || !keyEditable, onChange: event => { setApiKey(event.target.value); } })] }), profileEditable
+    const closeEditor = () => {
+        setOpen(false);
+        props.onClose?.();
+    };
+    return (_jsxs("div", { className: css.providerCard, children: [_jsxs("div", { className: `${css.providerHead} ${ui.cardHeader}`, children: [_jsx("span", { className: `${css.statusDot} ${statusClass}`, role: "img", "aria-label": statusLabel, title: statusLabel }), _jsx("span", { className: css.providerStatusText, children: statusLabel }), _jsxs("div", { className: css.rowText, children: [_jsxs("div", { className: css.providerIdentity, children: [_jsx("h3", { className: css.rowTitle, children: props.row.name }), props.row.declared === true ? _jsx("span", { className: css.providerTag, children: t('settings.models.customTag') }) : null] }), _jsx("div", { className: css.rowBody, children: props.row.id })] }), _jsxs("div", { className: css.providerActions, children: [editable && !open
+                                ? _jsx(Button, { ariaExpanded: false, ariaControls: editorId, onClick: () => {
+                                        setOpen(true);
+                                        setFailure(undefined);
+                                    }, children: t('common.edit') })
+                                : editable ? null : _jsx("span", { className: css.badge, children: t('common.readOnly') }), removable
+                                ? _jsx("button", { type: "button", className: css.dangerButton, disabled: deleting, onClick: () => { void remove(); }, children: deleting ? t('settings.models.deleting') : t('settings.models.delete') })
+                                : null] })] }), open
+                ? (_jsxs("div", { className: css.providerEditor, id: editorId, role: "group", "aria-label": props.row.name, onKeyDown: (event) => {
+                        if (event.key !== 'Escape')
+                            return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        closeEditor();
+                    }, children: [_jsxs("div", { className: css.providerEditorStatus, role: "status", "aria-label": statusLabel, title: statusLabel, children: [_jsx("span", { className: `${css.statusDot} ${statusClass}`, "aria-hidden": "true" }), _jsx("span", { children: statusLabel })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.apiKey') }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: apiKey, placeholder: props.row.credential?.configured === true ? t('settings.models.keyConfiguredHint') : t('settings.models.keyPlaceholder'), disabled: busy || !keyEditable, onChange: event => { setApiKey(event.target.value); } })] }), profileEditable
                             ? (_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.baseURL') }), _jsx("input", { className: css.fieldInput, type: "url", value: baseURL, placeholder: t('settings.models.baseURLPlaceholder'), disabled: busy, onChange: event => { setBaseURL(event.target.value); } })] }))
-                            : null, failure === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: failure }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setOpen(false); }, disabled: busy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: () => { void save(); }, disabled: busy, children: busy ? t('common.saving') : t('common.save') })] })] }))
+                            : null, failure === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: failure }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: closeEditor, disabled: busy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: () => { void save(); }, disabled: busy, children: busy ? t('common.saving') : t('common.save') })] })] }))
                 : null] }));
 }
+const CUSTOM_PROVIDER_NS = 'llm-pi-ai';
+const CUSTOM_PROVIDER_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+/** Compact creator for an OpenAI/Anthropic-compatible custom endpoint. */
+function CustomProviderForm(props) {
+    const runtime = useRuntime();
+    const t = useT();
+    const namespace = props.rows.find(row => row.settingsNs === CUSTOM_PROVIDER_NS)?.namespace;
+    const [name, setName] = useState('');
+    const [route, setRoute] = useState('');
+    const [routeTouched, setRouteTouched] = useState(false);
+    const [baseURL, setBaseURL] = useState('');
+    const [apiKey, setApiKey] = useState('');
+    const [protocol, setProtocol] = useState('openai-completions');
+    const [modelText, setModelText] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [committed, setCommitted] = useState(false);
+    const [failure, setFailure] = useState();
+    const modelIds = [...new Set(modelText.split(/[\n,]+/).map(value => value.trim()).filter(Boolean))];
+    const invalidRoute = route.length > 0 && !CUSTOM_PROVIDER_ID.test(route);
+    const routeTaken = props.rows.some(row => row.id === route);
+    const disabled = busy || !props.writable || namespace === undefined;
+    const create = async () => {
+        if (disabled || invalidRoute || routeTaken || route.length === 0 || name.trim().length === 0
+            || baseURL.trim().length === 0 || modelIds.length === 0)
+            return;
+        setBusy(true);
+        setFailure(undefined);
+        const credentialRef = modelCredentialRef(route, undefined);
+        try {
+            if (!committed) {
+                const profile = {
+                    displayName: name.trim(),
+                    api: protocol,
+                    baseURL: baseURL.trim(),
+                    models: modelIds.map(id => ({ id })),
+                    ...apiKey.trim().length === 0 ? {} : { apiKeyEnv: credentialRef },
+                };
+                const response = await runtime.remote.settings.mutate(CUSTOM_PROVIDER_NS, [{ op: 'set', path: ['providers', route], value: profile }], namespace?.revision);
+                if (!response.ok)
+                    throw new Error(response.error.message);
+                setCommitted(true);
+            }
+            if (apiKey.trim().length > 0) {
+                const response = await runtime.remote.credentials.set(credentialRef, apiKey.trim());
+                if (!response.ok)
+                    throw new Error(response.error.message);
+            }
+            props.onCreated();
+        }
+        catch (cause) {
+            setFailure(cause instanceof Error ? cause.message : String(cause));
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return (_jsxs("div", { className: css.customProviderForm, onKeyDown: (event) => {
+            if (event.key !== 'Escape')
+                return;
+            event.preventDefault();
+            event.stopPropagation();
+            props.onCancel();
+        }, children: [_jsxs("div", { className: css.formGrid, children: [_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.providerName') }), _jsx("input", { className: css.fieldInput, value: name, disabled: disabled || committed, onChange: (event) => {
+                                    const next = event.target.value;
+                                    setName(next);
+                                    if (!routeTouched)
+                                        setRoute(next.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+                                } })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.providerId') }), _jsx("input", { className: css.fieldInput, value: route, disabled: disabled || committed, onChange: (event) => { setRouteTouched(true); setRoute(event.target.value); } }), invalidRoute ? _jsx("span", { className: css.fieldError, children: t('settings.models.providerIdInvalid') }) : null, routeTaken ? _jsx("span", { className: css.fieldError, children: t('settings.models.providerIdTaken') }) : null] }), _jsxs("label", { className: `${css.field} ${css.formWide}`, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.baseURL') }), _jsx("input", { className: css.fieldInput, type: "url", value: baseURL, disabled: disabled || committed, placeholder: t('settings.models.baseURLPlaceholder'), onChange: event => { setBaseURL(event.target.value); } })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.protocol') }), _jsxs("select", { className: css.fieldInput, value: protocol, disabled: disabled || committed, onChange: event => { setProtocol(event.target.value); }, children: [_jsx("option", { value: "openai-completions", children: "OpenAI Chat Completions" }), _jsx("option", { value: "openai-responses", children: "OpenAI Responses" }), _jsx("option", { value: "anthropic-messages", children: "Anthropic Messages" })] })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.apiKey') }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: apiKey, disabled: busy || !props.writable, placeholder: t('settings.models.keyPlaceholder'), onChange: event => { setApiKey(event.target.value); } })] }), _jsxs("label", { className: `${css.field} ${css.formWide}`, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.models.modelList') }), _jsx("textarea", { className: css.fieldTextarea, value: modelText, disabled: disabled || committed, placeholder: t('settings.models.modelListPlaceholder'), onChange: event => { setModelText(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: t('settings.models.modelListHint') })] })] }), namespace === undefined ? _jsx("div", { className: css.inlineError, children: t('settings.models.customUnavailable') }) : null, failure === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: failure }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { disabled: busy, onClick: props.onCancel, children: t('common.cancel') }), _jsx(Button, { primary: true, disabled: disabled || invalidRoute || routeTaken || route.length === 0 || name.trim().length === 0 || baseURL.trim().length === 0 || modelIds.length === 0, onClick: () => { void create(); }, children: busy ? t('common.saving') : t('settings.models.add') })] })] }));
+}
 /** Provider routes, catalog, and the editable credential/profile controls. */
-function ModelsSection() {
+function ModelsSection(props) {
     const runtime = useRuntime();
     const t = useT();
     const models = useAsync(async () => await loadModelSettings(runtime), [runtime]);
+    const [addingProvider, setAddingProvider] = useState();
+    const [addingCustom, setAddingCustom] = useState(false);
     if (models.loading && models.value === undefined)
         return _jsx(EmptyState, { children: _jsx(Spinner, {}) });
     if (models.error !== undefined && models.value === undefined)
@@ -325,17 +454,28 @@ function ModelsSection() {
     if (models.value === undefined)
         return _jsx(EmptyState, { children: t('common.error') });
     const value = models.value;
-    const providerName = (providerId) => value.catalog.groups.find(group => group.id === providerId)?.name
-        ?? value.catalog.failures.find(failure => failure.id === providerId)?.name
-        ?? providerId;
-    const defaultGroup = value.catalog.groups.find(group => group.id === value.catalog.default.provider
-        && group.models.some(model => model.id === value.catalog.default.model));
-    const defaultModel = defaultGroup?.models.find(model => model.id === value.catalog.default.model);
-    return (_jsxs(Section, { title: t('settings.models'), body: t('settings.modelsBody'), children: [_jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.models.default'), body: defaultGroup?.name ?? providerName(value.catalog.default.provider), control: _jsx("span", { children: defaultModel?.name ?? t('common.none') }) }), _jsx(Row, { title: t('settings.models.routable'), control: (_jsx("span", { className: css.rowMono, children: value.catalog.routableProviders.map(providerName).join(', ') || t('common.none') })) })] }), value.credentialError === undefined ? null : _jsx("div", { className: css.notice, children: `${t('settings.models.credentialWarning')}: ${value.credentialError}` }), _jsx("div", { className: css.providerList, children: value.providers.map(row => _jsx(ModelProviderCard, { row: row, writable: value.writable, onReload: models.reload }, row.id)) }), value.catalog.groups.map(group => (_jsxs("div", { className: css.card, children: [_jsx(Row, { title: group.name, control: _jsx("span", { className: css.badge, children: group.models.length }) }), group.models.map(model => (_jsx(Row, { title: model.name, body: model.description }, model.id)))] }, group.id))), value.catalog.failures.length === 0
-                ? null
-                : (_jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.models.failures') }), value.catalog.failures.map(failure => (_jsx(Row, { title: failure.name, body: failure.message }, failure.id)))] })), value.hasDocument
-                ? _jsx(Button, { onClick: () => { void runtime.remote.settings.openSettingsDocument(); }, children: t('settings.openOfficialSettings') })
-                : null] }));
+    const providers = visibleProviderRows(value.providers);
+    const configured = providers.filter(row => row.credential?.configured === true || row.active);
+    const addable = providers.filter(row => row.credential?.configured !== true && !row.active && row.settingsNs !== '');
+    const draft = addingProvider === undefined
+        ? undefined
+        : addable.find(row => row.id === addingProvider);
+    const focused = props.focusedProvider === undefined
+        ? undefined
+        : providers.find(row => row.id === props.focusedProvider);
+    const visible = focused === undefined
+        ? configured
+        : [focused, ...configured.filter(row => row.id !== focused.id)];
+    return (_jsxs("section", { className: `${css.section} ${css.modelsSection}`, children: [_jsxs("div", { className: css.modelsHeader, children: [_jsxs("div", { children: [_jsx("h2", { className: css.modelsTitle, children: t('settings.models') }), _jsx("p", { className: css.sectionBody, children: t('settings.modelsBody') })] }), value.hasDocument
+                        ? _jsx(Button, { onClick: () => { void runtime.remote.settings.openSettingsDocument(); }, children: t('settings.openOfficialSettings') })
+                        : null] }), value.credentialError === undefined ? null : _jsx("div", { className: css.notice, children: `${t('settings.models.credentialWarning')}: ${value.credentialError}` }), _jsxs("div", { className: css.providerList, children: [visible.map(row => (_jsx(ModelProviderCard, { row: row, writable: value.writable, initiallyOpen: row.id === props.focusedProvider, onReload: models.reload, onSaved: row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined }, row.id))), visible.length === 0 ? _jsx("div", { className: css.modelsEmpty, children: t('settings.models.empty') }) : null] }), draft === undefined ? null : (_jsx(ModelProviderCard, { row: draft, writable: value.writable, initiallyOpen: true, onReload: models.reload, onClose: () => { setAddingProvider(undefined); } }, `add-${draft.id}`)), addingCustom
+                ? _jsx(CustomProviderForm, { rows: value.providers, writable: value.writable, onCancel: () => { setAddingCustom(false); }, onCreated: () => { setAddingCustom(false); models.reload(); } })
+                : null, draft === undefined && !addingCustom
+                ? (_jsxs("div", { className: css.addActions, children: [_jsx("div", { className: css.addSelect, children: _jsx(SelectMenu, { value: "__add_provider__", ariaLabel: t('settings.models.addProvider'), disabled: !value.writable || addable.length === 0, options: [
+                                    { id: '__add_provider__', label: _jsxs(_Fragment, { children: [_jsx(IconPlusOutline16, {}), t('settings.models.addProvider')] }), disabled: true },
+                                    ...addable.map(row => ({ id: row.id, label: row.name, detail: row.id })),
+                                ], onChange: (provider) => { setAddingProvider(provider); setAddingCustom(false); } }) }), _jsxs("button", { type: "button", className: css.addButton, disabled: !value.writable, onClick: () => { setAddingCustom(true); setAddingProvider(undefined); }, children: [_jsx(IconPlusOutline16, {}), t('settings.models.addCustomProvider')] })] }))
+                : null, value.catalog.failures.length === 0 ? null : (_jsxs("details", { className: css.modelFailures, children: [_jsxs("summary", { children: [t('settings.models.failures'), " (", value.catalog.failures.length, ")"] }), value.catalog.failures.map(failure => _jsxs("p", { children: [failure.name, ": ", failure.message] }, failure.id))] }))] }));
 }
 /** Human-invocable skills visible to the current session. */
 function SkillsSection({ sessionId }) {
@@ -379,31 +519,6 @@ function CommandsSection({ sessionId }) {
     return (_jsx(Section, { title: t('settings.commands'), body: t('settings.count', { count: rows.length }), children: rows.length === 0
             ? _jsx(EmptyState, { children: t('settings.commandsEmpty') })
             : (_jsx("div", { className: css.card, children: rows.map(command => (_jsx(Row, { title: `/${command.name}`, body: command.description }, command.name))) })) }));
-}
-/**
- * The Loader's live plugin inventory.
- *
- * MCP servers are Loader entries like any other plugin, so the MCP section is
- * the same inventory filtered by module specifier rather than a second source
- * of truth.
- */
-function PluginsSection({ mcpOnly }) {
-    const runtime = useRuntime();
-    const t = useT();
-    const inventory = useAsync(async () => await runtime.remote.pluginInventory.list(), [runtime]);
-    if (inventory.loading)
-        return _jsx(EmptyState, { children: _jsx(Spinner, {}) });
-    // A refused or failed read is reported: "0 entries" would claim the Loader
-    // has no plugins, which is a different and wrong statement.
-    if (inventory.error !== undefined)
-        return _jsx(EmptyState, { children: inventory.error });
-    if (inventory.value?.ok === false)
-        return _jsx(EmptyState, { children: inventory.value.error.message });
-    const entries = inventory.value?.ok === true ? inventory.value.value.entries : [];
-    const rows = mcpOnly ? entries.filter(entry => /mcp/i.test(entry.moduleName)) : entries;
-    return (_jsx(Section, { title: mcpOnly ? t('settings.mcp') : t('settings.plugins'), body: t('settings.count', { count: rows.length }), children: rows.length === 0
-            ? _jsx(EmptyState, { children: t('settings.inventoryEmpty') })
-            : (_jsx("div", { className: css.card, children: rows.map(entry => (_jsx(Row, { title: entry.moduleName, body: entry.enabled ? entry.fiberPhase ?? 'active' : 'disabled', control: _jsx("span", { className: css.badge, children: entry.fiberPhase ?? '—' }) }, entry.entryId))) })) }));
 }
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(runtime, id) {
@@ -635,6 +750,8 @@ function NamespaceSection({ title, body, match }) {
                 ? _jsx(Button, { onClick: openDocument, children: t('settings.openOfficialSettings') })
                 : null] }));
 }
+/** Workbench face of the shared statistics card; see UsageCards.module.css. */
+const usageCardCss = usageCardStyles(usageCardClasses);
 function UsageMetric(props) {
     return (_jsxs("div", { className: css.usageMetric, children: [_jsx("span", { className: css.usageMetricTitle, children: props.title }), _jsx("strong", { className: css.usageMetricValue, children: props.value })] }));
 }
@@ -651,12 +768,13 @@ function UsageSection() {
     return (_jsxs(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: [_jsxs("div", { className: css.usageTotal, children: [_jsx("span", { className: css.usageTotalTitle, children: t('settings.usageTotal') }), _jsx("strong", { className: css.usageTotalValue, children: formatTokenCount(totals.totalTokens) }), _jsx("span", { className: css.usageTotalScope, children: t('settings.usageScope', {
                             sessions: formatTokenCount(totals.sessions),
                             usageSessions: formatTokenCount(totals.usageSessions),
-                        }) })] }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
+                        }) })] }), _jsx(UsageCards, { list: list, t: t, styles: usageCardCss }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
 }
 /** The settings rail and the selected section. */
 export function SettingsSurface({ navigation, sessionId }) {
     const t = useT();
     const state = useNavigation(navigation);
+    useEffect(() => () => { navigation.patch({ settingsProvider: undefined }); }, [navigation]);
     const icons = {
         general: _jsx(IconSettingsOutline16, {}),
         models: _jsx(IconApiOutline14, { size: 16 }),
@@ -678,7 +796,7 @@ export function SettingsSurface({ navigation, sessionId }) {
         switch (state.settingsSection) {
             case 'general':
             case 'appearance': return _jsx(GeneralSection, {});
-            case 'models': return _jsx(ModelsSection, {});
+            case 'models': return (_jsx(ModelsSection, { focusedProvider: state.settingsProvider, onFocusedProviderSaved: state.settingsProvider === undefined ? undefined : () => { navigation.show('session'); } }));
             case 'skills': return _jsx(SkillsSection, { sessionId: sessionId });
             case 'commands': return _jsx(CommandsSection, { sessionId: sessionId });
             case 'plugins': return _jsx(PluginSettingsSection, {});
@@ -696,6 +814,11 @@ export function SettingsSurface({ navigation, sessionId }) {
                 return _jsx(GeneralSection, {});
         }
     };
-    return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(group => (_jsxs("div", { children: [_jsx("div", { className: css.group, children: t(group.group) }), group.items.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`, "aria-current": state.settingsSection === item.id ? 'page' : undefined, onClick: () => { navigation.openSettings(item.id); }, children: [icons[item.id] ?? _jsx(IconFollowsystemOutline16, {}), t(item.label)] }, item.id)))] }, group.group)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [_jsx("div", { className: css.title, children: t('settings.title') }), body()] }) })] }));
+    return (_jsxs("div", { className: css.surface, onKeyDown: (event) => {
+            if (event.key !== 'Escape' || event.defaultPrevented)
+                return;
+            event.preventDefault();
+            navigation.show('session');
+        }, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`, "aria-current": state.settingsSection === item.id ? 'page' : undefined, onClick: () => { navigation.openSettings(item.id); }, children: [icons[item.id] ?? _jsx(IconFollowsystemOutline16, {}), t(item.label)] }, item.id)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [_jsx("h1", { className: css.title, children: t('settings.title') }), body()] }) })] }));
 }
 //# sourceMappingURL=SettingsSurface.js.map

@@ -99,16 +99,12 @@ test('release manifest publishes measured support, files, patch hashes, and unsi
   assert.equal(manifest.experiencePacks.interactiveLearning.preset.compositionRows[1]?.id, 'learning-agent')
 })
 
-test('Interactive Learning inventory paths follow each packaged target layout', () => {
+test('Interactive Learning inventory paths follow the packaged Windows layout', () => {
   assert.equal(
     interactiveLearningInventoryPaths(getTargetSpec('win32-x64'))[0],
     'runtime/resources/app/lib/packaged-bin.js',
   )
-  assert.equal(
-    interactiveLearningInventoryPaths(getTargetSpec('darwin-arm64'))[0],
-    'Contents/Resources/app/lib/packaged-bin.js',
-  )
-  assert.ok(interactiveLearningInventoryPaths(getTargetSpec('linux-x64')).includes(
+  assert.ok(interactiveLearningInventoryPaths(getTargetSpec('win32-x64')).includes(
     'runtime/resources/app/node_modules/@dsh-portable/interactive-learning/lib/client.js',
   ))
 })

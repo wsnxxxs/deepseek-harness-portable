@@ -295,20 +295,22 @@ async function main() {
     const target = await waitForHarnessTarget(devtoolsUrl)
     const url = new URL(target.url)
     const baseUrl = `${url.origin}/`
-    const indexResponse = await fetch(baseUrl, { signal: AbortSignal.timeout(30_000) })
-    const indexHtml = await indexResponse.text()
     const inventory = await fetchJson(`${baseUrl}api/market/installed`)
     const hostRoute = await fetchJson(`${baseUrl}_dsh/vision-toolkit/settings`, {
       headers: { Origin: url.origin, 'Sec-Fetch-Site': 'same-origin' },
     })
-    const rendererInspection = await inspectRenderer(target.webSocketDebuggerUrl, `(() => {
+    const rendererInspection = await inspectRenderer(target.webSocketDebuggerUrl, `(async () => {
       const pluginId = ${JSON.stringify(expectedPlugin)}
       const loader = window.__ModuleLoader__
+      const indexResponse = await fetch('/', { cache: 'no-store' })
+      const indexHtml = await indexResponse.text()
       return {
         title: document.title,
         bodyText: document.body?.innerText?.slice(0, 2_000) ?? '',
         loaderKeys: loader === undefined ? [] : Object.keys(loader),
         pluginMentionedInDom: document.documentElement.innerHTML.includes(pluginId),
+        indexOk: indexResponse.ok,
+        pluginMentionedInBootGraph: indexHtml.includes(pluginId),
       }
     })()`)
     const renderer = rendererInspection.value
@@ -335,13 +337,13 @@ async function main() {
     const assertions = {
       actualDesktopMain: mainState?.isPackaged === true && mainState?.electronRunAsNode === null,
       isolatedElectronUserData: resolve(mainState?.userData ?? '') === userData,
-      httpReadiness: indexResponse.ok,
+      httpReadiness: renderer?.indexOk === true,
       harnessWindowCreated: mainState?.windows?.some(window => window.url.startsWith(baseUrl)) === true,
       windowsHiddenFromDesktop: mainState?.windows?.every(window => window.visible === false) === true,
       marketplaceAvailabilityMatches: marketplaceAvailable === expectedMarketplaceAvailable,
       inventoryInstalled: (pluginInventory !== undefined) === expectedInstalled,
       inventoryEnabled: expectedInstalled ? pluginInventory?.enabled === expectedEnabled : pluginInventory === undefined,
-      clientGraphMatches: indexHtml.includes(expectedPlugin) === (expectedInstalled && expectedEnabled),
+      clientGraphMatches: renderer?.pluginMentionedInBootGraph === (expectedInstalled && expectedEnabled),
       hostRouteMatches: hostPluginLoaded === (expectedInstalled && expectedEnabled),
       noModuleNotFound: !output.join('').includes('MODULE_NOT_FOUND'),
       diagnosticMatches: expectedDiagnosticCode === undefined || output.join('').includes(expectedDiagnosticCode),

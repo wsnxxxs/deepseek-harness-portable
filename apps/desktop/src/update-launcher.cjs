@@ -108,28 +108,21 @@ function launchDetachedPowerShell({
   quit,
   quitDelayMs = DEFAULT_QUIT_DELAY_MS,
   env = process.env,
-  platform = process.platform,
 } = {}) {
-  const executable = resolvePowerShellExecutable({ env, platform })
+  const executable = resolvePowerShellExecutable({ env })
   let child
   try {
-    if (platform === 'win32') {
-      const comspec = typeof env.COMSPEC === 'string' && env.COMSPEC.trim() !== ''
-        ? env.COMSPEC
-        : 'cmd.exe'
-      child = spawnImpl(comspec, ['/c', 'start', '""', '/min', executable, ...args], {
-        cwd: root,
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-      })
-    } else {
-      child = spawnImpl(executable, args, {
-        cwd: root,
-        detached: true,
-        stdio: 'ignore',
-      })
-    }
+    // Start through cmd.exe so the updater gets a minimized, console-free
+    // window that outlives the shell that launched it.
+    const comspec = typeof env.COMSPEC === 'string' && env.COMSPEC.trim() !== ''
+      ? env.COMSPEC
+      : 'cmd.exe'
+    child = spawnImpl(comspec, ['/c', 'start', '""', '/min', executable, ...args], {
+      cwd: root,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    })
   } catch (error) {
     if (typeof onError === 'function') onError(error)
     return { started: false, pid: 0, executable, args, error }

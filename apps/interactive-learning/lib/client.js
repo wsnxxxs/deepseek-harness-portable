@@ -13134,7 +13134,7 @@ window.__ModuleLoader__.load({
 		/**
 		* The action and its sheet.
 		*
-		* Registered only in learning sessions — the same gate that decides the 学习库
+		* Registered only in learning sessions — the same gate that decides the 资料库
 		* tab decides this button, because an action that writes into a topic vault is
 		* meaningless in a session that has no vault to write into.
 		*/
@@ -14257,7 +14257,7 @@ window.__ModuleLoader__.load({
 		/**
 		* The re-read control — the one place in this panel that spends money.
 		*
-		* Everything else under 学习库 is local file I/O by default. This control is
+		* Everything else under 资料库 is local file I/O by default. This control is
 		* the explicit exception, so it is built to be unmistakable rather than
 		* convenient:
 		*
@@ -15300,7 +15300,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/VaultRoster.tsx
 		/**
-		* The out-of-session entry: 学习库 at the sidebar foot.
+		* The out-of-session entry: 资料库 at the sidebar foot.
 		*
 		* The panel and the keep action both live inside a conversation, which leaves
 		* the most ordinary case unserved — a person opens the app, is not in a
@@ -15568,10 +15568,10 @@ window.__ModuleLoader__.load({
 			learningNotesEmptyTitle: "这次学习还没有笔记",
 			learningNotesEmptyBody: "先在对话里提出一个问题，或用 @ 附上一份材料；当学习过程开始后，目标、证据和路线会自动出现在这里。",
 			learningNotesViewActions: "学习笔记操作",
-			learningNotesSave: "保存到学习库",
+			learningNotesSave: "保存到资料库",
 			learningNotesSaving: "正在保存…",
-			learningNotesSaved: "已保存到学习库",
-			learningNotesSaveNoVault: "当前会话还没有学习库；先附上一份材料，系统会在本地建立它。",
+			learningNotesSaved: "已保存到资料库",
+			learningNotesSaveNoVault: "当前会话还没有资料库；先附上一份材料，系统会在本地建立它。",
 			learningNotesSaveFailed: "没能保存这段学习笔记。",
 			learningNotesGoal: "学习目标",
 			learningNotesEvidence: "证据要点",
@@ -15759,15 +15759,15 @@ window.__ModuleLoader__.load({
 			visualCausalReinforcingKind: "增强回路",
 			visualCausalBalancingKind: "平衡回路",
 			visualCausalLoopInteractionHint: "选择变量、带符号链接或回路查看这段反馈关系。",
-			vaultTab: "学习库",
-			vaultLoading: "正在读取这个学习库…",
-			vaultFailed: "读取学习库时出错",
+			vaultTab: "资料库",
+			vaultLoading: "正在读取这个资料库…",
+			vaultFailed: "读取资料库时出错",
 			vaultFailedBody: "这一次读取没有完成，通常重试一次就能恢复。",
 			vaultRetry: "重试",
 			vaultFailedDetails: "技术细节",
-			vaultNoneTitle: "这个文件夹还不是学习库",
-			vaultNoneBody: "在这次对话里用 @ 附上一份材料（PDF、Markdown、docx、pptx 或纯文本），系统会就地建立学习库并解析它。原件会被复制进 sources/，永不修改。",
-			vaultEmptyTitle: "学习库是空的",
+			vaultNoneTitle: "这个文件夹还不是资料库",
+			vaultNoneBody: "在这次对话里用 @ 附上一份材料（PDF、Markdown、docx、pptx 或纯文本），系统会就地建立资料库并解析它。原件会被复制进 sources/，永不修改。",
+			vaultEmptyTitle: "资料库是空的",
 			vaultEmptyBody: "还没有任何材料。用 @ 附上一份文件，解析结果和它的章节结构会出现在这里。",
 			vaultCountDue: "{count} 张今天到期",
 			vaultCountDegraded: "{count} 份材料只读到一部分",
@@ -15863,8 +15863,8 @@ window.__ModuleLoader__.load({
 			vaultNoteBlocked: "「{concept}」还没有概念卡，先在对话里练到能独立用对它。",
 			vaultNoteDelete: "删除",
 			vaultNoteDeleteConfirm: "确认删除文件",
-			vaultKeep: "把这段回答留到学习库",
-			vaultKeepHint: "把这段回答留到学习库",
+			vaultKeep: "把这段回答留到资料库",
+			vaultKeepHint: "把这段回答留到资料库",
 			vaultKeepTitle: "留到库里",
 			vaultKeepClose: "收起",
 			vaultKeepBody: "要保存的正文",
@@ -15873,9 +15873,9 @@ window.__ModuleLoader__.load({
 			vaultKeepAsCardHint: "在对话里说一声就能存成概念卡；也可以先留在这里作为草稿。",
 			vaultKeptAsNote: "已存为笔记。",
 			vaultKeptAsPending: "已存为待确认概念卡。",
-			vaultKeptWhere: "文件就在学习库文件夹里，在「学习库 · 笔记」里可以随时改。",
-			vaultKeepNoVault: "这个会话还没有学习库。先附上一份学习材料，文件夹才会建起来。",
-			vaultKeepFailed: "没能保存到学习库。",
+			vaultKeptWhere: "文件就在资料库文件夹里，在「资料库 · 笔记」里可以随时改。",
+			vaultKeepNoVault: "这个会话还没有资料库。先附上一份学习材料，文件夹才会建起来。",
+			vaultKeepFailed: "没能保存到资料库。",
 			vaultCallsModel: "调用模型",
 			vaultReparseOffer: "查看重读选项",
 			vaultReparseRun: "让 {model} 读这 {count} 页",
@@ -15886,7 +15886,7 @@ window.__ModuleLoader__.load({
 			vaultReparseNoRenderer: "本机没有 pdftoppm 或 pdftocairo，PDF 页面无法渲染成图片。装上 Poppler 之后这个按钮就能用了。",
 			vaultReparseNoModel: "还没有选定模型，无法重新读取。",
 			vaultReparseNotPdf: "只有 PDF 的页面能重新渲染成图片来读。",
-			vaultReparseSourceGone: "学习库里的原始文件不见了，没有东西可以重新渲染。",
+			vaultReparseSourceGone: "资料库里的原始文件不见了，没有东西可以重新渲染。",
 			vaultReparseNothing: "这份材料没有待重读的页面。",
 			vaultReparseAlready: "第 {pages} 页已经重读过。",
 			vaultReparseDone: "读回了 {count} 页，已经写进材料里。",
@@ -15896,7 +15896,7 @@ window.__ModuleLoader__.load({
 			vaultReparsePageModelFailed: "第 {page} 页 模型调用失败",
 			vaultReparsePageRenderFailed: "第 {page} 页 渲染失败",
 			vaultReparseStale: "有 {count} 处引用在这次重排后失效了。",
-			vaultRosterTitle: "学习库",
+			vaultRosterTitle: "资料库",
 			vaultLibraryTopics: "{count} 个主题库",
 			vaultLibraryOpenSession: "回到对话",
 			vaultScopeInclude: "纳入作用域",

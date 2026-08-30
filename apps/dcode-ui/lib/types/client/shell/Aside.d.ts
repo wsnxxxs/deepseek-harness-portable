@@ -9,13 +9,14 @@
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import { type NavigationStore } from '../state/navigation.ts';
+import { type NavigationStore, type TaskContext } from '../state/navigation.ts';
 /** Props of the floating right card. */
 export interface AsideProps {
     readonly navigation: NavigationStore;
     readonly sessionId: SessionId | undefined;
     readonly cwd: string | undefined;
+    readonly context: TaskContext;
 }
-/** The docked preview sidebar with its three content views. */
-export declare function Aside({ navigation, sessionId, cwd }: AsideProps): import("react").JSX.Element;
+/** The docked preview sidebar with its content views. */
+export declare function Aside({ navigation, sessionId, cwd, context }: AsideProps): import("react").JSX.Element;
 //# sourceMappingURL=Aside.d.ts.map

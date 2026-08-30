@@ -1,6 +1,6 @@
 /**
  * Client entry: the composer takeover, the replayable keyed tool renderers, the
- * current-session 笔记 view, and the external 学习库 with its per-message
+ * current-session 笔记 view, and the external 资料库 with its per-message
  * 「留到库里」 action.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis';

@@ -65,12 +65,15 @@ export const INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILES = [
     'lib/types/teaching-route.d.ts',
     'lib/types/topic-vault.d.ts',
 ];
-function appInventoryRoot(target) {
-    return target.platform === 'darwin' ? 'Contents/Resources/app' : 'runtime/resources/app';
-}
-/** Resolve every Interactive Learning path as it must appear in a target manifest. */
+/** The packaged Windows tree keeps the app resources below runtime/. */
+const APP_INVENTORY_ROOT = 'runtime/resources/app';
+/**
+ * Resolve every Interactive Learning path as it must appear in a target
+ * manifest. The target stays in the signature so the contract remains
+ * per-target rather than baking one platform's layout into the caller.
+ */
 export function interactiveLearningInventoryPaths(target) {
-    const appRoot = appInventoryRoot(target);
+    const appRoot = APP_INVENTORY_ROOT;
     const packageRoot = `${appRoot}/node_modules/${INTERACTIVE_LEARNING_PACKAGE}`;
     return [
         ...INTERACTIVE_LEARNING_APP_FILES.map(path => `${appRoot}/${path}`),
@@ -216,7 +219,7 @@ export function assertInteractiveLearningReleaseContract(target, files, evidence
             throw new Error(`release manifest is missing required Interactive Learning file: ${requiredPath}`);
         }
     }
-    const appRoot = appInventoryRoot(target);
+    const appRoot = APP_INVENTORY_ROOT;
     const packagePrefix = `${appRoot}/node_modules/${INTERACTIVE_LEARNING_PACKAGE}/`;
     const actualPublishedFiles = inventoryPaths
         .filter(path => path.startsWith(packagePrefix))

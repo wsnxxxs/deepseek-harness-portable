@@ -63,58 +63,6 @@ export const TARGET_SPECS = [
       limitations: ['process-tree-unobservable', 'process-group-signals-emulated'],
     }),
   }),
-  defineTarget({
-    id: 'linux-x64',
-    platform: 'linux',
-    arch: 'x64',
-    electron: { platform: 'linux', arch: 'x64' },
-    nativeAssets: [
-      ...commonNativeAssets('linux', 'x64'),
-      {
-        package: 'node-pty',
-        source: 'build/Release/pty.node',
-        strategy: 'electron-rebuild',
-      },
-      {
-        package: '@deepseek-ai/node-addon-landlock-run-linux-x64',
-        source: 'bin/landlock-run',
-        strategy: 'generated-package',
-      },
-    ],
-    launchers: ['sh'],
-    formats: ['app-image', 'deb'],
-    updaterAdapter: 'manual-package-linux',
-    signing: {
-      adapter: 'external-package-signing',
-      officialReleaseRequiresEvidence: true,
-      credentialEnvironment: ['LINUX_PACKAGE_SIGNING_KEY'],
-    },
-    requiredModeSupport: commonModes({ mode: 'minimal', minimum: 'native', variant: 'posix-bash' }),
-  }),
-  defineTarget({
-    id: 'darwin-arm64',
-    platform: 'darwin',
-    arch: 'arm64',
-    electron: { platform: 'darwin', arch: 'arm64' },
-    nativeAssets: [
-      ...commonNativeAssets('darwin', 'arm64'),
-      {
-        package: 'node-pty',
-        source: 'prebuilds/darwin-arm64',
-        storePrefix: 'node-pty@',
-        strategy: 'copy-directory',
-      },
-    ],
-    launchers: ['app-bundle'],
-    formats: ['dmg'],
-    updaterAdapter: 'manual-package-darwin',
-    signing: {
-      adapter: 'codesign-notarization',
-      officialReleaseRequiresEvidence: true,
-      credentialEnvironment: ['APPLE_SIGNING_IDENTITY', 'APPLE_NOTARY_PROFILE'],
-    },
-    requiredModeSupport: commonModes({ mode: 'minimal', minimum: 'native', variant: 'posix-bash' }),
-  }),
 ] as const satisfies readonly TargetSpec[]
 
 const TARGETS_BY_ID = new Map(TARGET_SPECS.map(target => [target.id, target]))

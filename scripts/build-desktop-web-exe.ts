@@ -15,7 +15,7 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { chmod, copyFile, cp, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -33,7 +33,7 @@ import {
   pruneInteractiveLearningPackageToPublishedFiles,
 } from './build/interactive-learning-contract.js'
 import type { PatchAttestation } from './build/patch-manifest.js'
-import { electronExecutable, runPackagedSmoke, type PackagedRuntimeEvidence } from './build/packaged-smoke.js'
+import { runPackagedSmoke, type PackagedRuntimeEvidence } from './build/packaged-smoke.js'
 import { runBuildStages } from './build/pipeline.js'
 import { applyRuntimePatchLayer } from './build/runtime-patches.js'
 import { discoverDesktopVerificationFiles } from './release/desktop-verification.js'
@@ -87,19 +87,12 @@ const WINDOWS_UNICODE_ROOT_FILES = [
   '一键解除拦截(自签名信任).bat',
   '在线更新.bat',
 ] as const
-/** An optional checked-in macOS icon; otherwise it is generated from the shell logo. */
-const MAC_DESKTOP_ICON = resolve(root, 'apps/desktop/assets/deepseek.icns')
 /** The native shell's product name and packaged executable path. */
 const ELECTRON_APP_NAME = 'DeepSeek Harness'
-/** Linux uses a shell-friendly executable name so desktop entries and dsh agree. */
-const LINUX_ELECTRON_EXECUTABLE = 'deepseek-harness'
 /** pkg base-binary download cache lives in the user profile; no repo state. */
 const OUT_DIR = 'dist-exe'
 /** The unpacked Electron app is the portable desktop distribution. */
 const ELECTRON_OUT_DIR = 'dist-desktop/electron'
-/** Official upstream Landlock launcher package used by Linux standard mode. */
-const LINUX_LANDLOCK_PACKAGE = '@deepseek-ai/node-addon-landlock-run-linux-x64'
-const LINUX_LANDLOCK_SOURCE = resolve(root, 'vendor/deepseek-harness/native/landlock-run/packages/linux-x64')
 /** The cleared deploy target and pkg input. */
 const STAGING_DIR = 'dist-desktop/node'
 /** Successful layer fingerprints live with other disposable packaging output. */
@@ -163,13 +156,6 @@ const BUILD_INPUT_PATHS = [
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
   'apps/desktop/package.json',
-  'apps/desktop/electron-builder.yml',
-  'apps/desktop/linux-after-install.sh',
-  'apps/desktop/linux-after-remove.sh',
-  'apps/desktop/dsh.sh',
-  'apps/desktop/start-web.sh',
-  'apps/desktop/start-desktop.sh',
-  'apps/desktop/portable-pnpm.sh',
   'apps/desktop/src',
   'apps/desktop/assets',
   'apps/runtime/package.json',
@@ -205,7 +191,6 @@ const BUILD_INPUT_PATHS = [
   'vendor/deepseek-harness/tsconfig.host.json',
   'vendor/deepseek-harness/tsdown.config.ts',
   'vendor/deepseek-harness/apps/web',
-  'vendor/deepseek-harness/native/landlock-run',
   'vendor/deepseek-harness/packages',
   'vendor/deepseek-harness/vendor',
 ]
@@ -219,7 +204,6 @@ const STAGING_INPUT_PATHS = [
   'scripts/build-desktop-web-exe.ts',
   'scripts/build',
   'scripts/packaging-cache.ts',
-  'apps/desktop/electron-builder.yml',
   'apps/desktop/launcher',
   'patches',
 ]
@@ -232,7 +216,6 @@ const CONTAINER_INPUT_PATHS = [
   'scripts/setup-runtime-preflight.ps1',
   'scripts/setup-launch-after-exit.ps1',
   'scripts/build/create-windows-zip.ps1',
-  'apps/desktop/electron-builder.yml',
 ]
 
 /** The desktop app owns the shell version embedded in the Electron package. */
@@ -324,8 +307,6 @@ class BuildCli {
     readonly electron: boolean,
     /** The single source of all target-specific build facts. */
     readonly target: TargetSpec,
-    /** Create a compressed macOS disk image after the .app is staged. */
-    readonly dmg: boolean,
     /** Remove ordinary TypeScript sources after the safe release pruning pass. */
     readonly pruneSources: boolean,
     /** Rebuild every disposable packaging layer and refresh its cache key. */
@@ -370,7 +351,7 @@ class BuildCli {
       target = getTargetSpec(values.target)
     } else if (values.platform !== undefined || values.arch !== undefined) {
       const platform = values.platform ?? 'win32'
-      const arch = values.arch ?? (platform === 'darwin' ? 'arm64' : 'x64')
+      const arch = values.arch ?? 'x64'
       target = getTargetSpecFor(platform, arch)
       console.warn(`build-desktop-web-exe: --platform/--arch are deprecated; use --target ${target.id}`)
     } else {
@@ -378,9 +359,6 @@ class BuildCli {
     }
     if (target.platform !== 'win32' && !values.electron) {
       throw new Error(`${target.id} packaging requires --electron`)
-    }
-    if (values.dmg && (target.platform !== 'darwin' || !values.electron)) {
-      throw new Error('--dmg is only valid for the macOS Electron target')
     }
     if (values['output-root'] !== undefined && !values.electron) {
       throw new Error('--output-root is only valid with --electron')
@@ -402,7 +380,6 @@ class BuildCli {
       values['dry-run'],
       values.electron,
       target,
-      values.dmg || target.formats.includes('dmg'),
       values['prune-sources'],
       values['no-cache'],
       electronOutputRoot,
@@ -421,7 +398,6 @@ class BuildCli {
         // Compatibility-only: all maintained scripts use --target.
         'platform': { type: 'string' },
         'arch': { type: 'string' },
-        'dmg': { type: 'boolean', default: false },
         'prune-sources': { type: 'boolean', default: false },
         'no-cache': { type: 'boolean', default: false },
         'output-root': { type: 'string' },
@@ -439,7 +415,6 @@ class BuildCli {
       '  --dry-run      print every command and config patch without executing.',
       '  --electron     build the native Electron shell.',
       `  --target       build target: ${TARGET_SPECS.map(target => target.id).join(', ')} (default: win32-x64).`,
-      '  --dmg          compatibility flag; darwin targets create their declared DMG automatically.',
       '  --prune-sources remove ordinary .ts/.tsx source files after safe pruning; smoke-test the release before publishing.',
       '  --no-cache     rebuild all disposable packaging layers and refresh their cache keys.',
       '  --output-root  write Electron products and verification below a fresh dist-desktop/ subdirectory.',
@@ -492,7 +467,6 @@ class DesktopExeBuild {
     this.cacheState = this.cli.noCache || this.cli.dryRun
       ? { version: 1 }
       : await readPackagingCache(this.cachePath)
-    await this.prepareLinuxNativeLauncher()
     this.buildKey = await this.timed('fingerprint build inputs', () => fingerprintPaths({
       baseDir: root,
       paths: BUILD_INPUT_PATHS,
@@ -861,9 +835,6 @@ class DesktopExeBuild {
   async stageNativeAddons(): Promise<void> {
     if (this.cli.dryRun) {
       console.log('build-desktop-web-exe: [dry-run] stage native addons')
-      if (this.cli.platform === 'linux') {
-        console.log('build-desktop-web-exe: [dry-run] rebuild node-pty for the target Electron ABI')
-      }
       return
     }
     const nativeTasks = this.cli.target.nativeAssets.flatMap(asset => {
@@ -878,108 +849,6 @@ class DesktopExeBuild {
       return []
     })
     await Promise.all(nativeTasks)
-    if (this.cli.target.nativeAssets.some(asset => asset.strategy === 'electron-rebuild' && asset.package === 'node-pty')) {
-      // Linux has no published node-pty prebuild. A host-Node build has a
-      // different module ABI from Electron, so always rebuild the deployed
-      // source against the exact Electron version before pruning it.
-      await this.rebuildLinuxNodePty()
-    }
-    if (this.cli.target.nativeAssets.some(asset => asset.strategy === 'generated-package' && asset.package === LINUX_LANDLOCK_PACKAGE)) {
-      await this.stageLinuxLandlockLauncher()
-    }
-  }
-
-  /** Rebuild Linux node-pty against Electron rather than the build host's Node ABI. */
-  private async rebuildLinuxNodePty(): Promise<void> {
-    const rebuildBin = join(
-      root,
-      'node_modules',
-      '.bin',
-      process.platform === 'win32' ? 'electron-rebuild.CMD' : 'electron-rebuild',
-    )
-    const args = [
-      '--version',
-      electronVersion(),
-      '--arch',
-      this.cli.arch,
-      '--module-dir',
-      this.staging,
-      '--only',
-      'node-pty',
-      '--force',
-      '--build-from-source',
-      '--sequential',
-    ]
-    if (existsSync(rebuildBin)) {
-      await this.run('rebuild Linux node-pty for Electron', rebuildBin, args)
-    } else {
-      await this.run('rebuild Linux node-pty for Electron', pnpmBin(), ['exec', 'electron-rebuild', ...args])
-    }
-    const binary = join(this.staging, 'node_modules', 'node-pty', 'build', 'Release', 'pty.node')
-    if (!existsSync(binary)) {
-      throw new Error(`build-desktop-web-exe: Electron node-pty rebuild did not produce ${binary}.`)
-    }
-    console.log(`build-desktop-web-exe: rebuilt Linux node-pty for Electron ${electronVersion()}`)
-  }
-
-  /**
-   * Build the official Linux-only Landlock launcher before deployment. The
-   * upstream package deliberately keeps bin/ out of git and refuses to
-   * compile on consumer hosts, so a Linux desktop artifact must prepare it
-   * on the native build runner.
-   */
-  private async prepareLinuxNativeLauncher(): Promise<void> {
-    if (!this.cli.target.nativeAssets.some(asset => asset.strategy === 'generated-package' && asset.package === LINUX_LANDLOCK_PACKAGE)) return
-    if (this.cli.dryRun) {
-      console.log('build-desktop-web-exe: [dry-run] build official Linux Landlock launcher')
-      return
-    }
-    if (process.platform !== 'linux' || process.arch !== 'x64') {
-      throw new Error(
-        'build-desktop-web-exe: Linux x64 packaging must run on a native Linux x64 host; '
-        + `current host is ${process.platform}-${process.arch}.`,
-      )
-    }
-    const binary = join(LINUX_LANDLOCK_SOURCE, 'bin', 'landlock-run')
-    if (!existsSync(binary)) {
-      await this.run('build Linux Landlock launcher', pnpmBin(), [
-        '--dir',
-        join(root, 'vendor', 'deepseek-harness', 'native', 'landlock-run'),
-        'run',
-        'build:native',
-      ])
-    }
-    if (!existsSync(binary)) {
-      throw new Error(`build-desktop-web-exe: upstream Landlock launcher is missing: ${binary}`)
-    }
-    await chmod(binary, 0o755)
-  }
-
-  /** Copy the generated upstream platform package into the deploy closure. */
-  private async stageLinuxLandlockLauncher(): Promise<void> {
-    const sourcePackage = LINUX_LANDLOCK_SOURCE
-    const stagedPackage = join(this.staging, 'node_modules', LINUX_LANDLOCK_PACKAGE)
-    const sourceBinary = join(sourcePackage, 'bin', 'landlock-run')
-    const stagedBinary = join(stagedPackage, 'bin', 'landlock-run')
-    if (!existsSync(sourceBinary)) {
-      throw new Error(`build-desktop-web-exe: Linux Landlock launcher is missing: ${sourceBinary}`)
-    }
-    if (!existsSync(stagedPackage)) {
-      if (this.cli.dryRun) {
-        console.log(`build-desktop-web-exe: [dry-run] cp -r ${sourcePackage} ${stagedPackage}`)
-      } else {
-        await mkdir(dirname(stagedPackage), { recursive: true })
-        await cp(sourcePackage, stagedPackage, { recursive: true, dereference: true })
-      }
-    }
-    if (this.cli.dryRun) {
-      console.log(`build-desktop-web-exe: [dry-run] cp ${sourceBinary} ${stagedBinary}`)
-      return
-    }
-    await mkdir(dirname(stagedBinary), { recursive: true })
-    await copyFile(sourceBinary, stagedBinary)
-    await chmod(stagedBinary, 0o755)
-    console.log(`build-desktop-web-exe: staged Linux Landlock launcher ${LINUX_LANDLOCK_PACKAGE}/bin/landlock-run`)
   }
 
   /** Apply the reviewed patch inventory with fail-closed guards and hashes. */
@@ -1053,7 +922,7 @@ class DesktopExeBuild {
 
     const nodePty = join(this.staging, 'node_modules', 'node-pty')
     const target = `${this.cli.platform}-${this.cli.arch}`
-    const nodePtyPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64']
+    const nodePtyPlatforms = ['win32-arm64', 'win32-x64']
     await Promise.all(nodePtyPlatforms
       .filter(platform => platform !== target)
       .map(platform => rm(join(nodePty, 'prebuilds', platform), { recursive: true, force: true })))
@@ -1070,8 +939,8 @@ class DesktopExeBuild {
   private async pruneUnusedNativePackages(target: string): Promise<void> {
     const nodeModules = join(this.staging, 'node_modules')
     const groups = [
-      { scope: '@img', pattern: /^(?:sharp|sharp-libvips)-(?:darwin|linux|win32)-/ },
-      { scope: '@koromix', pattern: /^koffi-(?:darwin|linux|win32)-/ },
+      { scope: '@img', pattern: /^(?:sharp|sharp-libvips)-win32-/ },
+      { scope: '@koromix', pattern: /^koffi-win32-/ },
     ]
     let removed = 0
     for (const { scope, pattern } of groups) {
@@ -1125,9 +994,7 @@ class DesktopExeBuild {
   /** Keep only the locales shipped by the product's supported UI languages. */
   async pruneElectronLocales(product: string): Promise<void> {
     if (!this.cli.electron || this.cli.dryRun) return
-    const localesDir = this.cli.platform === 'darwin'
-      ? join(product, 'Contents', 'Resources', 'locales')
-      : join(dirname(product), 'locales')
+    const localesDir = join(dirname(product), 'locales')
     if (!existsSync(localesDir)) return
     const keep = new Set(['en-US.pak', 'zh-CN.pak', 'zh-TW.pak'])
     let removed = 0
@@ -1185,11 +1052,7 @@ class DesktopExeBuild {
   async pack(): Promise<string> {
     const version = desktopVersion()
     const product = this.cli.electron
-      ? this.cli.platform === 'darwin'
-        ? join(this.electronOutDir, `${ELECTRON_APP_NAME}-darwin-${this.cli.arch}`, `${ELECTRON_APP_NAME}.app`)
-        : this.cli.platform === 'linux'
-          ? join(this.electronOutDir, `${ELECTRON_APP_NAME}-linux-${this.cli.arch}`, 'runtime', LINUX_ELECTRON_EXECUTABLE)
-          : join(this.electronOutDir, `${ELECTRON_APP_NAME}-win32-${this.cli.arch}`, 'runtime', `${ELECTRON_APP_NAME}.exe`)
+      ? join(this.electronOutDir, `${ELECTRON_APP_NAME}-win32-${this.cli.arch}`, 'runtime', `${ELECTRON_APP_NAME}.exe`)
       : join(this.outDir, `${OUTPUT_BASENAME}-${version}-win-x64.exe`)
     const artifactKey = await fingerprintPaths({
       baseDir: root,
@@ -1247,25 +1110,12 @@ class DesktopExeBuild {
   /** Return the immutable container paths for the selected Electron target. */
   platformContainerPaths(): readonly string[] {
     if (!this.cli.electron) return []
-    const artifactDir = resolve(this.electronOutDir, this.cli.platform === 'win32'
-      ? 'windows-artifacts'
-      : this.cli.platform === 'linux'
-        ? 'linux-artifacts'
-        : '')
+    const artifactDir = resolve(this.electronOutDir, 'windows-artifacts')
     const version = distributionVersion()
-    if (this.cli.platform === 'win32') {
-      return [
-        join(artifactDir, `DeepSeek-Harness-${version}-win32-x64.zip`),
-        join(artifactDir, `DeepSeek-Harness-Setup-${version}-win32-x64.exe`),
-      ]
-    }
-    if (this.cli.platform === 'linux') {
-      return [
-        join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.AppImage`),
-        join(artifactDir, `DeepSeek-Harness-${version}-linux-x64.deb`),
-      ]
-    }
-    return [join(this.electronOutDir, `DeepSeek-Harness-${version}-darwin-${this.cli.arch}.dmg`)]
+    return [
+      join(artifactDir, `DeepSeek-Harness-${version}-win32-x64.zip`),
+      join(artifactDir, `DeepSeek-Harness-Setup-${version}-win32-x64.exe`),
+    ]
   }
 
   /** Fingerprint the final manifest and container tooling without re-hashing the whole app tree. */
@@ -1296,13 +1146,11 @@ class DesktopExeBuild {
   }
 
   private appResourcesDir(product: string): string {
-    return this.cli.platform === 'darwin'
-      ? join(product, 'Contents', 'Resources', 'app')
-      : join(dirname(product), 'resources', 'app')
+    return join(dirname(product), 'resources', 'app')
   }
 
   private artifactRoot(product: string): string {
-    return this.cli.platform === 'darwin' ? product : dirname(dirname(product))
+    return dirname(dirname(product))
   }
 
   /** Write the same release identity schema into every unpacked target. */
@@ -1351,8 +1199,10 @@ class DesktopExeBuild {
       patches: this.patchAttestations,
     })
     const serialized = serializeReleaseManifest(manifest)
-    const destinations = [join(resources, 'release-manifest.json')]
-    if (this.cli.platform !== 'darwin') destinations.push(join(dirname(dirname(product)), 'release-manifest.json'))
+    const destinations = [
+      join(resources, 'release-manifest.json'),
+      join(dirname(dirname(product)), 'release-manifest.json'),
+    ]
     for (const destination of new Set(destinations)) {
       await mkdir(dirname(destination), { recursive: true })
       await writeFile(destination, serialized)
@@ -1367,7 +1217,7 @@ class DesktopExeBuild {
       console.log(`build-desktop-web-exe: [dry-run] smoke-test packaged ${this.cli.target.id} runtime`)
       return undefined
     }
-    await this.run('native-addon smoke', electronExecutable(product, this.cli.target), [
+    await this.run('native-addon smoke', product, [
       join(root, 'smoke-native.cjs'),
       this.appResourcesDir(product),
     ], { ELECTRON_RUN_AS_NODE: '1' })
@@ -1463,30 +1313,6 @@ class DesktopExeBuild {
       console.log('build-desktop-web-exe: Windows Setup embeds the exact verified portable ZIP bytes')
       return
     }
-    if (this.cli.platform === 'linux') {
-      const appImage = artifacts.find(path => path.toLowerCase().endsWith('.appimage'))
-      const deb = artifacts.find(path => path.toLowerCase().endsWith('.deb'))
-      if (appImage === undefined || deb === undefined) throw new Error('build-desktop-web-exe: Linux containers are incomplete')
-      const readHeader = async (path: string, bytes: number): Promise<Buffer> => {
-        const handle = await open(path, 'r')
-        try {
-          const buffer = Buffer.alloc(bytes)
-          await handle.read(buffer, 0, bytes, 0)
-          return buffer
-        } finally {
-          await handle.close()
-        }
-      }
-      const [appImageHeader, debHeader] = await Promise.all([readHeader(appImage, 4), readHeader(deb, 8)])
-      if (!appImageHeader.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) || debHeader.toString('ascii') !== '!<arch>\n') {
-        throw new Error('build-desktop-web-exe: Linux container magic validation failed')
-      }
-      await this.run('Debian package metadata verification', 'dpkg-deb', ['--info', deb])
-      return
-    }
-    const dmg = artifacts.find(path => path.toLowerCase().endsWith('.dmg'))
-    if (dmg === undefined) throw new Error('build-desktop-web-exe: macOS DMG is missing')
-    await this.run('macOS DMG verification', 'hdiutil', ['verify', dmg])
   }
 
   /** Package the single-file SEA executable. */
@@ -1521,8 +1347,6 @@ class DesktopExeBuild {
 
   /** Package the staged runtime into the selected Electron application layout. */
   private async packElectron(): Promise<string> {
-    if (this.cli.platform === 'darwin') return this.packElectronMac()
-    if (this.cli.platform === 'linux') return this.packElectronLinux()
     const target = `win32-${this.cli.arch}`
     const portableRoot = join(this.electronOutDir, `${ELECTRON_APP_NAME}-${target}`)
     const packagerOutDir = join(this.electronOutDir, '.packager')
@@ -1626,260 +1450,6 @@ class DesktopExeBuild {
     return product
   }
 
-  /** Package the staged runtime into an unpacked Linux Electron directory. */
-  private async packElectronLinux(): Promise<string> {
-    const target = `linux-${this.cli.arch}`
-    const portableRoot = join(this.electronOutDir, `${ELECTRON_APP_NAME}-${target}`)
-    const packagerOutDir = join(this.electronOutDir, '.packager')
-    const nextPortableRoot = join(this.electronOutDir, `.linux-next-${process.pid}`)
-    const previousPortableRoot = join(this.electronOutDir, `.linux-previous-${process.pid}`)
-    const packagedRoot = join(packagerOutDir, `${ELECTRON_APP_NAME}-${target}`)
-    const packagedProduct = join(packagedRoot, LINUX_ELECTRON_EXECUTABLE)
-    const runtimeRoot = join(portableRoot, 'runtime')
-    const product = join(runtimeRoot, LINUX_ELECTRON_EXECUTABLE)
-    const linuxIcon = await this.prepareLinuxIcon()
-
-    if (!this.cli.dryRun) {
-      await Promise.all([
-        rm(packagerOutDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-        rm(nextPortableRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-        rm(previousPortableRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-      ])
-      await mkdir(packagerOutDir, { recursive: true })
-    }
-
-    const electronBin = join(root, 'node_modules', '.pnpm', 'node_modules', '.bin', process.platform === 'win32' ? 'electron.CMD' : 'electron')
-    if (existsSync(electronBin)) {
-      await this.run('prepare Electron runtime', electronBin, ['--version'])
-    } else {
-      await this.run('prepare Electron runtime', pnpmBin(), [
-        '--filter',
-        DEPLOY_ROOT_PACKAGE,
-        'exec',
-        'electron',
-        '--version',
-      ])
-    }
-
-    const electronPackagerBin = join(root, 'node_modules', '.pnpm', 'node_modules', '.bin', process.platform === 'win32' ? 'electron-packager.CMD' : 'electron-packager')
-    const packagerArgs = [
-      this.staging,
-      ELECTRON_APP_NAME,
-      '--platform',
-      this.cli.target.electron.platform,
-      '--arch',
-      this.cli.arch,
-      '--electron-version',
-      electronVersion(),
-      '--executable-name',
-      LINUX_ELECTRON_EXECUTABLE,
-      '--out',
-      packagerOutDir,
-      '--overwrite',
-      '--no-asar',
-      '--no-prune',
-    ]
-    if (linuxIcon) packagerArgs.splice(8, 0, '--icon', linuxIcon)
-    if (existsSync(electronPackagerBin)) {
-      await this.run(`Electron ${ELECTRON_APP_NAME} ${target}`, electronPackagerBin, packagerArgs)
-    } else {
-      await this.run(`Electron ${ELECTRON_APP_NAME} ${target}`, pnpmBin(), [
-        '--filter',
-        DEPLOY_ROOT_PACKAGE,
-        'exec',
-        'electron-packager',
-        ...packagerArgs,
-      ])
-    }
-
-    if (!this.cli.dryRun) {
-      if (!existsSync(packagedProduct)) {
-        throw new Error(`build-desktop-web-exe: Linux Electron product ${packagedProduct} is missing after packaging.`)
-      }
-      await mkdir(nextPortableRoot, { recursive: true })
-      await rename(packagedRoot, join(nextPortableRoot, 'runtime'))
-      if (existsSync(portableRoot)) await rename(portableRoot, previousPortableRoot)
-      try {
-        await rename(nextPortableRoot, portableRoot)
-      } catch (error) {
-        if (existsSync(previousPortableRoot) && !existsSync(portableRoot)) {
-          await rename(previousPortableRoot, portableRoot)
-        }
-        throw error
-      }
-      await rm(previousPortableRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-      // electron-packager may preserve a restrictive mode on the app root.
-      // Debian installs that mode at /opt, making the application inaccessible
-      // to normal users even when the executable itself is 755.
-      await chmod(runtimeRoot, 0o755)
-      await chmod(product, 0o755)
-      await rm(packagerOutDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-      console.log('build-desktop-web-exe: moved Linux Electron runtime into place')
-    }
-    return product
-  }
-
-  /** Package the native macOS arm64 application bundle. */
-  private async packElectronMac(): Promise<string> {
-    const target = `darwin-${this.cli.arch}`
-    const bundleRoot = join(this.electronOutDir, `${ELECTRON_APP_NAME}-${target}`)
-    const packagerOutDir = join(this.electronOutDir, '.packager')
-    const nextBundleRoot = join(this.electronOutDir, `.app-next-${process.pid}`)
-    const previousBundleRoot = join(this.electronOutDir, `.app-previous-${process.pid}`)
-    const packagedRoot = join(packagerOutDir, `${ELECTRON_APP_NAME}-${target}`)
-    const packagedProduct = join(packagedRoot, `${ELECTRON_APP_NAME}.app`)
-    const product = join(bundleRoot, `${ELECTRON_APP_NAME}.app`)
-
-    if (!this.cli.dryRun) {
-      await Promise.all([
-        rm(packagerOutDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-        rm(nextBundleRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-        rm(previousBundleRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
-      ])
-      await mkdir(packagerOutDir, { recursive: true })
-    }
-
-    const electronBin = join(root, 'node_modules', '.pnpm', 'node_modules', '.bin', process.platform === 'win32' ? 'electron.CMD' : 'electron')
-    if (existsSync(electronBin)) {
-      await this.run('prepare Electron runtime', electronBin, ['--version'])
-    } else {
-      await this.run('prepare Electron runtime', pnpmBin(), [
-        '--filter',
-        DEPLOY_ROOT_PACKAGE,
-        'exec',
-        'electron',
-        '--version',
-      ])
-    }
-
-    const electronPackagerBin = join(root, 'node_modules', '.pnpm', 'node_modules', '.bin', process.platform === 'win32' ? 'electron-packager.CMD' : 'electron-packager')
-    const macIcon = await this.prepareMacIcon()
-    const packagerArgs = [
-      this.staging,
-      ELECTRON_APP_NAME,
-      '--platform',
-      this.cli.target.electron.platform,
-      '--arch',
-      this.cli.arch,
-      '--electron-version',
-      electronVersion(),
-      '--app-bundle-id',
-      'com.deepseek.harness',
-      '--out',
-      packagerOutDir,
-      '--overwrite',
-      '--no-asar',
-      '--no-prune',
-    ]
-    if (macIcon) packagerArgs.push('--icon', macIcon)
-    else console.warn('build-desktop-web-exe: macOS icon is not present; using Electron default app icon')
-
-    if (existsSync(electronPackagerBin)) {
-      await this.run(`Electron ${ELECTRON_APP_NAME} ${target}`, electronPackagerBin, packagerArgs)
-    } else {
-      await this.run(`Electron ${ELECTRON_APP_NAME} ${target}`, pnpmBin(), [
-        '--filter',
-        DEPLOY_ROOT_PACKAGE,
-        'exec',
-        'electron-packager',
-        ...packagerArgs,
-      ])
-    }
-
-    if (!this.cli.dryRun) {
-      if (!existsSync(packagedProduct)) {
-        throw new Error(`build-desktop-web-exe: macOS Electron product ${packagedProduct} is missing after packaging.`)
-      }
-      await mkdir(nextBundleRoot, { recursive: true })
-      await rename(packagedRoot, join(nextBundleRoot, `${ELECTRON_APP_NAME}.app`))
-      if (existsSync(bundleRoot)) await rename(bundleRoot, previousBundleRoot)
-      try {
-        await rename(nextBundleRoot, bundleRoot)
-      } catch (error) {
-        if (existsSync(previousBundleRoot) && !existsSync(bundleRoot)) {
-          await rename(previousBundleRoot, bundleRoot)
-        }
-        throw error
-      }
-      await rm(previousBundleRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-      await rm(packagerOutDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-      console.log('build-desktop-web-exe: moved macOS Electron app bundle into place')
-    }
-    return product
-  }
-
-  /**
-   * Produce an .icns file on macOS from the 64px logo already embedded in the
-   * desktop shell. Keeping this build-time avoids committing a generated
-   * binary asset while still giving the native app a product icon.
-   */
-  private async prepareMacIcon(): Promise<string | undefined> {
-    if (existsSync(MAC_DESKTOP_ICON)) return MAC_DESKTOP_ICON
-    if (this.cli.dryRun || process.platform !== 'darwin') return undefined
-
-    const source = await readFile(join(root, 'apps', 'desktop', 'src', 'desktop-preload.cjs'), 'utf8')
-    const match = /const DEEPSEEK_LOGO_DATA_URI = 'data:image\/png;base64,([^']+)'/.exec(source)
-    if (!match?.[1]) return undefined
-
-    const workDir = join(this.electronOutDir, `.mac-icon-${process.pid}`)
-    const iconset = join(workDir, 'deepseek.iconset')
-    const sourcePng = join(workDir, 'source.png')
-    const output = join(this.staging, 'assets', 'deepseek.icns')
-    await rm(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-    await mkdir(iconset, { recursive: true })
-    await mkdir(dirname(output), { recursive: true })
-    await writeFile(sourcePng, Buffer.from(match[1], 'base64'))
-
-    try {
-      for (const size of [16, 32, 128, 256, 512]) {
-        await this.run(`prepare macOS icon ${size}x${size}`, 'sips', [
-          '-z',
-          String(size),
-          String(size),
-          sourcePng,
-          '--out',
-          join(iconset, `icon_${size}x${size}.png`),
-        ])
-        await this.run(`prepare macOS icon ${size * 2}x${size * 2}`, 'sips', [
-          '-z',
-          String(size * 2),
-          String(size * 2),
-          sourcePng,
-          '--out',
-          join(iconset, `icon_${size}x${size}@2x.png`),
-        ])
-      }
-      await this.run('create macOS icns', 'iconutil', ['-c', 'icns', iconset, '-o', output])
-    } finally {
-      await rm(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-    }
-    return existsSync(output) ? output : undefined
-  }
-
-  /** Materialize the embedded logo as a Linux PNG for Electron and desktop entries. */
-  private async prepareLinuxIcon(): Promise<string | undefined> {
-    const output = join(this.staging, 'assets', 'deepseek.png')
-    if (existsSync(output)) return output
-    if (this.cli.dryRun) {
-      console.log(`build-desktop-web-exe: [dry-run] materialize Linux icon ${output}`)
-      return output
-    }
-    const source = await readFile(join(root, 'apps', 'desktop', 'src', 'desktop-preload.cjs'), 'utf8')
-    const match = /const DEEPSEEK_LOGO_DATA_URI = 'data:image\/png;base64,([^']+)'/.exec(source)
-    if (!match?.[1]) throw new Error('build-desktop-web-exe: embedded desktop logo is missing.')
-    await mkdir(dirname(output), { recursive: true })
-    // Electron-builder requires Linux icons to be at least 256x256. Keep the
-    // renderer's embedded 64px logo as the source of truth, but upscale it at
-    // build time so the package has a valid desktop icon without duplicating
-    // a large base64 asset in the source tree.
-    const { default: sharp } = await import('sharp')
-    await sharp(Buffer.from(match[1], 'base64'))
-      .resize(256, 256, { fit: 'contain', kernel: 'nearest' })
-      .png()
-      .toFile(output)
-    console.log(`build-desktop-web-exe: staged Linux icon ${output}`)
-    return output
-  }
 
   private findIscc(): string | undefined {
     const candidates = [
@@ -1943,111 +1513,6 @@ class DesktopExeBuild {
     ])
     if (!existsSync(zip) || !existsSync(setup)) throw new Error('build-desktop-web-exe: Windows packaging did not produce both ZIP and Setup.exe')
     return [zip, setup]
-  }
-
-  /** Create a compressed DMG containing the app and an Applications alias. */
-  async createDmg(product: string): Promise<string | undefined> {
-    if (!this.cli.dmg) return undefined
-    if (process.platform !== 'darwin' && !this.cli.dryRun) {
-      throw new Error('build-desktop-web-exe: DMG creation must run on macOS because hdiutil is a system tool.')
-    }
-    const dmgPath = join(
-      this.electronOutDir,
-      `DeepSeek-Harness-${distributionVersion()}-${this.cli.platform}-${this.cli.arch}.dmg`,
-    )
-    const dmgStaging = join(this.electronOutDir, `.dmg-staging-${process.pid}`)
-    if (this.cli.dryRun) {
-      console.log(`build-desktop-web-exe: [dry-run] create DMG ${dmgPath}`)
-      return dmgPath
-    }
-    await rm(dmgStaging, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-    await mkdir(dmgStaging, { recursive: true })
-    await cp(product, join(dmgStaging, `${ELECTRON_APP_NAME}.app`), { recursive: true, dereference: true })
-    await symlink('/Applications', join(dmgStaging, 'Applications'))
-    await rm(dmgPath, { force: true })
-    try {
-      await this.run('create macOS DMG', 'hdiutil', [
-        'create',
-        '-volname',
-        ELECTRON_APP_NAME,
-        '-srcfolder',
-        dmgStaging,
-        '-ov',
-        '-format',
-        'UDZO',
-        dmgPath,
-      ])
-    } finally {
-      await rm(dmgStaging, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-    }
-    if (!existsSync(dmgPath)) throw new Error(`build-desktop-web-exe: DMG ${dmgPath} is missing after hdiutil.`)
-    return dmgPath
-  }
-
-  /** Build Linux AppImage and deb artifacts from the already-packaged app. */
-  async createLinuxPackages(product: string): Promise<string[] | undefined> {
-    if (!this.cli.electron || this.cli.platform !== 'linux') return undefined
-    const [appImage, deb] = this.platformContainerPaths()
-    const artifactDir = dirname(appImage)
-    const appRoot = dirname(product)
-    const version = distributionVersion()
-    if (this.cli.dryRun) {
-      console.log(`build-desktop-web-exe: [dry-run] create Linux AppImage/deb from ${appRoot}`)
-      return [appImage, deb]
-    }
-
-    const config = join(root, 'apps', 'desktop', 'electron-builder.yml')
-    if (!existsSync(config)) throw new Error(`build-desktop-web-exe: Linux builder config is missing: ${config}`)
-    await rm(artifactDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
-    await mkdir(artifactDir, { recursive: true })
-
-    const builderBin = join(root, 'node_modules', '.pnpm', 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.CMD' : 'electron-builder')
-    const builderArgs = [
-      '--prepackaged',
-      appRoot,
-      '--config',
-      config,
-      '--config.directories.output',
-      artifactDir,
-      '--config.extraMetadata.version',
-      version,
-      '--config.buildVersion',
-      version,
-      '--config.linux.icon',
-      join(appRoot, 'resources', 'app', 'assets', 'deepseek.png'),
-      '--linux',
-      'AppImage',
-      'deb',
-      '--publish',
-      'never',
-    ]
-    if (existsSync(builderBin)) {
-      await this.run('Linux AppImage/deb packaging', builderBin, builderArgs)
-    } else {
-      await this.run('Linux AppImage/deb packaging', pnpmBin(), [
-        '--filter',
-        DEPLOY_ROOT_PACKAGE,
-        'exec',
-        'electron-builder',
-        ...builderArgs,
-      ])
-    }
-
-    const produced = await readdir(artifactDir)
-    const appImageSource = produced
-      .map(name => join(artifactDir, name))
-      .find(path => path.toLowerCase().endsWith('.appimage'))
-    const debSource = produced
-      .map(name => join(artifactDir, name))
-      .find(path => path.toLowerCase().endsWith('.deb'))
-    if (!appImageSource || !debSource) {
-      throw new Error(`build-desktop-web-exe: Linux packaging did not produce both AppImage and deb in ${artifactDir}.`)
-    }
-    if (appImageSource !== appImage) await rename(appImageSource, appImage)
-    if (debSource !== deb) await rename(debSource, deb)
-    await chmod(appImage, 0o755)
-    console.log(`build-desktop-web-exe: created ${appImage} and ${deb}`)
-    return [appImage, deb]
   }
 
   /** Embed the same icon used by the Electron shell into the portable exe. */
@@ -2204,31 +1669,6 @@ class DesktopExeBuild {
       await this.compileWindowsDesktopLauncher(rootDir)
     }
 
-    if (this.cli.electron && this.cli.platform === 'linux') {
-      const rootDir = dirname(dirname(product))
-      const rootFiles = [
-        'LICENSE',
-        'THIRD_PARTY_NOTICES.md',
-        'smoke-native.cjs',
-        'apps/desktop/start-web.sh',
-        'apps/desktop/start-desktop.sh',
-        'apps/desktop/dsh.sh',
-        'apps/desktop/portable-pnpm.sh',
-      ]
-      for (const relPath of rootFiles) {
-        const source = join(root, relPath)
-        if (!existsSync(source)) continue
-        const outputName = relPath.includes('/') ? relPath.slice(relPath.lastIndexOf('/') + 1) : relPath
-        const destination = join(rootDir, outputName)
-        if (this.cli.dryRun) {
-          console.log(`build-desktop-web-exe: [dry-run] cp ${source} ${destination}`)
-        } else {
-          await copyFile(source, destination)
-          if (destination.endsWith('.sh')) await chmod(destination, 0o755)
-          console.log(`build-desktop-web-exe: staged ${outputName} into ${rootDir}`)
-        }
-      }
-    }
   }
 
   /** Compile the root bootstrap as a Windows-GUI PE so Explorer never opens a console. */
@@ -2384,9 +1824,7 @@ async function main(): Promise<void> {
       }
       console.log(`build-desktop-web-exe: container cache ${cli.noCache ? 'bypassed' : 'miss'}${containerKey.length === 0 ? '' : ` (${containerKey.slice(0, 12)})`}`)
       const windows = await pipeline.createWindowsPackages(product())
-      const linux = await pipeline.createLinuxPackages(product())
-      const dmg = await pipeline.createDmg(product())
-      current.finalPackages = [...(windows ?? []), ...(linux ?? []), ...(dmg === undefined ? [] : [dmg])]
+      current.finalPackages = [...(windows ?? [])]
     } },
     { id: 'verify-platform-containers', run: async current => {
       await pipeline.verifyPlatformContainers(current.finalPackages, current.verified)

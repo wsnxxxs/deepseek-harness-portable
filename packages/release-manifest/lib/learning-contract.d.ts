@@ -43,7 +43,11 @@ export interface InteractiveLearningReleaseEvidence {
         readonly bundle: 'lib/client.js';
     };
 }
-/** Resolve every Interactive Learning path as it must appear in a target manifest. */
+/**
+ * Resolve every Interactive Learning path as it must appear in a target
+ * manifest. The target stays in the signature so the contract remains
+ * per-target rather than baking one platform's layout into the caller.
+ */
 export declare function interactiveLearningInventoryPaths(target: TargetSpec): readonly string[];
 /** A package manifest may narrow, but can never broaden, this release policy. */
 export declare function assertInteractiveLearningPublishedPathPolicy(paths: readonly string[]): void;

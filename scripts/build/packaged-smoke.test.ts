@@ -10,9 +10,7 @@ import {
   INTERACTIVE_LEARNING_DISTRIBUTION_FILES,
   type InteractiveLearningReleaseEvidence,
 } from '../../packages/release-manifest/src/index.js'
-import { getTargetSpec } from './targets.js'
 import {
-  electronExecutable,
   RuntimeHandshake,
   runtimeRpc,
   STALE_MANAGED_FALLBACK_PACKAGES,
@@ -46,21 +44,6 @@ const learningEvidence: InteractiveLearningReleaseEvidence = {
   agent: { module: '@dsh-portable/interactive-learning/agent', bundle: 'lib/agent.js' },
   client: { module: '@dsh-portable/interactive-learning/client', bundle: 'lib/client.js' },
 }
-
-test('packaged smoke resolves the native Electron executable for each layout', () => {
-  assert.equal(
-    electronExecutable('C:\\release\\runtime\\DeepSeek Harness.exe', getTargetSpec('win32-x64')),
-    'C:\\release\\runtime\\DeepSeek Harness.exe',
-  )
-  assert.equal(
-    electronExecutable('/release/runtime/DeepSeek Harness', getTargetSpec('linux-x64')),
-    '/release/runtime/DeepSeek Harness',
-  )
-  assert.equal(
-    electronExecutable('/release/DeepSeek Harness.app', getTargetSpec('darwin-arm64')),
-    join('/release/DeepSeek Harness.app', 'Contents', 'MacOS', 'DeepSeek Harness'),
-  )
-})
 
 test('packaged handshake requires matching hello before one listening event', () => {
   const handshake = new RuntimeHandshake()

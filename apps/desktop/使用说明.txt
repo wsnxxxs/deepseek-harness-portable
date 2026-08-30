@@ -13,6 +13,7 @@ DeepSeek Harness for Win v1.6.0
 3. dsh.cmd 或 update.ps1
    检查最新分发版本，下载完整发布包，校验 SHA-256，验证发布清单，
    并以整体替换方式更新 runtime。桌面端会在更新包准备好并确认重启前保持运行。
+   支持运行 dsh clean 或 update.cmd clean 清理历史更新备份与临时缓存。
 
 4. 更新日志
    打开托盘菜单即可查看当前版本和组件版本，也能查看历史发布记录。桌面外壳会

@@ -16,17 +16,6 @@ contract:
   sandbox: danger-full-access
 
 variants:
-  - id: posix-bash
-    supportLevel: native
-    requires:
-      - terminal.pty.native
-      - shell.bash
-      - shell.bash.persistent
-      - process.posix-signals
-    config: variants/posix-bash.cordis.yml
-    provides:
-      shell: persistent-bash
-
   - id: win32-wsl
     supportLevel: compatible
     requires:

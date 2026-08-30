@@ -297,7 +297,7 @@ var
   ResultCode: Integer;
   ZipPath, AppDir, StageDir, TarExe, RobocopyExe, RunId: String;
   MainExe, SafeLauncher, CompatibilityLauncher, ScriptLauncher, TransactionGate, PickerWorker, MarketplaceManifest, ReleaseManifest: String;
-  OldRuntime, NewRuntime, BackupRuntime, FailedRuntime, LockReport, OrphanRuntime: String;
+  OldRuntime, NewRuntime, BackupRuntime, FailedRuntime, LockReport, OrphanRuntime, ObsoleteReport: String;
   ReportText: AnsiString;
   HadOldRuntime, RuntimeSwapped: Boolean;
 begin
@@ -406,6 +406,20 @@ begin
         RaiseException('Unable to start the setup file synchronizer.');
       if ResultCode >= 8 then
         RaiseException(Format('Setup file synchronization failed (Robocopy exit code %d).', [ResultCode]));
+
+      // The old manifest is still the active commit marker because Robocopy
+      // excludes it. Remove only files owned by the previous release that are
+      // absent from the staged manifest; unknown user files remain untouched.
+      ObsoleteReport := AddBackslash(AppDir) + 'setup-obsolete-files-report.json';
+      RunRuntimePreflight(
+        'CleanupObsolete',
+        AddBackslash(AppDir) + 'release-manifest.json',
+        ReleaseManifest,
+        ObsoleteReport
+      );
+      if RuntimePreflightResultCode <> 0 then
+        RaiseException(Format('Obsolete release file cleanup failed (exit code %d). Details: %s', [RuntimePreflightResultCode, ObsoleteReport]));
+      DeleteFile(ObsoleteReport);
       if not FileCopy(ReleaseManifest, AddBackslash(AppDir) + 'release-manifest.json', False) then
         RaiseException('Unable to publish the release manifest.');
     except

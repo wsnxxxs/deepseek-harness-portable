@@ -10,7 +10,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useChatSnapshot, useProjectionValue } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { latestTodos } from '../chat/tools.ts'
-import { Spinner, ui } from './ui.tsx'
+import { ui } from './ui.tsx'
 import css from './PlanCard.module.css'
 
 export interface PlanCardProps {
@@ -24,7 +24,7 @@ function StatusMark({ status }: { status: TodoItem['status'] }) {
     return <span className={`${css.mark} ${css.markDone}`} aria-hidden><IconCheckOutline14 /></span>
   }
   if (status === 'in_progress') {
-    return <span className={`${css.mark} ${css.markActive}`} aria-hidden><Spinner size="sm" /></span>
+    return <span className={`${css.mark} ${css.markActive}`} aria-hidden />
   }
   return <span className={`${css.mark} ${css.markPending}`} aria-hidden />
 }
@@ -44,7 +44,12 @@ export function PlanCard({ sessionId, open = true }: PlanCardProps) {
   const completed = todos.filter(todo => todo.status === 'completed').length
   return (
     <div className={css.dock}>
-      <section className={css.card} data-testid="dcode-plan-card" aria-label={t('plan.title')}>
+      <section
+        className={css.card}
+        data-dcode-plan-card=""
+        data-testid="dcode-plan-card"
+        aria-label={t('plan.title')}
+      >
         <button
           type="button"
           className={`${css.header} ${ui.cardHeader}`}
@@ -63,7 +68,7 @@ export function PlanCard({ sessionId, open = true }: PlanCardProps) {
         </button>
         {!collapsed
           ? (
-            <div id={contentId}>
+            <div id={contentId} className={css.body}>
               <ul className={css.list}>
                 {todos.map((todo, index) => (
                   <li key={`${String(index)}:${todo.content}`} className={css.item} data-status={todo.status}>

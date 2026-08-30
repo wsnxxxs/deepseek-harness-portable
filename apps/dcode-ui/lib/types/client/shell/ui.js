@@ -14,9 +14,13 @@ import { IconCheckOutline14, IconCheckOutline16, IconCopyOutline16, writeClipboa
 import css from './ui.module.css';
 /** Class names other modules compose against (they own their own layout). */
 export const ui = css;
+/** The shared material-glint class for live Tool and Thinking surfaces. */
+export function shimmerActive(active = true) {
+    return active ? css.shimmerActive : '';
+}
 /** A square control that carries an icon and an accessible name. */
 export function IconButton(props) {
-    return (_jsx("button", { type: "button", className: `${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, "aria-label": props.label, "aria-pressed": props.active, "data-tooltip": props.label, "data-dcode-focus-target": props.dataFocusTarget, disabled: props.disabled, onClick: props.onClick, children: props.children }));
+    return (_jsx("button", { type: "button", className: `${css.iconButton} ${css.tooltipTarget} ${props.active === true ? css.iconButtonActive : ''} ${props.className ?? ''}`, "aria-label": props.label, "aria-pressed": props.active, "data-tooltip": props.label, "data-tooltip-align": props.tooltipAlign === 'right' ? 'right' : undefined, "data-dcode-focus-target": props.dataFocusTarget, disabled: props.disabled, onClick: props.onClick, children: props.children }));
 }
 /** A labelled control. */
 export function Button(props) {

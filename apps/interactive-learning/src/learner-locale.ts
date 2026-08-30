@@ -29,7 +29,7 @@ export const CONCEPT_SAVE_DIALOG = {
     header: '概念卡',
     question: '要把这次已经完成的独立迁移保存为概念卡吗？',
     save: '保存概念卡',
-    saveDetail: '写入当前学习库的 concepts/，以后可以复习。',
+    saveDetail: '写入当前资料库的 concepts/，以后可以复习。',
     decline: '暂不保存',
     declineDetail: '本次不写入，学习状态仍保留在会话记忆中。',
   },

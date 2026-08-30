@@ -146,7 +146,7 @@ function PluginSettingsCard(props) {
             setSaving(false);
         }
     };
-    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.title }), _jsx("div", { className: css.rowBody, children: props.description })] }), props.writable ? _jsx("span", { className: css.badge, children: props.namespace.applies }) : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), _jsxs("div", { className: css.pluginCardBody, children: [props.credentialLabel === undefined ? null : (_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: props.credentialLabel }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: credentialDraft, placeholder: props.credential?.configured === true ? t('settings.plugins.keyConfiguredHint') : t('settings.plugins.keyPlaceholder'), disabled: saving || !credentialWritable, onChange: event => { setCredentialDraft(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: props.credential?.configured === true ? t('settings.plugins.keyConfigured') : props.credentialHint })] })), props.fields.map(field => (_jsxs("label", { className: css.field, children: [_jsxs("span", { className: css.fieldMeta, children: [_jsx("span", { className: css.fieldLabel, children: field.label }), hasField(user, field.key) && !resetFields.has(field.key)
+    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("h3", { className: css.rowTitle, children: props.title }), _jsx("div", { className: css.rowBody, children: props.description })] }), props.writable ? _jsx("span", { className: css.badge, children: props.namespace.applies }) : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), _jsxs("div", { className: css.pluginCardBody, children: [props.credentialLabel === undefined ? null : (_jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: props.credentialLabel }), _jsx("input", { className: css.fieldInput, type: "password", autoComplete: "off", value: credentialDraft, placeholder: props.credential?.configured === true ? t('settings.plugins.keyConfiguredHint') : t('settings.plugins.keyPlaceholder'), disabled: saving || !credentialWritable, onChange: event => { setCredentialDraft(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: props.credential?.configured === true ? t('settings.plugins.keyConfigured') : props.credentialHint })] })), props.fields.map(field => (_jsxs("label", { className: css.field, children: [_jsxs("span", { className: css.fieldMeta, children: [_jsx("span", { className: css.fieldLabel, children: field.label }), hasField(user, field.key) && !resetFields.has(field.key)
                                         ? _jsx(Button, { className: css.resetButton, onClick: () => { setResetFields(previous => new Set([...previous, field.key])); setDraft(previous => ({ ...previous, [field.key]: fieldText(props.namespace.base, field.key) })); }, disabled: saving || !props.writable, children: t('settings.plugins.reset') })
                                         : null] }), _jsx("input", { className: css.fieldInput, type: field.type === 'number' ? 'number' : 'text', value: draft[field.key] ?? '', placeholder: fieldText(props.namespace.base, field.key) || t('settings.plugins.defaultValue'), disabled: saving || !props.writable, onChange: event => {
                                     setResetFields(previous => {
@@ -199,7 +199,7 @@ function VisionBridgeCard(props) {
             .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
             .finally(() => { setSaving(false); });
     };
-    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: t('settings.plugins.visionTitle') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionDescription') })] }), props.writable ? _jsx("span", { className: css.badge, children: props.namespace.applies }) : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), _jsxs("div", { className: css.pluginCardBody, children: [_jsxs("div", { className: css.visionRoute + ' ' + routeClass, role: "status", "aria-live": "polite", children: [_jsx("span", { className: css.statusDot, "aria-hidden": "true" }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: routeLabel }), _jsx("div", { className: css.rowBody, children: model.trim() === '' ? t('settings.plugins.visionRouteAutomaticHint') : model.trim() })] })] }), _jsx("div", { className: css.notice, children: t('settings.plugins.visionSharedProvider') }), _jsxs("div", { className: css.switchRow, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: t('settings.plugins.visionEnabled') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionEnabledHint') })] }), _jsx("button", { type: "button", role: "switch", "aria-label": t('settings.plugins.visionEnabled'), "aria-checked": enabled, className: css.switch + ' ' + (enabled ? css.switchOn : ''), disabled: saving || !props.writable, onClick: () => { setEnabled(value => !value); }, children: _jsx("span", { className: css.switchThumb }) })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.plugins.visionModel') }), _jsx("input", { className: css.fieldInput, type: "text", value: model, placeholder: t('settings.plugins.visionModelPlaceholder'), disabled: saving || !props.writable, onChange: event => { setModel(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: t('settings.plugins.visionModelHint') })] }), model.trim() !== '' ? _jsx(Button, { className: css.resetButton, onClick: () => { setModel(''); }, disabled: saving || !props.writable, children: t('settings.plugins.visionUseAutomatic') }) : null, error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setEnabled(effectiveEnabled); setModel(effectiveModel); setError(undefined); }, disabled: saving || !dirty, children: t('settings.plugins.discard') }), _jsx(Button, { primary: true, onClick: save, disabled: saving || !props.writable || !dirty, children: saving ? t('settings.plugins.saving') : t('settings.plugins.save') })] })] })] }));
+    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("h3", { className: css.rowTitle, children: t('settings.plugins.visionTitle') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionDescription') })] }), props.writable ? _jsx("span", { className: css.badge, children: props.namespace.applies }) : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), _jsxs("div", { className: css.pluginCardBody, children: [_jsxs("div", { className: css.visionRoute + ' ' + routeClass, role: "status", "aria-live": "polite", children: [_jsx("span", { className: css.statusDot, "aria-hidden": "true" }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: routeLabel }), _jsx("div", { className: css.rowBody, children: model.trim() === '' ? t('settings.plugins.visionRouteAutomaticHint') : model.trim() })] })] }), _jsx("div", { className: css.notice, children: t('settings.plugins.visionSharedProvider') }), _jsxs("div", { className: css.switchRow, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: t('settings.plugins.visionEnabled') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionEnabledHint') })] }), _jsx("button", { type: "button", role: "switch", "aria-label": t('settings.plugins.visionEnabled'), "aria-checked": enabled, className: css.switch + ' ' + (enabled ? css.switchOn : ''), disabled: saving || !props.writable, onClick: () => { setEnabled(value => !value); }, children: _jsx("span", { className: css.switchThumb }) })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.plugins.visionModel') }), _jsx("input", { className: css.fieldInput, type: "text", value: model, placeholder: t('settings.plugins.visionModelPlaceholder'), disabled: saving || !props.writable, onChange: event => { setModel(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: t('settings.plugins.visionModelHint') })] }), model.trim() !== '' ? _jsx(Button, { className: css.resetButton, onClick: () => { setModel(''); }, disabled: saving || !props.writable, children: t('settings.plugins.visionUseAutomatic') }) : null, error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setEnabled(effectiveEnabled); setModel(effectiveModel); setError(undefined); }, disabled: saving || !dirty, children: t('settings.plugins.discard') }), _jsx(Button, { primary: true, onClick: save, disabled: saving || !props.writable || !dirty, children: saving ? t('settings.plugins.saving') : t('settings.plugins.save') })] })] })] }));
 }
 function SubagentModelCard(props) {
     const runtime = useRuntime();
@@ -249,7 +249,7 @@ function SubagentModelCard(props) {
             .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
             .finally(() => { setSaving(false); });
     };
-    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: t('settings.plugins.subagentModelSelectionTitle') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.subagentModelSelectionDescription') })] }), !props.writable ? _jsx("span", { className: css.badge, children: t('common.readOnly') }) : null] }), _jsxs("div", { className: css.pluginCardBody, children: [_jsxs("div", { className: css.switchRow, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.plugins.subagentModelSelectionToggle') }), _jsx("button", { type: "button", role: "switch", "aria-label": t('settings.plugins.subagentModelSelectionToggle'), "aria-checked": enabled, className: `${css.switch} ${enabled ? css.switchOn : ''}`, disabled: saving || !props.writable, onClick: () => { setEnabled(value => !value); }, children: _jsx("span", { className: css.switchThumb }) })] }), _jsx("p", { className: css.fieldHint, children: t(enabled ? 'settings.plugins.subagentModelSelectionChoose' : 'settings.plugins.subagentModelSelectionOff') }), enabled
+    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("h3", { className: css.rowTitle, children: t('settings.plugins.subagentModelSelectionTitle') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.subagentModelSelectionDescription') })] }), !props.writable ? _jsx("span", { className: css.badge, children: t('common.readOnly') }) : null] }), _jsxs("div", { className: css.pluginCardBody, children: [_jsxs("div", { className: css.switchRow, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.plugins.subagentModelSelectionToggle') }), _jsx("button", { type: "button", role: "switch", "aria-label": t('settings.plugins.subagentModelSelectionToggle'), "aria-checked": enabled, className: `${css.switch} ${enabled ? css.switchOn : ''}`, disabled: saving || !props.writable, onClick: () => { setEnabled(value => !value); }, children: _jsx("span", { className: css.switchThumb }) })] }), _jsx("p", { className: css.fieldHint, children: t(enabled ? 'settings.plugins.subagentModelSelectionChoose' : 'settings.plugins.subagentModelSelectionOff') }), enabled
                         ? (_jsxs("fieldset", { className: css.modelList, children: [_jsx("legend", { className: css.fieldLabel, children: t('settings.plugins.subagentModelSelectionAllowed') }), candidates.length === 0
                                     ? _jsx("span", { className: css.fieldHint, children: t('settings.plugins.subagentModelSelectionEmpty') })
                                     : candidates.map(candidate => (_jsxs("label", { className: css.modelOption, children: [_jsx("input", { type: "checkbox", checked: selected.has(candidate.key), disabled: saving || !props.writable, onChange: () => { setSelected(previous => { const next = new Set(previous); if (next.has(candidate.key))
@@ -280,16 +280,92 @@ function PluginConfigSection(props) {
         cards.push(_jsx(SubagentModelCard, { namespace: subagent, writable: props.data.settings?.writable === true, catalog: props.data.catalog, onReload: props.onReload }, subagent.ns));
     return (_jsxs("div", { className: css.pluginConfigList, children: [props.data.credentialError === undefined ? null : _jsx("div", { className: css.notice, role: "alert", children: `${t('settings.plugins.credentialWarning')}: ${props.data.credentialError}` }), cards.length === 0 ? _jsx(EmptyState, { children: t('settings.plugins.emptyConfig') }) : cards] }));
 }
+const INVENTORY_ROW_HEIGHT = 92;
+const INVENTORY_VIEWPORT_HEIGHT = 460;
+const INVENTORY_OVERSCAN = 4;
+function inventoryName(moduleName) {
+    const packageName = moduleName.split('/').filter(Boolean).at(-1) ?? moduleName;
+    const clean = packageName
+        .replace(/\.(?:mjs|cjs|js|ts)$/iu, '')
+        .replace(/^(?:dsh|plugin|extension)-/iu, '');
+    return clean
+        .split(/[-_]+/u)
+        .filter(Boolean)
+        .map(word => word.length <= 4 && word === word.toLowerCase() ? word.toUpperCase() : `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
+        .join(' ') || moduleName;
+}
+function isUserExtension(entry) {
+    const moduleName = entry.moduleName.toLowerCase();
+    if (moduleName.includes('mcp'))
+        return true;
+    return !moduleName.startsWith('@deepseek-ai/')
+        && !moduleName.startsWith('@dsh-portable/')
+        && !moduleName.startsWith('cordis:');
+}
+function inventoryDescription(moduleName, name, t) {
+    const normalized = moduleName.toLowerCase();
+    if (normalized.includes('mcp'))
+        return t('settings.plugins.descriptionMcp');
+    if (/(?:^|[-/])tool(?:[-/]|$)/u.test(normalized))
+        return t('settings.plugins.descriptionTool', { name });
+    if (/(?:ui|client|renderer|surface)/u.test(normalized))
+        return t('settings.plugins.descriptionInterface', { name });
+    if (/(?:provider|model|llm)/u.test(normalized))
+        return t('settings.plugins.descriptionProvider', { name });
+    if (/(?:plugin|extension)/u.test(normalized))
+        return t('settings.plugins.descriptionExtension', { name });
+    return t('settings.plugins.descriptionRuntime', { name });
+}
+function inventoryStatus(entry, t) {
+    if (!entry.enabled)
+        return t('settings.plugins.disabled');
+    switch (entry.fiberPhase) {
+        case 'active': return t('settings.plugins.statusReady');
+        case 'pending':
+        case 'loading': return t('settings.plugins.statusStarting');
+        case 'failed': return t('settings.plugins.statusFailed');
+        case 'unloading': return t('settings.plugins.statusStopping');
+        default: return t('settings.plugins.statusNotRunning');
+    }
+}
+function VirtualInventoryList(props) {
+    const [scrollTop, setScrollTop] = useState(0);
+    const shouldWindow = props.entries.length > 40;
+    const start = shouldWindow
+        ? Math.max(0, Math.floor(scrollTop / INVENTORY_ROW_HEIGHT) - INVENTORY_OVERSCAN)
+        : 0;
+    const visibleCount = shouldWindow
+        ? Math.ceil(INVENTORY_VIEWPORT_HEIGHT / INVENTORY_ROW_HEIGHT) + INVENTORY_OVERSCAN * 2
+        : props.entries.length;
+    const end = Math.min(props.entries.length, start + visibleCount);
+    const visible = props.entries.slice(start, end);
+    const topSpace = shouldWindow ? start * INVENTORY_ROW_HEIGHT : 0;
+    const bottomSpace = shouldWindow ? (props.entries.length - end) * INVENTORY_ROW_HEIGHT : 0;
+    return (_jsxs("div", { className: `${css.card} ${shouldWindow ? css.inventoryViewport : ''}`, role: "list", onScroll: shouldWindow ? event => { setScrollTop(event.currentTarget.scrollTop); } : undefined, children: [topSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: topSpace } }) : null, visible.map(({ entry, name, description, status }) => (_jsx("div", { className: css.inventoryRow, role: "listitem", "aria-label": `${name}, ${status}`, children: _jsxs("div", { className: css.inventoryMain, "aria-hidden": "true", children: [_jsxs("div", { className: css.inventoryCopy, children: [_jsx("span", { className: css.rowTitle, children: name }), _jsx("span", { className: css.rowBody, children: description }), _jsx("code", { className: css.inventoryId, title: entry.entryId, children: entry.moduleName })] }), _jsx("span", { className: css.inventoryStatus, children: status })] }) }, entry.entryId))), bottomSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: bottomSpace } }) : null] }));
+}
 function PluginInventory(props) {
     const t = useT();
     const [query, setQuery] = useState('');
-    const [expanded, setExpanded] = useState();
-    const entries = props.data.inventory.entries.filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName));
-    const filtered = entries.filter(entry => `${entry.moduleName} ${entry.entryId}`.toLowerCase().includes(query.trim().toLowerCase()));
-    return (_jsxs("div", { className: css.pluginInventory, children: [_jsx("input", { className: css.search, type: "search", value: query, placeholder: t('settings.plugins.search'), "aria-label": t('settings.plugins.search'), onChange: event => { setQuery(event.target.value); } }), _jsxs("div", { className: css.inventoryHeading, children: [_jsx("span", { className: css.sectionTitle, children: t('settings.plugins.inventoryTitle') }), _jsx("span", { className: css.badge, children: filtered.length })] }), filtered.length === 0 ? _jsx(EmptyState, { children: t('settings.plugins.emptyInventory') }) : (_jsx("div", { className: css.card, children: filtered.map(entry => {
-                    const open = expanded === entry.entryId;
-                    return (_jsxs("div", { className: css.inventoryRow, children: [_jsxs("button", { type: "button", className: css.inventoryButton, "aria-expanded": open, "aria-controls": `plugin-entry-${entry.entryId}`, onClick: () => { setExpanded(current => current === entry.entryId ? undefined : entry.entryId); }, children: [_jsxs("span", { className: css.rowText, children: [_jsx("span", { className: css.rowTitle, children: entry.moduleName }), _jsx("span", { className: css.rowBody, children: entry.enabled ? entry.fiberPhase ?? t('settings.plugins.unobserved') : t('settings.plugins.disabled') })] }), _jsx("span", { className: css.badge, children: entry.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled') })] }), open ? _jsx("code", { id: `plugin-entry-${entry.entryId}`, className: css.inventoryDetails, children: entry.entryId }) : null] }, entry.entryId));
-                }) }))] }));
+    const [runtimeOpen, setRuntimeOpen] = useState(false);
+    const entries = useMemo(() => props.data.inventory.entries
+        .filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
+        .map(entry => {
+        const name = inventoryName(entry.moduleName);
+        return {
+            entry,
+            name,
+            description: inventoryDescription(entry.moduleName, name, t),
+            status: inventoryStatus(entry, t),
+        };
+    }), [props.data.inventory.entries, props.mcpOnly, t]);
+    const normalizedQuery = query.trim().toLowerCase();
+    const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
+        .toLowerCase()
+        .includes(normalizedQuery)), [entries, normalizedQuery]);
+    const extensions = filtered.filter(row => isUserExtension(row.entry));
+    const runtimeModules = filtered.filter(row => !isUserExtension(row.entry));
+    return (_jsxs("div", { className: css.pluginInventory, children: [_jsx("input", { className: css.search, type: "search", value: query, placeholder: t('settings.plugins.search'), "aria-label": t('settings.plugins.search'), onChange: event => { const next = event.target.value; setQuery(next); if (next.trim() !== '')
+                    setRuntimeOpen(true); } }), _jsxs("div", { className: css.inventoryHeading, children: [_jsx("h3", { className: css.sectionTitle, children: t('settings.plugins.extensionsTitle') }), _jsx("span", { className: css.badge, children: extensions.length })] }), _jsx("p", { className: css.inventoryIntro, children: t('settings.plugins.extensionsBody') }), extensions.length === 0 ? _jsx(EmptyState, { children: t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory') }) : _jsx(VirtualInventoryList, { entries: extensions }, `extensions-${normalizedQuery}`), !props.mcpOnly ? (_jsxs("details", { className: css.runtimeModules, open: runtimeOpen, onToggle: event => { setRuntimeOpen(event.currentTarget.open); }, children: [_jsxs("summary", { className: css.runtimeSummary, "aria-label": `${t('settings.plugins.runtimeTitle')}, ${String(runtimeModules.length)}`, "aria-expanded": runtimeOpen, children: [_jsxs("span", { children: [_jsx("span", { className: css.runtimeTitle, children: t('settings.plugins.runtimeTitle') }), _jsx("span", { className: css.runtimeHint, children: t('settings.plugins.runtimeBody') })] }), _jsx("span", { className: css.badge, children: runtimeModules.length })] }), _jsx("div", { className: css.runtimeContent, children: runtimeModules.length === 0 ? _jsx(EmptyState, { children: t('settings.plugins.emptyRuntime') }) : _jsx(VirtualInventoryList, { entries: runtimeModules }, `runtime-${normalizedQuery}`) })] })) : null] }));
 }
 /** Plugins page with DCode tabs, local token styling, and writable host settings. */
 export function PluginSettingsSection({ mcpOnly = false }) {
@@ -301,7 +377,7 @@ export function PluginSettingsSection({ mcpOnly = false }) {
     const tabRefs = useRef({ config: null, inventory: null });
     const tabs = [
         { id: 'config', label: t('settings.plugins.configTab') },
-        { id: 'inventory', label: t('settings.plugins.inventoryTab') },
+        { id: 'inventory', label: t('settings.plugins.extensionsTab') },
     ];
     const moveTab = (event, index) => {
         if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End')
@@ -325,6 +401,6 @@ export function PluginSettingsSection({ mcpOnly = false }) {
     if (data.value === undefined)
         return _jsx(EmptyState, { children: t('common.error') });
     const value = data.value;
-    return (_jsxs("section", { className: css.section, children: [_jsx("span", { className: css.sectionTitle, children: mcpOnly ? t('settings.mcp') : t('plugins.section.settings') }), _jsx("p", { className: css.sectionBody, children: mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody') }), !mcpOnly ? (_jsx("div", { className: css.pluginTabs, role: "tablist", "aria-label": t('settings.plugins.tabs'), children: tabs.map((entry, index) => (_jsx("button", { ref: element => { tabRefs.current[entry.id] = element; }, id: `${tabPrefix}-${entry.id}`, type: "button", role: "tab", "aria-selected": tab === entry.id, "aria-controls": `${tabPrefix}-panel`, tabIndex: tab === entry.id ? 0 : -1, className: `${css.pluginTab} ${tab === entry.id ? css.pluginTabActive : ''}`, onClick: () => { setTab(entry.id); }, onKeyDown: event => { moveTab(event, index); }, children: entry.label }, entry.id))) })) : null, _jsx("div", { id: `${tabPrefix}-panel`, role: "tabpanel", tabIndex: 0, "aria-labelledby": mcpOnly ? undefined : `${tabPrefix}-${tab}`, children: !mcpOnly && tab === 'config' ? _jsx(PluginConfigSection, { data: value, onReload: data.reload }) : _jsx(PluginInventory, { data: value, mcpOnly: mcpOnly }) })] }));
+    return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.sectionTitle, children: mcpOnly ? t('settings.mcp') : t('plugins.section.settings') }), _jsx("p", { className: css.sectionBody, children: mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody') }), !mcpOnly ? (_jsx("div", { className: css.pluginTabs, role: "tablist", "aria-label": t('settings.plugins.tabs'), children: tabs.map((entry, index) => (_jsx("button", { ref: element => { tabRefs.current[entry.id] = element; }, id: `${tabPrefix}-${entry.id}`, type: "button", role: "tab", "aria-selected": tab === entry.id, "aria-controls": `${tabPrefix}-panel`, tabIndex: tab === entry.id ? 0 : -1, className: `${css.pluginTab} ${tab === entry.id ? css.pluginTabActive : ''}`, onClick: () => { setTab(entry.id); }, onKeyDown: event => { moveTab(event, index); }, children: entry.label }, entry.id))) })) : null, _jsx("div", { id: `${tabPrefix}-panel`, role: "tabpanel", tabIndex: 0, "aria-labelledby": mcpOnly ? undefined : `${tabPrefix}-${tab}`, children: !mcpOnly && tab === 'config' ? _jsx(PluginConfigSection, { data: value, onReload: data.reload }) : _jsx(PluginInventory, { data: value, mcpOnly: mcpOnly }) })] }));
 }
 //# sourceMappingURL=PluginSettingsSection.js.map

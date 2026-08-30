@@ -38,7 +38,12 @@ test('directory-picker worker patch adds a non-interactive versioned IPC probe',
   assert.match(output, /DSH_DIRECTORY_PICKER_IPC_PROBE/)
   assert.match(output, /post\(\{ kind: "probe", protocolVersion: 1 \}\)/)
   assert.match(output, /if \(!ipcProbe\) \(async \(\) => \{/)
-  assert.match(output, /koffi\.decode\.string16/)
+  // koffi.view aborts the worker under the Electron 43 runtime (verified
+  // 2026-08-29): the patch must replace it with the lstrlenW copy-out read.
+  assert.match(output, /lstrlenW/)
+  assert.match(output, /RtlMoveMemory/)
+  assert.doesNotMatch(output, /koffi\.view/)
+  assert.equal(patchDirectoryPickerWorker(output), output)
   assert.doesNotMatch(output, /process\.disconnect/)
 })
 

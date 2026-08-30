@@ -8,12 +8,13 @@
  * @module @dsh-portable/dcode-ui/client/git/GitPanel
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
+import type { DiffTarget } from '../state/navigation.ts';
 /** Props of the git panel. */
 export interface GitPanelProps {
     readonly cwd: string | undefined;
     readonly sessionId: SessionId | undefined;
     /** Path currently shown in the diff viewer. */
-    readonly selected: string | undefined;
+    readonly selected: DiffTarget | undefined;
     readonly onOpenDiff: (path: string, staged: boolean) => void;
 }
 /** Branch, changed files and the commit entry. */

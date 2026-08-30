@@ -12,9 +12,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-2);
-  /* The frameless desktop window reserves its overlay strip above the rail. */
-  padding-top: calc(var(--zx-space-4) + var(--dsh-desktop-titlebar-height, 0px));
+  /* Workbench.root already reserves the desktop titlebar strip. */
+  padding: var(--zx-space-2) var(--zx-space-3);
   -webkit-app-region: drag;
 }
 
@@ -330,22 +329,45 @@
 }
 
 .foot {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-3);
+  display: block;
   padding: var(--zx-space-3);
   border-top: 1px solid var(--zx-border-soft);
 }
 
-.accountTrigger {
+.settingsTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
   width: 100%;
-  justify-content: flex-start;
-  padding: 0;
+  height: var(--zx-control-md);
+  padding: 0 var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-md);
+  background: transparent;
   color: var(--zx-label);
+  font: inherit;
+  font-size: var(--zx-text-sm);
+  text-align: left;
+  cursor: pointer;
 }
 
-.settingsTrigger {
+.settingsTrigger:hover {
+  background: var(--zx-bg-hover);
+}
+
+.settingsTrigger:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.settingsTriggerActive {
+  background: var(--zx-bg-active);
+}
+
+.settingsTrigger :global(svg) {
   flex: none;
+  width: 16px;
+  height: 16px;
 }
 
 .deleteConfirm {

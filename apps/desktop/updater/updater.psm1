@@ -608,6 +608,65 @@ function Find-CachedUpdatePackage {
     return ''
 }
 
+function Clear-UpdateTempArtifacts {
+    param(
+        [switch]$StaleOnly,
+        [int]$StaleAfterHours = 24
+    )
+    if ([string]::IsNullOrWhiteSpace($env:TEMP)) { return 0 }
+
+    $removed = 0
+    $tempRoot = [System.IO.Path]::GetFullPath($env:TEMP)
+    $cutoff = if ($StaleOnly) { (Get-Date).AddHours(-[Math]::Abs($StaleAfterHours)) } else { $null }
+    $updateCache = Join-Path $tempRoot 'deepseek-harness-updates'
+    if (Test-Path -LiteralPath $updateCache) {
+        if ($StaleOnly) {
+            foreach ($item in @(Get-ChildItem -LiteralPath $updateCache -Force -ErrorAction SilentlyContinue)) {
+                if ($item.LastWriteTime -gt $cutoff) { continue }
+                try {
+                    Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop
+                    $removed++
+                } catch {
+                    Write-Verbose ('Could not remove stale update cache artifact ' + $item.FullName + ': ' + $_.Exception.Message)
+                }
+            }
+            if (@(Get-ChildItem -LiteralPath $updateCache -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+                Remove-Item -LiteralPath $updateCache -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Remove-Item -LiteralPath $updateCache -Recurse -Force -ErrorAction Stop
+            $removed++
+        }
+    }
+
+    # These names are created exclusively by this updater. Keeping the match
+    # narrow avoids touching unrelated files in the user's TEMP directory.
+    foreach ($pattern in @('DeepSeek-Harness-*.zip', 'dsh-update-*', 'dsh-probe-*.json')) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $tempRoot -Filter $pattern -Force -ErrorAction SilentlyContinue)) {
+            if ($StaleOnly -and $item.LastWriteTime -gt $cutoff) { continue }
+            try {
+                Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop
+                $removed++
+            } catch {
+                Write-Verbose ('Could not remove updater temporary artifact ' + $item.FullName + ': ' + $_.Exception.Message)
+            }
+        }
+    }
+    return $removed
+}
+
+function Clear-UpdaterArtifacts {
+    param([Parameter(Mandatory = $true)][string]$AppRoot)
+
+    $root = [System.IO.Path]::GetFullPath($AppRoot)
+    $backupsPath = Join-Path $root $BACKUPS_DIR_NAME
+    if (Test-Path -LiteralPath $backupsPath) {
+        Remove-Item -LiteralPath $backupsPath -Recurse -Force -ErrorAction Stop
+    }
+    $removedTempArtifacts = Clear-UpdateTempArtifacts
+    Write-Host ('Updater maintenance completed; removed backup slots and ' + $removedTempArtifacts + ' temporary artifact(s).') -ForegroundColor Green
+}
+
 function Download-And-Verify {
     param(
         [Parameter(Mandatory = $true)]$Release,
@@ -907,7 +966,9 @@ function Install-ReleaseWithTransaction {
         [string]$StatusFile = '',
         [int]$EnginePid = 0,
         [int]$ShellPid = 0,
-        [switch]$LaunchAfterUpdate
+        [switch]$LaunchAfterUpdate,
+        [switch]$PurgeBackups,
+        [switch]$NoBackup
     )
 
     $normalizedFromVersion = Assert-ValidVersion -Version $FromVersion -AppRoot $AppRoot
@@ -922,6 +983,7 @@ function Install-ReleaseWithTransaction {
     $backupRuntimeDir = Join-Path $backupDir 'runtime'
     $mutationStarted = $false
     $probeFile = ''
+    $healthy = -not $LaunchAfterUpdate
 
     $transactionState = [ordered]@{
         schemaVersion = 1
@@ -977,7 +1039,6 @@ function Install-ReleaseWithTransaction {
                 ) -WorkingDirectory $AppRoot -PassThru
 
                 $deadline = (Get-Date).AddSeconds($UPDATE_PROBE_TIMEOUT_SECONDS)
-                $healthy = $false
                 while ((Get-Date) -lt $deadline) {
                     if ($process.HasExited) {
                         throw ('Updated shell process exited prematurely with code ' + $process.ExitCode)
@@ -1019,16 +1080,29 @@ function Install-ReleaseWithTransaction {
             Write-Warning ('The update succeeded, but existing launcher shortcuts could not be migrated: ' + $_.Exception.Message)
         }
 
-        # 5. Commit transaction & retain rollback slot
+        # 5. Commit the transaction before optionally deleting its rollback
+        # slot. Both switches preserve transactional rollback during the swap;
+        # they only opt out of retaining backups after a healthy commit.
         $transactionState.phase = 'committed'
         Write-JsonAtomic -Path $transactionPath -Data $transactionState
         Write-UpdateStatus -StatusFile $StatusFile -State 'completed' -Stage 'completed' -Message ('Updated to ' + $TargetVersion + '.') -From $FromVersion -Target $TargetVersion
         Write-Host ('Update successfully completed to ' + $TargetVersion) -ForegroundColor Green
 
-        # Retain this backup as previous rollback slot, purge older slots
-        $previousSlots = @(Get-ChildItem -LiteralPath $backupsBase -Directory | Where-Object { $_.FullName -ne $backupDir })
-        foreach ($old in $previousSlots) {
-            Remove-Item -LiteralPath $old.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        if (($PurgeBackups -or $NoBackup) -and $healthy) {
+            try {
+                Remove-Item -LiteralPath $backupsBase -Recurse -Force -ErrorAction Stop
+                Write-Host 'Committed update backup slots were purged.' -ForegroundColor Gray
+            } catch {
+                # Cleanup occurs after the terminal commit and must not turn a
+                # healthy update into a rollback attempt.
+                Write-Warning ('The update committed, but its backup slots could not be purged: ' + $_.Exception.Message)
+            }
+        } else {
+            # Retain this backup as the previous rollback slot and purge older slots.
+            $previousSlots = @(Get-ChildItem -LiteralPath $backupsBase -Directory | Where-Object { $_.FullName -ne $backupDir })
+            foreach ($old in $previousSlots) {
+                Remove-Item -LiteralPath $old.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     } catch {
         $originalError = $_
@@ -1188,6 +1262,8 @@ function Invoke-Updater {
         [int]$ShellPid = 0,
         [switch]$Rollback,
         [switch]$RelaunchAfterRollback,
+        [switch]$PurgeBackups,
+        [switch]$NoBackup,
         [string]$AppRoot = ''
     )
 
@@ -1217,6 +1293,7 @@ function Invoke-Updater {
     }
 
     $currentStage = 'launch'
+    $updateSucceeded = $false
     try {
         Write-Banner
         $localInfo = Get-LocalReleaseInfo -AppRoot $APP_ROOT
@@ -1263,13 +1340,14 @@ function Invoke-Updater {
             Write-Host ('  Using pre-extracted update staging: ' + $StagingPath) -ForegroundColor Green
             $currentStage = 'swap'
             try {
-                Install-ReleaseWithTransaction -AppRoot $APP_ROOT -SourceRoot $StagingPath -FromVersion $FromVersion -TargetVersion $TargetVersion -StatusFile $StatusFile -EnginePid $EnginePid -ShellPid $ShellPid -LaunchAfterUpdate:$LaunchAfterUpdate
+                Install-ReleaseWithTransaction -AppRoot $APP_ROOT -SourceRoot $StagingPath -FromVersion $FromVersion -TargetVersion $TargetVersion -StatusFile $StatusFile -EnginePid $EnginePid -ShellPid $ShellPid -LaunchAfterUpdate:$LaunchAfterUpdate -PurgeBackups:$PurgeBackups -NoBackup:$NoBackup
             } finally {
                 Remove-Item -LiteralPath $StagingPath -Recurse -Force -ErrorAction SilentlyContinue
                 if (-not [string]::IsNullOrWhiteSpace($PackagePath)) {
                     Remove-Item -LiteralPath $PackagePath -Force -ErrorAction SilentlyContinue
                 }
             }
+            $updateSucceeded = $true
             return
         }
 
@@ -1341,7 +1419,8 @@ function Invoke-Updater {
             Write-UpdateStatus -StatusFile $StatusFile -State 'extracting' -Stage $currentStage -Message 'Extracting and validating the portable release.' -From $FromVersion -Target $TargetVersion
             $sourceRoot = Extract-ReleaseSafe -ZipPath $zipPath -Destination $extractPath -ExpectedDistributionVersion $release.version
             $currentStage = 'swap'
-            Install-ReleaseWithTransaction -AppRoot $APP_ROOT -SourceRoot $sourceRoot -FromVersion $FromVersion -TargetVersion $TargetVersion -StatusFile $StatusFile -EnginePid $EnginePid -ShellPid $ShellPid -LaunchAfterUpdate:$LaunchAfterUpdate
+            Install-ReleaseWithTransaction -AppRoot $APP_ROOT -SourceRoot $sourceRoot -FromVersion $FromVersion -TargetVersion $TargetVersion -StatusFile $StatusFile -EnginePid $EnginePid -ShellPid $ShellPid -LaunchAfterUpdate:$LaunchAfterUpdate -PurgeBackups:$PurgeBackups -NoBackup:$NoBackup
+            $updateSucceeded = $true
         } finally {
             if (-not $usingPreparedPackage) {
                 Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
@@ -1361,6 +1440,14 @@ function Invoke-Updater {
         Write-UpdateStatus -StatusFile $StatusFile -State 'failed' -Stage $currentStage -Message $failureMessage -From $FromVersion -Target $TargetVersion
         Write-Host ('Update failed: ' + $failureMessage) -ForegroundColor Red
         throw
+    } finally {
+        if ($updateSucceeded) {
+            try {
+                $null = Clear-UpdateTempArtifacts -StaleOnly
+            } catch {
+                Write-Warning ('The update succeeded, but global temporary update cleanup failed: ' + $_.Exception.Message)
+            }
+        }
     }
 }
 
@@ -1376,6 +1463,8 @@ Export-ModuleMember -Function `
     Get-ReleaseUpdateStatus, `
     Verify-LocalPackage, `
     Find-CachedUpdatePackage, `
+    Clear-UpdateTempArtifacts, `
+    Clear-UpdaterArtifacts, `
     Download-And-Verify, `
     Test-PathSafety, `
     Sync-DesktopLauncherShortcuts, `

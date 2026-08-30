@@ -1,21 +1,32 @@
 /** Codex-style plan card: small, quiet, and anchored immediately above input. */
 
 .dock {
-  flex: none;
+  position: absolute;
+  z-index: var(--zx-z-sticky);
+  right: 0;
+  bottom: 100%;
+  left: 0;
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto;
   padding: 0 var(--zx-space-5) var(--zx-space-3);
   box-sizing: border-box;
+  pointer-events: none;
 }
 
 .card {
+  display: flex;
+  flex-direction: column;
   width: min(380px, 100%);
+  max-height: min(300px, 34vh);
   margin-left: auto;
   overflow: hidden;
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-xl);
-  background: color-mix(in srgb, var(--zx-bg-card) 94%, transparent);
-  box-shadow: var(--zx-shadow-panel);
+  background: color-mix(in srgb, var(--zx-bg-surface-0) 86%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+  box-shadow: var(--zx-shadow-panel), var(--zx-shadow-inset-top);
+  pointer-events: auto;
 }
 
 .header {
@@ -28,6 +39,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  flex: none;
 }
 
 .header:hover {
@@ -63,14 +75,26 @@
   white-space: nowrap;
 }
 
+.body {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .list {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 2px;
-  max-height: 220px;
+  min-height: 0;
+  width: 100%;
+  max-height: min(220px, calc(34vh - var(--zx-control-lg) - var(--zx-space-3)));
   margin: 0;
   padding: 0 var(--zx-space-3) var(--zx-space-3);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   list-style: none;
 }
 
@@ -107,24 +131,44 @@
   place-items: center;
   flex: 0 0 16px;
   width: 16px;
-  height: 18px;
-  margin-top: 1px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 50%;
+  box-sizing: border-box;
 }
 
 .markDone {
+  background: color-mix(in srgb, var(--zx-success) 14%, transparent);
   color: var(--zx-success);
 }
 
+.markDone :global(svg) {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
+}
+
 .markActive {
+  border: 1.5px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);
+  border-top-color: var(--zx-accent);
   color: var(--zx-accent);
+  animation: plan-mark-spin 800ms linear infinite;
 }
 
 .markPending {
-  width: 12px;
-  height: 12px;
-  margin: 3px 2px 0;
-  border: 1px solid var(--zx-label-tertiary);
-  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--zx-label-secondary) 72%, transparent);
+  background: color-mix(in srgb, var(--zx-bg-surface-0) 35%, transparent);
+}
+
+@keyframes plan-mark-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markActive {
+    animation: none;
+    border-right-color: var(--zx-accent);
+  }
 }
 
 @container (max-width: 640px) {

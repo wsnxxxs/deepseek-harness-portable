@@ -10,13 +10,19 @@
  * @module @dsh-portable/dcode-ui/client/shell/Composer
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
+import type { ModelReadiness } from '../settings/readiness.ts';
 /** Props of the composer. */
 export interface ComposerProps {
     readonly sessionId: SessionId | undefined;
     readonly blank?: boolean;
     readonly cwd?: string;
     readonly onOpenWorkspace?: () => void;
+    readonly readiness?: ModelReadiness;
+    readonly onSelectModel?: () => void;
+    readonly onConfigureProvider?: () => void;
+    /** Active `@query` at the caret; reserved for the file/symbol reference picker. */
+    readonly onReferenceQueryChange?: (query: string | undefined) => void;
 }
 /** Prompt entry and the session controls. */
-export declare function Composer({ sessionId, blank, cwd, onOpenWorkspace }: ComposerProps): import("react").JSX.Element;
+export declare function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, onReferenceQueryChange }: ComposerProps): import("react").JSX.Element;
 //# sourceMappingURL=Composer.d.ts.map

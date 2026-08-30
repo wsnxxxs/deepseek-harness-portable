@@ -9,7 +9,7 @@
  * @module @dsh-portable/dcode-ui/host/rpc
  */
 /** Every endpoint this channel answers. */
-export declare const DCODE_ENDPOINTS: readonly ["git/status", "git/diff", "git/branches", "git/commit", "git/undo", "file/read"];
+export declare const DCODE_ENDPOINTS: readonly ["git/status", "git/diff", "git/branches", "git/stage", "git/unstage", "git/commit", "git/undo", "file/read"];
 /** One endpoint name. */
 export type DcodeEndpoint = (typeof DCODE_ENDPOINTS)[number];
 /** RPC channel this plugin answers on. */

@@ -29,8 +29,9 @@ test('Setup uses collision-free transaction paths and no global image-name taskk
   assert.match(source, /\.setup-orphan-runtime-' \+ RunId/)
   assert.match(source, /CleanupOrphanRuntimes\(AppDir\)/)
   assert.match(source, /RunRuntimePreflight\('CleanupTree'/)
-  assert.match(readFileSync(preflight, 'utf8'), /ValidateSet\('Stop', 'Diagnose', 'CleanupTree'\)/)
+  assert.match(readFileSync(preflight, 'utf8'), /ValidateSet\('Stop', 'Diagnose', 'CleanupObsolete', 'CleanupTree'\)/)
 })
+
 test('long-path cleanup removes a runtime tree beyond MAX_PATH', {
   skip: process.platform !== 'win32',
 }, () => {

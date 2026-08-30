@@ -110,6 +110,15 @@ function statusOf(code) {
 	if (code.includes("D")) return "deleted";
 	return "modified";
 }
+/** Map one side of an XY status onto the presentation status for that side. */
+function statusOfSide(letter, fallback) {
+	if (letter === "A") return "added";
+	if (letter === "D") return "deleted";
+	if (letter === "R" || letter === "C") return "renamed";
+	if (letter === "?") return "untracked";
+	if (letter === "M" || letter === "T") return "modified";
+	return fallback;
+}
 /** Parse `git status --porcelain=v1 -z` into rows (NUL-separated; renames carry two records). */
 function parsePorcelain(output) {
 	const rows = [];
@@ -120,27 +129,60 @@ function parsePorcelain(output) {
 		const code = record.slice(0, 2);
 		const path = record.slice(3);
 		if (path === "") continue;
-		if (code.startsWith("R") || code.startsWith("C")) {
+		if (code.includes("R") || code.includes("C")) {
 			const from = records[index + 1];
 			index += 1;
-			rows.push({
+			const base = {
 				path,
 				code,
-				status: statusOf(code),
-				staged: code[0] !== " " && code !== "??",
 				insertions: 0,
 				deletions: 0,
 				...from === void 0 || from === "" ? {} : { from }
+			};
+			if ((code[0] ?? " ") !== " ") rows.push({
+				...base,
+				status: statusOfSide(code[0] ?? " ", statusOf(code)),
+				staged: true
+			});
+			if ((code[1] ?? " ") !== " ") rows.push({
+				...base,
+				status: statusOfSide(code[1] ?? " ", statusOf(code)),
+				staged: false
 			});
 			continue;
 		}
-		rows.push({
+		const coarse = statusOf(code);
+		const base = {
 			path,
 			code,
-			status: statusOf(code),
-			staged: code[0] !== " " && code !== "??",
 			insertions: 0,
 			deletions: 0
+		};
+		if (coarse === "conflicted") {
+			rows.push({
+				...base,
+				status: "conflicted",
+				staged: false
+			});
+			continue;
+		}
+		if (code === "??") {
+			rows.push({
+				...base,
+				status: "untracked",
+				staged: false
+			});
+			continue;
+		}
+		if ((code[0] ?? " ") !== " ") rows.push({
+			...base,
+			status: statusOfSide(code[0] ?? " ", coarse),
+			staged: true
+		});
+		if ((code[1] ?? " ") !== " ") rows.push({
+			...base,
+			status: statusOfSide(code[1] ?? " ", coarse),
+			staged: false
 		});
 	}
 	return rows;
@@ -358,18 +400,72 @@ async function readBranches(cwd) {
 		...subject === void 0 || subject === "" ? {} : { subject }
 	}));
 }
+/** Resolve and de-duplicate browser-supplied paths, refusing unresolved conflicts. */
+async function mutablePaths(root, paths) {
+	if (paths.length === 0) throw new Error("paths must list at least one file");
+	const contained = [...new Set(paths.map((path) => containedRelativePath(root, path)))];
+	const status = await git(root, [
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"--untracked-files=all"
+	]);
+	const conflicted = new Set(parsePorcelain(status.stdout).filter((row) => row.status === "conflicted").map((row) => row.path));
+	const requestedConflict = contained.find((path) => conflicted.has(path));
+	if (requestedConflict !== void 0) throw new Error(`conflicted path cannot be staged here: ${requestedConflict}`);
+	return contained;
+}
+/** Stage an explicit set of non-conflicted paths. */
+async function stagePaths(cwd, paths) {
+	const root = await workTreeRoot(cwd);
+	if (root === void 0) throw new Error("not a git work tree");
+	const contained = await mutablePaths(root, paths);
+	for (let index = 0; index < contained.length; index += 200) await git(root, [
+		"add",
+		"--",
+		...contained.slice(index, index + 200)
+	]);
+	return { updated: contained };
+}
+/** Unstage an explicit set of non-conflicted paths without changing the work tree. */
+async function unstagePaths(cwd, paths) {
+	const root = await workTreeRoot(cwd);
+	if (root === void 0) throw new Error("not a git work tree");
+	const contained = await mutablePaths(root, paths);
+	const head = await git(root, [
+		"rev-parse",
+		"--verify",
+		"HEAD"
+	], { tolerateFailure: true });
+	for (let index = 0; index < contained.length; index += 200) {
+		const chunk = contained.slice(index, index + 200);
+		if (head.code === 0) await git(root, [
+			"restore",
+			"--staged",
+			"--",
+			...chunk
+		]);
+		else await git(root, [
+			"rm",
+			"--cached",
+			"--ignore-unmatch",
+			"--",
+			...chunk
+		]);
+	}
+	return { updated: contained };
+}
 /**
-* Stage the requested paths (or every change) and commit them.
+* Commit exactly what is already staged.
 *
-* The commit is an explicit operator action from the Git panel: nothing is
-* pushed, no branch is created, and an empty index is reported back rather
-* than forced through with `--allow-empty`.
+* The commit is an explicit operator action from the Git panel: it never
+* stages work-tree changes, pushes, changes branches, or permits an empty
+* commit.
 * @param cwd - any directory inside the repository.
 * @param message - commit message; leading/trailing whitespace is trimmed.
-* @param paths - paths to stage first; omitted stages every tracked and untracked change.
 * @returns whether a commit was created, with the short hash or the refusal reason.
 */
-async function commit(cwd, message, paths) {
+async function commit(cwd, message) {
 	const root = await workTreeRoot(cwd);
 	if (root === void 0) throw new Error("not a git work tree");
 	const trimmed = message.trim();
@@ -377,16 +473,6 @@ async function commit(cwd, message, paths) {
 		committed: false,
 		reason: "empty-message"
 	};
-	if (paths === void 0 || paths.length === 0) await git(root, [
-		"add",
-		"--all",
-		"--"
-	]);
-	else await git(root, [
-		"add",
-		"--",
-		...paths.map((path) => containedRelativePath(root, path))
-	]);
 	if ((await git(root, [
 		"diff",
 		"--cached",
@@ -487,6 +573,44 @@ async function undoPaths(cwd, paths) {
 	}
 	return outcomes;
 }
+/**
+* Reverse one exact hunk while retaining a recovery bundle beside ordinary
+* DCode undo snapshots. The supplied patch is produced by our own diff RPC;
+* its path is still cross-checked before git sees it.
+*/
+async function undoHunk(cwd, path, patch, staged) {
+	const root = await workTreeRoot(cwd);
+	if (root === void 0) throw new Error("not a git work tree");
+	const relativePath = containedRelativePath(root, path);
+	if (patch.length === 0 || patch.length > DIFF_CHAR_LIMIT) throw new Error("patch must be a bounded non-empty diff");
+	const headerPath = relativePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	if (!new RegExp(`^(?:---|\\+\\+\\+) (?:[ab]/)?${headerPath}$`, "m").test(patch)) throw new Error("patch path does not match path");
+	const { copyFile, mkdir, writeFile } = await import("node:fs/promises");
+	const { dirname, join } = await import("node:path");
+	const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+	const recovery = join(root, ".dsh", "dcode-undo", stamp);
+	const patchPath = join(recovery, "hunk.patch");
+	await mkdir(dirname(join(recovery, relativePath)), { recursive: true });
+	await writeFile(patchPath, patch, "utf8");
+	try {
+		await copyFile(join(root, relativePath), join(recovery, relativePath));
+	} catch (cause) {
+		if (cause.code !== "ENOENT") throw cause;
+	}
+	const applied = await git(root, [
+		"apply",
+		"--reverse",
+		"--whitespace=nowarn",
+		...staged ? ["--cached"] : [],
+		patchPath
+	], { tolerateFailure: true });
+	if (applied.code !== 0) throw new Error(applied.stderr.trim() || "git could not reverse this hunk");
+	return [{
+		path: relativePath,
+		result: "restored",
+		movedTo: `.dsh/dcode-undo/${stamp}/${relativePath}`
+	}];
+}
 //#endregion
 //#region lib/types/host/rpc.js
 /**
@@ -504,6 +628,8 @@ const DCODE_ENDPOINTS = [
 	"git/status",
 	"git/diff",
 	"git/branches",
+	"git/stage",
+	"git/unstage",
 	"git/commit",
 	"git/undo",
 	"file/read"
@@ -544,11 +670,11 @@ function requireString(payload, field, maxLength) {
 	return value;
 }
 /** Read an optional bounded string-array field out of an untrusted payload. */
-function optionalPaths(payload, field) {
+function optionalPaths(payload, field, limit = 500) {
 	const value = payload[field];
 	if (value === void 0) return void 0;
 	if (!Array.isArray(value)) throw new Error(`${field} must be an array of paths`);
-	if (value.length > 500) throw new Error(`${field} must contain at most 500 paths`);
+	if (value.length > limit) throw new Error(`${field} must contain at most ${String(limit)} paths`);
 	return value.map((entry, index) => {
 		if (typeof entry !== "string" || entry.trim() === "") throw new Error(`${field}[${String(index)}] must be a non-empty string`);
 		return entry;
@@ -581,12 +707,26 @@ async function handleDcodeEndpoint(endpoint, payload) {
 				ok: true,
 				value: { branches: await readBranches(requireCwd(body)) }
 			};
+			case "git/stage":
+			case "git/unstage": {
+				const cwd = requireCwd(body);
+				const paths = optionalPaths(body, "paths", 2e3);
+				if (paths === void 0 || paths.length === 0) return failure("bad-request", "paths must list at least one file");
+				return {
+					ok: true,
+					value: endpoint === "git/stage" ? await stagePaths(cwd, paths) : await unstagePaths(cwd, paths)
+				};
+			}
 			case "git/commit": return {
 				ok: true,
-				value: await commit(requireCwd(body), requireString(body, "message", 8e3), optionalPaths(body, "paths"))
+				value: await commit(requireCwd(body), requireString(body, "message", 8e3))
 			};
 			case "git/undo": {
 				const cwd = requireCwd(body);
+				if (body.patch !== void 0) return {
+					ok: true,
+					value: { outcomes: await undoHunk(cwd, requireString(body, "path", 4096), requireString(body, "patch", 4e5), body.staged === true) }
+				};
 				const paths = optionalPaths(body, "paths");
 				if (paths === void 0 || paths.length === 0) return failure("bad-request", "paths must list at least one file");
 				return {
@@ -620,7 +760,7 @@ async function handleDcodeEndpoint(endpoint, payload) {
 	} catch (cause) {
 		const message = cause instanceof Error ? cause.message : String(cause);
 		if (message === "not a git work tree") return failure("not-a-repository", message);
-		if (/^(cwd|path|message|paths)\b/.test(message) || message.startsWith("payload")) return failure("bad-request", message);
+		if (/^(cwd|path|patch|message|paths)\b/.test(message) || message.startsWith("payload")) return failure("bad-request", message);
 		if (cause?.code === "ENOENT") return failure("bad-request", message);
 		return failure("git-failed", message);
 	}

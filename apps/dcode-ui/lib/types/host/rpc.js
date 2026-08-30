@@ -10,12 +10,14 @@
  */
 import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { commit, containedRelativePath, readBranches, readDiff, readStatus, undoPaths, } from "./git.js";
+import { commit, containedRelativePath, readBranches, readDiff, readStatus, stagePaths, undoHunk, undoPaths, unstagePaths, } from "./git.js";
 /** Every endpoint this channel answers. */
 export const DCODE_ENDPOINTS = [
     'git/status',
     'git/diff',
     'git/branches',
+    'git/stage',
+    'git/unstage',
     'git/commit',
     'git/undo',
     'file/read',
@@ -53,14 +55,14 @@ function requireString(payload, field, maxLength) {
     return value;
 }
 /** Read an optional bounded string-array field out of an untrusted payload. */
-function optionalPaths(payload, field) {
+function optionalPaths(payload, field, limit = 500) {
     const value = payload[field];
     if (value === undefined)
         return undefined;
     if (!Array.isArray(value))
         throw new Error(`${field} must be an array of paths`);
-    if (value.length > 500)
-        throw new Error(`${field} must contain at most 500 paths`);
+    if (value.length > limit)
+        throw new Error(`${field} must contain at most ${String(limit)} paths`);
     return value.map((entry, index) => {
         if (typeof entry !== 'string' || entry.trim() === '')
             throw new Error(`${field}[${String(index)}] must be a non-empty string`);
@@ -95,13 +97,26 @@ export async function handleDcodeEndpoint(endpoint, payload) {
             case 'git/branches': {
                 return { ok: true, value: { branches: await readBranches(requireCwd(body)) } };
             }
+            case 'git/stage':
+            case 'git/unstage': {
+                const cwd = requireCwd(body);
+                const paths = optionalPaths(body, 'paths', 2000);
+                if (paths === undefined || paths.length === 0)
+                    return failure('bad-request', 'paths must list at least one file');
+                return { ok: true, value: endpoint === 'git/stage' ? await stagePaths(cwd, paths) : await unstagePaths(cwd, paths) };
+            }
             case 'git/commit': {
                 const cwd = requireCwd(body);
                 const message = requireString(body, 'message', 8000);
-                return { ok: true, value: await commit(cwd, message, optionalPaths(body, 'paths')) };
+                return { ok: true, value: await commit(cwd, message) };
             }
             case 'git/undo': {
                 const cwd = requireCwd(body);
+                if (body.patch !== undefined) {
+                    const path = requireString(body, 'path', 4096);
+                    const patch = requireString(body, 'patch', 400_000);
+                    return { ok: true, value: { outcomes: await undoHunk(cwd, path, patch, body.staged === true) } };
+                }
                 const paths = optionalPaths(body, 'paths');
                 if (paths === undefined || paths.length === 0)
                     return failure('bad-request', 'paths must list at least one file');
@@ -141,7 +156,7 @@ export async function handleDcodeEndpoint(endpoint, payload) {
         const message = cause instanceof Error ? cause.message : String(cause);
         if (message === 'not a git work tree')
             return failure('not-a-repository', message);
-        if (/^(cwd|path|message|paths)\b/.test(message) || message.startsWith('payload')) {
+        if (/^(cwd|path|patch|message|paths)\b/.test(message) || message.startsWith('payload')) {
             return failure('bad-request', message);
         }
         if (cause?.code === 'ENOENT') {

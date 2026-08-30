@@ -77,19 +77,37 @@ function spawnDialogWorker(data) {
 		DSH_DIALOG_TITLE: data.title,
 		ELECTRON_RUN_AS_NODE: "1"
 	};
+	// The child's stderr is captured instead of inherited. A worker that dies
+	// before its first IPC message is otherwise unexplainable: its crash text
+	// would land in the runtime log with nothing tying it to the pick that
+	// spawned it, and the driver can only report "exited before reporting".
 	const stdio = [
 		"ignore",
 		"inherit",
-		"inherit",
+		"pipe",
 		"ipc"
 	];
+	const attach = (child) => {
+		let stderr = "";
+		if (child.stderr !== null) {
+			child.stderr.on("data", (chunk) => {
+				const text = chunk.toString();
+				stderr += text;
+				if (stderr.length > 8192) stderr = stderr.slice(-8192);
+				// Keep the stream observable in the runtime log as before.
+				process.stderr.write(text);
+			});
+		}
+		child.workerStderr = () => stderr.trim();
+		return child;
+	};
 	/* v8 ignore next 3 -- the built-output arm: tests always run unbuilt (src/) */
-	if (!import.meta.url.endsWith(".ts")) return spawn(process.execPath, [fileURLToPath(new URL("./worker.cjs", import.meta.url))], {
+	if (!import.meta.url.endsWith(".ts")) return attach(spawn(process.execPath, [fileURLToPath(new URL("./worker.cjs", import.meta.url))], {
 		env,
 		stdio,
 		windowsHide: true
-	});
-	return spawn(process.execPath, [
+	}));
+	return attach(spawn(process.execPath, [
 		"--import",
 		import.meta.resolve("tsx/esm"),
 		fileURLToPath(new URL("./win32-dialog-worker.ts", import.meta.url))
@@ -97,7 +115,7 @@ function spawnDialogWorker(data) {
 		env,
 		stdio,
 		windowsHide: true
-	});
+	}));
 }
 //#endregion
 //#region lib/types/win32-dialog.js
@@ -195,9 +213,18 @@ async function pickWin32Directory(signal, internals = {}) {
 				reject(error);
 			});
 		});
-		worker.on("exit", () => {
+		worker.on("exit", (code, signal) => {
 			settle(() => {
-				reject(/* @__PURE__ */ new Error("win32 folder dialog worker exited before reporting a result"));
+				// Report why the child died. Without the exit code, signal and
+				// captured stderr, a worker that never posts a message shows the
+				// operator an unexplainable failure with no diagnostic surface.
+				const detail = typeof worker.workerStderr === "function" ? worker.workerStderr() : "";
+				const parts = [
+					`code=${String(code)}`,
+					`signal=${String(signal)}`
+				];
+				if (detail !== "") parts.push(`stderr=${detail}`);
+				reject(/* @__PURE__ */ new Error(`win32 folder dialog worker exited before reporting a result (${parts.join(", ")})`));
 			});
 		});
 	});

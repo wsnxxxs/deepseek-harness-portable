@@ -25,6 +25,42 @@ import css from './PluginsHome.module.css';
 import ui from '../shell/ui.module.css';
 /** How long the search box waits before it asks the Host again. */
 const SEARCH_DEBOUNCE_MS = 300;
+function platformKey(platform) {
+    const value = platform.toLowerCase();
+    if (value.includes('win'))
+        return 'win32';
+    if (value.includes('mac') || value.includes('darwin'))
+        return 'darwin';
+    if (value.includes('linux'))
+        return 'linux';
+    return undefined;
+}
+/** Merge Host discovery facts with the bundled review record, never guesses. */
+function metadataFor(item, locale, platform) {
+    const audit = auditFor(item.fullName);
+    const platformId = platformKey(platform);
+    return {
+        featured: item.featured || audit?.featured === true,
+        featuredSource: audit?.featuredSource[locale] ?? item.featuredSource,
+        reviewed: audit !== undefined,
+        category: audit?.category ?? item.category,
+        compatibility: audit !== undefined && platformId !== undefined
+            ? audit.compatibility[platformId]
+            : item.compatibility,
+        maintenance: item.maintenance,
+    };
+}
+/** Search ranking: repository name, then description, then stars. */
+function searchRank(item, query) {
+    const needle = query.trim().toLowerCase();
+    if (needle === '')
+        return [0, item.stars];
+    const fullName = item.fullName.toLowerCase();
+    const name = fullName.split('/').at(-1) ?? fullName;
+    const description = item.description.toLowerCase();
+    const score = name === needle ? 4 : name.startsWith(needle) ? 3 : name.includes(needle) ? 2 : description.includes(needle) ? 1 : 0;
+    return [score, item.stars];
+}
 /**
  * Build the review table for one repository.
  *
@@ -70,21 +106,24 @@ function MarketCard(props) {
     const t = useT();
     const { item, operation } = props;
     const { reviewed, rows } = useMemo(() => reviewRows(item.fullName, props.locale, t), [item.fullName, props.locale, t]);
+    const metadata = useMemo(() => metadataFor(item, props.locale, props.platform), [item, props.locale, props.platform]);
     const reviewId = useId();
     const running = operation?.status === 'running';
     const failed = operation?.status === 'failed';
     // A repository the Host already reports as present stays installed across a
     // reload; a fresh install adds the same verdict without another round trip.
     const installed = item.installed || operation?.status === 'done';
-    return (_jsxs("article", { className: css.card, children: [_jsxs("div", { className: `${css.cardHead} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.identity, children: [_jsx("a", { className: css.name, href: item.url, target: "_blank", rel: "noreferrer", children: item.fullName }), _jsx(Pill, { className: reviewed ? css.tagSuccess : css.tagWarn, children: t(reviewed ? 'plugins.reviewed' : 'plugins.unreviewed') })] }), _jsx("div", { className: css.actions, children: installed
+    return (_jsxs("article", { className: `${css.card} ${props.density === 'compact' ? css.compactCard : css.denseCard}`, children: [_jsxs("div", { className: `${css.cardHead} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.identity, children: [_jsx("a", { className: css.name, href: item.url, target: "_blank", rel: "noreferrer", children: item.fullName }), _jsx(Pill, { className: reviewed ? css.tagSuccess : css.tagWarn, children: t(reviewed ? 'plugins.reviewed' : 'plugins.unreviewed') }), metadata.featured
+                                ? _jsx(Pill, { className: css.tagAccent, children: t('plugins.featured') })
+                                : null] }), _jsx("div", { className: css.actions, children: installed
                             ? _jsx(Pill, { className: css.tagSuccess, children: t('plugins.installed') })
                             : (_jsx(Button, { primary: !props.reviewOpen, disabled: running, onClick: props.onToggleReview, children: running ? t('plugins.installing') : t(failed ? 'plugins.confirmRetry' : 'plugins.install') })) })] }), _jsxs("div", { className: css.cardBody, children: [item.description === ''
                         ? null
-                        : _jsx("p", { className: css.description, children: item.description }), _jsxs("div", { className: css.facts, children: [_jsx(Pill, { children: t('plugins.stars', { count: item.stars }) }), item.language === '' ? null : _jsx(Pill, { children: item.language }), installed && item.needsRestart
+                        : _jsx("p", { className: css.description, children: item.description }), _jsxs("div", { className: css.facts, children: [_jsx(Pill, { children: t(`plugins.category.${metadata.category}`) }), _jsx(Pill, { className: metadata.compatibility === 'compatible' ? css.tagSuccess : metadata.compatibility === 'incompatible' ? css.tagWarn : css.tagMuted, children: t(`plugins.compatibility.${metadata.compatibility}`) }), _jsx(Pill, { className: metadata.maintenance === 'active' ? css.tagSuccess : css.tagMuted, children: t(`plugins.maintenance.${metadata.maintenance}`) }), _jsx(Pill, { children: t('plugins.stars', { count: item.stars }) }), item.language === '' ? null : _jsx(Pill, { children: item.language }), installed && item.needsRestart
                                 ? _jsx(Pill, { className: css.tagWarn, children: t('plugins.pendingTag') })
                                 : null, item.description === ''
                                 ? null
-                                : (_jsx("button", { type: "button", className: `${css.linkButton} ${css.factsAction}`, disabled: props.translating, onClick: props.onTranslate, children: t(props.translating ? 'plugins.translating' : 'plugins.translate') }))] }), installed
+                                : (_jsx("button", { type: "button", className: `${css.linkButton} ${css.factsAction}`, disabled: props.translating, onClick: props.onTranslate, children: t(props.translating ? 'plugins.translating' : 'plugins.translate') }))] }), metadata.featuredSource === undefined ? null : _jsx("div", { className: css.statusLine, children: t('plugins.featuredSource', { source: metadata.featuredSource }) }), installed
                         ? null
                         : (_jsxs("div", { className: `${css.review} ${props.reviewOpen ? css.reviewOpen : ''}`, children: [_jsxs("button", { type: "button", className: css.reviewSummary, "aria-expanded": props.reviewOpen, "aria-controls": reviewId, onClick: props.onToggleReview, children: [_jsx("span", { className: css.reviewChevron, children: _jsx(IconChevronRightOutline14, {}) }), t('plugins.reviewOpen')] }), props.reviewOpen
                                     ? _jsxs("div", { id: reviewId, className: css.reviewBody, role: "region", "aria-label": t('plugins.reviewOpen'), children: [_jsx("div", { className: css.reviewGrid, children: rows.map(row => (_jsxs(Fragment, { children: [_jsx("span", { className: css.reviewKey, children: t(row.label) }), _jsx("span", { className: css.reviewValue, children: row.value })] }, row.label))) }), reviewed ? null : _jsx("p", { className: css.reviewWarning, children: t('plugins.review.warning') }), _jsxs("div", { className: css.reviewActions, children: [_jsx(Button, { primary: true, disabled: running, onClick: props.onInstall, children: running
@@ -103,6 +142,11 @@ export function MarketSection({ client, locale, onInstalled }) {
     const t = useT();
     const [draft, setDraft] = useState('');
     const [query, setQuery] = useState('');
+    const [view, setView] = useState('featured');
+    const [category, setCategory] = useState('all');
+    const [reviewFilter, setReviewFilter] = useState('all');
+    const [compatibility, setCompatibility] = useState('all');
+    const [maintenance, setMaintenance] = useState('all');
     const [page, setPage] = useState();
     const [loading, setLoading] = useState(true);
     const [failure, setFailure] = useState();
@@ -112,6 +156,7 @@ export function MarketSection({ client, locale, onInstalled }) {
     const moreLoading = useRef(false);
     const moreController = useRef(null);
     const { operations, start, cancel } = useOperations(client);
+    const scope = view === 'explore' || query !== '' ? 'explore' : 'curated';
     useEffect(() => {
         const timer = setTimeout(() => { setQuery(draft.trim()); }, SEARCH_DEBOUNCE_MS);
         return () => { clearTimeout(timer); };
@@ -126,7 +171,7 @@ export function MarketSection({ client, locale, onInstalled }) {
         setPage(undefined);
         setLoading(true);
         setFailure(undefined);
-        void client.list(query, 1, controller.signal)
+        void client.list(query, 1, controller.signal, scope)
             .then((answer) => {
             if (controller.signal.aborted)
                 return;
@@ -148,7 +193,7 @@ export function MarketSection({ client, locale, onInstalled }) {
             moreController.current = null;
             moreLoading.current = false;
         };
-    }, [client, query, nonce]);
+    }, [client, nonce, query, scope]);
     const loadMore = useCallback(() => {
         const current = page;
         if (current === undefined || loading || moreLoading.current)
@@ -157,7 +202,7 @@ export function MarketSection({ client, locale, onInstalled }) {
         moreController.current = controller;
         moreLoading.current = true;
         setLoading(true);
-        void client.list(query, current.page + 1, controller.signal)
+        void client.list(query, current.page + 1, controller.signal, 'explore')
             .then((answer) => {
             if (controller.signal.aborted)
                 return;
@@ -205,23 +250,45 @@ export function MarketSection({ client, locale, onInstalled }) {
                 : { ...previous, loading: false, error: cause instanceof Error ? cause.message : String(cause) });
         });
     }, [client]);
-    const items = page?.items ?? [];
+    const platform = page?.platform || (typeof navigator === 'undefined' ? '' : navigator.userAgent);
+    const items = useMemo(() => {
+        const source = page?.items ?? [];
+        return source
+            .filter((item) => {
+            const metadata = metadataFor(item, locale, platform);
+            const inView = query !== ''
+                || view === 'explore'
+                || (view === 'featured' && metadata.featured)
+                || (view === 'reviewed' && metadata.reviewed)
+                || (view === 'compatible' && metadata.compatibility === 'compatible');
+            return inView
+                && (category === 'all' || metadata.category === category)
+                && (reviewFilter === 'all' || (reviewFilter === 'reviewed') === metadata.reviewed)
+                && (compatibility === 'all' || metadata.compatibility === compatibility)
+                && (maintenance === 'all' || metadata.maintenance === maintenance);
+        })
+            .sort((left, right) => {
+            const [leftMatch, leftStars] = searchRank(left, query);
+            const [rightMatch, rightStars] = searchRank(right, query);
+            return rightMatch - leftMatch || rightStars - leftStars || left.fullName.localeCompare(right.fullName);
+        });
+    }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter, view]);
     const syncedAt = page === undefined || page.fetchedAt === 0
         ? t('plugins.neverSynced')
         : t('plugins.syncedAt', { time: new Date(page.fetchedAt).toLocaleString() });
-    return (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('plugins.section.market') }), _jsx("p", { className: css.subtitle, children: t('plugins.source') })] }), _jsxs("div", { className: css.toolbar, children: [_jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { className: css.searchInput, type: "search", value: draft, placeholder: t('plugins.search'), "aria-label": t('plugins.search'), onChange: (event) => { setDraft(event.target.value); } })] }), _jsxs("span", { className: css.meta, children: [t('plugins.shownOfTotal', { shown: items.length, total: page?.total ?? 0 }), ' · ', syncedAt] }), _jsx(IconButton, { label: t('plugins.refresh'), disabled: loading, onClick: () => { setNonce(value => value + 1); }, children: _jsx(IconRefreshOutline14, {}) }), _jsxs("a", { className: css.meta, href: MARKET_TOPIC_URL, target: "_blank", rel: "noreferrer", children: [t('plugins.sourceLink'), " ", _jsx(IconRightUpOutline14, {})] })] }), failure === undefined
+    return (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('plugins.section.market') }), _jsx("p", { className: css.subtitle, children: t(scope === 'explore' ? 'plugins.source' : 'plugins.curatedSource') })] }), _jsx("div", { className: css.discoveryTabs, role: "tablist", "aria-label": t('plugins.discovery.label'), children: ['featured', 'reviewed', 'compatible', 'explore'].map(id => (_jsx("button", { type: "button", role: "tab", "aria-selected": view === id, className: `${css.discoveryTab} ${view === id ? css.discoveryTabActive : ''}`, onClick: () => { setView(id); }, children: t(`plugins.discovery.${id}`) }, id))) }), _jsxs("div", { className: css.toolbar, children: [_jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { className: css.searchInput, type: "search", value: draft, placeholder: t('plugins.search'), "aria-label": t('plugins.search'), onChange: (event) => { setDraft(event.target.value); } })] }), _jsxs("span", { className: css.meta, children: [t('plugins.shownOfTotal', { shown: items.length, total: page?.total ?? 0 }), ' · ', syncedAt] }), _jsx(IconButton, { label: t('plugins.refresh'), disabled: loading, onClick: () => { setNonce(value => value + 1); }, children: _jsx(IconRefreshOutline14, {}) }), _jsxs("a", { className: css.meta, href: MARKET_TOPIC_URL, target: "_blank", rel: "noreferrer", children: [t('plugins.sourceLink'), " ", _jsx(IconRightUpOutline14, {})] })] }), _jsxs("div", { className: css.filters, "aria-label": t('plugins.filters'), children: [_jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.category') }), _jsx("select", { value: category, onChange: (event) => { setCategory(event.target.value); }, children: ['all', 'interface', 'vision', 'design', 'automation', 'developer', 'other', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.category.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.review') }), _jsxs("select", { value: reviewFilter, onChange: (event) => { setReviewFilter(event.target.value); }, children: [_jsx("option", { value: "all", children: t('plugins.filter.all') }), _jsx("option", { value: "reviewed", children: t('plugins.reviewed') }), _jsx("option", { value: "unreviewed", children: t('plugins.unreviewed') })] })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.compatibility') }), _jsx("select", { value: compatibility, onChange: (event) => { setCompatibility(event.target.value); }, children: ['all', 'compatible', 'incompatible', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.compatibility.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.maintenance') }), _jsx("select", { value: maintenance, onChange: (event) => { setMaintenance(event.target.value); }, children: ['all', 'active', 'stale', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.maintenance.${value}`) }, value))) })] })] }), scope === 'explore' ? _jsx("div", { className: css.exploreWarning, children: t('plugins.exploreWarning') }) : null, failure === undefined
                 ? null
                 : _jsx("div", { className: css.error, role: "alert", children: t('plugins.syncFailed', { error: failure }) }), page?.error === undefined
                 ? null
                 : _jsx("div", { className: css.error, role: "alert", children: t('plugins.syncFailed', { error: page.error }) }), items.length === 0
                 ? (loading
                     ? _jsxs("div", { className: css.loadingState, role: "status", children: [_jsx(Spinner, { size: "sm" }), t('plugins.loading')] })
-                    : _jsx(EmptyState, { children: query === '' ? t('plugins.emptyMarket') : t('plugins.emptySearch', { query }) }))
-                : (_jsxs("div", { className: css.list, children: [items.map(item => (_jsx(MarketCard, { item: item, locale: locale, operation: operations[item.fullName], reviewOpen: reviewOpen === item.fullName, translating: translation?.name === item.fullName && translation.loading, onToggleReview: () => {
+                    : _jsx(EmptyState, { children: query === '' ? t('plugins.emptyFiltered') : t('plugins.emptySearch', { query }) }))
+                : (_jsxs("div", { className: scope === 'explore' ? css.denseList : css.compactGrid, children: [items.map(item => (_jsx(MarketCard, { item: item, locale: locale, operation: operations[item.fullName], reviewOpen: reviewOpen === item.fullName, translating: translation?.name === item.fullName && translation.loading, platform: platform, density: scope === 'explore' ? 'dense' : 'compact', onToggleReview: () => {
                                 setReviewOpen(current => current === item.fullName ? undefined : item.fullName);
                             }, onInstall: () => {
                                 start(item.fullName, () => client.install(item.fullName), onInstalled);
-                            }, onCancel: () => { cancel(item.fullName); }, onTranslate: () => { translate(item); } }, item.fullName))), page?.hasMore === true
+                            }, onCancel: () => { cancel(item.fullName); }, onTranslate: () => { translate(item); } }, item.fullName))), scope === 'explore' && page?.hasMore === true
                             ? (_jsx(Button, { onClick: loadMore, disabled: loading, children: t(loading ? 'plugins.loading' : 'plugins.loadMore') }))
                             : null] })), _jsx(Modal, { open: translation !== undefined, onClose: () => { setTranslation(undefined); }, title: translation === undefined
                     ? t('plugins.translate')

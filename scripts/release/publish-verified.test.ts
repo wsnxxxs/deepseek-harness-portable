@@ -42,13 +42,13 @@ const learningEvidence: InteractiveLearningReleaseEvidence = {
 test('publishing fails closed for unsigned bytes unless the prerelease override is explicit', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-publish-'))
   try {
-    const artifact = join(root, 'app.AppImage')
+    const artifact = join(root, 'DeepSeek-Harness-1.2.3-win32-x64.zip')
     const manifest = join(root, 'release-manifest.json')
-    const target = getTargetSpec('linux-x64')
+    const target = getTargetSpec('win32-x64')
     await writeFile(artifact, 'immutable')
     await writeFile(manifest, JSON.stringify({
       schemaVersion: 3,
-      target: { id: 'linux-x64' },
+      target: { id: 'win32-x64' },
       distribution: { classification: 'non-official-unsigned' },
       files: interactiveLearningInventoryPaths(target).map(path => ({ path })),
       experiencePacks: { interactiveLearning: learningEvidence },
@@ -57,25 +57,25 @@ test('publishing fails closed for unsigned bytes unless the prerelease override 
       target,
       evidence: {
         schemaVersion: 1,
-        capabilityReport: { target: { platform: 'linux', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
-        modeCatalog: { target: { platform: 'linux', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
+        capabilityReport: { target: { platform: 'win32', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
+        modeCatalog: { target: { platform: 'win32', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
         modeSupport: {},
         interactiveLearning: learningEvidence,
       },
       artifacts: [artifact],
       manifestPath: manifest,
       outputRoot: join(root, 'verified'),
-      host: { platform: 'linux', arch: 'x64' },
+      host: { platform: 'win32', arch: 'x64' },
     })
     const output = join(root, 'release')
     await assert.rejects(
-      publishVerifiedTarget('linux-x64', ['--input', bundle.directory, '--output', output]),
+      publishVerifiedTarget('win32-x64', ['--input', bundle.directory, '--output', output]),
       /official publishing fails closed/,
     )
-    await publishVerifiedTarget('linux-x64', [
+    await publishVerifiedTarget('win32-x64', [
       '--input', bundle.directory, '--output', output, '--allow-non-official',
     ])
-    assert.equal((await readFile(join(output, 'app.AppImage'), 'utf8')), 'immutable')
+    assert.equal((await readFile(join(output, 'DeepSeek-Harness-1.2.3-win32-x64.zip'), 'utf8')), 'immutable')
   } finally {
     await rm(root, { recursive: true, force: true })
   }

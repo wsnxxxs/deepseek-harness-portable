@@ -21,6 +21,11 @@ type Bilingual = Readonly<Record<AuditLocale, string>>;
 export interface PluginAudit {
     /** Whether Portable has a review record at all. */
     readonly reviewed: boolean;
+    /** Explicit discovery metadata maintained with the review record. */
+    readonly featured: boolean;
+    readonly featuredSource: Bilingual;
+    readonly category: 'interface' | 'vision' | 'design';
+    readonly compatibility: Readonly<Record<'win32' | 'darwin' | 'linux', 'compatible' | 'incompatible' | 'unknown'>>;
     readonly contract: Bilingual;
     readonly platform: Bilingual;
     readonly runtime: Bilingual;
@@ -35,5 +40,7 @@ export interface PluginAudit {
  * @returns the review, or undefined when Portable has never reviewed it.
  */
 export declare function auditFor(fullName: string): PluginAudit | undefined;
+/** Repositories that have a real bundled review record. */
+export declare function reviewedRepositories(): readonly string[];
 export {};
 //# sourceMappingURL=audits.d.ts.map

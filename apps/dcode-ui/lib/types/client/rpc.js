@@ -47,8 +47,11 @@ export function createDcodeApi(carrier) {
         status: cwd => call('git/status', { cwd }),
         diff: (cwd, path, staged = false) => call('git/diff', { cwd, path, staged }),
         branches: cwd => call('git/branches', { cwd }),
-        commit: (cwd, message, paths) => call('git/commit', { cwd, message, ...(paths === undefined ? {} : { paths }) }),
+        stage: (cwd, paths) => call('git/stage', { cwd, paths }),
+        unstage: (cwd, paths) => call('git/unstage', { cwd, paths }),
+        commit: (cwd, message) => call('git/commit', { cwd, message }),
         undo: (cwd, paths) => call('git/undo', { cwd, paths }),
+        undoHunk: (cwd, path, patch, staged = false) => call('git/undo', { cwd, path, patch, staged }),
         readFile: (cwd, path) => call('file/read', { cwd, path }),
     };
 }

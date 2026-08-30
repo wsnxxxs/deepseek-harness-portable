@@ -89,7 +89,7 @@ interface SavedNote { noteSlug: string; path: string; kind: string }
 /**
  * The action and its sheet.
  *
- * Registered only in learning sessions — the same gate that decides the 学习库
+ * Registered only in learning sessions — the same gate that decides the 资料库
  * tab decides this button, because an action that writes into a topic vault is
  * meaningless in a session that has no vault to write into.
  */

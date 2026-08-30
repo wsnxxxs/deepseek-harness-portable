@@ -17,6 +17,9 @@ param(
     [switch]$Rollback,
     [switch]$RelaunchAfterRollback,
     [switch]$RecoverOnly,
+    [switch]$PurgeBackups,
+    [switch]$NoBackup,
+    [switch]$Clean,
     [string]$AppRoot = ''
 )
 
@@ -129,6 +132,9 @@ try {
 
         if ($RecoverOnly) {
             Recover-PendingTransaction -AppRoot $targetRoot -StatusFile $StatusFile
+        } elseif ($Clean) {
+            Recover-PendingTransaction -AppRoot $targetRoot -StatusFile $StatusFile
+            Clear-UpdaterArtifacts -AppRoot $targetRoot
         } else {
             # update.ps1 ships at the portable distribution root, so its own
             # directory IS AppRoot; pass it explicitly instead of inferring it
@@ -146,6 +152,8 @@ try {
                 -ShellPid $ShellPid `
                 -Rollback:$Rollback `
                 -RelaunchAfterRollback:$RelaunchAfterRollback `
+                -PurgeBackups:$PurgeBackups `
+                -NoBackup:$NoBackup `
                 -AppRoot $targetRoot
         }
     } finally {

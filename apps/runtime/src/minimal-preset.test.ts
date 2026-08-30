@@ -1,9 +1,8 @@
 /**
  * Regression tests for the shipped Minimal contract, its explicit runtime
- * variants, and the win32 terminal inspector compatibility bridge.
+ * variant, and the win32 terminal inspector compatibility bridge.
  *
- * On POSIX hosts (Linux and macOS), `terminal-bash` spawns `/bin/bash`.
- * On Windows hosts, `terminal-bash` spawns `C:/Windows/System32/wsl.exe` with `['--', 'bash', ...]`.
+ * `terminal-bash` spawns `C:/Windows/System32/wsl.exe` with `['--', 'bash', ...]`.
  *
  * The win32 inspector stub reports no process-tree members (the WSL VM is not
  * observable from Windows), and spawnTerminal is wrapped to share WSLENV,
@@ -19,7 +18,6 @@ import yaml from 'js-yaml'
 import { adaptWin32SubprocessRuntime, createWin32TerminalInspector } from './win32-terminal-inspector.js'
 
 const modePath = fileURLToPath(new URL('../config/agent-presets/minimal/mode.yml', import.meta.url))
-const posixVariantPath = fileURLToPath(new URL('../config/agent-presets/minimal/variants/posix-bash.cordis.yml', import.meta.url))
 const win32VariantPath = fileURLToPath(new URL('../config/agent-presets/minimal/variants/win32-wsl.cordis.yml', import.meta.url))
 const jsExpressionType = new yaml.Type('tag:yaml.org,2002:js', {
   kind: 'scalar',
@@ -62,31 +60,25 @@ test('minimal mode declares a stable contract and capability-driven variants', (
   assert.equal(mode.contract.filesystem, 'bare-local')
   assert.equal(mode.contract.sandbox, 'danger-full-access')
   assert.deepEqual(mode.variants.map(variant => [variant.id, variant.supportLevel]), [
-    ['posix-bash', 'native'],
     ['win32-wsl', 'compatible'],
   ])
-  assert.deepEqual(mode.variants[1].limitations, [
+  assert.deepEqual(mode.variants[0].limitations, [
     'process-tree-unobservable',
     'process-group-signals-emulated',
   ])
 })
 
-test('minimal variants use literal shell implementations without process.platform in config', () => {
-  const posixSource = readFileSync(posixVariantPath, 'utf8')
+test('the minimal variant uses a literal shell implementation without process.platform in config', () => {
   const win32Source = readFileSync(win32VariantPath, 'utf8')
-  assert.doesNotMatch(`${posixSource}\n${win32Source}`, /process\.platform/)
-
-  const posixBash = row(loadVariant(posixVariantPath), 'terminal-bash')
-  assert.equal(posixBash.config.shellPath, '/bin/bash')
-  assert.deepEqual(posixBash.config.shellArgs, ['--noprofile', '--norc', '-i'])
+  assert.doesNotMatch(win32Source, /process\.platform/)
 
   const win32Bash = row(loadVariant(win32VariantPath), 'terminal-bash')
   assert.equal(win32Bash.config.shellPath, 'C:/Windows/System32/wsl.exe')
   assert.deepEqual(win32Bash.config.shellArgs, ['--', 'bash', '--noprofile', '--norc', '-i'])
 })
 
-test('both minimal variants preserve the same model-facing contract', () => {
-  for (const path of [posixVariantPath, win32VariantPath]) {
+test('the minimal variant preserves the model-facing contract', () => {
+  for (const path of [win32VariantPath]) {
     const entries = loadVariant(path)
     const persistentShell = row(entries, 'persistent-shell')
     assert.equal(persistentShell.isolate?.terminals, true)

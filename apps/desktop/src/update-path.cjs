@@ -14,9 +14,8 @@ const { join, win32 } = require('node:path')
  * @returns {string|undefined} the portable root, when it is present.
  */
 function findPortableRoot(appDir, exists = existsSync) {
-  // The helper is only used by the Windows portable updater, but keeping the
-  // Windows path contract explicit makes its unit tests deterministic when
-  // the repository is audited from Linux or macOS.
+  // Drive-letter inputs are Windows paths and must be joined with the win32
+  // separator contract; anything else falls back to the host's own join.
   const pathJoin = /^[A-Za-z]:[\\/]/.test(appDir) ? win32.join : join
   const candidates = [
     pathJoin(appDir, '..', '..', '..', '..'),

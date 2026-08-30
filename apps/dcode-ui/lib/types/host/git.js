@@ -108,6 +108,20 @@ function statusOf(code) {
         return 'deleted';
     return 'modified';
 }
+/** Map one side of an XY status onto the presentation status for that side. */
+function statusOfSide(letter, fallback) {
+    if (letter === 'A')
+        return 'added';
+    if (letter === 'D')
+        return 'deleted';
+    if (letter === 'R' || letter === 'C')
+        return 'renamed';
+    if (letter === '?')
+        return 'untracked';
+    if (letter === 'M' || letter === 'T')
+        return 'modified';
+    return fallback;
+}
 /** Parse `git status --porcelain=v1 -z` into rows (NUL-separated; renames carry two records). */
 export function parsePorcelain(output) {
     const rows = [];
@@ -120,29 +134,41 @@ export function parsePorcelain(output) {
         const path = record.slice(3);
         if (path === '')
             continue;
-        if (code.startsWith('R') || code.startsWith('C')) {
+        if (code.includes('R') || code.includes('C')) {
             // Rename/copy records are followed by their source path in the next record.
             const from = records[index + 1];
             index += 1;
-            rows.push({
+            const base = {
                 path,
                 code,
-                status: statusOf(code),
-                staged: code[0] !== ' ' && code !== '??',
                 insertions: 0,
                 deletions: 0,
                 ...(from === undefined || from === '' ? {} : { from }),
-            });
+            };
+            if ((code[0] ?? ' ') !== ' ') {
+                rows.push({ ...base, status: statusOfSide(code[0] ?? ' ', statusOf(code)), staged: true });
+            }
+            if ((code[1] ?? ' ') !== ' ') {
+                rows.push({ ...base, status: statusOfSide(code[1] ?? ' ', statusOf(code)), staged: false });
+            }
             continue;
         }
-        rows.push({
-            path,
-            code,
-            status: statusOf(code),
-            staged: code[0] !== ' ' && code !== '??',
-            insertions: 0,
-            deletions: 0,
-        });
+        const coarse = statusOf(code);
+        const base = { path, code, insertions: 0, deletions: 0 };
+        if (coarse === 'conflicted') {
+            rows.push({ ...base, status: 'conflicted', staged: false });
+            continue;
+        }
+        if (code === '??') {
+            rows.push({ ...base, status: 'untracked', staged: false });
+            continue;
+        }
+        if ((code[0] ?? ' ') !== ' ') {
+            rows.push({ ...base, status: statusOfSide(code[0] ?? ' ', coarse), staged: true });
+        }
+        if ((code[1] ?? ' ') !== ' ') {
+            rows.push({ ...base, status: statusOfSide(code[1] ?? ' ', coarse), staged: false });
+        }
     }
     return rows;
 }
@@ -324,31 +350,68 @@ export async function readBranches(cwd) {
         ...(subject === undefined || subject === '' ? {} : { subject }),
     }));
 }
+/** Resolve and de-duplicate browser-supplied paths, refusing unresolved conflicts. */
+async function mutablePaths(root, paths) {
+    if (paths.length === 0)
+        throw new Error('paths must list at least one file');
+    const contained = [...new Set(paths.map(path => containedRelativePath(root, path)))];
+    const status = await git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    const conflicted = new Set(parsePorcelain(status.stdout)
+        .filter(row => row.status === 'conflicted')
+        .map(row => row.path));
+    const requestedConflict = contained.find(path => conflicted.has(path));
+    if (requestedConflict !== undefined)
+        throw new Error(`conflicted path cannot be staged here: ${requestedConflict}`);
+    return contained;
+}
+/** Stage an explicit set of non-conflicted paths. */
+export async function stagePaths(cwd, paths) {
+    const root = await workTreeRoot(cwd);
+    if (root === undefined)
+        throw new Error('not a git work tree');
+    const contained = await mutablePaths(root, paths);
+    for (let index = 0; index < contained.length; index += 200) {
+        await git(root, ['add', '--', ...contained.slice(index, index + 200)]);
+    }
+    return { updated: contained };
+}
+/** Unstage an explicit set of non-conflicted paths without changing the work tree. */
+export async function unstagePaths(cwd, paths) {
+    const root = await workTreeRoot(cwd);
+    if (root === undefined)
+        throw new Error('not a git work tree');
+    const contained = await mutablePaths(root, paths);
+    const head = await git(root, ['rev-parse', '--verify', 'HEAD'], { tolerateFailure: true });
+    for (let index = 0; index < contained.length; index += 200) {
+        const chunk = contained.slice(index, index + 200);
+        if (head.code === 0) {
+            await git(root, ['restore', '--staged', '--', ...chunk]);
+        }
+        else {
+            // `restore --staged` needs HEAD. In a new repository every index entry
+            // is an addition, so removing it from the index leaves the work tree intact.
+            await git(root, ['rm', '--cached', '--ignore-unmatch', '--', ...chunk]);
+        }
+    }
+    return { updated: contained };
+}
 /**
- * Stage the requested paths (or every change) and commit them.
+ * Commit exactly what is already staged.
  *
- * The commit is an explicit operator action from the Git panel: nothing is
- * pushed, no branch is created, and an empty index is reported back rather
- * than forced through with `--allow-empty`.
+ * The commit is an explicit operator action from the Git panel: it never
+ * stages work-tree changes, pushes, changes branches, or permits an empty
+ * commit.
  * @param cwd - any directory inside the repository.
  * @param message - commit message; leading/trailing whitespace is trimmed.
- * @param paths - paths to stage first; omitted stages every tracked and untracked change.
  * @returns whether a commit was created, with the short hash or the refusal reason.
  */
-export async function commit(cwd, message, paths) {
+export async function commit(cwd, message) {
     const root = await workTreeRoot(cwd);
     if (root === undefined)
         throw new Error('not a git work tree');
     const trimmed = message.trim();
     if (trimmed === '')
         return { committed: false, reason: 'empty-message' };
-    if (paths === undefined || paths.length === 0) {
-        await git(root, ['add', '--all', '--']);
-    }
-    else {
-        const contained = paths.map(path => containedRelativePath(root, path));
-        await git(root, ['add', '--', ...contained]);
-    }
     const staged = await git(root, ['diff', '--cached', '--name-only'], { tolerateFailure: true });
     if (staged.stdout.trim() === '')
         return { committed: false, reason: 'nothing-staged' };
@@ -412,5 +475,46 @@ export async function undoPaths(cwd, paths) {
         }
     }
     return outcomes;
+}
+/**
+ * Reverse one exact hunk while retaining a recovery bundle beside ordinary
+ * DCode undo snapshots. The supplied patch is produced by our own diff RPC;
+ * its path is still cross-checked before git sees it.
+ */
+export async function undoHunk(cwd, path, patch, staged) {
+    const root = await workTreeRoot(cwd);
+    if (root === undefined)
+        throw new Error('not a git work tree');
+    const relativePath = containedRelativePath(root, path);
+    if (patch.length === 0 || patch.length > DIFF_CHAR_LIMIT)
+        throw new Error('patch must be a bounded non-empty diff');
+    const headerPath = relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!new RegExp(`^(?:---|\\+\\+\\+) (?:[ab]/)?${headerPath}$`, 'm').test(patch)) {
+        throw new Error('patch path does not match path');
+    }
+    const { copyFile, mkdir, writeFile } = await import('node:fs/promises');
+    const { dirname, join } = await import('node:path');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const recovery = join(root, '.dsh', 'dcode-undo', stamp);
+    const patchPath = join(recovery, 'hunk.patch');
+    await mkdir(dirname(join(recovery, relativePath)), { recursive: true });
+    await writeFile(patchPath, patch, 'utf8');
+    try {
+        await copyFile(join(root, relativePath), join(recovery, relativePath));
+    }
+    catch (cause) {
+        if (cause.code !== 'ENOENT')
+            throw cause;
+    }
+    const applied = await git(root, [
+        'apply', '--reverse', '--whitespace=nowarn', ...(staged ? ['--cached'] : []), patchPath,
+    ], { tolerateFailure: true });
+    if (applied.code !== 0)
+        throw new Error(applied.stderr.trim() || 'git could not reverse this hunk');
+    return [{
+            path: relativePath,
+            result: 'restored',
+            movedTo: `.dsh/dcode-undo/${stamp}/${relativePath}`,
+        }];
 }
 //# sourceMappingURL=git.js.map

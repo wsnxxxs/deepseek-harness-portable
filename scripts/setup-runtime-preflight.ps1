@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Stop', 'Diagnose', 'CleanupTree')]
+  [ValidateSet('Stop', 'Diagnose', 'CleanupObsolete', 'CleanupTree')]
   [string]$Mode = 'Stop',
   [Parameter(Mandatory = $true)]
   [string]$InstallRoot,
@@ -192,6 +192,57 @@ if ($Mode -eq 'CleanupTree') {
   exit 0
 }
 
+if ($Mode -eq 'CleanupObsolete') {
+  $installPath = Get-NormalizedPath $InstallRoot
+  $removedFiles = @()
+  if ((Test-Path -LiteralPath $ResourcePath -PathType Leaf) -and
+      (Test-Path -LiteralPath $DestinationPath -PathType Leaf)) {
+    $newManifest = Get-Content -LiteralPath $DestinationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    try {
+      $oldManifest = Get-Content -LiteralPath $ResourcePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+      # A damaged legacy manifest cannot safely authorize deletions. Continue
+      # the repair install without differential cleanup instead.
+      $oldManifest = $null
+    }
+    if (($null -ne $oldManifest) -and ($null -ne $oldManifest.files) -and ($null -ne $newManifest.files)) {
+      $newFiles = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+      foreach ($entry in @($newManifest.files)) {
+        $path = if ($entry -is [string]) { [string]$entry } else { [string]$entry.path }
+        if (-not [string]::IsNullOrWhiteSpace($path)) { $null = $newFiles.Add($path.Replace('/', '\')) }
+      }
+      foreach ($entry in @($oldManifest.files)) {
+        $relativePath = if ($entry -is [string]) { [string]$entry } else { [string]$entry.path }
+        if ([string]::IsNullOrWhiteSpace($relativePath)) { continue }
+        $relativePath = $relativePath.Replace('/', '\')
+        if ($relativePath.StartsWith('runtime\', [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if ($newFiles.Contains($relativePath)) { continue }
+        if ([IO.Path]::IsPathRooted($relativePath) -or $relativePath.Contains(':') -or
+            @($relativePath.Split('\') | Where-Object { $_ -eq '..' }).Count -gt 0) {
+          throw ('Unsafe obsolete release path in the previous manifest: ' + $relativePath)
+        }
+        $candidate = [IO.Path]::GetFullPath((Join-Path $installPath $relativePath))
+        if (-not (Test-PathWithin $candidate $installPath)) {
+          throw ('Obsolete release path escapes the installation root: ' + $relativePath)
+        }
+        if ([DshSetup.LongPathFileSystem]::Exists($candidate)) {
+          [DshSetup.LongPathFileSystem]::DeleteTree($candidate)
+          $removedFiles += $relativePath
+        }
+      }
+    }
+  }
+  Write-PreflightReport ([ordered]@{
+    schemaVersion = 1
+    timestampUtc = [DateTime]::UtcNow.ToString('o')
+    mode = $Mode
+    installRoot = $installPath
+    previousManifest = Get-NormalizedPath $ResourcePath
+    nextManifest = Get-NormalizedPath $DestinationPath
+    removedFiles = $removedFiles
+  })
+  exit 0
+}
 
 function Get-ProcessSnapshot {
   @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ForEach-Object {

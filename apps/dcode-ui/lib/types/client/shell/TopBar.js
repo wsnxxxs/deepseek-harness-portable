@@ -13,7 +13,7 @@ import { IconBranchOutline16, IconChevronDownOutline14, IconFolderOpen16, IconFo
 import { useRuntime } from "../state/runtime.js";
 import { useSessionList, useWorkspaceGroups } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
-import { useNavigation } from "../state/navigation.js";
+import { primaryAsideTab, useNavigation, } from "../state/navigation.js";
 import { useGitStatus } from "../git/useGit.js";
 import { IconButton, Popover, ui } from "./ui.js";
 import css from './TopBar.module.css';
@@ -22,7 +22,7 @@ const EMPTY_SESSION_LOG_STATE = { bySession: {} };
 const EMPTY_SUBSCRIBE = (_listener) => () => { };
 const EMPTY_SNAPSHOT = () => EMPTY_SESSION_LOG_STATE;
 /** Task context, the left session rail toggle, sharing, and inspector control. */
-export function TopBar({ navigation, sessionId, cwd }) {
+export function TopBar({ navigation, sessionId, cwd, context }) {
     const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
@@ -34,6 +34,12 @@ export function TopBar({ navigation, sessionId, cwd }) {
     const title = sessionId === undefined ? undefined : list.byId[sessionId]?.displayTitle;
     const workspace = useMemo(() => groups.find(group => group.path === cwd) ?? groups.find(group => group.sessions.some(row => row.id === sessionId)), [groups, cwd, sessionId]);
     const dirty = (git.status?.files.length ?? 0) > 0;
+    const contextTab = primaryAsideTab(context);
+    const contextLabel = contextTab === 'details'
+        ? t('top.contextError')
+        : contextTab === 'changes'
+            ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
+            : contextTab === 'goal' ? t('top.contextGoal') : undefined;
     // While the first read is outstanding the chip shows nothing rather than
     // asserting "not a repository" about a directory it has not looked at yet.
     const branchLabel = git.pending
@@ -74,10 +80,17 @@ export function TopBar({ navigation, sessionId, cwd }) {
                         onSelect: () => { runtime.navigation?.startSession(group.workspaceId); },
                     })) })), cwd === undefined || branchLabel === undefined
                 ? null
-                : (_jsxs("button", { type: "button", className: `${css.chip} ${dirty ? css.dirty : ''}`, title: branchLabel, onClick: () => { navigation.openAside('changes'); }, children: [_jsx(IconBranchOutline16, {}), _jsx("span", { className: css.chipLabel, children: branchLabel })] })), _jsx("span", { className: css.divider, "aria-hidden": true }), _jsxs("div", { className: css.actions, children: [_jsxs("button", { type: "button", className: `${css.shareButton} ${shareClass} ${ui.tooltipTarget}`, "aria-label": shareTooltip, "aria-busy": shareBusy, "data-tooltip": shareTooltip, disabled: sessionId === undefined || sessionLogDownload === undefined || shareBusy, onClick: () => {
+                : (_jsxs("button", { type: "button", className: `${css.chip} ${dirty ? css.dirty : ''}`, title: branchLabel, onClick: () => { navigation.openAside('changes'); }, children: [_jsx(IconBranchOutline16, {}), _jsx("span", { className: css.chipLabel, children: branchLabel })] })), !state.asideOpen && contextTab !== undefined && contextLabel !== undefined
+                ? (_jsxs("button", { type: "button", className: `${css.contextHint} ${contextTab === 'details' ? css.contextHintError : ''}`, onClick: () => {
+                        if (contextTab === 'details')
+                            navigation.inspect(context.failedCallId);
+                        else
+                            navigation.openAside(contextTab);
+                    }, children: [_jsx("span", { className: css.contextDot, "aria-hidden": true }), _jsx("span", { className: css.contextLabel, children: contextLabel })] }))
+                : null, _jsx("span", { className: css.divider, "aria-hidden": true }), _jsxs("div", { className: css.actions, children: [_jsxs("button", { type: "button", className: `${css.shareButton} ${shareClass} ${ui.tooltipTarget}`, "aria-label": shareTooltip, "aria-busy": shareBusy, "data-tooltip": shareTooltip, "data-tooltip-align": "right", disabled: sessionId === undefined || sessionLogDownload === undefined || shareBusy, onClick: () => {
                             if (sessionId !== undefined && sessionLogDownload !== undefined) {
                                 void sessionLogDownload.download(sessionId);
                             }
-                        }, children: [_jsx(TopBarDownloadIcon, { size: 14 }), _jsx("span", { className: css.shareLabel, children: shareLabel })] }), _jsxs("div", { className: css.layoutGroup, role: "group", "aria-label": t('top.layout'), children: [_jsx(IconButton, { label: t('top.toggleSummary'), className: css.layoutButton, active: state.summaryOpen, dataFocusTarget: "summary", onClick: () => { navigation.toggleSummary(); }, children: _jsx(TopBarListIcon, { size: 16 }) }), _jsx(IconButton, { label: t('top.togglePreview'), className: css.layoutButton, active: state.asideOpen, dataFocusTarget: "aside", onClick: () => { navigation.toggleAside(); }, children: _jsx(IconPanelLeftOutline16, { className: ui.mirrored, size: 14 }) })] })] })] }));
+                        }, children: [_jsx(TopBarDownloadIcon, { size: 14 }), _jsx("span", { className: css.shareLabel, children: shareLabel })] }), _jsxs("div", { className: css.layoutGroup, role: "group", "aria-label": t('top.layout'), children: [_jsx(IconButton, { label: t('top.toggleSummary'), className: css.layoutButton, active: state.summaryOpen, dataFocusTarget: "summary", tooltipAlign: "right", onClick: () => { navigation.toggleSummary(); }, children: _jsx(TopBarListIcon, { size: 16 }) }), _jsx(IconButton, { label: t('top.togglePreview'), className: css.layoutButton, active: state.asideOpen, dataFocusTarget: "aside", tooltipAlign: "right", onClick: () => { navigation.toggleAside(); }, children: _jsx(IconPanelLeftOutline16, { className: ui.mirrored, size: 14 }) })] })] })] }));
 }
 //# sourceMappingURL=TopBar.js.map

@@ -10,7 +10,7 @@
  * @module @dsh-portable/dcode-ui/client/chat/tools
  */
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types';
-import type { ConversationNode } from '@deepseek-ai/dsh-client-ui-chat/client';
+import type { ConversationNode, ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client';
 /** How a tool call reads in one line. */
 export interface ToolSummary {
@@ -25,6 +25,19 @@ export interface ToolSummary {
 }
 /** The card head vocabulary. */
 export type ToolKind = 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'plan' | 'skill' | 'other';
+/** A collapsed run of lightweight, successful read/search calls. */
+export interface ToolActivityGroup {
+    readonly kind: 'tool-activity';
+    readonly blocks: readonly ToolResultNode[];
+    readonly readCount: number;
+    readonly searchCount: number;
+    /** Distinct workspace paths touched by the exploration run. */
+    readonly fileCount: number;
+    /** Sum of call durations when every result retained its call timestamp. */
+    readonly durationMs: number | undefined;
+}
+/** One transcript row after lightweight tool activity has been grouped. */
+export type TranscriptItem = ConversationNode | ToolActivityGroup;
 /**
  * Parse a tool call's raw arguments.
  * @param argsRaw - the JSON text recorded on the call event.
@@ -46,6 +59,21 @@ export declare function latestTodos(nodes: readonly ConversationNode[]): readonl
  * @returns the card head material.
  */
 export declare function summarizeTool(name: string, argsRaw: string | undefined): ToolSummary;
+/** Milliseconds spent in one settled tool call, when both event times are available. */
+export declare function toolDurationMs(block: ToolCallBlock): number | undefined;
+/** Compact tool timing shared by individual cards and activity summaries. */
+export declare function formatToolDuration(ms: number): string;
+/** Displayable line changes for file-writing cards, when the tool retained enough data. */
+export declare function toolChangeStats(block: ToolCallBlock): {
+    additions: number;
+    deletions: number;
+} | undefined;
+/**
+ * Collapse consecutive successful read/search results into transcript groups.
+ * A single action stays as an ordinary ToolCard; consecutive exploration is
+ * folded by default, and errors always break a run.
+ */
+export declare function aggregateToolActivity(nodes: readonly ConversationNode[]): readonly TranscriptItem[];
 /**
  * Flatten a tool result's content blocks into displayable text.
  * @param content - result content blocks.

@@ -43,11 +43,11 @@ test('verification is native-only and detects changed artifact bytes', async () 
   try {
     const source = join(root, 'app.zip')
     const manifest = join(root, 'release-manifest.json')
-    const target = getTargetSpec('linux-x64')
+    const target = getTargetSpec('win32-x64')
     await writeFile(source, 'final')
     await writeFile(manifest, JSON.stringify({
       schemaVersion: 3,
-      target: { id: 'linux-x64' },
+      target: { id: 'win32-x64' },
       distribution: { classification: 'non-official-unsigned' },
       files: interactiveLearningInventoryPaths(target).map(path => ({ path })),
       experiencePacks: { interactiveLearning: learningEvidence },
@@ -56,19 +56,19 @@ test('verification is native-only and detects changed artifact bytes', async () 
       target,
       evidence: {
         schemaVersion: 1,
-        capabilityReport: { target: { platform: 'linux', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
-        modeCatalog: { target: { platform: 'linux', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
+        capabilityReport: { target: { platform: 'win32', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
+        modeCatalog: { target: { platform: 'win32', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
         modeSupport: {},
         interactiveLearning: learningEvidence,
       },
       artifacts: [source],
       manifestPath: manifest,
       outputRoot: join(root, 'verified'),
-      host: { platform: 'linux', arch: 'x64' },
+      host: { platform: 'win32', arch: 'x64' },
     })
-    assert.equal((await verifyArtifactBundle(result.directory, 'linux-x64')).artifacts.length, 1)
+    assert.equal((await verifyArtifactBundle(result.directory, 'win32-x64')).artifacts.length, 1)
     await writeFile(join(result.directory, 'app.zip'), 'changed')
-    await assert.rejects(verifyArtifactBundle(result.directory, 'linux-x64'), /bytes changed/)
+    await assert.rejects(verifyArtifactBundle(result.directory, 'win32-x64'), /bytes changed/)
     await mkdir(join(root, 'unused'))
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -80,7 +80,7 @@ test('verification rejects a manifest without complete Interactive Learning evid
   try {
     const source = join(root, 'app.zip')
     const manifest = join(root, 'release-manifest.json')
-    const target = getTargetSpec('linux-x64')
+    const target = getTargetSpec('win32-x64')
     await writeFile(source, 'final')
     await writeFile(manifest, JSON.stringify({
       schemaVersion: 3,
@@ -95,15 +95,15 @@ test('verification rejects a manifest without complete Interactive Learning evid
       target,
       evidence: {
         schemaVersion: 1,
-        capabilityReport: { target: { platform: 'linux', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
-        modeCatalog: { target: { platform: 'linux', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
+        capabilityReport: { target: { platform: 'win32', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
+        modeCatalog: { target: { platform: 'win32', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
         modeSupport: {},
         interactiveLearning: learningEvidence,
       },
       artifacts: [source],
       manifestPath: manifest,
       outputRoot: join(root, 'verified'),
-      host: { platform: 'linux', arch: 'x64' },
+      host: { platform: 'win32', arch: 'x64' },
     }), /missing required Interactive Learning file.*lib\/client\.js/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -115,7 +115,7 @@ test('verification rejects an extra file outside the exact Interactive Learning 
   try {
     const source = join(root, 'app.zip')
     const manifest = join(root, 'release-manifest.json')
-    const target = getTargetSpec('linux-x64')
+    const target = getTargetSpec('win32-x64')
     const packageRoot = 'runtime/resources/app/node_modules/@dsh-portable/interactive-learning'
     await writeFile(source, 'final')
     await writeFile(manifest, JSON.stringify({
@@ -132,15 +132,15 @@ test('verification rejects an extra file outside the exact Interactive Learning 
       target,
       evidence: {
         schemaVersion: 1,
-        capabilityReport: { target: { platform: 'linux', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
-        modeCatalog: { target: { platform: 'linux', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
+        capabilityReport: { target: { platform: 'win32', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
+        modeCatalog: { target: { platform: 'win32', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
         modeSupport: {},
         interactiveLearning: learningEvidence,
       },
       artifacts: [source],
       manifestPath: manifest,
       outputRoot: join(root, 'verified'),
-      host: { platform: 'linux', arch: 'x64' },
+      host: { platform: 'win32', arch: 'x64' },
     }), /Interactive Learning package inventory is not exact;.*unexpected=.*output\/stale\.tgz/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -152,7 +152,7 @@ test('verification rejects manifest evidence that differs from final-byte smoke 
   try {
     const source = join(root, 'app.zip')
     const manifest = join(root, 'release-manifest.json')
-    const target = getTargetSpec('linux-x64')
+    const target = getTargetSpec('win32-x64')
     await writeFile(source, 'final')
     await writeFile(manifest, JSON.stringify({
       schemaVersion: 3,
@@ -169,15 +169,15 @@ test('verification rejects manifest evidence that differs from final-byte smoke 
       target,
       evidence: {
         schemaVersion: 1,
-        capabilityReport: { target: { platform: 'linux', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
-        modeCatalog: { target: { platform: 'linux', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
+        capabilityReport: { target: { platform: 'win32', arch: 'x64' }, snapshotHash: 'a'.repeat(64) },
+        modeCatalog: { target: { platform: 'win32', arch: 'x64' }, capabilitySnapshotHash: 'a'.repeat(64) },
         modeSupport: {},
         interactiveLearning: finalByteEvidence,
       },
       artifacts: [source],
       manifestPath: manifest,
       outputRoot: join(root, 'verified'),
-      host: { platform: 'linux', arch: 'x64' },
+      host: { platform: 'win32', arch: 'x64' },
     }), /evidence differs from final-byte smoke evidence/)
   } finally {
     await rm(root, { recursive: true, force: true })

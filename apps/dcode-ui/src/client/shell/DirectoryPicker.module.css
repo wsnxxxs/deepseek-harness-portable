@@ -19,7 +19,7 @@
   border: 1px solid var(--zx-border);
   border-radius: var(--zx-radius-xl);
   background: var(--zx-bg-overlay);
-  box-shadow: var(--zx-shadow-panel);
+  box-shadow: var(--zx-shadow-dialog), var(--zx-shadow-inset-top);
   overflow: hidden;
 }
 

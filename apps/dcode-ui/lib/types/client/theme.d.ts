@@ -21,7 +21,11 @@ export type WindowMaterial = 'acrylic' | 'mica' | 'none';
 export declare const THEME_PREFERENCES: readonly ThemePreference[];
 /** Global the desktop preload publishes the resolved window backdrop on. */
 export declare const SURFACE_BRIDGE_GLOBAL = "__DSH_DESKTOP_SURFACE__";
-/** Body/root attribute marking a document whose ground must stay translucent. */
+/**
+ * Body/root attribute marking a document whose ground must stay translucent.
+ * Token surfaces and panel styles use this single presence selector, keeping
+ * the Windows 11 native material and the browser fallback on the same path.
+ */
 export declare const ACRYLIC_ATTRIBUTE = "data-dcode-acrylic";
 /** Root attribute carrying the resolved scheme to the token stylesheet. */
 export declare const SCHEME_ATTRIBUTE = "data-dcode-scheme";
@@ -52,6 +56,12 @@ export interface ThemeFace {
     setTheme?(id: string): void;
     setFontSize?(px: number): void;
 }
+/** Default base content font size in pixels. */
+export declare const DEFAULT_FONT_SIZE = 14;
+/** Minimum supported interface font size in pixels. */
+export declare const FONT_SIZE_MIN = 11;
+/** Maximum supported interface font size in pixels. */
+export declare const FONT_SIZE_MAX = 22;
 /** The event bus slice this module subscribes to. */
 interface EventSource {
     on(name: 'theme/change', listener: () => void): () => void;
@@ -62,12 +72,18 @@ export interface AppearanceStore {
     getScheme(): ColorScheme;
     /** What the user chose, which may be `system`. */
     getPreference(): ThemePreference;
+    /** The interface content font size in pixels (11..22, default 14). */
+    getFontSize(): number;
     /** Whether this assembly can write the preference at all. */
     readonly canSet: boolean;
+    /** Whether this assembly can write the font size. */
+    readonly canSetFontSize: boolean;
     /** The native backdrop; `none` on the web and on Windows 10 and older. */
     readonly material: WindowMaterial;
     /** Switch the preference. A no-op where {@link canSet} is false. */
     set(preference: ThemePreference): void;
+    /** Change the font size in pixels. Clamped to {@link FONT_SIZE_MIN}..{@link FONT_SIZE_MAX}. */
+    setFontSize(px: number): void;
     subscribe(listener: () => void): () => void;
 }
 /**

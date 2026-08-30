@@ -8,8 +8,8 @@
  * @module @dsh-portable/dcode-ui/client/rpc
  */
 import type { DcodeResult } from '../host/rpc.ts';
-import type { GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStatus } from '../host/git.ts';
-export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStatus } from '../host/git.ts';
+import type { GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts';
+export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts';
 /** The Connection RPC face this module needs. */
 export interface RpcCarrier {
     rpc: {
@@ -33,8 +33,13 @@ export interface DcodeApi {
     branches(cwd: string): Promise<DcodeResult<{
         branches: readonly GitBranch[];
     }>>;
-    commit(cwd: string, message: string, paths?: readonly string[]): Promise<DcodeResult<GitCommitResult>>;
+    stage(cwd: string, paths: readonly string[]): Promise<DcodeResult<GitStageResult>>;
+    unstage(cwd: string, paths: readonly string[]): Promise<DcodeResult<GitStageResult>>;
+    commit(cwd: string, message: string): Promise<DcodeResult<GitCommitResult>>;
     undo(cwd: string, paths: readonly string[]): Promise<DcodeResult<{
+        outcomes: readonly GitRestoreOutcome[];
+    }>>;
+    undoHunk(cwd: string, path: string, patch: string, staged?: boolean): Promise<DcodeResult<{
         outcomes: readonly GitRestoreOutcome[];
     }>>;
     readFile(cwd: string, path: string): Promise<DcodeResult<FileRead>>;

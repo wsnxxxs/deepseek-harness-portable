@@ -19,9 +19,8 @@ export type LayoutSize = 'compact' | 'medium' | 'wide';
  * Inclusive lower bound of each class, in CSS pixels of the frame's width.
  *
  * `medium` is the width at which the rail can dock without squeezing the
- * conversation below a readable column; `wide` is the width at which the
- * details card also fits beside it, in the gutter the reading measure leaves
- * rather than on top of the text.
+ * conversation below a readable column; `wide` leaves enough room for an
+ * operator-requested context panel without changing its default visibility.
  */
 export declare const LAYOUT_BREAKPOINTS: {
     readonly medium: 900;
@@ -43,11 +42,14 @@ export interface PanelFit {
  * What each class opens on its own.
  *
  * Compact hands the whole frame to the conversation and leaves both panels to
- * be summoned; medium docks the rail; wide adds the details card. These are
- * defaults, not rules — the operator's own toggles win until the class
- * changes underneath them.
+ * be summoned; medium and wide dock the rail while context stays opt-in.
+ * These are defaults, not rules — the operator's workspace choice wins.
  */
 export declare const LAYOUT_FIT: Record<LayoutSize, PanelFit>;
+/** Read the operator's explicit context-panel choice for one workspace. */
+export declare function readContextPanelPreference(workspace: string | undefined): boolean | undefined;
+/** Remember an explicit context-panel choice without coupling it to a session. */
+export declare function writeContextPanelPreference(workspace: string | undefined, open: boolean): void;
 /** A panel pair and whether the operator has overridden either one. */
 export interface PanelState extends PanelFit {
     readonly railPinned: boolean;

@@ -14,6 +14,22 @@ import { useT } from "../state/i18n.js";
 import { hasAnsi, parseAnsi, stripAnsi } from "./ansi.js";
 import { CopyButton } from "../shell/ui.js";
 import css from './AnsiOutput.module.css';
+const PLAIN_MAX_LINES = 4000;
+const PLAIN_MAX_CHARS = 262_144;
+/** Keep the plain-text fast path while routing oversized output through the bounded parser. */
+function plainOutputNeedsBounding(text) {
+    if (text.length > PLAIN_MAX_CHARS)
+        return true;
+    let lines = 1;
+    for (let index = 0; index < text.length; index += 1) {
+        if (text.charCodeAt(index) !== 10)
+            continue;
+        lines += 1;
+        if (lines > PLAIN_MAX_LINES)
+            return true;
+    }
+    return false;
+}
 /** Inline style for one span; colours are data, so they cannot be classes. */
 function spanStyle(span) {
     const style = {};
@@ -37,8 +53,8 @@ function spanStyle(span) {
 /** Styled terminal output. */
 export function AnsiOutput({ text, wrap, className }) {
     const t = useT();
-    const styled = hasAnsi(text);
-    const document = useMemo(() => (styled ? parseAnsi(text) : undefined), [styled, text]);
+    const parsed = hasAnsi(text) || plainOutputNeedsBounding(text);
+    const document = useMemo(() => (parsed ? parseAnsi(text) : undefined), [parsed, text]);
     const body = document === undefined
         ? text
         : document.lines.map((spans, lineIndex) => (

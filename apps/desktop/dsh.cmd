@@ -6,6 +6,11 @@ if /I "%~1"=="update" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_ROOT%update.ps1" %*
     goto :EOF
 )
+if /I "%~1"=="clean" (
+    shift
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_ROOT%update.ps1" -Clean %*
+    goto :EOF
+)
 if exist "%APP_ROOT%.update-transaction.json" (
     findstr /R /C:"phase.*committed" "%APP_ROOT%.update-transaction.json" >nul 2>&1
     if errorlevel 1 (

@@ -5,7 +5,9 @@
   grid-template-columns: 220px 1fr;
   width: 100%;
   min-width: 0;
+  height: 100%;
   overflow: hidden;
+  background: var(--zx-bg-app);
 }
 
 .rail {
@@ -13,8 +15,7 @@
   flex-direction: column;
   border-right: 1px solid var(--zx-border-soft);
   background: var(--zx-bg-panel);
-  padding: var(--zx-space-3);
-  padding-top: calc(var(--zx-space-4) + var(--dsh-desktop-titlebar-height, 0px));
+  padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-4);
   gap: 2px;
   overflow: hidden auto;
 }
@@ -22,18 +23,20 @@
 .back {
   display: flex;
   align-items: center;
-  gap: var(--zx-space-3);
-  height: var(--zx-control-sm);
+  gap: var(--zx-space-2);
+  height: var(--zx-control-md);
   padding: 0 var(--zx-space-3);
-  margin-bottom: var(--zx-space-3);
+  margin-bottom: var(--zx-space-2);
   border: 0;
   border-radius: var(--zx-radius-md);
   background: transparent;
-  color: var(--zx-label-muted);
+  color: var(--zx-label-secondary);
   font: inherit;
   font-size: var(--zx-text-xs);
+  font-weight: var(--zx-weight-medium);
   text-align: left;
   cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
 }
 
 .back:hover {
@@ -68,16 +71,18 @@
 }
 
 .railGroup {
-  padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-1);
+  padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
   color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
+  font-weight: var(--zx-weight-semibold);
+  letter-spacing: 0.02em;
 }
 
 .body {
   min-width: 0;
   overflow: hidden auto;
-  padding: var(--zx-space-7) var(--zx-space-7) var(--zx-space-7);
-  padding-top: calc(var(--zx-space-6) + var(--dsh-desktop-titlebar-height, 0px));
+  padding: var(--zx-space-6) var(--zx-space-7) var(--zx-space-7);
+  background: var(--zx-bg-app);
 }
 
 .inner {

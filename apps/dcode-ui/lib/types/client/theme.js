@@ -15,12 +15,22 @@
 export const THEME_PREFERENCES = ['light', 'dark', 'system'];
 /** Global the desktop preload publishes the resolved window backdrop on. */
 export const SURFACE_BRIDGE_GLOBAL = '__DSH_DESKTOP_SURFACE__';
-/** Body/root attribute marking a document whose ground must stay translucent. */
+/**
+ * Body/root attribute marking a document whose ground must stay translucent.
+ * Token surfaces and panel styles use this single presence selector, keeping
+ * the Windows 11 native material and the browser fallback on the same path.
+ */
 export const ACRYLIC_ATTRIBUTE = 'data-dcode-acrylic';
 /** Root attribute carrying the resolved scheme to the token stylesheet. */
 export const SCHEME_ATTRIBUTE = 'data-dcode-scheme';
 /** The `ui-layout` presenter's body attribute; present only for dark palettes. */
 const DARK_BODY_ATTRIBUTE = 'data-ds-dark-theme';
+/** Default base content font size in pixels. */
+export const DEFAULT_FONT_SIZE = 14;
+/** Minimum supported interface font size in pixels. */
+export const FONT_SIZE_MIN = 11;
+/** Maximum supported interface font size in pixels. */
+export const FONT_SIZE_MAX = 22;
 /**
  * Read the backdrop the desktop shell reported for this window.
  * @returns the material, or `none` on any surface without the bridge.
@@ -70,12 +80,39 @@ export function createAppearanceStore(events, theme) {
             return 'dark';
         return media?.matches === true ? 'dark' : 'light';
     };
+    const getFontSize = () => {
+        const size = theme?.getTheme().fontSize;
+        if (typeof size === 'number' && !Number.isNaN(size) && size > 0)
+            return size;
+        if (typeof document !== 'undefined') {
+            const raw = document.body.style.getPropertyValue('--dsh-content-font-size')
+                || document.body.style.getPropertyValue('--zx-font-size-base');
+            const parsed = parseInt(raw, 10);
+            if (!Number.isNaN(parsed) && parsed > 0)
+                return parsed;
+        }
+        return DEFAULT_FONT_SIZE;
+    };
+    const setFontSize = (px) => {
+        const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(px)));
+        if (theme?.setFontSize !== undefined) {
+            theme.setFontSize(clamped);
+        }
+        else if (typeof document !== 'undefined') {
+            document.body.style.setProperty('--dsh-content-font-size', `${clamped}px`);
+            document.body.style.setProperty('--zx-font-size-base', `${clamped}px`);
+            notify();
+        }
+    };
     return {
         getScheme,
         getPreference: () => asThemePreference(theme?.getTheme().preference) ?? 'system',
+        getFontSize,
         canSet: theme?.setTheme !== undefined,
+        canSetFontSize: theme?.setFontSize !== undefined || typeof document !== 'undefined',
         material: readWindowMaterial(),
         set: (preference) => { theme?.setTheme?.(preference); },
+        setFontSize,
         subscribe: (listener) => {
             listeners.add(listener);
             if (sourceDisposers === undefined) {
@@ -88,7 +125,7 @@ export function createAppearanceStore(events, theme) {
                 }
                 if (typeof MutationObserver === 'function' && typeof document !== 'undefined') {
                     const observer = new MutationObserver(notify);
-                    observer.observe(document.body, { attributes: true, attributeFilter: [DARK_BODY_ATTRIBUTE] });
+                    observer.observe(document.body, { attributes: true, attributeFilter: [DARK_BODY_ATTRIBUTE, 'style'] });
                     disposers.push(() => { observer.disconnect(); });
                 }
                 if (media !== undefined) {

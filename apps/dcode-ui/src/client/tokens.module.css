@@ -13,21 +13,24 @@
  * the guaranteed-invalid value and would silently drop the whole declaration
  * — including inside `color-mix()`.
  *
- * The visual target is a compact desktop workbench: near-black ground, one
- * step of raised surface, hairline borders, 10px card radii, and a muted
- * label ramp so the conversation is the only high-contrast thing on screen.
+ * The visual target is a compact desktop workbench: near-black ground, a
+ * translucent four-step surface ramp, hardware hairlines, continuous 12–20px
+ * radii, and a muted label ramp so the conversation remains the only
+ * high-contrast thing on screen.
  */
 
 [data-dcode-scope] {
-  /* Type ramp. 11px is the floor and is reserved for numeric furniture;
+  /* Type ramp. Scales dynamically with the configured font size.
+     11px is the floor and is reserved for numeric furniture at the default 14px base;
      anything read as language starts at 12px. */
-  --zx-text-micro: 11px;
-  --zx-text-xs: 12px;
-  --zx-text-sm: 13px;
-  --zx-text-md: 14px;
-  --zx-text-lg: 16px;
-  --zx-text-xl: 20px;
-  --zx-text-2xl: 26px;
+  --zx-font-size-base: var(--dsh-content-font-size, 14px);
+  --zx-text-micro: calc(var(--zx-font-size-base) - 3px);
+  --zx-text-xs: calc(var(--zx-font-size-base) - 2px);
+  --zx-text-sm: calc(var(--zx-font-size-base) - 1px);
+  --zx-text-md: var(--zx-font-size-base);
+  --zx-text-lg: calc(var(--zx-font-size-base) + 2px);
+  --zx-text-xl: calc(var(--zx-font-size-base) + 6px);
+  --zx-text-2xl: calc(var(--zx-font-size-base) + 12px);
   --zx-leading-tight: 1.35;
   --zx-leading-snug: 1.4;
   --zx-leading-body: 1.65;
@@ -42,12 +45,13 @@
   --zx-space-6: 20px;
   --zx-space-7: 28px;
 
-  /* Radii. Cards are 10px, controls 8px, pills fully round. */
+  /* Continuous radii: compact chrome, cards, large cards, dialogs, pills. */
   --zx-radius-sm: 6px;
   --zx-radius-md: 8px;
-  --zx-radius-lg: 10px;
+  --zx-radius-lg: 12px;
   --zx-radius-xl: 14px;
-  --zx-radius-2xl: 20px;
+  --zx-radius-2xl: 18px;
+  --zx-radius-dialog: 20px;
   --zx-radius-pill: 999px;
 
   /* Control heights. Four steps only, so a button, an input and a rail row
@@ -70,27 +74,37 @@
   --zx-weight-semibold: 600;
   --zx-opacity-disabled: 0.45;
 
-  /* Ground and surfaces. */
-  --zx-bg-app: var(--dsw-alias-bg-base, #0d0d0f);
-  --zx-bg-panel: var(--dsw-alias-bg-layer-1, #141416);
-  --zx-bg-card: var(--dsw-alias-bg-layer-2, #191a1d);
-  --zx-bg-overlay: var(--dsw-alias-bg-overlay, #1c1d20);
+  /* Material ramp. Surface 0 is the opaque canvas; every higher surface is
+     a label-tinted wash, so it can be layered over either a theme ground or a
+     native Windows material without changing its hue. Keep the legacy names
+     as semantic aliases while downstream modules migrate. */
+  --zx-bg-surface-0: var(--dsw-alias-bg-base, #0d0d0f);
+  --zx-bg-surface-1: color-mix(in srgb, var(--zx-label) 4.5%, transparent);
+  --zx-bg-surface-2: color-mix(in srgb, var(--zx-label) 7.5%, transparent);
+  --zx-bg-surface-elevated: color-mix(in srgb, var(--zx-label) 11%, transparent);
+  --zx-bg-app: var(--zx-bg-surface-0);
+  --zx-bg-panel: var(--zx-bg-surface-1);
+  --zx-bg-card: var(--zx-bg-surface-2);
+  --zx-bg-overlay: var(--zx-bg-surface-elevated);
   --zx-bg-raised: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 6%, transparent);
   --zx-bg-hover: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 8%, transparent);
   --zx-bg-active: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 12%, transparent);
 
-  /* Hairlines. Two weights only: a structural divider and a card edge. */
-  --zx-border: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 11%, transparent);
-  --zx-border-soft: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 7%, transparent);
+  /* Hairlines. The 0.5px shorthand is reserved for optically fine component
+     edges; structural dividers retain a full CSS pixel. */
+  --zx-border: color-mix(in srgb, var(--zx-label) 11%, transparent);
+  --zx-border-subtle: color-mix(in srgb, var(--zx-label) 8%, transparent);
+  --zx-border-hairline: 0.5px solid var(--zx-border-subtle);
+  --zx-border-soft: var(--zx-border-subtle);
   --zx-border-control: color-mix(in srgb, var(--zx-label) 38%, transparent);
 
   /* Label ramp. */
-  --zx-label: var(--dsw-alias-label-primary, #ececee);
-  --zx-label-secondary: var(--dsw-alias-label-secondary, #a9aab0);
+  --zx-label: var(--dsw-alias-label-primary, #f2f2f4);
+  --zx-label-secondary: var(--dsw-alias-label-secondary, #b7b8be);
   --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 78%, transparent);
-  --zx-label-faint: var(--zx-label-decor);
-  --zx-label-tertiary: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 68%, transparent);
-  --zx-label-decor: color-mix(in srgb, var(--dsw-alias-label-secondary, #a9aab0) 48%, transparent);
+  --zx-label-tertiary: color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));
+  --zx-label-faint: color-mix(in srgb, var(--zx-label-secondary) 74%, var(--zx-bg-surface-0));
+  --zx-label-decor: var(--zx-label-faint);
 
   /* Accents.
 
@@ -136,11 +150,13 @@
   --zx-scrim: rgb(0 0 0 / 46%);
 
   --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);
-  --zx-shadow-panel: 0 12px 32px rgb(0 0 0 / 34%), 0 2px 6px rgb(0 0 0 / 22%);
-  --zx-shadow-card: 0 1px 2px rgb(0 0 0 / 18%);
-  --zx-shadow-popover: 0 16px 38px rgb(0 0 0 / 30%), 0 3px 9px rgb(0 0 0 / 18%);
+  --zx-shadow-floating: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 28%);
+  --zx-shadow-card: 0 6px 18px rgb(0 0 0 / 18%), 0 1px 3px rgb(0 0 0 / 20%);
+  --zx-shadow-popover: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 28%);
+  --zx-shadow-panel: var(--zx-shadow-floating);
   --zx-shadow-dialog: 0 18px 44px rgb(0 0 0 / 34%), 0 4px 12px rgb(0 0 0 / 20%);
   --zx-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);
+  --zx-shadow-inset-top: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
 
   --zx-z-base: 0;
   --zx-z-sticky: 10;
@@ -159,7 +175,7 @@
 
   --zx-motion-fast: 120ms cubic-bezier(0.2, 0, 0.2, 1);
   --zx-motion: 180ms cubic-bezier(0.2, 0, 0.2, 1);
-  --zx-glass-filter: blur(20px) saturate(130%);
+  --zx-glass-filter: blur(16px) saturate(140%);
 
   /* Column geometry. Panels are resizable within these bounds. */
   --zx-rail-width: 240px;
@@ -193,35 +209,33 @@
  * can never disagree about which palette is in force.
  */
 [data-dcode-scope][data-dcode-scheme='light'] {
-  /* The shipped light theme resolves bg-base, layer-1 and layer-2 all to pure
-     white, which flattens rail, canvas and card into one sheet with nothing
-     but hairlines between them. So the ramp is built here rather than read:
-     ink washed over the base in the same direction the dark palette runs —
-     canvas lowest, rail raised, cards highest. */
-  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 4%, var(--dsw-alias-bg-base, #fff));
-  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 2%, var(--dsw-alias-bg-base, #fff));
-  --zx-bg-card: var(--dsw-alias-bg-base, #fff);
-  --zx-bg-overlay: var(--dsw-alias-bg-base, #fff);
-  --zx-bg-raised: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 4%, transparent);
-  --zx-bg-hover: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 6%, transparent);
-  --zx-bg-active: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 10%, transparent);
+  /* Crisp, refined light palette: soft neutral-tinted off-white canvas, pure white
+     elevated cards with soft depth shadows, and clean panel structures. */
+  --zx-bg-surface-0: var(--dsw-alias-bg-base, #f8f9fb);
+  --zx-bg-surface-1: #ffffff;
+  --zx-bg-surface-2: #ffffff;
+  --zx-bg-surface-elevated: #ffffff;
+  --zx-bg-raised: color-mix(in srgb, var(--zx-label) 4%, transparent);
+  --zx-bg-hover: color-mix(in srgb, var(--zx-label) 5.5%, transparent);
+  --zx-bg-active: color-mix(in srgb, var(--zx-label) 9.5%, transparent);
 
-  /* Hairlines stay hairlines: a 10%/6% black edge reads at the same weight on
-     white as an 11%/7% white edge does on black. */
-  --zx-border: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 10%, transparent);
-  --zx-border-soft: color-mix(in srgb, var(--dsw-alias-label-primary, #1c2024) 6%, transparent);
+  /* Hairlines stay hairlines: subtle neutral borders */
+  --zx-border: color-mix(in srgb, var(--zx-label) 10%, transparent);
+  --zx-border-subtle: color-mix(in srgb, var(--zx-label) 6.5%, transparent);
+  --zx-border-soft: var(--zx-border-subtle);
+  --zx-border-control: color-mix(in srgb, var(--zx-label) 14%, transparent);
 
   --zx-label: var(--dsw-alias-label-primary, #1c2024);
-  --zx-label-secondary: var(--dsw-alias-label-secondary, #59606b);
+  --zx-label-secondary: var(--dsw-alias-label-secondary, #525866);
   /* Held higher than the dark ramp: fading toward white loses contrast faster
      than fading toward black. */
-  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 90%, transparent);
-  --zx-label-faint: var(--zx-label-decor);
-  --zx-label-tertiary: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 68%, transparent);
-  --zx-label-decor: color-mix(in srgb, var(--dsw-alias-label-secondary, #59606b) 48%, transparent);
+  --zx-label-muted: color-mix(in srgb, var(--dsw-alias-label-secondary, #525866) 88%, transparent);
+  --zx-label-tertiary: color-mix(in srgb, var(--zx-label-secondary) 92%, var(--zx-bg-surface-0));
+  --zx-label-faint: color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));
+  --zx-label-decor: var(--zx-label-faint);
 
   --zx-accent: var(--dsw-alias-brand-primary, #2563eb);
-  --zx-on-accent: var(--dsw-alias-bg-base, #fff);
+  --zx-on-accent: #ffffff;
   --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #2563eb) 12%, transparent);
   --zx-on-accent-soft: #1a45b0;
   --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);
@@ -231,12 +245,13 @@
   --zx-added: var(--dsw-alias-state-success-primary, #1a7f37);
   --zx-removed: var(--dsw-alias-state-error-primary, #cf222e);
 
-  /* Ink-toned rather than black: a neutral-black shadow on a white ground
-     reads as dirt, a blue-grey one as depth. */
-  --zx-shadow-panel: 0 12px 32px rgb(15 23 42 / 12%), 0 2px 6px rgb(15 23 42 / 6%);
-  --zx-shadow-card: 0 1px 2px rgb(15 23 42 / 6%);
-  --zx-shadow-popover: 0 16px 38px rgb(15 23 42 / 16%), 0 3px 9px rgb(15 23 42 / 8%);
-  --zx-shadow-dialog: 0 18px 44px rgb(15 23 42 / 18%), 0 4px 12px rgb(15 23 42 / 8%);
+  /* Modern soft depth shadows for light theme */
+  --zx-shadow-floating: 0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --zx-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  --zx-shadow-popover: 0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --zx-shadow-panel: var(--zx-shadow-floating);
+  --zx-shadow-dialog: 0 20px 48px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --zx-shadow-inset-top: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
 
   /* Terminal palette, darkened so coloured output survives a white ground —
      bright cyan and yellow are unreadable on white at their dark values. */
@@ -285,17 +300,17 @@ html[data-dcode-acrylic] [data-reactroot] {
    popovers the least, because a menu over a busy wallpaper has to stay
    readable at a glance. */
 [data-dcode-scope][data-dcode-acrylic] {
-  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-bg-base, #0d0d0f) 62%, transparent);
-  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #141416) 72%, transparent);
-  --zx-bg-card: color-mix(in srgb, var(--dsw-alias-bg-layer-2, #191a1d) 80%, transparent);
-  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-overlay, #1c1d20) 92%, transparent);
+  --zx-bg-surface-0: color-mix(in srgb, var(--dsw-alias-bg-base, #0d0d0f) 72%, transparent);
+  --zx-bg-surface-1: color-mix(in srgb, var(--dsw-alias-bg-base, #141418) 78%, transparent);
+  --zx-bg-surface-2: color-mix(in srgb, var(--dsw-alias-bg-base, #1b1b22) 84%, transparent);
+  --zx-bg-surface-elevated: color-mix(in srgb, var(--dsw-alias-bg-base, #22222b) 90%, transparent);
 }
 
 [data-dcode-scope][data-dcode-scheme='light'][data-dcode-acrylic] {
-  --zx-bg-app: color-mix(in srgb, var(--dsw-alias-bg-base, #f7f8fa) 62%, transparent);
-  --zx-bg-panel: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 74%, transparent);
-  --zx-bg-card: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 82%, transparent);
-  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 94%, transparent);
+  --zx-bg-surface-0: color-mix(in srgb, var(--dsw-alias-bg-base, #f8f9fb) 88%, transparent);
+  --zx-bg-surface-1: color-mix(in srgb, #ffffff 92%, transparent);
+  --zx-bg-surface-2: color-mix(in srgb, #ffffff 96%, transparent);
+  --zx-bg-surface-elevated: color-mix(in srgb, #ffffff 98%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

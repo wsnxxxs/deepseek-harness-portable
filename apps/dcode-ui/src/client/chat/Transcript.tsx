@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
   IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconLikeOutline16,
   IconPaperclipOutline16, IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
@@ -112,7 +113,7 @@ function compactTokens(count: number): string {
   return `${(count / 1_000_000).toFixed(1)}m`
 }
 
-/** Running reasoning stays visible; completed reasoning folds into a one-line capsule. */
+/** Running reasoning stays visible; completed reasoning folds into a one-line row. */
 function Reasoning(props: {
   text: string
   streaming: boolean
@@ -142,7 +143,7 @@ function Reasoning(props: {
     ? `Thinking (${seconds}s)…`
     : `Thought for ${seconds}s${props.tokenCount === undefined ? '' : ` · ${compactTokens(props.tokenCount)} tokens`}`
   return (
-    <div className={`${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''}`}>
+    <div className={`${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''} ${shimmerActive(props.streaming)}`}>
       <button
         type="button"
         className={css.reasoningHead}
@@ -154,7 +155,7 @@ function Reasoning(props: {
         <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
         <span className={css.reasoningTitle}>{title}</span>
         {props.streaming
-          ? <span className={css.reasoningGlow} aria-hidden />
+          ? null
           : <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />}
       </button>
       <div className={`${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`}>
@@ -181,7 +182,6 @@ function ThinkingStatus() {
       <div className={css.reasoningHead}>
         <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
         <span className={css.reasoningTitle}>Thinking ({seconds}s)…</span>
-        <span className={css.reasoningGlow} aria-hidden />
       </div>
     </div>
   )
@@ -195,10 +195,16 @@ function ToolActivityGroup(props: {
   const t = useT()
   const [open, setOpen] = useState(false)
   const contentId = useId()
-  const summary = t(
-    props.group.fileCount === 1 ? 'chat.toolActivity.exploredOne' : 'chat.toolActivity.explored',
-    { count: props.group.fileCount },
-  )
+  const summary = [
+    props.group.readCount === 0 ? undefined : t(
+      props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany',
+      { count: props.group.readCount },
+    ),
+    props.group.searchCount === 0 ? undefined : t(
+      props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany',
+      { count: props.group.searchCount },
+    ),
+  ].filter((part): part is string => part !== undefined).join(' · ')
 
   return (
     <div className={css.toolActivity}>
@@ -216,15 +222,15 @@ function ToolActivityGroup(props: {
           : <span className={css.toolActivityDuration}>· {formatToolDuration(props.group.durationMs)}</span>}
         <IconChevronRightOutline14 className={`${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}`} />
       </button>
-      {open
-        ? (
+      <div className={`${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`} aria-hidden={!open}>
+        <div className={css.toolActivityClip}>
           <div className={css.toolActivityItems} id={contentId}>
             {props.group.blocks.map(block => (
               <ToolCard key={block.callId} block={block} onInspect={props.onInspect} />
             ))}
           </div>
-        )
-        : null}
+        </div>
+      </div>
     </div>
   )
 }
@@ -726,6 +732,14 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   const [highlightedTurn, setHighlightedTurn] = useState<number | undefined>(undefined)
   const [branchCreated, setBranchCreated] = useState(false)
   const [showScrollLatest, setShowScrollLatest] = useState(false)
+  const emptyHero = (
+    <div className={`${css.hero} ${css.heroBlank}`}>
+      <div className={css.heroHeadline}>
+        <span className={css.heroFishHitbox}><FishLogo size={34} className={css.heroFish} /></span>
+        <span className={css.heroGreeting}>{t(dynamicGreetingKey())}</span>
+      </div>
+    </div>
+  )
 
   const labels = useMemo<MarkdownLabels>(() => ({
     code: { copyLabel: t('common.copy'), copiedLabel: t('common.copied') },
@@ -800,12 +814,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   }, [])
 
   if (sessionId === undefined) {
-    // Keep the greeting, but remove the extra prompt and shortcut button.
-    return (
-      <div className={`${css.hero} ${css.heroBlank}`}>
-        <span className={css.heroGreeting}>{t(dynamicGreetingKey())}</span>
-      </div>
-    )
+    return emptyHero
   }
 
   if (chat === undefined && !blank) {
@@ -815,17 +824,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   return (
     <div className={css.scroller} ref={scrollerRef} tabIndex={0} role="region" aria-label={t('chat.transcript')}>
       {blank
-        ? (
-          // Bottom-aligned rather than centred: the frame is already holding
-          // this column and the composer on one centre line, so the greeting
-          // belongs directly above the input, not in the middle of its own half.
-          <div className={`${css.hero} ${css.heroBlank}`}>
-            <span className={css.heroGreeting}>{t(dynamicGreetingKey())}</span>
-            <p className={css.heroBody}>
-              {cwd === undefined ? t('chat.empty.noWorkspace') : t('chat.empty.body', { cwd })}
-            </p>
-          </div>
-        )
+        ? emptyHero
         : (
           <>
             {compact ? null : <MessageNavRail

@@ -1,7 +1,7 @@
 /**
  * The re-read control — the one place in this panel that spends money.
  *
- * Everything else under 学习库 is local file I/O by default. This control is
+ * Everything else under 资料库 is local file I/O by default. This control is
  * the explicit exception, so it is built to be unmistakable rather than
  * convenient:
  *

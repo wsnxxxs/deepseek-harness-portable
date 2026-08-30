@@ -22,7 +22,9 @@ export interface SummaryCardProps {
     readonly cwd: string | undefined;
     /** Top-bar controlled visibility. */
     readonly open: boolean;
+    /** Compact summaries are modal bottom sheets rather than anchored cards. */
+    readonly compact: boolean;
 }
 /** The environment digest, or null while the top bar keeps it closed. */
-export declare function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardProps): import("react").JSX.Element | null;
+export declare function SummaryCard({ navigation, sessionId, cwd, open, compact }: SummaryCardProps): import("react").JSX.Element | null;
 //# sourceMappingURL=SummaryCard.d.ts.map

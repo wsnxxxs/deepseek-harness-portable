@@ -17,9 +17,7 @@ interface Workflow {
 }
 
 const targets = [
-  { id: 'linux-x64', job: 'linux-x64', script: 'desktop:package:linux' },
   { id: 'win32-x64', job: 'windows-x64-wsl', script: 'desktop:package:win' },
-  { id: 'darwin-arm64', job: 'macos-arm64', script: 'desktop:package:mac' },
 ] as const
 
 test('native package jobs upload the exact verified output produced by their package command', () => {
@@ -67,17 +65,13 @@ test('CI materializes portable client manifests before building the pinned kerne
   assert.ok(kernelBuildIndex > bridgeIndex, 'verify must create the bridge before the pinned kernel build')
 })
 
-test('Linux packaging prepares Electron sandbox permissions before starting Electron', () => {
+test('Windows packaging asserts a native win32-x64 runner with a working WSL distribution', () => {
   const workflow = load(readFileSync(resolve(root, '.github', 'workflows', 'package.yml'), 'utf8')) as Workflow
-  const steps = workflow.jobs['linux-x64']?.steps ?? []
-  const downloadStep = steps.find(step => step.run === 'pnpm --filter dsh-desktop-web-pkg exec electron --version')
-  const sandboxStep = steps.find(step => step.run?.includes("find . -path '*/electron/dist/chrome-sandbox'"))
-  const packageStep = steps.find(step => step.run === 'pnpm run desktop:package:linux')
-  assert.ok(downloadStep, 'Linux packaging must download the Electron runtime before configuring its sandbox helper')
-  assert.ok(sandboxStep, 'Linux packaging must configure the Electron chrome-sandbox helper')
-  assert.match(sandboxStep.run ?? '', /sudo chown root:root/)
-  assert.match(sandboxStep.run ?? '', /sudo chmod 4755/)
-  assert.ok(packageStep, 'Linux packaging must run the Linux package command')
-  assert.ok(steps.indexOf(sandboxStep) > steps.indexOf(downloadStep), 'Electron must be downloaded before sandbox permissions are configured')
-  assert.ok(steps.indexOf(packageStep) > steps.indexOf(sandboxStep), 'sandbox permissions must be configured before packaging')
+  const steps = workflow.jobs['windows-x64-wsl']?.steps ?? []
+  const gateStep = steps.find(step => step.run?.includes("process.platform + '-' + process.arch"))
+  const packageStep = steps.find(step => step.run === 'pnpm run desktop:package:win')
+  assert.ok(gateStep, 'Windows packaging must assert the native win32-x64 runner before packaging')
+  assert.match(gateStep.run ?? '', /wsl\.exe --status/)
+  assert.ok(packageStep, 'Windows packaging must run the Windows package command')
+  assert.ok(steps.indexOf(packageStep) > steps.indexOf(gateStep), 'the runner gate must precede packaging')
 })

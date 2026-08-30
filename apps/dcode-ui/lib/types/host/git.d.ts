@@ -80,6 +80,10 @@ export interface GitCommitResult {
     /** Human-readable reason a commit was refused (nothing staged, hook rejection, …). */
     readonly reason?: string;
 }
+/** Result of staging or unstaging an explicit set of paths. */
+export interface GitStageResult {
+    readonly updated: readonly string[];
+}
 /** Outcome of restoring one path. */
 export interface GitRestoreOutcome {
     readonly path: string;
@@ -171,18 +175,21 @@ export declare function readDiff(cwd: string, path: string, staged: boolean): Pr
  * @returns branches in git's own ordering, current branch flagged.
  */
 export declare function readBranches(cwd: string): Promise<readonly GitBranch[]>;
+/** Stage an explicit set of non-conflicted paths. */
+export declare function stagePaths(cwd: string, paths: readonly string[]): Promise<GitStageResult>;
+/** Unstage an explicit set of non-conflicted paths without changing the work tree. */
+export declare function unstagePaths(cwd: string, paths: readonly string[]): Promise<GitStageResult>;
 /**
- * Stage the requested paths (or every change) and commit them.
+ * Commit exactly what is already staged.
  *
- * The commit is an explicit operator action from the Git panel: nothing is
- * pushed, no branch is created, and an empty index is reported back rather
- * than forced through with `--allow-empty`.
+ * The commit is an explicit operator action from the Git panel: it never
+ * stages work-tree changes, pushes, changes branches, or permits an empty
+ * commit.
  * @param cwd - any directory inside the repository.
  * @param message - commit message; leading/trailing whitespace is trimmed.
- * @param paths - paths to stage first; omitted stages every tracked and untracked change.
  * @returns whether a commit was created, with the short hash or the refusal reason.
  */
-export declare function commit(cwd: string, message: string, paths?: readonly string[]): Promise<GitCommitResult>;
+export declare function commit(cwd: string, message: string): Promise<GitCommitResult>;
 /**
  * Undo the working-tree effect of a set of paths.
  *
@@ -194,4 +201,10 @@ export declare function commit(cwd: string, message: string, paths?: readonly st
  * @returns one outcome per requested path, in request order.
  */
 export declare function undoPaths(cwd: string, paths: readonly string[]): Promise<readonly GitRestoreOutcome[]>;
+/**
+ * Reverse one exact hunk while retaining a recovery bundle beside ordinary
+ * DCode undo snapshots. The supplied patch is produced by our own diff RPC;
+ * its path is still cross-checked before git sees it.
+ */
+export declare function undoHunk(cwd: string, path: string, patch: string, staged: boolean): Promise<readonly GitRestoreOutcome[]>;
 //# sourceMappingURL=git.d.ts.map

@@ -9,12 +9,12 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * completes.
  * @module @dsh-portable/dcode-ui/client/chat/ToolCard
  */
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { IconBrowseOutline16, IconChecklistOutline14, IconChevronRightOutline14, IconCodeOutline16, IconEditOutline16, IconSearchOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
-import { Spinner, ui } from "../shell/ui.js";
+import { shimmerActive, Spinner, ui } from "../shell/ui.js";
 import { AnsiOutput, OutputToolbar } from "./AnsiOutput.js";
-import { resultText, summarizeTool } from "./tools.js";
+import { formatToolDuration, resultText, summarizeTool, toolChangeStats, toolDurationMs } from "./tools.js";
 import css from './ToolCard.module.css';
 /** Glyph per card-head vocabulary word. */
 function Glyph({ kind }) {
@@ -38,34 +38,53 @@ function isSettled(block) {
 /** A compact, expandable tool-execution card. */
 export function ToolCard({ block, onInspect }) {
     const t = useT();
-    const [open, setOpen] = useState(false);
-    const contentId = useId();
-    // Wrap is per card and per session: an operator reading a wide table turns
-    // it off once, and the next card they open is a stack trace that wants it on.
-    const [wrap, setWrap] = useState(true);
     const settled = isSettled(block);
     const name = settled ? block.call?.name ?? 'tool' : block.name;
     const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
     const summary = summarizeTool(name, argsRaw);
+    const [open, setOpen] = useState(() => settled && (block.isError || summary.mutating));
+    const contentId = useId();
+    // Wrap is per card and per session: an operator reading a wide table turns
+    // it off once, and the next card they open is a stack trace that wants it on.
+    const [wrap, setWrap] = useState(true);
+    const startedAt = useRef(block.time);
+    const [now, setNow] = useState(Date.now);
     const failed = settled && block.isError;
     const output = settled ? resultText(block.content) : '';
+    const duration = settled
+        ? toolDurationMs(block)
+        : Math.max(0, now - startedAt.current);
+    const changes = settled && summary.mutating ? toolChangeStats(block) : undefined;
+    const emphasized = summary.mutating || summary.kind === 'run';
+    useEffect(() => {
+        if (settled)
+            return undefined;
+        const timer = window.setInterval(() => { setNow(Date.now()); }, 100);
+        return () => { window.clearInterval(timer); };
+    }, [settled]);
+    useEffect(() => {
+        if (failed)
+            setOpen(true);
+    }, [failed]);
     const verb = failed
         ? t('chat.failed')
         : settled
             ? t('chat.ran')
             : t('chat.running');
-    return (_jsxs("div", { className: css.group, children: [_jsxs("div", { className: css.card, children: [_jsxs("button", { type: "button", className: `${css.head} ${ui.cardHeader}`, "aria-expanded": open, "aria-controls": contentId, onClick: () => {
+    return (_jsxs("div", { className: css.group, "data-tool-call-id": block.callId, children: [_jsxs("div", { className: `${css.card} ${emphasized ? css.cardEmphasized : ''}`, children: [_jsxs("button", { type: "button", className: `${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`, "aria-expanded": open, "aria-controls": contentId, onClick: () => {
                             setOpen(value => !value);
                             onInspect?.(block.callId);
-                        }, children: [_jsx("span", { className: `${css.glyph} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), _jsx(IconChevronRightOutline14, { className: `${css.chevron} ${open ? css.chevronOpen : ''}` })] }), open
-                        ? (_jsxs("div", { className: css.body, id: contentId, children: [argsRaw === undefined || argsRaw.trim() === ''
-                                    ? null
-                                    : (_jsxs(_Fragment, { children: [_jsx("span", { className: css.bodyLabel, children: t('details.arguments') }), _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw })] })), settled
-                                    ? (_jsxs(_Fragment, { children: [_jsxs("span", { className: css.bodyRow, children: [_jsx("span", { className: css.bodyLabel, children: t('details.output') }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
-                                                ? _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
-                                                : (_jsx(AnsiOutput, { text: output, wrap: wrap, className: failed ? css.error : undefined }))] }))
-                                    : null] }))
-                        : null] }), block.subCalls.length === 0
+                        }, children: [_jsx("span", { className: `${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), changes === undefined
+                                ? null
+                                : (_jsxs("span", { className: css.changes, "aria-label": `${changes.additions} lines added, ${changes.deletions} lines removed`, children: [_jsxs("span", { className: css.additions, children: ["+", changes.additions] }), _jsxs("span", { className: css.deletions, children: ["\u2212", changes.deletions] })] })), duration === undefined
+                                ? null
+                                : _jsxs("span", { className: css.duration, children: [formatToolDuration(duration), settled ? '' : '…'] }), _jsx(IconChevronRightOutline14, { className: `${css.chevron} ${open ? css.chevronOpen : ''}` })] }), _jsx("div", { className: `${css.disclosure} ${open ? css.disclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.disclosureClip, children: _jsxs("div", { className: css.body, id: contentId, children: [argsRaw === undefined || argsRaw.trim() === ''
+                                        ? null
+                                        : (_jsxs(_Fragment, { children: [_jsx("span", { className: css.bodyLabel, children: t('details.arguments') }), _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw })] })), settled
+                                        ? (_jsxs(_Fragment, { children: [_jsxs("span", { className: css.bodyRow, children: [_jsx("span", { className: css.bodyLabel, children: t('details.output') }), duration === undefined ? null : _jsx("span", { className: css.toolbarDuration, children: formatToolDuration(duration) }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
+                                                    ? _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
+                                                    : (_jsx(AnsiOutput, { text: output, wrap: wrap, className: failed ? css.error : undefined }))] }))
+                                        : null] }) }) })] }), block.subCalls.length === 0
                 ? null
                 : (_jsx("div", { className: css.children, children: block.subCalls.map(child => (_jsx(ToolCard, { block: child, onInspect: onInspect }, child.callId))) }))] }));
 }

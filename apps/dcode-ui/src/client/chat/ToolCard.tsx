@@ -53,18 +53,18 @@ export interface ToolCardProps {
 /** A compact, expandable tool-execution card. */
 export function ToolCard({ block, onInspect }: ToolCardProps) {
   const t = useT()
-  const [open, setOpen] = useState(() => isSettled(block) && block.isError)
+  const settled = isSettled(block)
+  const name = settled ? block.call?.name ?? 'tool' : block.name
+  const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
+  const summary = summarizeTool(name, argsRaw)
+  const [open, setOpen] = useState(() => settled && (block.isError || summary.mutating))
   const contentId = useId()
   // Wrap is per card and per session: an operator reading a wide table turns
   // it off once, and the next card they open is a stack trace that wants it on.
   const [wrap, setWrap] = useState(true)
 
-  const settled = isSettled(block)
   const startedAt = useRef(block.time)
   const [now, setNow] = useState(Date.now)
-  const name = settled ? block.call?.name ?? 'tool' : block.name
-  const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
-  const summary = summarizeTool(name, argsRaw)
   const failed = settled && block.isError
   const output = settled ? resultText(block.content) : ''
   const duration = settled
@@ -120,8 +120,8 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
             : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}
           <IconChevronRightOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
         </button>
-        {open
-          ? (
+        <div className={`${css.disclosure} ${open ? css.disclosureOpen : ''}`} aria-hidden={!open}>
+          <div className={css.disclosureClip}>
             <div className={css.body} id={contentId}>
               {argsRaw === undefined || argsRaw.trim() === ''
                 ? null
@@ -136,6 +136,7 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
                   <>
                     <span className={css.bodyRow}>
                       <span className={css.bodyLabel}>{t('details.output')}</span>
+                      {duration === undefined ? null : <span className={css.toolbarDuration}>{formatToolDuration(duration)}</span>}
                       {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
                     </span>
                     {output === ''
@@ -151,8 +152,8 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
                 )
                 : null}
             </div>
-          )
-          : null}
+          </div>
+        </div>
       </div>
       {block.subCalls.length === 0
         ? null

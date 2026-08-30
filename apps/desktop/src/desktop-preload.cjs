@@ -201,11 +201,8 @@ if (!isSplashDocument) {
   }
 
   function shellEnvironmentLabel() {
-    if (state.shellState?.native === true) {
-      return desktopText('shell.menuStatusNative', { distros: state.shellState?.distros?.[0] || 'POSIX Bash' })
-    }
     return state.shellState?.available
-      ? desktopText('shell.menuStatusReady', { distros: state.shellState?.distros?.[0] || 'Linux' })
+      ? desktopText('shell.menuStatusReady', { distros: state.shellState?.distros?.[0] || 'Default' })
       : desktopText('shell.menuStatusMissing')
   }
 

@@ -40,18 +40,6 @@ contract:
   selfModification: cordis-plugin-runtime
 
 variants:
-  - id: posix-bash
-    supportLevel: native
-    requires:
-      - shell.bash
-      - sandbox.workspace-write
-      - process.posix-signals
-    acceptsDegraded:
-      - sandbox.workspace-write
-    config: variants/posix-bash.cordis.yml
-    provides:
-      shell: tool-bash
-
   - id: win32-powershell
     supportLevel: native
     requires:

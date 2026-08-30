@@ -36,6 +36,15 @@ function count(source, key) {
     const value = source[key];
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
+function oneOf(source, key, values, fallback) {
+    const value = source[key];
+    return values.includes(value) ? value : fallback;
+}
+const SOURCES = ['portable-curated', 'github-topic', 'unknown'];
+const CATEGORIES = ['interface', 'vision', 'design', 'automation', 'developer', 'other', 'unknown'];
+const REVIEW_STATUSES = ['reviewed', 'unreviewed', 'unknown'];
+const COMPATIBILITY_STATUSES = ['compatible', 'incompatible', 'unknown'];
+const MAINTENANCE_STATUSES = ['active', 'stale', 'unknown'];
 const EXPOSURES = [
     'boot-configured', 'pending-restart', 'stale', 'inactive', 'unknown',
 ];
@@ -60,6 +69,14 @@ function normalizeItem(raw) {
         stars: count(raw, 'stars'),
         language: text(raw, 'language'),
         homepage: text(raw, 'homepage'),
+        updatedAt: text(raw, 'updatedAt'),
+        source: oneOf(raw, 'source', SOURCES, 'unknown'),
+        featured: raw['featured'] === true,
+        featuredSource: optionalText(raw, 'featuredSource'),
+        category: oneOf(raw, 'category', CATEGORIES, 'unknown'),
+        reviewStatus: oneOf(raw, 'reviewStatus', REVIEW_STATUSES, 'unknown'),
+        compatibility: oneOf(raw, 'compatibility', COMPATIBILITY_STATUSES, 'unknown'),
+        maintenance: oneOf(raw, 'maintenance', MAINTENANCE_STATUSES, 'unknown'),
         installed: raw['installed'] === true,
         needsRestart: raw['needsRestart'] === true,
     };
@@ -90,6 +107,7 @@ export function normalizeMarketPage(raw, page) {
             || (source['hasMore'] === undefined && resolved * MARKET_PAGE_SIZE < total),
         fetchedAt: count(source, 'fetchedAt'),
         error: optionalText(source, 'error'),
+        platform: text(source, 'platform'),
     };
 }
 /**
@@ -328,13 +346,14 @@ export function createMarketClient(fetchImpl) {
         ? refused(text(body, 'error') || 'the marketplace refused the request')
         : { ok: true, value: undefined };
     return {
-        list: async (query, page, signal) => {
+        list: async (query, page, signal, scope = 'explore') => {
             const params = new URLSearchParams({
                 page: String(page),
                 per_page: String(MARKET_PAGE_SIZE),
             });
             if (query !== '')
                 params.set('q', query);
+            params.set('scope', scope);
             const answer = await call(`/list?${params.toString()}`, { ...(signal === undefined ? {} : { signal }) });
             return answer.ok ? { ok: true, value: normalizeMarketPage(answer.value, page) } : answer;
         },

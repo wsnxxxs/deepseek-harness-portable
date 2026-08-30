@@ -37,7 +37,7 @@ Five surfaces select the front end, all arbitrated by one store
 | Electron application menu | `Interface ▸` radio pair (official, then workbench) → IPC → live swap |
 | System tray menu | the same submenu (one template serves both) |
 | Workbench settings → Interface | `runtime.mode.set(...)` |
-| Official settings → 界面设置 | a `settings.section` registration from this package |
+| Official settings → 界面设置 | a `settings.general.item` registration from this package |
 | URL parameter | `?view=dcode` / `?view=official` |
 
 Boot resolution order: URL parameter → `localStorage` → the desktop config's
@@ -216,6 +216,11 @@ The frame is deliberately open at the edges:
   a `WorkbenchView` arm plus a rail entry — `plugins` is the worked example.
 - `AsideTab` adds a right-column tab.
 - `SettingsSection` adds a settings section.
+- The official UI takes contributions through its own declared seats rather
+  than through the workbench: `settings.general.item` carries the interface
+  switch, and `settings.models.footer` carries the usage card on the classic
+  Models page. Both are seats the official packages declare for out-of-tree
+  plugins, so neither needs an edit under `vendor/`.
 - The `/dcode` channel takes new endpoints by extending `DCODE_ENDPOINTS` and
   its router — the intended route for a terminal, a browser preview, or
   background-task surfaces.
