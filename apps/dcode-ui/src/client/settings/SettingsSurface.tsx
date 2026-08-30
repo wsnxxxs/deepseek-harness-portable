@@ -752,46 +752,6 @@ function CommandsSection({ sessionId }: { sessionId: SessionId | undefined }) {
   )
 }
 
-/**
- * The Loader's live plugin inventory.
- *
- * MCP servers are Loader entries like any other plugin, so the MCP section is
- * the same inventory filtered by module specifier rather than a second source
- * of truth.
- */
-function PluginsSection({ mcpOnly }: { mcpOnly: boolean }) {
-  const runtime = useRuntime()
-  const t = useT()
-  const inventory = useAsync(async () => await runtime.remote.pluginInventory.list(), [runtime])
-
-  if (inventory.loading) return <EmptyState><Spinner /></EmptyState>
-  // A refused or failed read is reported: "0 entries" would claim the Loader
-  // has no plugins, which is a different and wrong statement.
-  if (inventory.error !== undefined) return <EmptyState>{inventory.error}</EmptyState>
-  if (inventory.value?.ok === false) return <EmptyState>{inventory.value.error.message}</EmptyState>
-  const entries = inventory.value?.ok === true ? inventory.value.value.entries : []
-  const rows = mcpOnly ? entries.filter(entry => /mcp/i.test(entry.moduleName)) : entries
-
-  return (
-    <Section title={mcpOnly ? t('settings.mcp') : t('settings.plugins')} body={t('settings.count', { count: rows.length })}>
-      {rows.length === 0
-        ? <EmptyState>{t('settings.inventoryEmpty')}</EmptyState>
-        : (
-          <div className={css.card}>
-            {rows.map(entry => (
-              <Row
-                key={entry.entryId}
-                title={entry.moduleName}
-                body={entry.enabled ? entry.fiberPhase ?? 'active' : 'disabled'}
-                control={<span className={css.badge}>{entry.fiberPhase ?? '—'}</span>}
-              />
-            ))}
-          </div>
-        )}
-    </Section>
-  )
-}
-
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(
   runtime: ReturnType<typeof useRuntime>,

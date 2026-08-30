@@ -445,32 +445,142 @@ function PluginConfigSection(props: { data: PluginSettingsData; onReload: () => 
   )
 }
 
+type InventoryEntry = PluginInventorySnapshot['entries'][number]
+
+interface PresentedInventoryEntry {
+  readonly entry: InventoryEntry
+  readonly name: string
+  readonly description: string
+  readonly status: string
+}
+
+const INVENTORY_ROW_HEIGHT = 92
+const INVENTORY_VIEWPORT_HEIGHT = 460
+const INVENTORY_OVERSCAN = 4
+
+function inventoryName(moduleName: string): string {
+  const packageName = moduleName.split('/').filter(Boolean).at(-1) ?? moduleName
+  const clean = packageName
+    .replace(/\.(?:mjs|cjs|js|ts)$/iu, '')
+    .replace(/^(?:dsh|plugin|extension)-/iu, '')
+  return clean
+    .split(/[-_]+/u)
+    .filter(Boolean)
+    .map(word => word.length <= 4 && word === word.toLowerCase() ? word.toUpperCase() : `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
+    .join(' ') || moduleName
+}
+
+function isUserExtension(entry: InventoryEntry): boolean {
+  const moduleName = entry.moduleName.toLowerCase()
+  if (moduleName.includes('mcp')) return true
+  return !moduleName.startsWith('@deepseek-ai/')
+    && !moduleName.startsWith('@dsh-portable/')
+    && !moduleName.startsWith('cordis:')
+}
+
+function inventoryDescription(moduleName: string, name: string, t: ReturnType<typeof useT>): string {
+  const normalized = moduleName.toLowerCase()
+  if (normalized.includes('mcp')) return t('settings.plugins.descriptionMcp')
+  if (/(?:^|[-/])tool(?:[-/]|$)/u.test(normalized)) return t('settings.plugins.descriptionTool', { name })
+  if (/(?:ui|client|renderer|surface)/u.test(normalized)) return t('settings.plugins.descriptionInterface', { name })
+  if (/(?:provider|model|llm)/u.test(normalized)) return t('settings.plugins.descriptionProvider', { name })
+  if (/(?:plugin|extension)/u.test(normalized)) return t('settings.plugins.descriptionExtension', { name })
+  return t('settings.plugins.descriptionRuntime', { name })
+}
+
+function inventoryStatus(entry: InventoryEntry, t: ReturnType<typeof useT>): string {
+  if (!entry.enabled) return t('settings.plugins.disabled')
+  switch (entry.fiberPhase) {
+    case 'active': return t('settings.plugins.statusReady')
+    case 'pending':
+    case 'loading': return t('settings.plugins.statusStarting')
+    case 'failed': return t('settings.plugins.statusFailed')
+    case 'unloading': return t('settings.plugins.statusStopping')
+    default: return t('settings.plugins.statusNotRunning')
+  }
+}
+
+function VirtualInventoryList(props: { entries: readonly PresentedInventoryEntry[] }): ReactNode {
+  const [scrollTop, setScrollTop] = useState(0)
+  const shouldWindow = props.entries.length > 40
+  const start = shouldWindow
+    ? Math.max(0, Math.floor(scrollTop / INVENTORY_ROW_HEIGHT) - INVENTORY_OVERSCAN)
+    : 0
+  const visibleCount = shouldWindow
+    ? Math.ceil(INVENTORY_VIEWPORT_HEIGHT / INVENTORY_ROW_HEIGHT) + INVENTORY_OVERSCAN * 2
+    : props.entries.length
+  const end = Math.min(props.entries.length, start + visibleCount)
+  const visible = props.entries.slice(start, end)
+  const topSpace = shouldWindow ? start * INVENTORY_ROW_HEIGHT : 0
+  const bottomSpace = shouldWindow ? (props.entries.length - end) * INVENTORY_ROW_HEIGHT : 0
+
+  return (
+    <div
+      className={`${css.card} ${shouldWindow ? css.inventoryViewport : ''}`}
+      role="list"
+      onScroll={shouldWindow ? event => { setScrollTop(event.currentTarget.scrollTop) } : undefined}
+    >
+      {topSpace > 0 ? <div aria-hidden="true" style={{ height: topSpace }} /> : null}
+      {visible.map(({ entry, name, description, status }) => (
+        <div
+          className={css.inventoryRow}
+          key={entry.entryId}
+          role="listitem"
+          aria-label={`${name}, ${status}`}
+        >
+          <div className={css.inventoryMain} aria-hidden="true">
+            <div className={css.inventoryCopy}>
+              <span className={css.rowTitle}>{name}</span>
+              <span className={css.rowBody}>{description}</span>
+              <code className={css.inventoryId} title={entry.entryId}>{entry.moduleName}</code>
+            </div>
+            <span className={css.inventoryStatus}>{status}</span>
+          </div>
+        </div>
+      ))}
+      {bottomSpace > 0 ? <div aria-hidden="true" style={{ height: bottomSpace }} /> : null}
+    </div>
+  )
+}
+
 function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean }): ReactNode {
   const t = useT()
   const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState<string | undefined>()
-  const entries = props.data.inventory.entries.filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
-  const filtered = entries.filter(entry => `${entry.moduleName} ${entry.entryId}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const [runtimeOpen, setRuntimeOpen] = useState(false)
+  const entries = useMemo(() => props.data.inventory.entries
+    .filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
+    .map(entry => {
+      const name = inventoryName(entry.moduleName)
+      return {
+        entry,
+        name,
+        description: inventoryDescription(entry.moduleName, name, t),
+        status: inventoryStatus(entry, t),
+      }
+    }), [props.data.inventory.entries, props.mcpOnly, t])
+  const normalizedQuery = query.trim().toLowerCase()
+  const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
+    .toLowerCase()
+    .includes(normalizedQuery)), [entries, normalizedQuery])
+  const extensions = filtered.filter(row => isUserExtension(row.entry))
+  const runtimeModules = filtered.filter(row => !isUserExtension(row.entry))
   return (
     <div className={css.pluginInventory}>
-      <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} aria-label={t('settings.plugins.search')} onChange={event => { setQuery(event.target.value) }} />
-      <div className={css.inventoryHeading}><span className={css.sectionTitle}>{t('settings.plugins.inventoryTitle')}</span><span className={css.badge}>{filtered.length}</span></div>
-      {filtered.length === 0 ? <EmptyState>{t('settings.plugins.emptyInventory')}</EmptyState> : (
-        <div className={css.card}>
-          {filtered.map(entry => {
-            const open = expanded === entry.entryId
-            return (
-              <div className={css.inventoryRow} key={entry.entryId}>
-                <button type="button" className={css.inventoryButton} aria-expanded={open} aria-controls={`plugin-entry-${entry.entryId}`} onClick={() => { setExpanded(current => current === entry.entryId ? undefined : entry.entryId) }}>
-                  <span className={css.rowText}><span className={css.rowTitle}>{entry.moduleName}</span><span className={css.rowBody}>{entry.enabled ? entry.fiberPhase ?? t('settings.plugins.unobserved') : t('settings.plugins.disabled')}</span></span>
-                  <span className={css.badge}>{entry.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled')}</span>
-                </button>
-                {open ? <code id={`plugin-entry-${entry.entryId}`} className={css.inventoryDetails}>{entry.entryId}</code> : null}
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} aria-label={t('settings.plugins.search')} onChange={event => { const next = event.target.value; setQuery(next); if (next.trim() !== '') setRuntimeOpen(true) }} />
+      <div className={css.inventoryHeading}><span className={css.sectionTitle}>{t('settings.plugins.extensionsTitle')}</span><span className={css.badge}>{extensions.length}</span></div>
+      <p className={css.inventoryIntro}>{t('settings.plugins.extensionsBody')}</p>
+      {extensions.length === 0 ? <EmptyState>{t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory')}</EmptyState> : <VirtualInventoryList key={`extensions-${normalizedQuery}`} entries={extensions} />}
+      {!props.mcpOnly ? (
+        <details className={css.runtimeModules} open={runtimeOpen} onToggle={event => { setRuntimeOpen(event.currentTarget.open) }}>
+          <summary className={css.runtimeSummary}>
+            <span><span className={css.runtimeTitle}>{t('settings.plugins.runtimeTitle')}</span><span className={css.runtimeHint}>{t('settings.plugins.runtimeBody')}</span></span>
+            <span className={css.badge}>{runtimeModules.length}</span>
+          </summary>
+          <div className={css.runtimeContent}>
+            {runtimeModules.length === 0 ? <EmptyState>{t('settings.plugins.emptyRuntime')}</EmptyState> : <VirtualInventoryList key={`runtime-${normalizedQuery}`} entries={runtimeModules} />}
+          </div>
+        </details>
+      ) : null}
     </div>
   )
 }
@@ -485,7 +595,7 @@ export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }
   const tabRefs = useRef<Record<'config' | 'inventory', HTMLButtonElement | null>>({ config: null, inventory: null })
   const tabs: readonly { id: 'config' | 'inventory'; label: string }[] = [
     { id: 'config', label: t('settings.plugins.configTab') },
-    { id: 'inventory', label: t('settings.plugins.inventoryTab') },
+    { id: 'inventory', label: t('settings.plugins.extensionsTab') },
   ]
   const moveTab = (event: React.KeyboardEvent<HTMLButtonElement>, index: number): void => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return

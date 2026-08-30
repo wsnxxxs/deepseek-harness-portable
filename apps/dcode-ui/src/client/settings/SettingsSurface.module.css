@@ -778,40 +778,135 @@
   gap: var(--zx-space-3);
 }
 
+.inventoryIntro {
+  margin: calc(-1 * var(--zx-space-2)) 0 0;
+  color: var(--zx-label-muted);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
+}
+
 .inventoryHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
+.inventoryViewport {
+  max-height: 460px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.inventoryRow {
+  height: 92px;
+  box-sizing: border-box;
+}
+
 .inventoryRow + .inventoryRow {
   border-top: 1px solid var(--zx-border-soft);
 }
 
-.inventoryButton {
+.inventoryMain {
   display: flex;
   align-items: center;
   gap: var(--zx-space-4);
   width: 100%;
-  padding: var(--zx-space-4) var(--zx-space-5);
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  height: 100%;
+  padding: var(--zx-space-3) var(--zx-space-5);
+  box-sizing: border-box;
 }
 
-.inventoryButton:hover {
+.inventoryCopy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.inventoryId {
+  margin-top: var(--zx-space-1);
+  color: var(--zx-label-tertiary);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.inventoryStatus {
+  flex: 0 0 auto;
+  padding: var(--zx-space-1) var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-pill);
+  background: var(--zx-bg-raised);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-micro);
+  white-space: nowrap;
+}
+
+.runtimeModules {
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-bg-card);
+  overflow: hidden;
+}
+
+.runtimeSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-4);
+  min-height: var(--zx-control-lg);
+  padding: var(--zx-space-3) var(--zx-space-5);
+  cursor: pointer;
+  list-style-position: outside;
+}
+
+.runtimeSummary:hover {
   background: var(--zx-bg-hover);
 }
 
-.inventoryDetails {
+.runtimeSummary:focus-visible {
+  outline: none;
+  box-shadow: inset var(--zx-focus-ring);
+}
+
+.runtimeTitle,
+.runtimeHint {
   display: block;
-  padding: 0 var(--zx-space-5) var(--zx-space-4);
+}
+
+.runtimeTitle {
+  color: var(--zx-label);
+  font-size: var(--zx-text-sm);
+}
+
+.runtimeHint {
+  margin-top: 2px;
   color: var(--zx-label-muted);
-  font-family: var(--zx-font-mono);
   font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+}
+
+.runtimeContent {
+  padding: 0 var(--zx-space-3) var(--zx-space-3);
+  border-top: 1px solid var(--zx-border-soft);
+  padding-top: var(--zx-space-3);
+}
+
+.runtimeContent .card {
+  box-shadow: none;
+}
+
+:global([data-dcode-layout='compact']) .inventoryMain {
+  padding-inline: var(--zx-space-3);
+}
+
+:global([data-dcode-layout='compact']) .inventoryStatus {
+  align-self: flex-start;
+}
+
+:global([data-dcode-layout='compact']) .inventoryId {
   overflow-wrap: anywhere;
 }
 
