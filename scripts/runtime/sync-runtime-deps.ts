@@ -11,8 +11,9 @@ import {
 } from './dependency-closure.js'
 import { isManifestBridge } from '../build/client-manifest-bridge.js'
 import {
-  auditRuntimeWorkspaceLinks,
-  repairRuntimeWorkspaceLinks,
+  auditRuntimeResolutionLinks,
+  repairRuntimeResolutionLinks,
+  runtimeResolutionPackages,
   type RuntimeWorkspacePackageLink,
 } from './workspace-links.js'
 
@@ -135,11 +136,21 @@ export async function generatedRuntimeState(): Promise<{
 
 export async function syncRuntimeDependencies(check = false, repairLinksOnly = false): Promise<void> {
   const state = await generatedRuntimeState()
+  const resolutionPackages = runtimeResolutionPackages(
+    root,
+    runtimeRoot,
+    state.generated.packages,
+    Object.keys(state.generated.dependencies),
+  )
   if (repairLinksOnly) {
-    const repaired = await repairRuntimeWorkspaceLinks(root, runtimeRoot, state.generated.packages)
-    console.log(repaired.length === 0
+    const repaired = await repairRuntimeResolutionLinks(root, runtimeRoot, resolutionPackages)
+    const details = [
+      ...repaired.runtime.map(name => `runtime:${name}`),
+      ...repaired.repository.map(name => `repository:${name}`),
+    ]
+    console.log(details.length === 0
       ? 'runtime workspace links are current'
-      : `runtime workspace links repaired: ${repaired.join(', ')}`)
+      : `runtime workspace links repaired: ${details.join(', ')}`)
     return
   }
   const manifestText = `${JSON.stringify(state.manifest, null, 2)}\n`
@@ -150,7 +161,7 @@ export async function syncRuntimeDependencies(check = false, repairLinksOnly = f
     if (!existsSync(generatedPath) || await readFile(generatedPath, 'utf8') !== generatedText) {
       mismatches.push(relative(root, generatedPath))
     }
-    mismatches.push(...await auditRuntimeWorkspaceLinks(root, runtimeRoot, state.generated.packages))
+    mismatches.push(...await auditRuntimeResolutionLinks(root, runtimeRoot, resolutionPackages))
     if (mismatches.length > 0) throw new Error(`runtime dependency closure is stale: ${mismatches.join(', ')}`)
     console.log(`runtime dependency closure is current: ${state.generated.packages.length} workspace packages`)
     return
@@ -159,8 +170,8 @@ export async function syncRuntimeDependencies(check = false, repairLinksOnly = f
     writeFile(runtimeManifestPath, manifestText),
     writeFile(generatedPath, generatedText),
   ])
-  const repaired = await repairRuntimeWorkspaceLinks(root, runtimeRoot, state.generated.packages)
-  console.log(`runtime dependency closure synchronized: ${state.generated.packages.length} workspace packages; ${repaired.length} link(s) repaired`)
+  const repaired = await repairRuntimeResolutionLinks(root, runtimeRoot, resolutionPackages)
+  console.log(`runtime dependency closure synchronized: ${state.generated.packages.length} workspace packages; ${repaired.runtime.length + repaired.repository.length} link(s) repaired`)
 }
 
 const invokedPath = process.argv[1] === undefined ? undefined : resolve(process.argv[1])

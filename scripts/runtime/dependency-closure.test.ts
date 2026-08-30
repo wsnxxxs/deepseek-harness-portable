@@ -11,9 +11,12 @@ import {
   type WorkspacePackage,
 } from './dependency-closure.js'
 import {
+  auditRuntimeResolutionLinks,
   auditRuntimeWorkspaceLinks,
   preserveWorkspaceNodeModules,
+  repairRuntimeResolutionLinks,
   repairRuntimeWorkspaceLinks,
+  runtimeResolutionPackages,
 } from './workspace-links.js'
 
 test('runtime closure follows workspace dependencies, peers, and optional providers', () => {
@@ -81,6 +84,36 @@ test('runtime workspace link repair replaces deploy copies and stale ignored ent
   assert.equal(await readFile(join(destination, 'value.txt'), 'utf8'), 'workspace')
   assert.equal(existsSync(ignored), false)
   assert.deepEqual(await auditRuntimeWorkspaceLinks(root, runtimeRoot, packages), [])
+})
+
+test('runtime resolution repair also anchors Loader fallback imports at the repository root', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-runtime-resolution-links-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const runtimeRoot = join(root, 'apps', 'runtime')
+  const source = join(root, 'packages', 'example')
+  const externalSource = join(runtimeRoot, 'node_modules', 'external-package')
+  const runtimeDestination = join(runtimeRoot, 'node_modules', '@example', 'package')
+  const repositoryDestination = join(root, 'node_modules', '@example', 'package')
+  const repositoryExternalDestination = join(root, 'node_modules', 'external-package')
+  await Promise.all([
+    mkdir(source, { recursive: true }),
+    mkdir(externalSource, { recursive: true }),
+  ])
+  const packages = runtimeResolutionPackages(
+    root,
+    runtimeRoot,
+    [{ name: '@example/package', path: 'packages/example' }],
+    ['@example/package', 'external-package'],
+  )
+
+  assert.deepEqual(await repairRuntimeResolutionLinks(root, runtimeRoot, packages), {
+    runtime: ['@example/package'],
+    repository: ['@example/package', 'external-package'],
+  })
+  assert.equal(await realpath(runtimeDestination), await realpath(source))
+  assert.equal(await realpath(repositoryDestination), await realpath(source))
+  assert.equal(await realpath(repositoryExternalDestination), await realpath(externalSource))
+  assert.deepEqual(await auditRuntimeResolutionLinks(root, runtimeRoot, packages), [])
 })
 
 test('workspace node_modules survive a failing legacy deploy action exactly', async (context) => {

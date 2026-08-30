@@ -9,6 +9,7 @@ export interface RuntimeWorkspacePackageLink {
 
 interface RuntimeDependencyState {
   packages?: RuntimeWorkspacePackageLink[]
+  dependencies?: Record<string, string>
 }
 
 function packageSegments(name: string): string[] {
@@ -56,6 +57,34 @@ export async function readRuntimeWorkspacePackages(runtimeRoot: string): Promise
   const state = JSON.parse(await readFile(join(runtimeRoot, 'runtime-deps.generated.json'), 'utf8')) as RuntimeDependencyState
   if (!Array.isArray(state.packages)) throw new Error('runtime-deps.generated.json does not contain packages')
   return state.packages
+}
+
+/** Include external direct roots so Loader fallback imports share the runtime install. */
+export function runtimeResolutionPackages(
+  repoRoot: string,
+  runtimeRoot: string,
+  workspacePackages: readonly RuntimeWorkspacePackageLink[],
+  dependencyNames: readonly string[],
+): RuntimeWorkspacePackageLink[] {
+  const result = [...workspacePackages]
+  const workspaceNames = new Set(workspacePackages.map(pkg => pkg.name))
+  for (const name of [...dependencyNames].sort()) {
+    if (workspaceNames.has(name)) continue
+    const source = installedPath(runtimeRoot, name)
+    result.push({ name, path: relative(repoRoot, source).replaceAll('\\', '/') })
+  }
+  return result
+}
+
+export async function readRuntimeResolutionPackages(
+  repoRoot: string,
+  runtimeRoot: string,
+): Promise<RuntimeWorkspacePackageLink[]> {
+  const state = JSON.parse(await readFile(join(runtimeRoot, 'runtime-deps.generated.json'), 'utf8')) as RuntimeDependencyState
+  if (!Array.isArray(state.packages) || state.dependencies === undefined) {
+    throw new Error('runtime-deps.generated.json does not contain packages and dependencies')
+  }
+  return runtimeResolutionPackages(repoRoot, runtimeRoot, state.packages, Object.keys(state.dependencies))
 }
 
 /** Report workspace dependencies that pnpm deploy materialized instead of linking. */
@@ -113,6 +142,39 @@ export async function repairRuntimeWorkspaceLinks(
     await rm(ignored, { recursive: true, force: true })
   }
   return repaired
+}
+
+/**
+ * Keep both resolution anchors required by the source runtime. Direct imports
+ * resolve from apps/runtime/node_modules, while Loader's standards-based
+ * fallback import resolves from its workspace source through the repository
+ * node_modules ancestor when Node's internal loader API is unavailable.
+ */
+export async function auditRuntimeResolutionLinks(
+  repoRoot: string,
+  runtimeRoot: string,
+  packages: readonly RuntimeWorkspacePackageLink[],
+): Promise<string[]> {
+  const [runtimeIssues, repositoryIssues] = await Promise.all([
+    auditRuntimeWorkspaceLinks(repoRoot, runtimeRoot, packages),
+    auditRuntimeWorkspaceLinks(repoRoot, repoRoot, packages),
+  ])
+  return [
+    ...runtimeIssues.map(issue => `runtime anchor: ${issue}`),
+    ...repositoryIssues.map(issue => `repository anchor: ${issue}`),
+  ]
+}
+
+export async function repairRuntimeResolutionLinks(
+  repoRoot: string,
+  runtimeRoot: string,
+  packages: readonly RuntimeWorkspacePackageLink[],
+): Promise<{ runtime: string[]; repository: string[] }> {
+  const [runtime, repository] = await Promise.all([
+    repairRuntimeWorkspaceLinks(repoRoot, runtimeRoot, packages),
+    repairRuntimeWorkspaceLinks(repoRoot, repoRoot, packages),
+  ])
+  return { runtime, repository }
 }
 
 /** Keep legacy pnpm deploy from deleting dependency links inside workspace packages. */

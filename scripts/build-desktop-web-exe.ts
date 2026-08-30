@@ -40,8 +40,9 @@ import { discoverDesktopVerificationFiles } from './release/desktop-verification
 import { resolveSourceIdentity } from './release/source-identity.js'
 import {
   preserveWorkspaceNodeModules,
+  readRuntimeResolutionPackages,
   readRuntimeWorkspacePackages,
-  repairRuntimeWorkspaceLinks,
+  repairRuntimeResolutionLinks,
 } from './runtime/workspace-links.js'
 import {
   assertWindowsZipFileInventory,
@@ -620,18 +621,22 @@ class DesktopExeBuild {
       return
     }
     const runtimeRoot = resolve(root, 'apps', 'runtime')
-    const workspacePackages = await readRuntimeWorkspacePackages(runtimeRoot)
+    const [workspacePackages, resolutionPackages] = await Promise.all([
+      readRuntimeWorkspacePackages(runtimeRoot),
+      readRuntimeResolutionPackages(root, runtimeRoot),
+    ])
     try {
       await preserveWorkspaceNodeModules(root, workspacePackages, () => (
         preserveFiles(HOST_INSTALL_STATE_FILES.map(path => join(root, path)), action)
       ))
     } finally {
-      const repaired = await repairRuntimeWorkspaceLinks(
+      const repaired = await repairRuntimeResolutionLinks(
         root,
         runtimeRoot,
-        workspacePackages,
+        resolutionPackages,
       )
-      console.log(`build-desktop-web-exe: restored ${String(repaired.length)} host workspace link(s) after legacy deploy`)
+      const repairedCount = repaired.runtime.length + repaired.repository.length
+      console.log(`build-desktop-web-exe: restored ${String(repairedCount)} host workspace link(s) after legacy deploy`)
     }
     console.log('build-desktop-web-exe: preserved host pnpm install state across legacy deploy')
   }
