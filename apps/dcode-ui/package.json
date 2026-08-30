@@ -70,7 +70,7 @@
     "build": "tsc -b && tsdown",
     "bundle": "tsdown",
     "watch": "tsdown --watch",
-    "test": "tsc -b && tsdown && vitest run tests/message-feedback.client.spec.tsx && node --test tests/*.test.mjs"
+    "test": "tsc -b && tsdown && vitest run tests/message-feedback.client.spec.tsx tests/git-panel.client.spec.ts && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:^",

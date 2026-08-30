@@ -8,10 +8,11 @@
  * @module @dsh-portable/dcode-ui/client/git/GitPanel
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  IconBranchOutline16, IconChevronDownOutline14, IconFolderOpenOutline16,
-  IconRefreshOutline14, IconSparkle16,
+  IconBranchOutline16, IconChevronDownOutline14, IconChevronRightOutline14,
+  IconCodeOutline16, IconFolderClose16, IconFolderOpen16, IconFolderOpenOutline16,
+  IconRefreshOutline14, IconSearchOutline16, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useT } from '../state/i18n.ts'
@@ -19,6 +20,10 @@ import { useRuntime } from '../state/runtime.ts'
 import { useWorkspaceGroups } from '../state/hooks.ts'
 import { Button, DiffCount, EmptyState, IconButton, Popover, Spinner, ui } from '../shell/ui.tsx'
 import { useGitStatus } from './useGit.ts'
+import {
+  buildFileTree, filterGitFiles, flattenFileTree, virtualRange,
+  type FileTreeNode, type GitStatusFilter,
+} from './fileTree.ts'
 import type { GitFileChange } from '../rpc.ts'
 import type { DiffTarget } from '../state/navigation.ts'
 import css from './GitPanel.module.css'
@@ -64,40 +69,23 @@ function statusLabel(file: GitFileChange, t: ReturnType<typeof useT>): string {
   }
 }
 
-interface FileTreeNode {
-  readonly name: string
-  readonly path: string
-  readonly file?: GitFileChange
-  readonly children: readonly FileTreeNode[]
-}
+const TREE_ROW_HEIGHT = 40
+const TREE_MAX_HEIGHT = 280
+const LARGE_DIRECTORY_SIZE = 24
+const EMPTY_FILES: readonly GitFileChange[] = []
+const STATUS_FILTER_KEYS = {
+  all: 'git.filterAll',
+  modified: 'git.status.modified',
+  added: 'git.status.added',
+  deleted: 'git.status.deleted',
+  renamed: 'git.status.renamed',
+  conflicted: 'git.status.conflicted',
+  untracked: 'git.status.untracked',
+} as const
 
-/** Build a stable directory-first tree from repository-relative paths. */
-function fileTree(files: readonly GitFileChange[]): readonly FileTreeNode[] {
-  interface MutableNode { name: string; path: string; file?: GitFileChange; children: Map<string, MutableNode> }
-  const root = new Map<string, MutableNode>()
-  for (const file of files) {
-    let level = root
-    let path = ''
-    const parts = file.path.split('/').filter(Boolean)
-    parts.forEach((name, index) => {
-      path = path === '' ? name : `${path}/${name}`
-      let node = level.get(name)
-      if (node === undefined) {
-        node = { name, path, children: new Map() }
-        level.set(name, node)
-      }
-      if (index === parts.length - 1) node.file = file
-      level = node.children
-    })
-  }
-  const freeze = (nodes: Map<string, MutableNode>): readonly FileTreeNode[] => [...nodes.values()]
-    .sort((left, right) => Number(left.file !== undefined) - Number(right.file !== undefined) || left.name.localeCompare(right.name))
-    .map(node => ({ ...node, children: freeze(node.children) }))
-  return freeze(root)
-}
-
-function FileTree({
-  files, staged, selected, onOpenDiff, onToggle, statsLabel, fileStatusLabel, actionLabel, collapsed, mutation,
+function WindowedFileTree({
+  files, staged, selected, onOpenDiff, onToggle, onToggleDirectory, expandedDirectories,
+  query, statsLabel, fileStatusLabel, actionLabel, mutation,
 }: {
   readonly files: readonly GitFileChange[]
   readonly staged: boolean
@@ -107,25 +95,65 @@ function FileTree({
   readonly statsLabel: (file: GitFileChange) => string
   readonly fileStatusLabel: (file: GitFileChange) => string
   readonly actionLabel: (file: GitFileChange, staged: boolean) => string
-  readonly collapsed: boolean
+  readonly onToggleDirectory: (key: string, expanded: boolean) => void
+  readonly expandedDirectories: ReadonlyMap<string, boolean>
+  readonly query: string
   readonly mutation: ReturnType<typeof useGitStatus>['mutation']
 }) {
-  const row = (file: GitFileChange, name: string, depth?: number): React.ReactNode => {
+  const [scrollTop, setScrollTop] = useState(0)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const lastScrolledSelection = useRef<string | undefined>(undefined)
+  const tree = useMemo(() => buildFileTree(files), [files])
+  const selectedPath = selected?.staged === staged ? selected.path : undefined
+  const rows = useMemo(() => flattenFileTree(tree, (node: FileTreeNode) => {
+    if (query.trim() !== '') return true
+    const override = expandedDirectories.get(`${String(staged)}:${node.path}`)
+    if (override !== undefined) return override
+    if (selectedPath !== undefined && (selectedPath === node.path || selectedPath.startsWith(`${node.path}/`))) return true
+    return node.fileCount < LARGE_DIRECTORY_SIZE
+  }), [tree, query, selectedPath, expandedDirectories, staged])
+  const height = Math.min(TREE_MAX_HEIGHT, rows.length * TREE_ROW_HEIGHT)
+  const range = virtualRange(rows.length, scrollTop, height, TREE_ROW_HEIGHT)
+
+  useEffect(() => {
+    if (selectedPath === undefined) {
+      lastScrolledSelection.current = undefined
+      return
+    }
+    const selectionKey = `${String(staged)}:${selectedPath}`
+    if (lastScrolledSelection.current === selectionKey) return
+    const index = rows.findIndex(row => row.kind === 'file' && row.path === selectedPath)
+    if (index < 0) return
+    const next = Math.max(0, index * TREE_ROW_HEIGHT - Math.floor(height / 2))
+    if (viewportRef.current !== null) viewportRef.current.scrollTop = next
+    setScrollTop(next)
+    lastScrolledSelection.current = selectionKey
+  }, [selectedPath, rows, height, staged])
+
+  const fileRow = (file: GitFileChange, name: string, depth: number): React.ReactNode => {
     const conflicted = file.status === 'conflicted'
     const pending = mutation?.kind === (staged ? 'unstage' : 'stage') && mutation.paths.includes(file.path)
+    const hasStats = file.insertions !== 0 || file.deletions !== 0
     return (
       <div
-        key={`${file.code}:${file.path}:${String(staged)}`}
         className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
-        style={depth === undefined ? undefined : { paddingLeft: `${String(depth * 12 + 8)}px` }}
+        style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}
+        role="treeitem"
+        aria-selected={selected?.path === file.path && selected.staged === staged}
       >
         <button type="button" className={css.fileOpen} onClick={() => { onOpenDiff(file.path, staged) }} title={file.path}>
+          <span className={css.fileIcon} aria-hidden><IconCodeOutline16 /></span>
           <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
-          <span className={css.path}><bdi>{name}</bdi></span>
-          <span className={css.lineBadge} aria-label={statsLabel(file)}>
-            <span className={css.badgeAdded}>+{file.insertions}</span>
-            <span className={css.badgeRemoved}>-{file.deletions}</span>
+          <span className={css.pathText}>
+            <span className={css.path}><bdi>{name}</bdi></span>
+            <span className={css.pathDetail}><bdi>{file.path}</bdi></span>
           </span>
+          {hasStats
+            ? <span className={css.lineBadge} aria-label={statsLabel(file)}>
+                {file.insertions === 0 ? null : <span className={css.badgeAdded}>+{file.insertions}</span>}
+                {file.deletions === 0 ? null : <span className={css.badgeRemoved}>-{file.deletions}</span>}
+              </span>
+            : null}
         </button>
         <button
           type="button"
@@ -140,24 +168,54 @@ function FileTree({
       </div>
     )
   }
-  const render = (nodes: readonly FileTreeNode[], depth = 0): React.ReactNode => nodes.map((node) => {
-    if (node.file === undefined) {
-      return (
-        <div key={node.path} className={css.directoryGroup}>
-          <div className={css.directory} style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}>
-            <span className={css.directoryChevron} aria-hidden>⌄</span>
-            <span title={node.path}>{node.name}</span>
+
+  return (
+    <div
+      ref={viewportRef}
+      className={css.treeViewport}
+      style={{ height }}
+      role="tree"
+      onScroll={(event) => { setScrollTop(event.currentTarget.scrollTop) }}
+    >
+      <div className={css.treeCanvas} style={{ height: rows.length * TREE_ROW_HEIGHT }}>
+        {rows.slice(range.start, range.end).map((row, offset) => (
+          <div
+            key={`${row.kind}:${row.path}`}
+            className={css.virtualRow}
+            style={{ height: TREE_ROW_HEIGHT, transform: `translateY(${String((range.start + offset) * TREE_ROW_HEIGHT)}px)` }}
+          >
+            {row.file !== undefined
+              ? fileRow(row.file, row.name, row.depth)
+              : (
+                <button
+                  type="button"
+                  className={css.directory}
+                  style={{ paddingLeft: `${String(row.depth * 12 + 8)}px` }}
+                  title={row.path}
+                  role="treeitem"
+                  aria-expanded={row.expanded}
+                  onClick={() => {
+                    if (query.trim() === '') onToggleDirectory(`${String(staged)}:${row.path}`, !(row.expanded ?? false))
+                  }}
+                >
+                  <span className={css.directoryChevron} aria-hidden>
+                    {row.expanded ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+                  </span>
+                  <span className={css.directoryIcon} aria-hidden>
+                    {row.expanded ? <IconFolderOpen16 /> : <IconFolderClose16 />}
+                  </span>
+                  <span className={css.pathText}>
+                    <span className={css.path}>{row.name}</span>
+                    <span className={css.pathDetail}>{row.path}</span>
+                  </span>
+                  <span className={css.directoryCount}>{row.fileCount}</span>
+                </button>
+              )}
           </div>
-          {render(node.children, depth + 1)}
-        </div>
-      )
-    }
-    return row(node.file, node.name, depth)
-  })
-  if (collapsed) {
-    return <>{files.map(file => row(file, file.path))}</>
-  }
-  return <>{render(fileTree(files))}</>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /** Branch, changed files and the commit entry. */
@@ -170,8 +228,21 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   const [committing, setCommitting] = useState(false)
   const [note, setNote] = useState<{ text: string; error: boolean } | undefined>(undefined)
   const [branches, setBranches] = useState<readonly { name: string; current: boolean }[]>([])
-  const [filter, setFilter] = useState<'all' | 'modified' | 'untracked'>('all')
-  const [foldersCollapsed, setFoldersCollapsed] = useState(false)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<GitStatusFilter>('all')
+  const [expandedDirectories, setExpandedDirectories] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  const statusFiles = git.status?.files ?? EMPTY_FILES
+  const stagedFiles = useMemo(() => statusFiles.filter(file => file.staged), [statusFiles])
+  const unstagedFiles = useMemo(() => statusFiles.filter(file => !file.staged), [statusFiles])
+  const visibleFiles = useMemo(() => filterGitFiles(statusFiles, query, filter), [statusFiles, query, filter])
+  const visibleStagedFiles = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles])
+  const visibleUnstagedFiles = useMemo(() => visibleFiles.filter(file => !file.staged), [visibleFiles])
+
+  useEffect(() => {
+    setExpandedDirectories(new Map())
+    setQuery('')
+    setFilter('all')
+  }, [cwd])
 
   const toggleStage = useCallback((files: readonly GitFileChange[], staged: boolean) => {
     const paths = files.filter(file => file.status !== 'conflicted').map(file => file.path)
@@ -235,12 +306,6 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
 
   const status = git.status
   const workspace = groups.find(group => group.path === cwd)
-  const visibleFiles = status.files.filter(file => filter === 'all'
-    || (filter === 'untracked' ? file.status === 'untracked' : file.status !== 'untracked'))
-  const stagedFiles = status.files.filter(file => file.staged)
-  const unstagedFiles = status.files.filter(file => !file.staged)
-  const visibleStagedFiles = visibleFiles.filter(file => file.staged)
-  const visibleUnstagedFiles = visibleFiles.filter(file => !file.staged)
   const suggestedMessage = (() => {
     const files = status.files
     if (files.length === 0) return ''
@@ -276,8 +341,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
               : t(staged ? 'git.unstageAll' : 'git.stageAll')}
           </button>
         </div>
-        <div className={css.files} role="tree">
-          <FileTree
+        <div className={css.files}>
+          <WindowedFileTree
             files={files}
             staged={staged}
             selected={selected}
@@ -288,7 +353,11 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
             actionLabel={(file, isStaged) => file.status === 'conflicted'
               ? t('git.conflictCannotStage')
               : t(isStaged ? 'git.unstageFile' : 'git.stageFile', { path: file.path })}
-            collapsed={foldersCollapsed}
+            query={query}
+            expandedDirectories={expandedDirectories}
+            onToggleDirectory={(key, expanded) => {
+              setExpandedDirectories(current => new Map(current).set(key, expanded))
+            }}
             mutation={git.mutation}
           />
         </div>
@@ -314,17 +383,26 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         : <div className={css.pending} role="status">{t(git.mutation.kind === 'stage' ? 'git.stagingCount' : 'git.unstagingCount', { count: git.mutation.paths.length })}</div>}
 
       <div className={css.fileToolbar}>
-        <span className={css.filters} role="group" aria-label={t('git.filterChangedFiles')}>
-          {(['all', 'modified', 'untracked'] as const).map(value => (
-            <button key={value} type="button" className={filter === value ? css.filterActive : ''} aria-pressed={filter === value} onClick={() => { setFilter(value) }}>
-              {t(value === 'all' ? 'git.filterAll' : value === 'modified' ? 'git.filterModified' : 'git.filterUntracked')}
-              <span>{value === 'all' ? status.files.length : status.files.filter(file => value === 'untracked' ? file.status === 'untracked' : file.status !== 'untracked').length}</span>
-            </button>
-          ))}
-        </span>
-        <button type="button" className={css.collapseFolders} aria-pressed={foldersCollapsed} onClick={() => { setFoldersCollapsed(value => !value) }} title={t('git.toggleTree')}>
-          {foldersCollapsed ? t('git.tree') : t('git.collapse')}
-        </button>
+        <label className={css.searchBox}>
+          <span className={css.searchIcon} aria-hidden><IconSearchOutline16 /></span>
+          <input
+            type="search"
+            value={query}
+            aria-label={t('git.searchFiles')}
+            placeholder={t('git.searchFiles')}
+            onChange={event => { setQuery(event.target.value) }}
+          />
+        </label>
+        <label className={css.statusFilter}>
+          <span>{t('git.filterStatus')}</span>
+          <select value={filter} onChange={event => { setFilter(event.target.value as GitStatusFilter) }}>
+            {(['all', 'modified', 'added', 'deleted', 'renamed', 'conflicted', 'untracked'] as const).map(value => (
+              <option key={value} value={value}>
+                {t(STATUS_FILTER_KEYS[value])} ({value === 'all' ? status.files.length : status.files.filter(file => file.status === value).length})
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <Popover
@@ -378,6 +456,7 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
           <div className={css.fileGroups}>
             {fileGroup(t('git.staged'), visibleStagedFiles, stagedFiles, true)}
             {fileGroup(t('git.unstaged'), visibleUnstagedFiles, unstagedFiles, false)}
+            {visibleFiles.length === 0 ? <EmptyState>{t('git.noMatchingFiles')}</EmptyState> : null}
           </div>
         )}
 

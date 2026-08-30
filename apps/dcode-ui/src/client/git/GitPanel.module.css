@@ -92,39 +92,65 @@
 .fileToolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--zx-space-2);
-}
-
-.filters {
-  display: inline-flex;
-  gap: 2px;
   min-width: 0;
-  padding: 2px;
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-pill);
-  background: var(--zx-bg-card);
 }
 
-.filters button,
-.collapseFolders,
-.suggest {
-  border: 0;
-  border-radius: var(--zx-radius-pill);
-  background: transparent;
+.searchBox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 8px;
+  z-index: 1;
+  display: flex;
+  pointer-events: none;
   color: var(--zx-label-tertiary);
+}
+
+.searchBox input,
+.statusFilter select {
+  box-sizing: border-box;
+  min-height: 30px;
+  border: 1px solid var(--zx-border-control);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+  color: var(--zx-label);
   font: inherit;
   font-size: var(--zx-text-micro);
-  cursor: pointer;
 }
 
-.filters button { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px; }
-.filters button > span { font-family: var(--zx-font-mono); color: var(--zx-label-faint); }
-.filters button:hover,
-.collapseFolders:hover,
-.suggest:hover { color: var(--zx-label); background: var(--zx-bg-hover); }
-.filters .filterActive { color: var(--zx-label); background: var(--zx-bg-active); box-shadow: var(--zx-shadow-inset-top); }
-.collapseFolders { flex: none; min-height: 24px; padding: 0 8px; }
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px 0 29px;
+}
+
+.searchBox input:focus,
+.statusFilter select:focus {
+  outline: none;
+  border-color: var(--zx-accent);
+  box-shadow: var(--zx-focus-ring);
+}
+
+.statusFilter {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--zx-space-1);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+}
+
+.statusFilter select {
+  max-width: 132px;
+  padding: 0 5px;
+}
 
 .fileGroup {
   display: flex;
@@ -168,53 +194,78 @@
 .groupAction:disabled { opacity: var(--zx-opacity-disabled); cursor: default; }
 
 .files {
-  display: flex;
-  flex-direction: column;
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-card);
   overflow: hidden;
 }
 
-.directoryGroup {
-  display: contents;
+.treeViewport {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.treeCanvas {
+  position: relative;
+  min-width: 0;
+}
+
+.virtualRow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  border-bottom: 1px solid var(--zx-border-soft);
+  box-sizing: border-box;
 }
 
 .directory {
   display: flex;
   align-items: center;
   gap: var(--zx-space-1);
-  min-height: 24px;
+  width: 100%;
+  height: 100%;
   padding-right: var(--zx-space-2);
+  border: 0;
+  background: transparent;
   color: var(--zx-label-muted);
+  font: inherit;
   font-size: var(--zx-text-micro);
-  font-family: var(--zx-font-mono);
-  border-bottom: 1px solid var(--zx-border-soft);
+  cursor: pointer;
+  text-align: left;
 }
 
 .directoryChevron {
+  display: flex;
   flex: none;
-  width: 12px;
+  width: 14px;
   color: var(--zx-label-decor);
-  text-align: center;
 }
+
+.directoryIcon,
+.fileIcon { display: flex; flex: none; color: var(--zx-label-tertiary); }
+.directory:hover { background: var(--zx-bg-hover); color: var(--zx-label); }
+.directory:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--zx-accent); }
+.directoryCount { flex: none; color: var(--zx-label-faint); font-variant-numeric: tabular-nums; }
 
 .file {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 28px;
+  height: 100%;
   background: transparent;
   color: var(--zx-label);
+  box-sizing: border-box;
 }
 
 .fileOpen {
   display: flex;
   align-items: center;
-  gap: var(--zx-space-3);
+  gap: var(--zx-space-2);
   flex: 1;
   min-width: 0;
-  min-height: 28px;
+  height: 100%;
   padding: var(--zx-space-1) var(--zx-space-2) var(--zx-space-1) var(--zx-space-3);
   border: 0;
   background: transparent;
@@ -227,7 +278,7 @@
 .fileAction {
   flex: none;
   width: 28px;
-  min-height: 28px;
+  height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
@@ -239,10 +290,6 @@
 
 .fileAction:hover:not(:disabled) { background: var(--zx-bg-active); }
 .fileAction:disabled { color: var(--zx-label-faint); cursor: default; }
-
-.file + .file {
-  border-top: 1px solid var(--zx-border-soft);
-}
 
 .file:hover {
   background: var(--zx-bg-hover);
@@ -278,13 +325,32 @@
 .codeUntracked { color: var(--zx-warn); }
 
 .path {
-  flex: 1;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
   font-family: var(--zx-font-mono);
+}
+
+.pathText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.pathDetail {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zx-label-faint);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lineBadge {
@@ -305,6 +371,16 @@
 
 .badgeAdded { color: var(--zx-added); }
 .badgeRemoved { color: var(--zx-removed); }
+
+.suggest {
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.suggest:hover { color: var(--zx-label); background: var(--zx-bg-hover); }
 
 .commit {
   display: flex;
