@@ -17,19 +17,20 @@ export interface SelectMenuProps {
   readonly options: readonly SelectMenuOption[]
   readonly onChange: (value: string) => void
   readonly ariaLabel: string
+  readonly placeholder?: ReactNode
   readonly disabled?: boolean
 }
 
 interface MenuPosition {
   readonly top: number
   readonly left: number
-  readonly minWidth: number
+  readonly width: number
   readonly side: 'above' | 'below'
 }
 
 const VIEWPORT_GUTTER = 8
 const MENU_GAP = 6
-const MENU_MAX_HEIGHT = 280
+const MENU_MAX_HEIGHT = 320
 
 function firstEnabled(options: readonly SelectMenuOption[], from = 0, direction = 1): number {
   for (let index = from; index >= 0 && index < options.length; index += direction) {
@@ -39,7 +40,7 @@ function firstEnabled(options: readonly SelectMenuOption[], from = 0, direction 
 }
 
 /** A native-select replacement that stays inside DCode's visual language. */
-export function SelectMenu({ value, options, onChange, ariaLabel, disabled = false }: SelectMenuProps) {
+export function SelectMenu({ value, options, onChange, ariaLabel, placeholder, disabled = false }: SelectMenuProps) {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const optionRefs = useRef<Record<number, HTMLButtonElement | null>>({})
@@ -57,16 +58,16 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
     const rect = trigger.getBoundingClientRect()
     const roomBelow = window.innerHeight - rect.bottom - VIEWPORT_GUTTER
     const above = roomBelow < MENU_MAX_HEIGHT && rect.top > roomBelow
-    const estimatedHeight = Math.min(MENU_MAX_HEIGHT, Math.max(44, options.length * 40 + 8))
+    const estimatedHeight = Math.min(MENU_MAX_HEIGHT, Math.max(56, options.length * 48 + 16))
     const top = above
       ? Math.max(VIEWPORT_GUTTER, rect.top - estimatedHeight - MENU_GAP)
       : Math.min(window.innerHeight - VIEWPORT_GUTTER - estimatedHeight, rect.bottom + MENU_GAP)
-    const minWidth = Math.max(rect.width, 180)
+    const width = Math.min(Math.max(rect.width, 240), window.innerWidth - VIEWPORT_GUTTER * 2)
     const left = Math.min(
       Math.max(VIEWPORT_GUTTER, rect.left),
-      Math.max(VIEWPORT_GUTTER, window.innerWidth - minWidth - VIEWPORT_GUTTER),
+      Math.max(VIEWPORT_GUTTER, window.innerWidth - width - VIEWPORT_GUTTER),
     )
-    setPosition({ top, left, minWidth, side: above ? 'above' : 'below' })
+    setPosition({ top, left, width, side: above ? 'above' : 'below' })
   }, [options.length])
 
   const close = useCallback((restoreFocus = true) => {
@@ -111,7 +112,8 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         return
       }
       const move = (direction: 1 | -1, start: number): void => {
-        const next = firstEnabled(options, start, direction)
+        let next = firstEnabled(options, start, direction)
+        if (next < 0) next = firstEnabled(options, direction === 1 ? 0 : options.length - 1, direction)
         if (next >= 0) setActive(next)
       }
       if (event.key === 'ArrowDown') {
@@ -178,7 +180,7 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         aria-label={ariaLabel}
         className={css.menu}
         data-side={position.side}
-        style={{ top: position.top, left: position.left, minWidth: position.minWidth }}
+        style={{ top: position.top, left: position.left, width: position.width }}
       >
         {options.map((option, index) => (
           <button
@@ -199,7 +201,7 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
             }}
           >
             <span className={css.optionText}>
-              <span>{option.label}</span>
+              <span className={css.optionLabel}>{option.label}</span>
               {option.detail === undefined ? null : <span className={css.detail}>{option.detail}</span>}
             </span>
             {option.id === value ? <span className={css.check} aria-hidden>✓</span> : null}
@@ -224,7 +226,9 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         onClick={() => { if (open) close(false); else openMenu() }}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className={css.triggerValue}>{selected?.label ?? value}</span>
+        <span className={`${css.triggerValue} ${selected === undefined ? css.triggerPlaceholder : ''}`}>
+          {selected?.label ?? placeholder ?? value}
+        </span>
         <span className={`${css.chevron} ${open ? css.chevronOpen : ''}`} aria-hidden>⌄</span>
       </button>
       {list}

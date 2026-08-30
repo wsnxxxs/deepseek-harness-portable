@@ -251,6 +251,12 @@ function modelCredentialRef(provider: string, profile: Record<string, unknown> |
   return named ?? `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
 }
 
+function providerOptionLabel(row: Pick<ModelProviderRow, 'id' | 'name'>): string {
+  if (row.name.trim().toLowerCase() !== row.id.toLowerCase()) return row.name
+  const acronyms = new Map([['ai', 'AI'], ['api', 'API'], ['aws', 'AWS'], ['gcp', 'GCP'], ['ibm', 'IBM'], ['openai', 'OpenAI']])
+  return row.id.split('-').map(part => acronyms.get(part) ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(' ')
+}
+
 export interface ModelProviderRow {
   readonly id: string
   readonly name: string
@@ -810,13 +816,11 @@ function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved
           <div className={css.addActions}>
             <div className={css.addSelect}>
               <SelectMenu
-                value="__add_provider__"
+                value=""
                 ariaLabel={t('settings.models.addProvider')}
+                placeholder={<><IconPlusOutline16 />{t('settings.models.addProvider')}</>}
                 disabled={!value.writable || addable.length === 0}
-                options={[
-                  { id: '__add_provider__', label: <><IconPlusOutline16 />{t('settings.models.addProvider')}</>, disabled: true },
-                  ...addable.map(row => ({ id: row.id, label: row.name, detail: row.id })),
-                ]}
+                options={addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id }))}
                 onChange={(provider) => { setAddingProvider(provider); setAddingCustom(false) }}
               />
             </div>

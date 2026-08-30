@@ -34,10 +34,17 @@
 }
 
 .triggerValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.triggerPlaceholder {
+  color: var(--zx-label-secondary);
 }
 
 .chevron {
@@ -58,18 +65,17 @@
   z-index: var(--zx-z-menu);
   display: flex;
   flex-direction: column;
-  max-height: min(280px, calc(100vh - 16px));
+  max-height: min(320px, calc(100vh - 16px));
   overflow: hidden auto;
-  padding: var(--zx-space-1);
-  border: 1px solid color-mix(in srgb, var(--zx-label) 20%, transparent);
+  padding: var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-lg);
-  background: color-mix(in srgb, var(--zx-bg-overlay) 82%, transparent);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 96%, var(--zx-bg-card));
   color: var(--zx-label);
-  box-shadow:
-    var(--zx-shadow-dialog),
-    inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(135%);
-  backdrop-filter: blur(20px) saturate(135%);
+  box-shadow: var(--zx-shadow-dialog);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+  scrollbar-gutter: stable;
   animation: menuIn var(--zx-motion-fast);
 }
 
@@ -78,10 +84,10 @@
   align-items: center;
   gap: var(--zx-space-3);
   width: 100%;
-  min-height: 36px;
-  padding: var(--zx-space-2) var(--zx-space-3);
-  border: 0;
-  border-radius: var(--zx-radius-sm);
+  min-height: 48px;
+  padding: 7px var(--zx-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--zx-radius-md);
   background: transparent;
   color: var(--zx-label);
   font: inherit;
@@ -92,7 +98,8 @@
 
 .option:hover,
 .optionActive {
-  background: var(--zx-bg-hover);
+  border-color: color-mix(in srgb, var(--zx-accent) 20%, var(--zx-border-soft));
+  background: color-mix(in srgb, var(--zx-accent) 7%, var(--zx-bg-hover));
 }
 
 .optionSelected {
@@ -115,8 +122,18 @@
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionLabel {
+  overflow: hidden;
+  color: var(--zx-label);
+  font-size: var(--zx-text-xs);
+  font-weight: var(--zx-weight-semibold);
+  line-height: var(--zx-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -125,6 +142,8 @@
   overflow: hidden;
   color: var(--zx-label-muted);
   font-size: var(--zx-text-micro);
+  font-family: var(--zx-font-mono);
+  line-height: var(--zx-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
