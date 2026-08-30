@@ -69,10 +69,18 @@ test('Setup completion defers desktop launch until the installer process exits',
   assert.match(runEntry, /Flags: .*\brunasoriginaluser\b/)
   assert.match(runEntry, /setup-launch-after-exit\.ps1/)
   assert.match(runEntry, /-SetupProcessId \{code:GetSetupProcessId\}/)
+  assert.match(runEntry, /-SetupLoaderProcessId \{code:GetSetupLoaderProcessId\}/)
+  assert.match(runEntry, /-SetupLoaderExecutable ""\{srcexe\}""/)
+  assert.match(source, /CommandTail := GetCmdTail\(\)/)
+  assert.match(source, /GetWindowThreadProcessId\(LoaderWindow, LoaderProcessId\)/)
   const handoff = readFileSync(join(root, 'scripts', 'setup-launch-after-exit.ps1'), 'utf8')
-  assert.match(handoff, /Wait-Process -Id \$SetupProcessId/)
+  assert.match(handoff, /\$setup\.WaitForExit\(\)/)
+  assert.match(handoff, /\$setupLoader\.WaitForExit\(\)/)
   assert.match(handoff, /SetEnvironmentVariable\('__COMPAT_LAYER', \$null, 'Process'\)/)
-  assert.match(handoff, /Start-Process -FilePath \$Executable -WorkingDirectory \$WorkingDirectory/)
+  assert.match(handoff, /New-Object -ComObject WScript\.Shell/)
+  assert.match(handoff, /\$shortcut\.TargetPath = \[IO\.Path\]::GetFullPath\(\$Executable\)/)
+  assert.match(handoff, /Start-Process -FilePath \$explorer -ArgumentList \$quotedShortcutPath -Wait/)
+  assert.doesNotMatch(handoff, /Start-Process -FilePath \$Executable/)
 
   const packager = readFileSync(join(root, 'scripts', 'build-desktop-web-exe.ts'), 'utf8')
   const containerInputs = packager.match(/const CONTAINER_INPUT_PATHS = \[[\s\S]*?\n\]/)?.[0]
@@ -80,19 +88,24 @@ test('Setup completion defers desktop launch until the installer process exits',
   assert.match(containerInputs, /'scripts\/setup-launch-after-exit\.ps1'/)
 })
 
-test('post-install handoff does not launch its target while Setup is alive', {
+test('post-install handoff waits for the extracted Setup and its original loader', {
   skip: process.platform !== 'win32',
 }, async () => {
   const temporary = mkdtempSync(join(tmpdir(), 'dsh-setup-handoff-中文 空格-'))
   const marker = join(temporary, 'launched.txt')
   const target = join(temporary, 'launch-target.cmd')
+  const probe = join(temporary, 'launch-probe.ps1')
+  writeFileSync(probe, [
+    '$self = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"',
+    '$command = Get-CimInstance Win32_Process -Filter "ProcessId=$($self.ParentProcessId)"',
+    '$shell = Get-CimInstance Win32_Process -Filter "ProcessId=$($command.ParentProcessId)"',
+    "$compat = if ([string]::IsNullOrEmpty($env:__COMPAT_LAYER)) { 'clean' } else { 'contaminated' }",
+    "[IO.File]::WriteAllLines((Join-Path $PSScriptRoot 'launched.txt'), @($compat, $shell.ExecutablePath))",
+    '',
+  ].join('\r\n'))
   writeFileSync(target, [
     '@echo off',
-    'if defined __COMPAT_LAYER (',
-    '  > "%~dp0launched.txt" echo contaminated',
-    ') else (',
-    '  > "%~dp0launched.txt" echo clean',
-    ')',
+    'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0launch-probe.ps1"',
     '',
   ].join('\r\n'))
 
@@ -100,11 +113,25 @@ test('post-install handoff does not launch its target while Setup is alive', {
     '-NoProfile',
     '-NonInteractive',
     '-Command',
-    'Start-Sleep -Milliseconds 1500',
+    'Start-Sleep -Milliseconds 900',
+  ], { stdio: 'ignore', windowsHide: true })
+  const setupLoader = spawn('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    'Start-Sleep -Milliseconds 2200',
   ], { stdio: 'ignore', windowsHide: true })
 
   try {
     assert.ok(setup.pid)
+    assert.ok(setupLoader.pid)
+    const setupLoaderExecutable = join(
+      process.env.SystemRoot ?? 'C:\\Windows',
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    )
     const handoff = spawn('powershell.exe', [
       '-NoProfile',
       '-NonInteractive',
@@ -114,6 +141,10 @@ test('post-install handoff does not launch its target while Setup is alive', {
       join(root, 'scripts', 'setup-launch-after-exit.ps1'),
       '-SetupProcessId',
       String(setup.pid),
+      '-SetupLoaderProcessId',
+      String(setupLoader.pid),
+      '-SetupLoaderExecutable',
+      setupLoaderExecutable,
       '-Executable',
       target,
       '-WorkingDirectory',
@@ -127,6 +158,11 @@ test('post-install handoff does not launch its target while Setup is alive', {
     await new Promise(resolveDelay => setTimeout(resolveDelay, 400))
     assert.equal(existsSync(marker), false, 'the desktop target must remain stopped while Setup is alive')
     await new Promise<void>((resolveExit, rejectExit) => {
+      setup.once('error', rejectExit)
+      setup.once('exit', () => resolveExit())
+    })
+    assert.equal(existsSync(marker), false, 'the desktop target must remain stopped during Setup Loader cleanup')
+    await new Promise<void>((resolveExit, rejectExit) => {
       handoff.once('error', rejectExit)
       handoff.once('exit', code => code === 0
         ? resolveExit()
@@ -136,10 +172,13 @@ test('post-install handoff does not launch its target while Setup is alive', {
       await new Promise(resolveDelay => setTimeout(resolveDelay, 50))
     }
     assert.equal(existsSync(marker), true, 'the desktop target must launch after Setup exits')
-    assert.equal(readFileSync(marker, 'utf8').trim(), 'clean', 'the handoff must not pass Setup AppCompat state to the target')
+    const [compat, shell] = readFileSync(marker, 'utf8').trim().split(/\r?\n/)
+    assert.equal(compat, 'clean', 'the handoff must not pass Setup AppCompat state to the target')
+    assert.match(shell, /[\\/]explorer\.exe$/i, 'the installed launcher must be activated by Explorer')
   } finally {
     if (setup.exitCode === null) setup.kill()
-    rmSync(temporary, { recursive: true, force: true })
+    if (setupLoader.exitCode === null) setupLoader.kill()
+    rmSync(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 

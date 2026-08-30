@@ -64,7 +64,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyLauncherExeName}"; IconFilename: "{app}\assets\deepseek.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\setup-launch-after-exit.ps1"" -SetupProcessId {code:GetSetupProcessId} -Executable ""{app}\{#MyLauncherExeName}"" -WorkingDirectory ""{app}"""; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{app}"; Flags: runhidden nowait postinstall skipifsilent runasoriginaluser
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\setup-launch-after-exit.ps1"" -SetupProcessId {code:GetSetupProcessId} -SetupLoaderProcessId {code:GetSetupLoaderProcessId} -SetupLoaderExecutable ""{srcexe}"" -Executable ""{app}\{#MyLauncherExeName}"" -WorkingDirectory ""{app}"""; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{app}"; Flags: runhidden nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
@@ -77,9 +77,43 @@ var
 function GetCurrentProcessId(): LongWord;
   external 'GetCurrentProcessId@kernel32.dll stdcall';
 
+function GetWindowThreadProcessId(hWnd: HWND; var ProcessId: LongWord): LongWord;
+  external 'GetWindowThreadProcessId@user32.dll stdcall';
+
 function GetSetupProcessId(Param: String): String;
 begin
   Result := IntToStr(GetCurrentProcessId());
+end;
+
+function GetSetupLoaderProcessId(Param: String): String;
+var
+  CommandTail, LoaderMarker, LoaderWindowText: String;
+  LoaderMarkerPosition, LoaderWindowPosition, Separator: Integer;
+  LoaderWindow: HWND;
+  LoaderProcessId: LongWord;
+begin
+  // Inno filters /SL5 out of ParamStr, while the raw command tail retains
+  // SetupLdr's private window handle. It identifies the exact outer process
+  // even when another installer is running.
+  CommandTail := GetCmdTail();
+  LoaderMarker := '/SL5="';
+  LoaderMarkerPosition := Pos(LoaderMarker, Uppercase(CommandTail));
+  if LoaderMarkerPosition = 0 then
+    RaiseException('Setup Loader command-line state is invalid.');
+  LoaderWindowPosition := LoaderMarkerPosition + Length(LoaderMarker);
+  Separator := Pos(',', Copy(CommandTail, LoaderWindowPosition, Length(CommandTail)));
+  if Separator <= 1 then
+    RaiseException('Setup Loader window handle is missing.');
+
+  LoaderWindowText := Copy(CommandTail, LoaderWindowPosition, Separator - 1);
+  LoaderWindow := HWND(StrToInt64(LoaderWindowText));
+  LoaderProcessId := 0;
+  if GetWindowThreadProcessId(LoaderWindow, LoaderProcessId) = 0 then
+    RaiseException('Unable to resolve the original Setup Loader process.');
+  if LoaderProcessId = 0 then
+    RaiseException('The original Setup Loader process id is invalid.');
+  Log(Format('DSH_SETUP_TRACE handoff-processes-%d-%d', [GetCurrentProcessId(), LoaderProcessId]));
+  Result := IntToStr(LoaderProcessId);
 end;
 
 function DshHomePath(): String;
