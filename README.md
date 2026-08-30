@@ -6,14 +6,16 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-blue)](https://github.com/wsnxxxs/deepseek-harness-portable/releases)
 [![License](https://img.shields.io/github/license/wsnxxxs/deepseek-harness-portable)](LICENSE)
 
-DeepSeek Harness Desktop is a community Windows x64, macOS Apple Silicon, and Linux x64 distribution of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It combines the Electron desktop shell with a platform-native runtime. It is not an officially Microsoft-signed, Apple-notarized, or Linux-distribution-signed build.
+DeepSeek Harness Desktop turns [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) into an installable, portable desktop application with workspace management, the DCode coding workbench, a plugin marketplace, image understanding, and Learning mode. It supports Windows x64, macOS Apple Silicon, and Linux x64 through an Electron desktop shell and platform-native runtime.
+
+This is a community distribution. It is not Microsoft-signed, Apple-notarized, or signed by a Linux distribution. Verify the SHA-256 checksums in each release before first launch.
 
 ## Table of contents
 
-- [Why DeepSeek Harness Desktop?](#why-deepseek-harness-desktop)
+- [What this distribution adds](#what-this-distribution-adds)
 - [Platform support](#platform-support)
 - [Quick start](#quick-start)
-- [Features](#features)
+- [Core capabilities](#core-capabilities)
 - [Latest release](#latest-release)
 - [Install](#install)
 - [Portable layout](#portable-layout)
@@ -25,11 +27,18 @@ DeepSeek Harness Desktop is a community Windows x64, macOS Apple Silicon, and Li
 - [Security and limitations](#security-and-limitations)
 - [License](#license)
 
-## Why DeepSeek Harness Desktop?
+## What this distribution adds
 
-Upstream [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) is primarily designed for POSIX shells and containerized environments. This distribution adds a native Electron shell, platform-specific runtime adapters, verified release packaging, and a manual release path. Upstream adaptations remain isolated behind reviewed patches and Cordis extension points.
+| Advantage | What it changes for users |
+| --- | --- |
+| Ready-to-run desktop packages | Packages include the Electron/Node.js runtime. Regular users do not need to prepare Node.js, pnpm, or a container environment. Windows offers Setup and portable ZIP packages, with native artifacts for Linux and macOS. |
+| A dedicated coding workbench | DCode brings sessions, workspaces, environment summaries, terminals, file changes, and previews into one responsive interface that works in compact and wide windows. |
+| Optional, removable extensions | The plugin marketplace provides review, enable/disable, update, and uninstall controls. Vision Bridge and Learning integrate as separate modules without rewriting the default behavior of Standard, Code, Minimal, or Cordis. |
+| Reuse of existing model settings | Vision Bridge uses the kernel's attachments, model catalog, and invocation path. A text model can hand image work to an already configured vision model without another endpoint or API key. |
+| Explicit data and update boundaries | Sessions, credentials, settings, and attachments stay outside the application directory. The Web service binds only to loopback, and the desktop shell reports updates without replacing or rolling back application files. |
+| Inspectable release artifacts | Packaging probes real target capabilities, smoke-tests the final application, and records file inventories and hashes. Publishing only copies artifacts that have already passed verification. |
 
-The packaged application includes its own Electron/Node.js runtime, stores user data outside the application directory, and provides desktop integrations such as workspace selection, update diagnostics, the plugin marketplace, vision tools, and the Interactive Learning preset.
+Upstream adaptations stay in reviewed patches and Cordis extension points, keeping the desktop layer separate from the kernel. Browser and command-line entries remain available, so users can choose a desktop window, Web page, or terminal for each task.
 
 ## Platform support
 
@@ -49,18 +58,26 @@ Packages include the application runtime; users do not need to install Node.js o
 
 Before first launch, verify the checksum published alongside the artifact. Windows users who need Minimal mode should also verify that `wsl -- bash -lc true` succeeds.
 
-## Features
+## Core capabilities
 
-- Bundled native Electron desktop shell with the built-in DeepSeek Harness Web runtime, served on the loopback address.
-- Workspace selection, browser mode, tray/app menu, update history, About, and diagnostics export.
-- Release checks with a compact new-version notice and a release-page link; application files are never downloaded or replaced by the desktop shell.
-- Native sidebar logo and system theme sync, Windows 11 Mica/title-bar styling, native macOS menus, a staged startup splash, and persisted multi-monitor-safe window bounds.
-- The DCode workbench adapts between compact, medium, and wide layouts, with a resizable persisted session rail, an environment summary card, focused preview panels, and quick workspace/task switching.
-- Minimal mode uses WSL Bash on Windows and the native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandbox-capable modes use bwrap or fail-closed Landlock according to the upstream policy.
-- Preinstalled, removable plugin marketplace with paginated GitHub search, a review gate, install progress, update management, enable/disable/uninstall controls, and agent-facing market tools.
-- Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, and GIF files through the kernel attachment and model services. It can automatically select a configured image-capable model—including the official `deepseek-v4-flash-vision-exp` catalog entry—or pin one in plugin settings, with no separate endpoint or API key.
-- The conversation input keeps image attachments as image data and uploads text/Office files through the kernel Session Remote. Upstream `@file` path references remain available, while desktop file attachments reject dropped objects whose local path cannot be resolved.
-- Learning mode provides material-grounded teaching with session notes, source anchors, concept reviews, learner memory, non-blocking semantic visuals, selective understanding checks, and session-scoped learning routes. Durable content lives in the separate Learning Library; teaching state advances from learner evidence and survives refresh, resume, and message compaction.
+### Desktop and workspaces
+
+- The bundled Electron shell starts the DeepSeek Harness Web runtime on loopback while retaining browser mode.
+- Workspace selection, tray/app menus, update history, About, and diagnostics export are built in.
+- The native sidebar logo opens the desktop menu and follows the system theme. Windows 11 uses Mica and title-bar styling, macOS uses native menus, and saved window bounds remain safe across displays.
+- DCode adapts across compact, medium, and wide layouts with a resizable persistent session rail, environment summary, focused previews, and quick workspace/task switching.
+
+### Agents and runtime
+
+- Standard, Code, Cordis, Minimal, and Learning keep separate responsibilities. Learning activates only when selected and does not change the default tools or behavior of the other modes.
+- Minimal mode uses WSL Bash on Windows and a native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandboxed modes retain the upstream fail-closed bwrap/Landlock policy.
+- The removable plugin marketplace supports paginated GitHub search, pre-install review, progress, updates, enable, disable, and uninstall controls, plus agent-facing marketplace tools.
+
+### Images, files, and learning
+
+- Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, GIF, and PDF pages. It can select a configured image model automatically or pin one in plugin settings.
+- Conversation input keeps images as image data and uploads text and Office files through the kernel Session Remote. Upstream `@file` path references remain available.
+- Learning mode organizes explanations, session notes, concept cards, and review around source anchors. Semantic visuals and understanding checks appear when useful without blocking the conversation; durable material stays in the separate Learning Library.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
 ## Latest release
@@ -159,6 +176,7 @@ Minimal mode runs the requested shell command unchanged. Recursive `grep` over t
 
 | Document | Audience | Contents |
 | --- | --- | --- |
+| [Project overview (Chinese)](overview.md) | New users and evaluators | Positioning, advantages, use cases, and current boundaries |
 | [Desktop shell guide](apps/desktop/README.md) | Desktop contributors | Electron behavior, native output layout, tests, and release identity |
 | [Runtime architecture and release gates](docs/runtime-architecture.md) | Runtime and release maintainers | Capability probes, mode contracts, manifests, CI, and signing gates |
 | [Interactive Learning pack](apps/interactive-learning/README.md) | Feature contributors | Protocol boundaries, development workflow, activation, and compatibility |

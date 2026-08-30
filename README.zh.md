@@ -6,14 +6,16 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-blue)](https://github.com/wsnxxxs/deepseek-harness-portable/releases)
 [![License](https://img.shields.io/github/license/wsnxxxs/deepseek-harness-portable)](LICENSE)
 
-DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的社区 Windows x64、macOS Apple Silicon 与 Linux x64 分发版，由 Electron 桌面外壳和平台原生 runtime 组成，不是 Microsoft 官方签名、Apple 公证或 Linux 发行版签名版本。
+DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 做成可直接安装和携带的桌面应用，并补上工作区管理和 DCode 编码工作台，另有插件市场、图片理解与学习模式。它支持 Windows x64、macOS Apple Silicon 与 Linux x64，由 Electron 桌面外壳和平台原生 runtime 组成。
+
+这是社区分发版，不是 Microsoft 官方签名、Apple 公证或 Linux 发行版签名版本。首次运行前请核对 Release 中的 SHA-256 校验值。
 
 ## 目录
 
-- [为什么选择 DeepSeek Harness Desktop？](#为什么选择-deepseek-harness-desktop)
+- [项目优势](#项目优势)
 - [平台支持](#平台支持)
 - [快速开始](#快速开始)
-- [功能特性](#功能特性)
+- [主要能力](#主要能力)
 - [最新发布](#最新发布)
 - [安装](#安装)
 - [便携目录结构](#便携目录结构)
@@ -25,11 +27,18 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 - [安全与限制](#安全与限制)
 - [许可证](#许可证)
 
-## 为什么选择 DeepSeek Harness Desktop？
+## 项目优势
 
-上游 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 主要面向 POSIX Shell 与容器环境。本分发版增加原生 Electron 外壳和平台运行时适配，支持可验证的发布打包与手动发布流程；对上游的适配集中在受审查补丁和 Cordis 扩展点中，避免散落修改。
+| 优势 | 带来的实际体验 |
+| --- | --- |
+| 开箱即用的桌面分发 | 安装包自带 Electron/Node.js runtime。普通用户无需准备 Node.js、pnpm 或容器环境，Windows 可选择 Setup 或便携 ZIP，Linux/macOS 也有原生安装产物。 |
+| 专门的编码工作台 | DCode 把会话和工作区放进同一个响应式界面，环境摘要和终端，以及文件变更与预览也集中于此，紧凑窗口和宽屏都能使用。 |
+| 能力可以按需扩展 | 插件市场支持安装前审核、启停和更新，也能卸载；Vision Bridge 与 Learning 作为独立模块接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
+| 复用已有模型配置 | Vision Bridge 复用内核的附件、模型目录与调用链。文本模型需要看图时可以转交已配置的视觉模型，无需再维护一套端点和 API 密钥。 |
+| 数据与更新边界明确 | 会话与凭据，以及设置和附件都保存在应用目录之外；Web 服务只绑定回环地址，桌面外壳只提示新版本，不会自行替换或回滚应用文件。 |
+| 发布过程可检查 | 打包流程会探测目标平台的真实能力，对最终应用执行冒烟检查并记录文件清单与哈希；发布步骤只复制已经验证的产物。 |
 
-应用自带 Electron/Node.js runtime，用户数据保存在应用目录之外；桌面集成功能包括工作区选择、更新诊断和插件市场，也包括视觉工具与交互式学习预设。
+上游适配集中在受审查补丁和 Cordis 扩展点中，桌面能力与内核边界保持清楚。项目仍然保留浏览器模式和命令行入口，用户可以按场景选择桌面窗口、Web 页面或终端。
 
 ## 平台支持
 
@@ -49,19 +58,27 @@ DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 首次启动前，请核对与安装包一同发布的校验值。需要使用极简模式的 Windows 用户还应确认 `wsl -- bash -lc true` 能正常执行。
 
-## 功能特性
+## 主要能力
 
-- 内置原生 Electron 桌面外壳与 DeepSeek Harness Web runtime，在回环地址启动。
-- 支持选择工作区和浏览器模式，托盘/应用菜单还可查看更新历史、关于信息并导出诊断。
-- 支持版本检查、紧凑的新版本提示和发布页入口；桌面外壳不会下载或替换应用文件。
-- 原生侧边栏 Logo 集成桌面菜单，支持系统主题同步；Windows 11 使用 Mica/标题栏样式，macOS 使用原生菜单；启动过渡分阶段显示，窗口状态适配多显示器。
-- DCode 工作台会在紧凑、中等和宽屏布局间自适应，支持可调整且持久化的会话侧栏、环境摘要卡、聚焦式预览面板，以及快速切换工作区和任务。
-- 极简模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY；Linux 沙箱模式遵循上游 bwrap/Landlock 失败关闭策略。
-- 预装可移除的插件市场，支持 GitHub 分页搜索、安装前审核、安装进度、更新管理、启用/停用/卸载，以及 Agent 市场工具。
-- Vision Bridge 的 `view_image` 复用内核附件与模型服务分析本地 PNG、JPEG、WebP 和 GIF；可自动选择已配置的图片模型（包括官方 `deepseek-v4-flash-vision-exp` 目录项），也可在插件设置中固定模型，不需要单独配置端点或 API 密钥。
-- 会话输入框会保留图片附件为图片数据，并支持通过内核 Session Remote 上传文本/Office 文件；上游 `@file` 路径引用仍可直接使用，桌面文件附件会拒绝无法取得本地路径的拖放对象。
-- Learning 模式提供基于资料锚点的教学，并保留会话笔记、概念复习和学习者记忆；它还支持非阻塞语义图示、按需理解检查和会话内学习路线。长期内容通过独立的学习库存放，教学状态依据学习者证据更新，并可随刷新、恢复和消息压缩延续。
-- 使用量设置页基于持久化运行时投影汇总 token 消耗和模型明细，并显示活跃度与会话耗时。
+### 桌面与工作区
+
+- 内置 Electron 桌面外壳和 DeepSeek Harness Web runtime，在回环地址启动；同时保留浏览器模式。
+- 支持工作区选择、托盘/应用菜单、更新历史、关于信息与诊断导出。
+- 原生侧边栏 Logo 可打开桌面菜单，并同步系统主题。Windows 11 使用 Mica 与标题栏样式，macOS 使用原生菜单；窗口位置和尺寸可跨启动保留，并适配多显示器。
+- DCode 工作台在紧凑、中等和宽屏布局间自适应，提供可调整并持久化的会话侧栏、环境摘要、聚焦预览，以及工作区和任务快速切换。
+
+### Agent 与运行环境
+
+- Standard、Code、Cordis、Minimal 和 Learning 模式各自保持清晰边界。Learning 只在用户主动选择后启用，不改变其他模式的默认工具与行为。
+- Minimal 模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY。Linux 沙箱模式沿用上游 bwrap/Landlock 的失败关闭策略。
+- 插件市场可移除，支持 GitHub 分页搜索、安装前审核、安装进度、更新管理、启用、停用和卸载，也向 Agent 提供市场工具。
+
+### 图片、文件与学习
+
+- Vision Bridge 的 `view_image` 可以分析本地 PNG、JPEG、WebP、GIF 和 PDF 页面。它会自动选择已配置的图片模型，也允许在插件设置中固定模型。
+- 会话输入框会把图片附件保留为图片数据，文本和 Office 文件通过内核 Session Remote 上传；上游 `@file` 路径引用仍可直接使用。
+- Learning 模式围绕资料锚点组织讲解、会话笔记、概念卡和复习。语义图示与理解检查按需出现，不阻塞普通对话；长期内容保存在独立学习库中。
+- 使用量设置页从持久化运行时投影汇总 token 消耗、模型明细、活跃度和会话耗时。
 
 ## 最新发布
 
@@ -159,6 +176,7 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 
 | 文档 | 适用读者 | 内容 |
 | --- | --- | --- |
+| [项目概览](overview.md) | 新用户与评估者 | 项目定位、主要优势、适用场景和当前边界 |
 | [桌面外壳说明](apps/desktop/README.zh.md) | 桌面端贡献者 | Electron 行为、原生产物目录、测试和发布身份 |
 | [运行时架构与发布门禁](docs/runtime-architecture.md) | Runtime 与发布维护者 | 能力探测、模式契约、Manifest、CI 和签名门禁 |
 | [交互式学习包](apps/interactive-learning/README.zh.md) | 功能贡献者 | 协议边界、开发流程、启用方式和兼容性 |

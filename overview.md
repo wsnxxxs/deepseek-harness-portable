@@ -1,38 +1,50 @@
-# DCode UI 界面设计规范审查 — 概览
+# DeepSeek Harness Desktop 项目概览
 
-**日期**：2026-08-29 · **范围**：`apps/dcode-ui/src`（24 tsx + 25 CSS Module + tokens）
+DeepSeek Harness Desktop 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的社区桌面分发版。项目把上游 Web runtime 与平台原生运行环境打包进 Electron 外壳，并提供 Windows x64、macOS Apple Silicon 与 Linux x64 产物。
 
-## 做了什么
+它面向希望直接使用 DeepSeek Harness、又不想自行拼装 Node.js 工具链和桌面运行环境的用户。桌面版保留上游的 Agent 能力，同时增加工作区入口和 DCode 编码界面，也加入插件管理、视觉桥接与交互式学习。
 
-对 DCode 工作台做三向审查，未修改任何代码：
+## 主要优势
 
-1. **界面设计规范** — WCAG 2.1 AA / 2.2、WAI-ARIA APG 逐条比对，含对比度手算
-2. **交互逻辑一致性** — 焦点管理、ARIA 语义、四态覆盖、交互模式、动效、触摸目标
-3. **DSH 官方 WebUI 对齐** — 与 `vendor/deepseek-harness/packages/client/ui-*`（38 个包）交叉比对
+### 安装后即可使用
 
-## 结果
+安装包包含 Electron/Node.js runtime。Windows 用户可选 Setup 或便携 ZIP，macOS 提供 DMG，Linux 提供 AppImage 与 deb。浏览器模式和命令行入口仍然保留，不要求用户只能通过桌面窗口运行。
 
-共 **143 条**问题：🔴 关键 25 · 🟡 重要 65 · 🔵 建议 53
+### 编码任务集中在一个工作台
 
-**底座是健康的**：`--zx-*` 令牌体系严格口径令牌化率 ≈90%，字体族 8/8、字号阶梯 189/189 零逃逸，明暗派生色做了系统性重写。
+DCode 将会话和工作区放在同一界面，环境信息与终端，以及文件变更和预览也集中于此。布局会根据窗口宽度调整，会话侧栏的尺寸可以持久化，适合在单屏、分屏或宽屏环境中使用。
 
-**四类真 bug**（已逐条核验）：
+### 扩展能力保持独立
 
-| 问题 | 位置 |
-|---|---|
-| `--zx-warning` 令牌名拼错（正确为 `--zx-warn`），浅色下对比度 2.25:1 | `SettingsSurface.module.css:408/409/805/807` |
-| `.catch(() => {})` 缺 `setLoading(false)`，网络异常时插件面板永久转圈 | `PluginsHome.tsx:93` |
-| 错误态与空态条件可同时成立，渲染两个空态 | `SettingsSurface.tsx:1097-1099` |
-| z-index `20` 被 scrim 与浮层卡片共用，叠放退化为 DOM 顺序 | `Workbench.module.css:189` / `SummaryCard.module.css:11` |
+插件市场可以搜索和审核第三方插件，也能完成安装和更新，并支持启停与卸载。Vision Bridge 与 Interactive Learning 以独立模块接入；用户停用这些模块时，Standard / Code / Minimal / Cordis 的默认行为不受影响。
 
-**三个系统性短板**：z-index 与字重 0% 令牌化、三个 `aria-modal` 浮层无焦点管理、卡片头部 9 处实现不一致且 `ui.card` 零使用。
+### 图片理解复用已有配置
 
-**对齐 WebUI 的主要缺口**：上下文占用计量（ContextMeter）、消息级操作条（复制/分支/重生成）、消息反馈（点赞点踩）、图片灯箱、拖拽上传。
+Vision Bridge 复用内核的附件服务与模型目录，也沿用原有 LLM 调用链。支持图片的对话模型可以直接接收图片；纯文本模型需要处理图片时，可转交已经配置的视觉模型。整个过程不需要另设服务商端点或 API 密钥。
 
-## 交付物
+### 学习内容有资料边界
 
-- `docs/ui-review-2026-08-29.md` — 完整审查报告，含每条问题的 `文件:行号` 定位、WCAG 条款引用、可操作修复代码，以及 P0（1~2 天）/ P1（3~5 天）/ P2（1 周）/ P3（排期）四阶段优化方案
+Learning 模式支持概念讲解和疑惑澄清，也能用于材料学习。资料通过只读能力提供给模型，讲解可以保留来源锚点；会话笔记与长期学习库分开，概念卡需要符合证据与用户确认规则后才会写入。
 
-## 下一步
+### 本地数据与发布行为容易判断
 
-建议从 P0 的 8 项单行级修复开始（含 4 个真 bug），合计约 1.5 小时即可完成，无回归风险。
+会话与凭据，以及设置和附件都保存在应用目录之外，更新或卸载应用时默认保留。Web runtime 只绑定回环地址，桌面外壳设置 `DSH_TELEMETRY_DISABLED=1`。版本检查只提供提示与发布页入口，不会在后台替换应用文件。
+
+打包流程会在目标原生平台探测 PTY、Shell 和沙箱等真实能力，对写入 Manifest 后的应用再次执行冒烟检查，并为最终产物生成文件清单和 SHA-256。发布脚本只校验并复制已经验证的字节，不在发布阶段重新构建。
+
+## 适合的使用场景
+
+- 需要在桌面窗口中使用 DeepSeek Harness，并在多个工作区与任务间切换。
+- 希望使用 DCode 处理代码、终端、文件变更和预览。
+- 已配置文本或视觉模型，希望在同一会话中处理截图、图表、PDF 页面和本地图片。
+- 需要基于 PDF、Markdown、DOCX、PPTX 或代码材料进行带来源锚点的学习。
+- 维护者需要从固定上游源码构建，并检查能力探测、Manifest 与发布产物的一致性。
+
+## 当前边界
+
+- 这是社区分发版，当前 Windows、macOS 和 Linux 产物均标记为 `non-official-unsigned`。
+- Windows 的 Minimal 模式依赖可用的默认 WSL 发行版；macOS 和 Linux 使用原生 `/bin/bash` POSIX PTY。
+- Linux 沙箱模式依赖可用的 bwrap/Landlock 后端，无法执行约束时保持失败关闭。
+- 插件市场中的条目属于第三方代码，安装前需要检查来源、构建脚本和权限。
+
+安装步骤、平台要求和常见问题见[中文 README](README.zh.md)，内部能力探测与发布门禁见[运行时架构](docs/runtime-architecture.md)。
