@@ -42,6 +42,44 @@ function settingsDescribeUrl(baseUrl) {
 }
 
 /**
+ * Verify an already-started runtime without allowing either authentication or
+ * the RPC body to wait forever. This is used by the background health monitor;
+ * release smoke tests retain the stronger `waitForOnboardingReady` check below.
+ *
+ * @param {string} baseUrl - authenticated loopback URL returned by the runtime.
+ * @param {{ timeoutMs?: number, failureMessage?: string }} [options]
+ * @returns {Promise<void>}
+ */
+async function probeHarnessHealth(baseUrl, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 3_000
+  const signal = AbortSignal.timeout(Math.max(1, timeoutMs))
+  const loginUrl = new URL(baseUrl)
+  loginUrl.pathname = '/'
+  loginUrl.hash = ''
+  const login = await fetch(loginUrl, { redirect: 'manual', signal })
+  const cookie = readSessionCookie(login)
+  if (cookie === undefined && !login.ok) throw new Error(`HTTP ${login.status}`)
+  const headers = { 'content-type': 'application/json' }
+  if (cookie !== undefined) headers.cookie = cookie
+  const response = await fetch(settingsDescribeUrl(baseUrl), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId: `desktop-health-${Date.now()}`,
+      method: 'settings/describe',
+      payload: { args: {} },
+    }),
+    signal,
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const body = await response.json()
+  if (!body?.result?.ok) {
+    throw new Error(body?.result?.error?.message || options.failureMessage || 'settings.describe failed')
+  }
+}
+
+/**
  * Parse the JSON boot graph injected into the web index document.
  *
  * The graph is deliberately read from the served document rather than inferred
@@ -203,6 +241,7 @@ async function waitForOnboardingReady(baseUrl, options = {}) {
 module.exports = {
   hasRequiredClientGraph,
   parseBootManifest,
+  probeHarnessHealth,
   readyUrl,
   readSessionCookie,
   settingsDescribeUrl,

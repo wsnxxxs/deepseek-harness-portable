@@ -1,7 +1,14 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
-const { hasRequiredClientGraph, parseBootManifest, readyUrl, settingsDescribeUrl, waitForOnboardingReady } = require('./ready-url.cjs')
+const {
+  hasRequiredClientGraph,
+  parseBootManifest,
+  probeHarnessHealth,
+  readyUrl,
+  settingsDescribeUrl,
+  waitForOnboardingReady,
+} = require('./ready-url.cjs')
 
 test('extracts only the loopback readiness URL', () => {
   assert.equal(readyUrl('dsh web: http://127.0.0.1:43127\n'), 'http://127.0.0.1:43127')
@@ -89,6 +96,53 @@ test('waits for onboarding and the complete client graph instead of trusting the
     assert.equal(settingsAttempts, 3)
     assert.equal(indexAttempts, 3)
   } finally {
+    await new Promise(resolve => server.close(resolve))
+  }
+})
+
+test('health probe authenticates and verifies settings within one bounded request budget', async () => {
+  let settingsCookie
+  const server = createServer((request, response) => {
+    if (request.url?.startsWith('/?token=')) {
+      response.writeHead(302, {
+        location: '/',
+        'set-cookie': 'dsh-session=test-session; HttpOnly; SameSite=Strict',
+      })
+      response.end()
+      return
+    }
+    if (request.url?.startsWith('/api/settings/describe')) {
+      settingsCookie = request.headers.cookie
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ result: { ok: true, value: { namespaces: [] } } }))
+      return
+    }
+    response.writeHead(404)
+    response.end()
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    await probeHarnessHealth(`http://127.0.0.1:${address.port}/?token=test-token`, { timeoutMs: 1_000 })
+    assert.equal(settingsCookie, 'dsh-session=test-session')
+  } finally {
+    await new Promise(resolve => server.close(resolve))
+  }
+})
+
+test('health probe times out when the authentication response never arrives', async () => {
+  const server = createServer(() => {})
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const startedAt = Date.now()
+  try {
+    const address = server.address()
+    await assert.rejects(
+      probeHarnessHealth(`http://127.0.0.1:${address.port}/?token=test-token`, { timeoutMs: 40 }),
+      error => error?.name === 'TimeoutError' || error?.name === 'AbortError',
+    )
+    assert.ok(Date.now() - startedAt < 1_000, 'a stalled login must not strand the health monitor')
+  } finally {
+    server.closeAllConnections?.()
     await new Promise(resolve => server.close(resolve))
   }
 })

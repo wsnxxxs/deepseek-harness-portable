@@ -2,7 +2,6 @@ const { spawn } = require('node:child_process')
 const { createServer } = require('node:net')
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
 const { dirname, join } = require('node:path')
-const { waitForOnboardingReady } = require('./ready-url.cjs')
 const { terminateProcessTree } = require('./process-tree.cjs')
 
 function loadProtocol() {
@@ -119,7 +118,6 @@ class RuntimeSupervisor {
   constructor(dependencies = {}) {
     this.spawnProcess = dependencies.spawnProcess || spawn
     this.terminate = dependencies.terminate || terminateProcessTree
-    this.waitUntilReady = dependencies.waitUntilReady || waitForOnboardingReady
     this.logger = dependencies.logger || console
     this.child = undefined
     this.output = ''
@@ -260,19 +258,13 @@ class RuntimeSupervisor {
         if (listening) return
         listening = true
         options.onListening?.(event.url)
-        // The web server can announce its port before the cold-start profile
-        // and client graph are complete. Use the same budget as the outer
-        // startup watchdog instead of waitForOnboardingReady's short default.
-        void this.waitUntilReady(event.url, { timeoutMs: startupTimeoutMs }).then(
-          () => {
-            ready = true
-            finish(() => resolve(event.url))
-          },
-          error => failAfterTermination(
-            `Harness host was not ready: ${error instanceof Error ? error.message : String(error)}`,
-            'NOT_READY',
-          ),
-        )
+        // The packaged runtime emits `listening` only after Loader activation
+        // and the initial client-module graph scan complete. Treat that
+        // authenticated protocol event as authoritative; an extra HTTP token
+        // exchange here can stall an installer-launched cold start even though
+        // the host is already ready to serve the renderer.
+        ready = true
+        finish(() => resolve(event.url))
       }
       const decoder = createRuntimeEventDecoder(acceptEvent)
       const onOutput = chunk => {
@@ -294,10 +286,6 @@ class RuntimeSupervisor {
       const onAbort = () => failAfterTermination(options.cancelledMessage || 'Harness startup was cancelled.', 'ABORTED')
 
       timeout = setTimeout(() => {
-        if (listening) {
-          failAfterTermination('Harness startup timed out while waiting for host readiness.', 'NOT_READY')
-          return
-        }
         const stage = hello ? 'listening event' : 'protocol handshake'
         failAfterTermination(`Harness startup timed out while waiting for its ${stage}.`, 'TIMEOUT')
       }, startupTimeoutMs)

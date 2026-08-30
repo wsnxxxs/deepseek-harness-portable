@@ -26,7 +26,7 @@ const {
   DEFAULT_UI_MODE, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
 } = require('@dsh-portable/dcode-ui/ui-mode-contract')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
-const { readSessionCookie, settingsDescribeUrl } = require('./ready-url.cjs')
+const { probeHarnessHealth } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
 const {
   iconPath: platformIconPath,
@@ -940,8 +940,11 @@ async function restartHarness() {
       const url = await startHarness(workspace(), controller.signal)
       if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
       harnessUrl = url
-      await probeHarnessHealth(url)
-      if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
+      // The runtime emits its authenticated `listening` event only after Loader
+      // activation and the initial client graph scan. Do not put another token
+      // exchange on the critical path; deep HTTP checks resume in the bounded
+      // background monitor once the renderer is visible.
+      sendSplashState({ kind: 'loading' })
       setHarnessHealth({ state: 'connected', consecutiveFailures: 0, message: '' })
       writeUpdateProbeIfRequested()
       sendSplashStatus('interface')
@@ -1030,38 +1033,16 @@ function reloadRenderer() {
   window.webContents.reload()
 }
 
-async function probeHarnessHealth(url) {
-  const loginUrl = new URL(url)
-  loginUrl.pathname = '/'
-  loginUrl.hash = ''
-  const login = await fetch(loginUrl, { redirect: 'manual' })
-  const cookie = readSessionCookie(login)
-  if (cookie === undefined && !login.ok) throw new Error(`HTTP ${login.status}`)
-  const headers = { 'content-type': 'application/json' }
-  if (cookie !== undefined) headers.cookie = cookie
-  const response = await fetch(settingsDescribeUrl(url), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      type: 'client-request',
-      rpcId: `desktop-health-${Date.now()}`,
-      method: 'settings/describe',
-      payload: { args: {} },
-    }),
-    signal: AbortSignal.timeout(HARNESS_HEALTH_TIMEOUT_MS),
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const body = await response.json()
-  if (!body?.result?.ok) throw new Error(body?.result?.error?.message || desktopText('health.settingsDescribeFailed'))
-}
-
 function runHarnessHealthProbe() {
   if (harnessUrl === undefined || healthProbePromise !== undefined) return
   const generation = healthGeneration
   const url = harnessUrl
   healthProbePromise = (async () => {
     try {
-      await probeHarnessHealth(url)
+      await probeHarnessHealth(url, {
+        timeoutMs: HARNESS_HEALTH_TIMEOUT_MS,
+        failureMessage: desktopText('health.settingsDescribeFailed'),
+      })
       if (generation !== healthGeneration) return
       setHarnessHealth({ state: 'connected', consecutiveFailures: 0, message: '' })
     } catch (error) {
