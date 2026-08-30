@@ -17,7 +17,7 @@ import {
   IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14,
   IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16,
   IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16,
-  IconSkillOutline16, IconSparkle16, IconUserOutline16,
+  IconPlusOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
@@ -26,9 +26,13 @@ import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore, type SettingsSection } from '../state/navigation.ts'
 import { Button, EmptyState, Spinner, ui } from '../shell/ui.tsx'
 import { useModalFocus } from '../shell/use-modal-focus.ts'
-import { ThemeSwitch } from '../shell/ThemeSwitch.tsx'
+import { ThemeSwitch, useAppearance } from '../shell/ThemeSwitch.tsx'
+import { UiModeSwitch } from '../shell/UiModeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
+import { UsageCards, usageCardStyles } from './UsageCards.tsx'
+import usageCardClasses from './UsageCards.module.css'
+
 import { SelectMenu } from './SelectMenu.tsx'
 import { PluginSettingsSection } from './PluginSettingsSection.tsx'
 import {
@@ -47,36 +51,21 @@ export interface SettingsSurfaceProps {
   readonly sessionId: SessionId | undefined
 }
 
-/** Rail layout: the four DSH settings pages visible in the workbench. */
-const RAIL: readonly { group: DcodeKey; items: readonly { id: SettingsSection; label: DcodeKey }[] }[] = [
-  {
-    group: 'settings.group.basics',
-    items: [
-      { id: 'general', label: 'settings.general' },
-      { id: 'models', label: 'settings.models' },
-    ],
-  },
-  {
-    group: 'settings.group.agent',
-    items: [
-      { id: 'agentPresets', label: 'settings.agentPresets' },
-      { id: 'skills', label: 'settings.skills' },
-      { id: 'commands', label: 'settings.commands' },
-    ],
-  },
-  {
-    group: 'settings.group.data',
-    items: [
-      { id: 'usage', label: 'settings.usage' },
-    ],
-  },
+/** Rail layout: the settings pages visible in the workbench. */
+const RAIL: readonly { id: SettingsSection; label: DcodeKey }[] = [
+  { id: 'general', label: 'settings.general' },
+  { id: 'models', label: 'settings.models' },
+  { id: 'agentPresets', label: 'settings.agentPresets' },
+  { id: 'plugins', label: 'settings.plugins' },
+  { id: 'commands', label: 'settings.commands' },
+  { id: 'usage', label: 'settings.usage' },
 ]
 
 /** A titled block with an explanatory line. */
 function Section(props: { title: string; body?: string; children?: React.ReactNode }) {
   return (
     <section className={css.section}>
-      <span className={css.sectionTitle}>{props.title}</span>
+      <h2 className={css.sectionTitle}>{props.title}</h2>
       {props.body === undefined ? null : <p className={css.sectionBody}>{props.body}</p>}
       {props.children}
     </section>
@@ -93,37 +82,6 @@ function Row(props: { title: string; body?: string; control?: React.ReactNode })
       </div>
       {props.control}
     </div>
-  )
-}
-
-/** The front-end switch, one of the workbench's four switch entry points. */
-function InterfaceSection() {
-  const runtime = useRuntime()
-  const t = useT()
-  const mode = useSyncExternalStore(runtime.mode.subscribe, runtime.mode.get, runtime.mode.get)
-  return (
-    <Section title={t('settings.interface')} body={t('settings.interfaceBody')}>
-      {/* Official first, then the workbench — the same order the classic
-          settings row and the desktop menus use. */}
-      <div className={css.choice}>
-        <button
-          type="button"
-          className={`${css.option} ${mode === 'official' ? css.optionActive : ''}`}
-          onClick={() => { runtime.mode.set('official') }}
-        >
-          <span className={css.optionTitle}><IconSettingsOutline16 />{t('settings.modeOfficial')}</span>
-          <span className={css.rowBody}>{t('settings.modeOfficialBody')}</span>
-        </button>
-        <button
-          type="button"
-          className={`${css.option} ${mode === 'dcode' ? css.optionActive : ''}`}
-          onClick={() => { runtime.mode.set('dcode') }}
-        >
-          <span className={css.optionTitle}><IconSparkle16 />{t('settings.modeWorkbench')}</span>
-          <span className={css.rowBody}>{t('settings.modeWorkbenchBody')}</span>
-        </button>
-      </div>
-    </Section>
   )
 }
 
@@ -158,6 +116,7 @@ function GeneralSection() {
     themeKey,
     themeKey,
   )
+  const { fontSize, setFontSize, canSetFontSize } = useAppearance()
   const snapshot = useMemo(() => theme?.getTheme(), [theme, themeState])
   // Anything a plugin registered beyond the two built-in palettes.
   const custom = (snapshot?.themes ?? []).filter(entry => entry.id !== 'light' && entry.id !== 'dark')
@@ -208,25 +167,30 @@ function GeneralSection() {
               />
             )}
           <Row
+            title={t('settings.interface')}
+            body={t('settings.interfaceBody')}
+            control={<UiModeSwitch />}
+          />
+          <Row
             title={t('settings.fontSize')}
-            control={theme?.setFontSize === undefined
-              ? <span className={css.badge}>{snapshot?.fontSize ?? '—'}</span>
+            control={!canSetFontSize
+              ? <span className={css.badge}>{fontSize}</span>
               : (
                 <span className={css.stepper}>
                   <button
                     type="button"
                     className={css.stepperButton}
                     aria-label={`${t('settings.fontSize')} −`}
-                    disabled={(snapshot?.fontSize ?? 14) <= 11}
-                    onClick={() => { theme.setFontSize?.(Math.max(11, (snapshot?.fontSize ?? 14) - 1)) }}
+                    disabled={fontSize <= 11}
+                    onClick={() => { setFontSize(Math.max(11, fontSize - 1)) }}
                   >−</button>
-                  <span className={css.stepperValue}>{snapshot?.fontSize ?? 14}</span>
+                  <span className={css.stepperValue}>{fontSize}</span>
                   <button
                     type="button"
                     className={css.stepperButton}
                     aria-label={`${t('settings.fontSize')} +`}
-                    disabled={(snapshot?.fontSize ?? 14) >= 22}
-                    onClick={() => { theme.setFontSize?.(Math.min(22, (snapshot?.fontSize ?? 14) + 1)) }}
+                    disabled={fontSize >= 22}
+                    onClick={() => { setFontSize(Math.min(22, fontSize + 1)) }}
                   >+</button>
                 </span>
               )}
@@ -252,7 +216,6 @@ function GeneralSection() {
           />
         </div>
       </Section>
-      <InterfaceSection />
     </>
   )
 }
@@ -429,6 +392,7 @@ function ModelProviderCard(props: {
   writable: boolean
   onReload: () => void
   initiallyOpen?: boolean
+  onClose?: () => void
   onSaved?: () => void
 }) {
   const runtime = useRuntime()
@@ -438,6 +402,7 @@ function ModelProviderCard(props: {
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>()
+  const [deleting, setDeleting] = useState(false)
   const profileEditable = props.writable && props.row.namespace !== undefined && props.row.settingsNs !== ''
   const keyEditable = props.row.credential?.writable !== false
   const editable = profileEditable || keyEditable
@@ -493,6 +458,7 @@ function ModelProviderCard(props: {
       }
       if (ops.length === 0 && apiKey.trim().length === 0) {
         setOpen(false)
+        props.onClose?.()
         return
       }
       setOpen(false)
@@ -502,6 +468,30 @@ function ModelProviderCard(props: {
       setFailure(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
+    }
+  }
+
+  const remove = async (): Promise<void> => {
+    if (deleting || props.row.declared !== true || !profileEditable) return
+    if (!window.confirm(t('settings.models.deleteConfirm', { name: props.row.name }))) return
+    setDeleting(true)
+    setFailure(undefined)
+    try {
+      if (props.row.credential?.configured === true) {
+        const credential = await runtime.remote.credentials.unset(props.row.credentialRef)
+        if (!credential.ok) throw new Error(credential.error.message)
+      }
+      const response = await runtime.remote.settings.mutate(
+        props.row.settingsNs,
+        [{ op: 'unset', path: [...props.row.settingsPath] }],
+        undefined,
+      )
+      if (!response.ok) throw new Error(response.error.message)
+      props.onReload()
+    } catch (cause: unknown) {
+      setFailure(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -529,6 +519,10 @@ function ModelProviderCard(props: {
         ? css.statusDotError
         : css.statusDotNeutral
   const editorId = `dcode-provider-editor-${props.row.id.replace(/[^a-z0-9_-]/gi, '-')}`
+  const closeEditor = (): void => {
+    setOpen(false)
+    props.onClose?.()
+  }
 
   return (
     <div className={css.providerCard}>
@@ -536,20 +530,44 @@ function ModelProviderCard(props: {
         <span className={`${css.statusDot} ${statusClass}`} role="img" aria-label={statusLabel} title={statusLabel} />
         <span className={css.providerStatusText}>{statusLabel}</span>
         <div className={css.rowText}>
-          <div className={css.rowTitle}>{props.row.name}</div>
-          <div className={css.rowBody}>{props.row.id}{props.row.active ? '' : ` · ${t('settings.models.inactive')}`}</div>
+          <div className={css.providerIdentity}>
+            <h3 className={css.rowTitle}>{props.row.name}</h3>
+            {props.row.declared === true ? <span className={css.providerTag}>{t('settings.models.customTag')}</span> : null}
+          </div>
+          <div className={css.rowBody}>{props.row.id}</div>
         </div>
-        {editable
-          ? <Button
-            ariaExpanded={open}
-            ariaControls={editorId}
-            onClick={() => { setOpen(value => !value); setFailure(undefined) }}
-          >{open ? t('common.close') : t('common.edit')}</Button>
-          : <span className={css.badge}>{t('common.readOnly')}</span>}
+        <div className={css.providerActions}>
+          {editable && !open
+            ? <Button
+              ariaExpanded={false}
+              ariaControls={editorId}
+              onClick={() => {
+                setOpen(true)
+                setFailure(undefined)
+              }}
+            >{t('common.edit')}</Button>
+            : editable ? null : <span className={css.badge}>{t('common.readOnly')}</span>}
+          {props.row.declared === true && profileEditable
+            ? <button type="button" className={css.dangerButton} disabled={deleting} onClick={() => { void remove() }}>
+              {deleting ? t('settings.models.deleting') : t('settings.models.delete')}
+            </button>
+            : null}
+        </div>
       </div>
       {open
         ? (
-          <div className={css.providerEditor} id={editorId}>
+          <div
+            className={css.providerEditor}
+            id={editorId}
+            role="group"
+            aria-label={props.row.name}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.preventDefault()
+              event.stopPropagation()
+              closeEditor()
+            }}
+          >
             <div className={css.providerEditorStatus} role="status" aria-label={statusLabel} title={statusLabel}>
               <span className={`${css.statusDot} ${statusClass}`} aria-hidden="true" />
               <span>{statusLabel}</span>
@@ -583,7 +601,7 @@ function ModelProviderCard(props: {
               : null}
             {failure === undefined ? null : <div className={css.inlineError} role="alert">{failure}</div>}
             <div className={css.editorActions}>
-              <Button onClick={() => { setOpen(false) }} disabled={busy}>{t('common.cancel')}</Button>
+              <Button onClick={closeEditor} disabled={busy}>{t('common.cancel')}</Button>
               <Button primary onClick={() => { void save() }} disabled={busy}>{busy ? t('common.saving') : t('common.save')}</Button>
             </div>
           </div>
@@ -593,45 +611,168 @@ function ModelProviderCard(props: {
   )
 }
 
+const CUSTOM_PROVIDER_NS = 'llm-pi-ai'
+const CUSTOM_PROVIDER_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
+
+/** Compact creator for an OpenAI/Anthropic-compatible custom endpoint. */
+function CustomProviderForm(props: {
+  rows: readonly ModelProviderRow[]
+  writable: boolean
+  onCreated: () => void
+  onCancel: () => void
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const namespace = props.rows.find(row => row.settingsNs === CUSTOM_PROVIDER_NS)?.namespace
+  const [name, setName] = useState('')
+  const [route, setRoute] = useState('')
+  const [routeTouched, setRouteTouched] = useState(false)
+  const [baseURL, setBaseURL] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [protocol, setProtocol] = useState('openai-completions')
+  const [modelText, setModelText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [committed, setCommitted] = useState(false)
+  const [failure, setFailure] = useState<string | undefined>()
+
+  const modelIds = [...new Set(modelText.split(/[\n,]+/).map(value => value.trim()).filter(Boolean))]
+  const invalidRoute = route.length > 0 && !CUSTOM_PROVIDER_ID.test(route)
+  const routeTaken = props.rows.some(row => row.id === route)
+  const disabled = busy || !props.writable || namespace === undefined
+
+  const create = async (): Promise<void> => {
+    if (disabled || invalidRoute || routeTaken || route.length === 0 || name.trim().length === 0
+      || baseURL.trim().length === 0 || modelIds.length === 0) return
+    setBusy(true)
+    setFailure(undefined)
+    const credentialRef = modelCredentialRef(route, undefined)
+    try {
+      if (!committed) {
+        const profile = {
+          displayName: name.trim(),
+          api: protocol,
+          baseURL: baseURL.trim(),
+          models: modelIds.map(id => ({ id })),
+          ...apiKey.trim().length === 0 ? {} : { apiKeyEnv: credentialRef },
+        }
+        const response = await runtime.remote.settings.mutate(
+          CUSTOM_PROVIDER_NS,
+          [{ op: 'set', path: ['providers', route], value: profile as JsonValue }],
+          namespace?.revision,
+        )
+        if (!response.ok) throw new Error(response.error.message)
+        setCommitted(true)
+      }
+      if (apiKey.trim().length > 0) {
+        const response = await runtime.remote.credentials.set(credentialRef, apiKey.trim())
+        if (!response.ok) throw new Error(response.error.message)
+      }
+      props.onCreated()
+    } catch (cause: unknown) {
+      setFailure(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className={css.customProviderForm}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        props.onCancel()
+      }}
+    >
+      <div className={css.formGrid}>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('settings.models.providerName')}</span>
+          <input className={css.fieldInput} value={name} disabled={disabled || committed} onChange={(event) => {
+            const next = event.target.value
+            setName(next)
+            if (!routeTouched) setRoute(next.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))
+          }} />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('settings.models.providerId')}</span>
+          <input className={css.fieldInput} value={route} disabled={disabled || committed} onChange={(event) => { setRouteTouched(true); setRoute(event.target.value) }} />
+          {invalidRoute ? <span className={css.fieldError}>{t('settings.models.providerIdInvalid')}</span> : null}
+          {routeTaken ? <span className={css.fieldError}>{t('settings.models.providerIdTaken')}</span> : null}
+        </label>
+        <label className={`${css.field} ${css.formWide}`}>
+          <span className={css.fieldLabel}>{t('settings.models.baseURL')}</span>
+          <input className={css.fieldInput} type="url" value={baseURL} disabled={disabled || committed} placeholder={t('settings.models.baseURLPlaceholder')} onChange={event => { setBaseURL(event.target.value) }} />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('settings.models.protocol')}</span>
+          <select className={css.fieldInput} value={protocol} disabled={disabled || committed} onChange={event => { setProtocol(event.target.value) }}>
+            <option value="openai-completions">OpenAI Chat Completions</option>
+            <option value="openai-responses">OpenAI Responses</option>
+            <option value="anthropic-messages">Anthropic Messages</option>
+          </select>
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('settings.models.apiKey')}</span>
+          <input className={css.fieldInput} type="password" autoComplete="off" value={apiKey} disabled={busy || !props.writable} placeholder={t('settings.models.keyPlaceholder')} onChange={event => { setApiKey(event.target.value) }} />
+        </label>
+        <label className={`${css.field} ${css.formWide}`}>
+          <span className={css.fieldLabel}>{t('settings.models.modelList')}</span>
+          <textarea className={css.fieldTextarea} value={modelText} disabled={disabled || committed} placeholder={t('settings.models.modelListPlaceholder')} onChange={event => { setModelText(event.target.value) }} />
+          <span className={css.fieldHint}>{t('settings.models.modelListHint')}</span>
+        </label>
+      </div>
+      {namespace === undefined ? <div className={css.inlineError}>{t('settings.models.customUnavailable')}</div> : null}
+      {failure === undefined ? null : <div className={css.inlineError} role="alert">{failure}</div>}
+      <div className={css.editorActions}>
+        <Button disabled={busy} onClick={props.onCancel}>{t('common.cancel')}</Button>
+        <Button primary disabled={disabled || invalidRoute || routeTaken || route.length === 0 || name.trim().length === 0 || baseURL.trim().length === 0 || modelIds.length === 0} onClick={() => { void create() }}>
+          {busy ? t('common.saving') : t('settings.models.add')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /** Provider routes, catalog, and the editable credential/profile controls. */
 function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved?: () => void }) {
   const runtime = useRuntime()
   const t = useT()
   const models = useAsync(async () => await loadModelSettings(runtime), [runtime])
+  const [addingProvider, setAddingProvider] = useState<string | undefined>()
+  const [addingCustom, setAddingCustom] = useState(false)
 
   if (models.loading && models.value === undefined) return <EmptyState><Spinner /></EmptyState>
   if (models.error !== undefined && models.value === undefined) return <EmptyState>{models.error}</EmptyState>
   if (models.value === undefined) return <EmptyState>{t('common.error')}</EmptyState>
   const value = models.value
-  const providerName = (providerId: string): string =>
-    value.catalog.groups.find(group => group.id === providerId)?.name
-      ?? value.catalog.failures.find(failure => failure.id === providerId)?.name
-      ?? providerId
-  const defaultGroup = value.catalog.groups.find(group =>
-    group.id === value.catalog.default.provider
-    && group.models.some(model => model.id === value.catalog.default.model))
-  const defaultModel = defaultGroup?.models.find(model => model.id === value.catalog.default.model)
+  const configured = value.providers.filter(row => row.credential?.configured === true || row.active)
+  const addable = value.providers.filter(row =>
+    row.credential?.configured !== true && !row.active && row.settingsNs !== '')
+  const draft = addingProvider === undefined
+    ? undefined
+    : addable.find(row => row.id === addingProvider)
+  const focused = props.focusedProvider === undefined
+    ? undefined
+    : value.providers.find(row => row.id === props.focusedProvider)
+  const visible = focused === undefined
+    ? configured
+    : [focused, ...configured.filter(row => row.id !== focused.id)]
 
   return (
-    <Section title={t('settings.models')} body={t('settings.modelsBody')}>
-      <div className={css.card}>
-        <Row
-          title={t('settings.models.default')}
-          body={defaultGroup?.name ?? providerName(value.catalog.default.provider)}
-          control={<span>{defaultModel?.name ?? t('common.none')}</span>}
-        />
-        <Row
-          title={t('settings.models.routable')}
-          control={(
-            <span className={css.rowMono}>
-              {value.catalog.routableProviders.map(providerName).join(', ') || t('common.none')}
-            </span>
-          )}
-        />
+    <section className={`${css.section} ${css.modelsSection}`}>
+      <div className={css.modelsHeader}>
+        <div>
+          <h2 className={css.modelsTitle}>{t('settings.models')}</h2>
+          <p className={css.sectionBody}>{t('settings.modelsBody')}</p>
+        </div>
+        {value.hasDocument
+          ? <Button onClick={() => { void runtime.remote.settings.openSettingsDocument() }}>{t('settings.openOfficialSettings')}</Button>
+          : null}
       </div>
       {value.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.models.credentialWarning')}: ${value.credentialError}`}</div>}
       <div className={css.providerList}>
-        {value.providers.map(row => (
+        {visible.map(row => (
           <ModelProviderCard
             key={row.id}
             row={row}
@@ -641,29 +782,54 @@ function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved
             onSaved={row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined}
           />
         ))}
+        {visible.length === 0 ? <div className={css.modelsEmpty}>{t('settings.models.empty')}</div> : null}
       </div>
-      {value.catalog.groups.map(group => (
-        <div className={css.card} key={group.id}>
-          <Row title={group.name} control={<span className={css.badge}>{group.models.length}</span>} />
-          {group.models.map(model => (
-            <Row key={model.id} title={model.name} body={model.description} />
-          ))}
-        </div>
-      ))}
-      {value.catalog.failures.length === 0
-        ? null
-        : (
-          <div className={css.card}>
-            <Row title={t('settings.models.failures')} />
-            {value.catalog.failures.map(failure => (
-              <Row key={failure.id} title={failure.name} body={failure.message} />
-            ))}
-          </div>
-        )}
-      {value.hasDocument
-        ? <Button onClick={() => { void runtime.remote.settings.openSettingsDocument() }}>{t('settings.openOfficialSettings')}</Button>
+      {draft === undefined ? null : (
+        <ModelProviderCard
+          key={`add-${draft.id}`}
+          row={draft}
+          writable={value.writable}
+          initiallyOpen
+          onReload={models.reload}
+          onClose={() => { setAddingProvider(undefined) }}
+        />
+      )}
+      {addingCustom
+        ? <CustomProviderForm
+          rows={value.providers}
+          writable={value.writable}
+          onCancel={() => { setAddingCustom(false) }}
+          onCreated={() => { setAddingCustom(false); models.reload() }}
+        />
         : null}
-    </Section>
+      {draft === undefined && !addingCustom
+        ? (
+          <div className={css.addActions}>
+            <div className={css.addSelect}>
+              <SelectMenu
+                value="__add_provider__"
+                ariaLabel={t('settings.models.addProvider')}
+                disabled={!value.writable || addable.length === 0}
+                options={[
+                  { id: '__add_provider__', label: <><IconPlusOutline16 />{t('settings.models.addProvider')}</>, disabled: true },
+                  ...addable.map(row => ({ id: row.id, label: row.name, detail: row.id })),
+                ]}
+                onChange={(provider) => { setAddingProvider(provider); setAddingCustom(false) }}
+              />
+            </div>
+            <button type="button" className={css.addButton} disabled={!value.writable} onClick={() => { setAddingCustom(true); setAddingProvider(undefined) }}>
+              <IconPlusOutline16 />{t('settings.models.addCustomProvider')}
+            </button>
+          </div>
+        )
+        : null}
+      {value.catalog.failures.length === 0 ? null : (
+        <details className={css.modelFailures}>
+          <summary>{t('settings.models.failures')} ({value.catalog.failures.length})</summary>
+          {value.catalog.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}
+        </details>
+      )}
+    </section>
   )
 }
 
@@ -1129,6 +1295,9 @@ function NamespaceSection({ title, body, match }: { title: string; body: string;
   )
 }
 
+/** Workbench face of the shared statistics card; see UsageCards.module.css. */
+const usageCardCss = usageCardStyles(usageCardClasses)
+
 function UsageMetric(props: { title: string; value: string }) {
   return (
     <div className={css.usageMetric}>
@@ -1176,6 +1345,7 @@ function UsageSection() {
           })}
         </span>
       </div>
+      <UsageCards list={list} t={t} styles={usageCardCss} />
       <div className={css.usageGrid}>
         <UsageMetric
           title={t('settings.usageInput')}
@@ -1271,33 +1441,35 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
   }
 
   return (
-    <div className={css.surface}>
+    <div
+      className={css.surface}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        event.preventDefault()
+        navigation.show('session')
+      }}
+    >
       <nav className={css.rail} aria-label={t('settings.title')}>
         <button type="button" className={css.back} onClick={() => { navigation.show('session') }}>
           <IconChevronLeftOutline14 />
           {t('nav.backToWorkspace')}
         </button>
-        {RAIL.map(group => (
-          <div key={group.group}>
-            <div className={css.group}>{t(group.group)}</div>
-            {group.items.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                className={`${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`}
-                aria-current={state.settingsSection === item.id ? 'page' : undefined}
-                onClick={() => { navigation.openSettings(item.id) }}
-              >
-                {icons[item.id] ?? <IconFollowsystemOutline16 />}
-                {t(item.label)}
-              </button>
-            ))}
-          </div>
+        {RAIL.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            className={`${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`}
+            aria-current={state.settingsSection === item.id ? 'page' : undefined}
+            onClick={() => { navigation.openSettings(item.id) }}
+          >
+            {icons[item.id] ?? <IconFollowsystemOutline16 />}
+            {t(item.label)}
+          </button>
         ))}
       </nav>
       <div className={css.body}>
         <div className={css.inner}>
-          <div className={css.title}>{t('settings.title')}</div>
+          <h1 className={css.title}>{t('settings.title')}</h1>
           {body()}
         </div>
       </div>

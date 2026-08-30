@@ -184,7 +184,7 @@ function PluginSettingsCard(props: {
     <section className={css.pluginCard}>
       <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
-          <div className={css.rowTitle}>{props.title}</div>
+          <h3 className={css.rowTitle}>{props.title}</h3>
           <div className={css.rowBody}>{props.description}</div>
         </div>
         {props.writable ? <span className={css.badge}>{props.namespace.applies}</span> : <span className={css.badge}>{t('common.readOnly')}</span>}
@@ -289,7 +289,7 @@ function VisionBridgeCard(props: {
     <section className={css.pluginCard}>
       <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
-          <div className={css.rowTitle}>{t('settings.plugins.visionTitle')}</div>
+          <h3 className={css.rowTitle}>{t('settings.plugins.visionTitle')}</h3>
           <div className={css.rowBody}>{t('settings.plugins.visionDescription')}</div>
         </div>
         {props.writable ? <span className={css.badge}>{props.namespace.applies}</span> : <span className={css.badge}>{t('common.readOnly')}</span>}
@@ -383,7 +383,7 @@ function SubagentModelCard(props: {
     <section className={css.pluginCard}>
       <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
         <div className={css.rowText}>
-          <div className={css.rowTitle}>{t('settings.plugins.subagentModelSelectionTitle')}</div>
+          <h3 className={css.rowTitle}>{t('settings.plugins.subagentModelSelectionTitle')}</h3>
           <div className={css.rowBody}>{t('settings.plugins.subagentModelSelectionDescription')}</div>
         </div>
         {!props.writable ? <span className={css.badge}>{t('common.readOnly')}</span> : null}
@@ -567,12 +567,16 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean }):
   return (
     <div className={css.pluginInventory}>
       <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} aria-label={t('settings.plugins.search')} onChange={event => { const next = event.target.value; setQuery(next); if (next.trim() !== '') setRuntimeOpen(true) }} />
-      <div className={css.inventoryHeading}><span className={css.sectionTitle}>{t('settings.plugins.extensionsTitle')}</span><span className={css.badge}>{extensions.length}</span></div>
+      <div className={css.inventoryHeading}><h3 className={css.sectionTitle}>{t('settings.plugins.extensionsTitle')}</h3><span className={css.badge}>{extensions.length}</span></div>
       <p className={css.inventoryIntro}>{t('settings.plugins.extensionsBody')}</p>
       {extensions.length === 0 ? <EmptyState>{t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory')}</EmptyState> : <VirtualInventoryList key={`extensions-${normalizedQuery}`} entries={extensions} />}
       {!props.mcpOnly ? (
         <details className={css.runtimeModules} open={runtimeOpen} onToggle={event => { setRuntimeOpen(event.currentTarget.open) }}>
-          <summary className={css.runtimeSummary}>
+          <summary
+            className={css.runtimeSummary}
+            aria-label={`${t('settings.plugins.runtimeTitle')}, ${String(runtimeModules.length)}`}
+            aria-expanded={runtimeOpen}
+          >
             <span><span className={css.runtimeTitle}>{t('settings.plugins.runtimeTitle')}</span><span className={css.runtimeHint}>{t('settings.plugins.runtimeBody')}</span></span>
             <span className={css.badge}>{runtimeModules.length}</span>
           </summary>
@@ -617,7 +621,7 @@ export function PluginSettingsSection({ mcpOnly = false }: { mcpOnly?: boolean }
   const value = data.value
   return (
     <section className={css.section}>
-      <span className={css.sectionTitle}>{mcpOnly ? t('settings.mcp') : t('plugins.section.settings')}</span>
+      <h2 className={css.sectionTitle}>{mcpOnly ? t('settings.mcp') : t('plugins.section.settings')}</h2>
       <p className={css.sectionBody}>{mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody')}</p>
       {!mcpOnly ? (
         <div className={css.pluginTabs} role="tablist" aria-label={t('settings.plugins.tabs')}>

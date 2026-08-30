@@ -7,7 +7,7 @@
   padding: 2px;
   border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-md);
-  background: var(--zx-bg-panel);
+  background: var(--zx-bg-raised);
 }
 
 .segment {
@@ -51,7 +51,9 @@
 }
 
 .glyph {
-  font-size: var(--zx-text-xs);
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
   line-height: 1;
 }
 

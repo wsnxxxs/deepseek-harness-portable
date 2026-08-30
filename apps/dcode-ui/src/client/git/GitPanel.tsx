@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   IconBranchOutline16, IconChevronDownOutline14, IconFolderOpenOutline16,
-  IconRefreshOutline14,
+  IconRefreshOutline14, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useT } from '../state/i18n.ts'
@@ -52,6 +52,18 @@ function codeMark(file: GitFileChange): string {
   }
 }
 
+/** Localized accessible name for a porcelain status. */
+function statusLabel(file: GitFileChange, t: ReturnType<typeof useT>): string {
+  switch (file.status) {
+    case 'untracked': return t('git.status.untracked')
+    case 'added': return t('git.status.added')
+    case 'deleted': return t('git.status.deleted')
+    case 'renamed': return t('git.status.renamed')
+    case 'conflicted': return t('git.status.conflicted')
+    default: return t('git.status.modified')
+  }
+}
+
 interface FileTreeNode {
   readonly name: string
   readonly path: string
@@ -85,13 +97,15 @@ function fileTree(files: readonly GitFileChange[]): readonly FileTreeNode[] {
 }
 
 function FileTree({
-  files, staged, selected, onOpenDiff, statsLabel,
+  files, staged, selected, onOpenDiff, statsLabel, fileStatusLabel, collapsed,
 }: {
   readonly files: readonly GitFileChange[]
   readonly staged: boolean
   readonly selected: DiffTarget | undefined
   readonly onOpenDiff: (path: string, staged: boolean) => void
   readonly statsLabel: (file: GitFileChange) => string
+  readonly fileStatusLabel: (file: GitFileChange) => string
+  readonly collapsed: boolean
 }) {
   const render = (nodes: readonly FileTreeNode[], depth = 0): React.ReactNode => nodes.map((node) => {
     if (node.file === undefined) {
@@ -115,7 +129,7 @@ function FileTree({
         onClick={() => { onOpenDiff(file.path, staged) }}
         title={file.path}
       >
-        <span className={`${css.code} ${codeClass(file)}`} aria-label={file.status}>{codeMark(file)}</span>
+        <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
         <span className={css.path}><bdi>{node.name}</bdi></span>
         <span className={css.lineBadge} aria-label={statsLabel(file)}>
           <span className={css.badgeAdded}>+{file.insertions}</span>
@@ -124,6 +138,21 @@ function FileTree({
       </button>
     )
   })
+  if (collapsed) {
+    return <>{files.map(file => (
+      <button
+        key={`${file.code}:${file.path}:${String(staged)}`}
+        type="button"
+        className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
+        onClick={() => { onOpenDiff(file.path, staged) }}
+        title={file.path}
+      >
+        <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
+        <span className={css.path}><bdi>{file.path}</bdi></span>
+        <span className={css.lineBadge} aria-label={statsLabel(file)}><span className={css.badgeAdded}>+{file.insertions}</span><span className={css.badgeRemoved}>-{file.deletions}</span></span>
+      </button>
+    ))}</>
+  }
   return <>{render(fileTree(files))}</>
 }
 
@@ -137,6 +166,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   const [committing, setCommitting] = useState(false)
   const [note, setNote] = useState<{ text: string; error: boolean } | undefined>(undefined)
   const [branches, setBranches] = useState<readonly { name: string; current: boolean }[]>([])
+  const [filter, setFilter] = useState<'all' | 'modified' | 'untracked'>('all')
+  const [foldersCollapsed, setFoldersCollapsed] = useState(false)
 
   // The branch list is read once per workspace and refreshed with the status,
   // so opening the menu costs nothing.
@@ -189,8 +220,19 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
 
   const status = git.status
   const workspace = groups.find(group => group.path === cwd)
-  const stagedFiles = status.files.filter(file => file.staged)
-  const unstagedFiles = status.files.filter(file => !file.staged)
+  const visibleFiles = status.files.filter(file => filter === 'all'
+    || (filter === 'untracked' ? file.status === 'untracked' : file.status !== 'untracked'))
+  const stagedFiles = visibleFiles.filter(file => file.staged)
+  const unstagedFiles = visibleFiles.filter(file => !file.staged)
+  const suggestedMessage = (() => {
+    const files = status.files
+    if (files.length === 0) return ''
+    const scope = files.length === 1 ? files[0]?.path.split('/').pop() ?? 'workspace' : `${String(files.length)} files`
+    const onlyDocs = files.every(file => /(?:^|\/)(?:docs?|README)|\.md$/i.test(file.path))
+    const onlyTests = files.every(file => /(?:test|spec)\.[^.]+$/i.test(file.path))
+    const verb = onlyDocs ? 'docs' : onlyTests ? 'test' : files.some(file => file.status === 'added') ? 'feat' : 'chore'
+    return `${verb}: update ${scope}`
+  })()
 
   const fileGroup = (label: string, files: readonly GitFileChange[], staged: boolean) => files.length === 0
     ? null
@@ -207,6 +249,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
             selected={selected}
             onOpenDiff={onOpenDiff}
             statsLabel={file => t('git.fileStats', { insertions: file.insertions, deletions: file.deletions })}
+            fileStatusLabel={file => statusLabel(file, t)}
+            collapsed={foldersCollapsed}
           />
         </div>
       </section>
@@ -224,6 +268,20 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
       <div className={css.summary}>
         <span className={css.summaryLabel}>{t('git.changes')}</span>
         <DiffCount insertions={status.insertions} deletions={status.deletions} />
+      </div>
+
+      <div className={css.fileToolbar}>
+        <span className={css.filters} role="group" aria-label={t('git.filterChangedFiles')}>
+          {(['all', 'modified', 'untracked'] as const).map(value => (
+            <button key={value} type="button" className={filter === value ? css.filterActive : ''} aria-pressed={filter === value} onClick={() => { setFilter(value) }}>
+              {t(value === 'all' ? 'git.filterAll' : value === 'modified' ? 'git.filterModified' : 'git.filterUntracked')}
+              <span>{value === 'all' ? status.files.length : status.files.filter(file => value === 'untracked' ? file.status === 'untracked' : file.status !== 'untracked').length}</span>
+            </button>
+          ))}
+        </span>
+        <button type="button" className={css.collapseFolders} aria-pressed={foldersCollapsed} onClick={() => { setFoldersCollapsed(value => !value) }} title={t('git.toggleTree')}>
+          {foldersCollapsed ? t('git.tree') : t('git.collapse')}
+        </button>
       </div>
 
       <Popover
@@ -281,14 +339,17 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         )}
 
       <div className={css.commit}>
-        <textarea
-          className={css.input}
-          rows={2}
-          value={message}
-          aria-label={t('git.commitPlaceholder')}
-          placeholder={t('git.commitPlaceholder')}
-          onChange={event => { setMessage(event.target.value) }}
-        />
+        <div className={css.commitInputRow}>
+          <textarea
+            className={css.input}
+            rows={2}
+            value={message}
+            aria-label={t('git.commitPlaceholder')}
+            placeholder={t('git.commitPlaceholder')}
+            onChange={event => { setMessage(event.target.value) }}
+          />
+          <button type="button" className={css.suggest} disabled={suggestedMessage === ''} onClick={() => { setMessage(suggestedMessage) }} title={t('git.suggestCommit')} aria-label={t('git.suggestCommit')}><IconSparkle16 /></button>
+        </div>
         <div className={css.actions}>
           <Button
             primary

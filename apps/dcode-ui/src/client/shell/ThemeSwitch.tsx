@@ -9,19 +9,15 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import {
+  IconDarkOutline16, IconFollowsystemOutline16, IconLightOutline16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
-import { THEME_PREFERENCES, type ColorScheme, type ThemePreference } from '../theme.ts'
+import { type ColorScheme, type ThemePreference } from '../theme.ts'
 import type { Translate } from '../locales.ts'
 import type { MenuRow } from './ui.tsx'
 import css from './ThemeSwitch.module.css'
-
-/** Glyph per preference. The system entry shows a display, not a half-disc. */
-const GLYPH: Readonly<Record<ThemePreference, string>> = {
-  light: '☀️',
-  dark: '🌙',
-  system: '💻',
-}
 
 /** Locale key per preference. */
 const LABEL = {
@@ -30,15 +26,25 @@ const LABEL = {
   system: 'theme.system',
 } as const
 
+/** Existing product icon per preference, in display order. */
+const THEME_OPTIONS = [
+  { id: 'light', Icon: IconLightOutline16 },
+  { id: 'dark', Icon: IconDarkOutline16 },
+  { id: 'system', Icon: IconFollowsystemOutline16 },
+] as const
+
 /**
- * Subscribe to the resolved scheme and the stored preference.
- * @returns the current pair, re-read on every theme change.
+ * Subscribe to the resolved scheme, the stored preference, and the content font size.
+ * @returns the appearance state, re-read on every theme/style change.
  */
 export function useAppearance(): {
   readonly scheme: ColorScheme
   readonly preference: ThemePreference
+  readonly fontSize: number
   readonly canSet: boolean
+  readonly canSetFontSize: boolean
   readonly set: (preference: ThemePreference) => void
+  readonly setFontSize: (px: number) => void
 } {
   const runtime = useRuntime()
   const appearance = runtime.appearance
@@ -46,7 +52,18 @@ export function useAppearance(): {
   const preference = useSyncExternalStore(
     appearance.subscribe, appearance.getPreference, appearance.getPreference,
   )
-  return { scheme, preference, canSet: appearance.canSet, set: appearance.set }
+  const fontSize = useSyncExternalStore(
+    appearance.subscribe, appearance.getFontSize, appearance.getFontSize,
+  )
+  return {
+    scheme,
+    preference,
+    fontSize,
+    canSet: appearance.canSet,
+    canSetFontSize: appearance.canSetFontSize,
+    set: appearance.set,
+    setFontSize: appearance.setFontSize,
+  }
 }
 
 /**
@@ -61,11 +78,12 @@ export function themeMenuRows(
   current: ThemePreference,
   set: (preference: ThemePreference) => void,
 ): readonly MenuRow[] {
-  return THEME_PREFERENCES.map(preference => ({
-    id: `theme:${preference}`,
-    label: `${GLYPH[preference]}  ${t(LABEL[preference])}`,
-    active: preference === current,
-    onSelect: () => { set(preference) },
+  return THEME_OPTIONS.map(({ id, Icon }) => ({
+    id: `theme:${id}`,
+    label: t(LABEL[id]),
+    icon: <Icon />,
+    active: id === current,
+    onSelect: () => { set(id) },
   }))
 }
 
@@ -76,18 +94,18 @@ export function ThemeSwitch() {
 
   return (
     <div className={css.group} role="radiogroup" aria-label={t('settings.theme')}>
-      {THEME_PREFERENCES.map(entry => (
+      {THEME_OPTIONS.map(({ id, Icon }) => (
         <button
-          key={entry}
+          key={id}
           type="button"
           role="radio"
-          aria-checked={entry === preference}
-          className={`${css.segment} ${entry === preference ? css.segmentActive : ''}`}
+          aria-checked={id === preference}
+          className={`${css.segment} ${id === preference ? css.segmentActive : ''}`}
           disabled={!canSet}
-          onClick={() => { set(entry) }}
+          onClick={() => { set(id) }}
         >
-          <span className={css.glyph} aria-hidden>{GLYPH[entry]}</span>
-          <span className={css.label}>{t(LABEL[entry])}</span>
+          <span className={css.glyph} aria-hidden><Icon /></span>
+          <span className={css.label}>{t(LABEL[id])}</span>
         </button>
       ))}
     </div>

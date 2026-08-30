@@ -13,10 +13,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconAgentPresetOutline16, IconCheckOutline16, IconChevronDownOutline14, IconCloseFill14,
-  IconEditOutline16, IconFolderOpenOutline16,
-  IconPaperclipOutline16,
-  IconSendOutline16, IconStopFill16, IconThinkOutline16, IconWarningOutline16,
+  IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14,
+  IconFolderOpenOutline16, IconPaperclipOutline16, IconPlusOutline16,
+  IconSendOutline16, IconStopFill16,
   RiskConfirmation,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerAttachment, DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -28,9 +27,9 @@ import {
 } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
-import type { ModelReadiness } from '../settings/readiness.ts'
 import { Popover, type MenuRow } from './ui.tsx'
-import { ContextMeter } from './ContextMeter.tsx'
+import { ModelSelect, type ModelSelectionView } from './ModelSelect.tsx'
+import type { ModelReadiness } from '../settings/readiness.ts'
 import css from './Composer.module.css'
 
 /** Props of the composer. */
@@ -52,11 +51,15 @@ interface PermissionSelectView {
   readonly options: readonly { readonly value: string; readonly name: string; readonly description?: string }[]
 }
 
-/** The `modelSelection` projection, read structurally. */
-interface ModelSelectionView {
-  readonly next: { readonly provider: string; readonly model: string; readonly reasoningEffort?: string } | null
-  readonly lastUsed: { readonly provider: string; readonly model: string; readonly reasoningEffort?: string } | null
+interface ContextReferenceItem {
+  readonly id: string
+  readonly kind: 'file' | 'skill' | 'command'
+  readonly label: string
+  readonly detail?: string
+  readonly value: string
 }
+
+interface ContextPill extends ContextReferenceItem {}
 
 /** Permission value that requires an explicit user acknowledgement. */
 const FULL_ACCESS_PERMISSION = 'danger-full-access'
@@ -82,14 +85,16 @@ function permissionLabel(value: string, name: string, t: Translate): string {
   }
 }
 
-/** Use the primitive glyphs already shared by the client UI for permission rows. */
-function permissionIcon(value: string): ReactNode | undefined {
-  switch (value) {
-    case 'read-only': return <IconCheckOutline16 />
-    case 'workspace-write': return <IconEditOutline16 />
-    case FULL_ACCESS_PERMISSION: return <IconWarningOutline16 />
-    default: return undefined
-  }
+/** Shield variants make the active access level legible without relying on color. */
+function permissionIcon(value: string): ReactNode {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M8 1.5 13 3.4v3.8c0 3.1-1.9 5.8-5 7.3-3.1-1.5-5-4.2-5-7.3V3.4z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+      {value === 'read-only' ? <path d="m5.5 7.8 1.5 1.5 3.4-3.4" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {value === 'workspace-write' ? <path d="m5.5 9.9.3-1.7 3.7-3.7 1.2 1.2L7 9.4z" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {value === FULL_ACCESS_PERMISSION ? <path d="M8 5v3.5m0 2v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
+    </svg>
+  )
 }
 
 /** Cmd/Ctrl+Enter flips the configured busy behavior. */
@@ -186,7 +191,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const session = useSessionSnapshot(sessionId)
   const { input, state: inputState } = useSessionInput(sessionId)
   const permissions = useProjectionValue<PermissionSelectView>(sessionId, 'permissions')
-  const selection = useProjectionValue<ModelSelectionView>(sessionId, 'modelSelection')
   const agentPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
   const busyEnter = useObservable(runtime.busyEnter, 'queue')
   const [fallbackDraft, setFallbackDraft] = useState('')
@@ -197,6 +201,12 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const [commandIndex, setCommandIndex] = useState(0)
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false)
   const [activeReferenceQuery, setActiveReferenceQuery] = useState<string | undefined>(undefined)
+  const [referenceIndex, setReferenceIndex] = useState(0)
+  const [referenceFiles, setReferenceFiles] = useState<readonly { path: string; kind: 'file' | 'directory' }[]>([])
+  const [contextPills, setContextPills] = useState<readonly ContextPill[]>([])
+  const [queueEditing, setQueueEditing] = useState(false)
+  const [queueDraft, setQueueDraft] = useState('')
+  const [queueBusy, setQueueBusy] = useState(false)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -224,6 +234,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     setError(undefined)
     setReadinessIssue(undefined)
     setActiveReferenceQuery(undefined)
+    setContextPills([])
+    setQueueEditing(false)
     previousSession.current = sessionId
   }, [sessionId])
 
@@ -261,15 +273,17 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     return () => { observer.disconnect() }
   }, [draft])
 
-  const catalog = useAsync(async () => await runtime.remote.session.modelCatalog(), [runtime])
   const presets = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime])
   const commandCatalog = useAsync(
     async () => (sessionId === undefined ? undefined : await runtime.remote.commands.list(sessionId)),
     [runtime, sessionId],
   )
+  const skillCatalog = useAsync(
+    async () => (sessionId === undefined ? undefined : await runtime.remote.skills.list({ sessionId }, new AbortController().signal)),
+    [runtime, sessionId],
+  )
 
   const running = session?.running === true
-  const current = selection?.next ?? selection?.lastUsed ?? undefined
   const roster = presets.value?.ok === true ? presets.value.value.presets : []
   const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id
   const blankSession = (blank ?? session?.blank ?? false) && !running
@@ -289,52 +303,49 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const commandMenuOpen = focused && !commandMenuDismissed && commandMatches.length > 0
 
   useEffect(() => {
+    if (sessionId === undefined || activeReferenceQuery === undefined) {
+      setReferenceFiles([])
+      return undefined
+    }
+    const controller = new AbortController()
+    void runtime.remote.fileReferences.list(sessionId, activeReferenceQuery, controller.signal).then((result) => {
+      if (result.ok) setReferenceFiles(result.value)
+    }).catch(() => { setReferenceFiles([]) })
+    return () => { controller.abort() }
+  }, [activeReferenceQuery, runtime, sessionId])
+
+  const referenceItems = useMemo<readonly ContextReferenceItem[]>(() => {
+    if (activeReferenceQuery === undefined) return []
+    const query = activeReferenceQuery.toLocaleLowerCase()
+    const files: ContextReferenceItem[] = referenceFiles.slice(0, 12).map(file => {
+      const path = file.kind === 'directory' ? `${file.path.replace(/\/$/, '')}/` : file.path
+      const mention = /\s/.test(path) ? `@"${path}"` : `@${path}`
+      return {
+        id: `file:${path}`,
+        kind: 'file',
+        label: path,
+        detail: t(file.kind === 'directory' ? 'composer.referenceDirectory' : 'composer.referenceFile'),
+        value: mention,
+      }
+    })
+    const skills = skillCatalog.value?.ok === true ? skillCatalog.value.value.skills : []
+    const skillItems: ContextReferenceItem[] = skills
+      .filter(skill => skill.name.toLocaleLowerCase().includes(query))
+      .slice(0, 8)
+      .map(skill => ({ id: `skill:${skill.name}`, kind: 'skill', label: skill.name, detail: skill.description, value: `/${skill.name}` }))
+    const commandItems: ContextReferenceItem[] = commands
+      .filter(command => command.name.toLocaleLowerCase().includes(query))
+      .slice(0, 8)
+      .map(command => ({ id: `command:${command.name}`, kind: 'command', label: command.name, detail: command.description, value: `/${command.name}` }))
+    return [...files, ...skillItems, ...commandItems]
+  }, [activeReferenceQuery, commands, referenceFiles, skillCatalog.value, t])
+  const referenceMenuOpen = focused && activeReferenceQuery !== undefined && referenceItems.length > 0
+
+  useEffect(() => {
     setCommandIndex(0)
   }, [commandQuery, sessionId])
 
-  const currentModel = useMemo(() => {
-    if (catalog.value?.ok !== true) return undefined
-    for (const group of catalog.value.value.groups) {
-      const model = group.models.find(row =>
-        row.id === current?.model && group.id === current.provider)
-      if (model !== undefined) return { group, model }
-    }
-    return undefined
-  }, [catalog.value, current])
-
-  const selectModel = useCallback((provider: string, model: string, reasoningEffort?: string) => {
-    if (sessionId === undefined) return
-    void runtime.remote.session.selectModel({
-      sessionId,
-      provider,
-      model,
-      ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
-    })
-  }, [runtime, sessionId])
-
-  const modelRows = useMemo<MenuRow[]>(() => {
-    if (catalog.value?.ok !== true) return []
-    return catalog.value.value.groups.flatMap(group => group.models.map(model => ({
-      id: `${group.id}/${model.id}`,
-      label: model.name,
-      detail: group.name,
-      group: group.name,
-      active: group.id === current?.provider && model.id === current.model,
-      onSelect: () => { selectModel(group.id, model.id) },
-    })))
-  }, [catalog.value, current, selectModel])
-
-  const reasoningRows = useMemo<MenuRow[]>(() => {
-    const efforts = currentModel?.model.reasoning?.efforts ?? []
-    if (efforts.length === 0 || current === undefined) return []
-    return efforts.map(effort => ({
-      id: effort.id,
-      label: effort.name,
-      detail: effort.description,
-      active: effort.id === current.reasoningEffort,
-      onSelect: () => { selectModel(current.provider, current.model, effort.id) },
-    }))
-  }, [currentModel, current, selectModel])
+  useEffect(() => { setReferenceIndex(0) }, [activeReferenceQuery, sessionId])
 
   const selectPermission = useCallback((value: string) => {
     if (sessionId === undefined) return
@@ -363,6 +374,35 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const captureReference = useCallback((value: string, caret: number | null) => {
     setActiveReferenceQuery(referenceQuery(value, caret ?? value.length))
   }, [])
+
+  const chooseReference = useCallback((item: ContextReferenceItem) => {
+    const textarea = inputRef.current
+    const caret = textarea?.selectionStart ?? draft.length
+    const query = referenceQuery(draft, caret)
+    if (query === undefined) return
+    const start = caret - query.length - 1
+    const next = `${draft.slice(0, start)}${item.value} ${draft.slice(caret)}`
+    updateDraft(next)
+    setContextPills(current => current.some(pill => pill.id === item.id) ? current : [...current, item])
+    setActiveReferenceQuery(undefined)
+    requestAnimationFrame(() => {
+      const target = inputRef.current
+      if (target === null) return
+      const nextCaret = start + item.value.length + 1
+      target.focus()
+      target.setSelectionRange(nextCaret, nextCaret)
+    })
+  }, [draft, updateDraft])
+
+  const removeContextPill = useCallback((pill: ContextPill) => {
+    const index = draft.indexOf(pill.value)
+    if (index >= 0) {
+      const end = index + pill.value.length + (draft[index + pill.value.length] === ' ' ? 1 : 0)
+      updateDraft(`${draft.slice(0, index)}${draft.slice(end)}`)
+    }
+    setContextPills(current => current.filter(candidate => candidate.id !== pill.id))
+    requestAnimationFrame(() => { inputRef.current?.focus() })
+  }, [draft, updateDraft])
 
   const completeCommand = useCallback((command: CommandDescriptor) => {
     updateDraft(`/${command.name}${command.input === undefined ? '' : ' '}`)
@@ -429,7 +469,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         id: option.value,
         label: permissionLabel(option.value, option.name, t),
         detail: option.description,
-        ...(icon === undefined ? {} : { icon }),
+        icon,
         active: option.value === permissions.currentValue,
         danger: option.value === FULL_ACCESS_PERMISSION,
         onSelect: () => {
@@ -509,6 +549,32 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   }, [runtime, sessionId])
 
   const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (referenceMenuOpen) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        setReferenceIndex(index => (index + direction + referenceItems.length) % referenceItems.length)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setActiveReferenceQuery(undefined)
+        return
+      }
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+        if (event.nativeEvent.isComposing) return
+        event.preventDefault()
+        const item = referenceItems[referenceIndex]
+        if (item !== undefined) chooseReference(item)
+        return
+      }
+    }
+    if (event.key === 'Backspace' && contextPills.length > 0 && draft.trim() === contextPills.at(-1)?.value) {
+      event.preventDefault()
+      const pill = contextPills.at(-1)
+      if (pill !== undefined) removeContextPill(pill)
+      return
+    }
     if (commandMenuOpen) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
@@ -537,7 +603,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       ? 'queue'
       : accelerated ? oppositeBusyEnter(busyEnter) : busyEnter
     send(mode)
-  }, [busyEnter, commandIndex, commandMatches, commandMenuOpen, completeCommand, running, send])
+  }, [busyEnter, chooseReference, commandIndex, commandMatches, commandMenuOpen, completeCommand, contextPills, draft, referenceIndex, referenceItems, referenceMenuOpen, removeContextPill, running, send])
 
   const { groups } = useWorkspaceGroups()
   const workspaceTitle = useMemo(() => {
@@ -564,6 +630,20 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     : currentPermission?.value === 'workspace-write'
       ? css.permissionWrite
       : css.permissionRead
+  const queued = session?.queue ?? []
+  const firstQueued = queued[0]
+
+  const updateQueued = (action: { readonly kind: 'remove' | 'steer' } | { readonly kind: 'edit'; readonly content: readonly { readonly type: 'text'; readonly text: string }[] }): void => {
+    if (sessionId === undefined || firstQueued === undefined || queueBusy) return
+    const face = runtime.binding(sessionId)?.session
+    if (face === undefined) return
+    setQueueBusy(true)
+    void face.updateQueue(firstQueued.id, action).then((result) => {
+      if (!result.ok) setError(result.error.message)
+      else setQueueEditing(false)
+    }).catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setQueueBusy(false) })
+  }
 
   return (
     <>
@@ -581,6 +661,48 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               <span>{workspaceTitle ?? t('nav.openWorkspace')}</span>
               <IconChevronDownOutline14 />
             </button>
+            <Popover
+              label={t('composer.mode')}
+              disabled={modeRows.length === 0}
+              triggerClassName={css.headerChip}
+              trigger={(
+                <span className={css.headerChipContent}>
+                  <IconAgentPresetOutline16 />
+                  <span>{currentPresetLabel}</span>
+                  <IconChevronDownOutline14 />
+                </span>
+              )}
+              rows={modeRows}
+            />
+          </div>
+        )
+        : null}
+      {running && queued.length > 0
+        ? (
+          <div className={css.queueBanner} role="status">
+            <span className={css.queueCount}>{t('chat.queued')}: {queued.length}</span>
+            {queueEditing
+              ? (
+                <input
+                  className={css.queueEdit}
+                  value={queueDraft}
+                  autoFocus
+                  aria-label={t('chat.editQueued')}
+                  onChange={event => { setQueueDraft(event.target.value) }}
+                  onKeyDown={event => {
+                    if (event.key === 'Escape') setQueueEditing(false)
+                    if (event.key === 'Enter' && queueDraft.trim() !== '') updateQueued({ kind: 'edit', content: [{ type: 'text', text: queueDraft.trim() }] })
+                  }}
+                />
+              )
+              : <span className={css.queuePreview}>{firstQueued?.text ?? firstQueued?.preview}</span>}
+            <span className={css.queueButtons}>
+              {queueEditing
+                ? <button type="button" disabled={queueBusy || queueDraft.trim() === ''} onClick={() => { updateQueued({ kind: 'edit', content: [{ type: 'text', text: queueDraft.trim() }] }) }}>{t('chat.saveQueued')}</button>
+                : <button type="button" disabled={queueBusy || firstQueued?.text === null} onClick={() => { setQueueDraft(firstQueued?.text ?? firstQueued?.preview ?? ''); setQueueEditing(true) }}>{t('chat.editQueued')}</button>}
+              <button type="button" disabled={queueBusy} onClick={() => { updateQueued({ kind: 'remove' }) }}>{t('chat.removeQueued')}</button>
+              <button type="button" disabled={queueBusy || firstQueued?.placement !== 'queued'} onClick={() => { updateQueued({ kind: 'steer' }) }}>{t('chat.steerQueued')}</button>
+            </span>
           </div>
         )
         : null}
@@ -608,6 +730,36 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
           )
           : null}
         <div className={css.inputArea}>
+          {referenceMenuOpen
+            ? (
+              <div id="composer-reference-list" className={css.referenceMenu} role="listbox" aria-label={t('composer.contextReferences')}>
+                {referenceItems.map((item, index) => {
+                  const previous = referenceItems[index - 1]
+                  return (
+                    <div className={css.referenceRow} key={item.id}>
+                      {previous?.kind === item.kind
+                        ? null
+                        : <div className={css.referenceGroup}>{item.kind === 'file' ? t('composer.workspaceFiles') : item.kind === 'skill' ? t('composer.skills') : t('composer.commands')}</div>}
+                      <button
+                        type="button"
+                        id={`composer-reference-${String(index)}`}
+                        className={`${css.referenceOption} ${index === referenceIndex ? css.referenceOptionActive : ''}`}
+                        role="option"
+                        aria-selected={index === referenceIndex}
+                        onMouseEnter={() => { setReferenceIndex(index) }}
+                        onMouseDown={event => { event.preventDefault() }}
+                        onClick={() => { chooseReference(item) }}
+                      >
+                        <span className={css.referenceKind} aria-hidden>{item.kind === 'file' ? '▧' : item.kind === 'skill' ? '✦' : '/'}</span>
+                        <span className={css.referenceLabel}>{item.label}</span>
+                        {item.detail === undefined ? null : <span className={css.referenceDetail}>{item.detail}</span>}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+            : null}
           {commandMenuOpen
             ? (
               <div id="composer-command-list" className={css.commandMenu} role="listbox" aria-label={t('composer.commands')}>
@@ -632,6 +784,19 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               </div>
             )
             : null}
+          {contextPills.length === 0
+            ? null
+            : (
+              <div className={css.contextPills} aria-label={t('composer.selectedContext')}>
+                {contextPills.map(pill => (
+                  <span className={css.contextPill} key={pill.id}>
+                    <span aria-hidden>{pill.kind === 'file' ? '▧' : pill.kind === 'skill' ? '✦' : '/'}</span>
+                    <span>{pill.label}</span>
+                    <button type="button" aria-label={t('composer.removeContext', { name: pill.label })} onClick={() => { removeContextPill(pill) }}><IconCloseFill14 /></button>
+                  </span>
+                ))}
+              </div>
+            )}
           <textarea
             ref={inputRef}
             className={css.input}
@@ -640,7 +805,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             disabled={disabled}
             placeholder={disabled
               ? t('composer.needsSession')
-              : running ? t('composer.placeholderRunning') : t('composer.placeholder')}
+              : t('composer.placeholder')}
             onChange={event => {
               updateDraft(event.target.value)
               captureReference(event.target.value, event.target.selectionStart)
@@ -650,8 +815,11 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             onPaste={onPaste}
             aria-label={t('composer.placeholder')}
             aria-autocomplete="list"
-            aria-controls={commandMenuOpen ? 'composer-command-list' : undefined}
-            aria-activedescendant={commandMenuOpen ? `composer-command-${commandMatches[commandIndex]?.name ?? ''}` : undefined}
+            aria-expanded={referenceMenuOpen || commandMenuOpen}
+            aria-controls={referenceMenuOpen ? 'composer-reference-list' : commandMenuOpen ? 'composer-command-list' : undefined}
+            aria-activedescendant={referenceMenuOpen
+              ? `composer-reference-${String(referenceIndex)}`
+              : commandMenuOpen ? `composer-command-${commandMatches[commandIndex]?.name ?? ''}` : undefined}
             onFocus={() => { setFocused(true) }}
             onBlur={() => { setFocused(false) }}
           />
@@ -696,12 +864,12 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               disabled={disabled || input === undefined}
               onClick={() => { attachmentInputRef.current?.click() }}
             >
-              <IconPaperclipOutline16 />
+              <IconPlusOutline16 />
             </button>
             <Popover
               label={confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission')}
               disabled={permissionRows.length === 0 || confirmingFullAccess}
-              triggerClassName={`${css.controlTrigger} ${permissionTriggerClass}`}
+              triggerClassName={`${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`}
               popoverClassName={css.permissionMenu}
               trigger={
                 <span className={css.control}>
@@ -712,70 +880,9 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               }
               rows={permissionRows}
             />
-            <Popover
-              label={blankSession ? t('composer.mode') : t('composer.modeLocked')}
-              disabled={!blankSession || sessionId === undefined || modeRows.length === 0}
-              triggerClassName={`${css.controlTrigger} ${css.modeTrigger}`}
-              trigger={
-                <span className={css.control}>
-                  <IconAgentPresetOutline16 />
-                  <span className={css.controlLabel}>{currentPresetLabel}</span>
-                  <IconChevronDownOutline14 className={css.controlChevron} />
-                </span>
-              }
-              rows={modeRows}
-            />
           </div>
           <div className={css.trailingControls} data-dcode-model-select="">
-            {running
-              ? (
-                <div className={css.busyHints} aria-label={t('composer.busyHints')}>
-                  <span className={`${css.busyHint} ${busyEnter === 'queue' ? css.busyHintActive : ''}`}>
-                    <kbd>{busyEnter === 'queue' ? t('composer.keyEnter') : t('composer.keyModifiedEnter')}</kbd>
-                    <span>{t('composer.queue')}</span>
-                  </span>
-                  <span className={`${css.busyHint} ${busyEnter === 'steer' ? css.busyHintActive : ''}`}>
-                    <kbd>{busyEnter === 'steer' ? t('composer.keyEnter') : t('composer.keyModifiedEnter')}</kbd>
-                    <span>{t('composer.steer')}</span>
-                  </span>
-                </div>
-              )
-              : null}
-            <Popover
-              label={t('composer.model')}
-              disabled={modelRows.length === 0}
-              align="end"
-              triggerClassName={`${css.controlTrigger} ${css.modelTrigger}`}
-              popoverClassName={css.modelMenu}
-              trigger={
-                <span className={css.control}>
-                  <span className={css.controlLabel}>
-                    {currentModel === undefined
-                      ? t('composer.model')
-                      : `${currentModel.model.name} · ${currentModel.group.name}`}
-                  </span>
-                  <IconChevronDownOutline14 className={css.controlChevron} />
-                </span>
-              }
-              rows={modelRows}
-            />
-            <Popover
-              label={t('composer.reasoning')}
-              disabled={reasoningRows.length === 0}
-              align="end"
-              triggerClassName={`${css.controlTrigger} ${css.reasoningTrigger}`}
-              trigger={
-                <span className={css.control}>
-                  <IconThinkOutline16 />
-                  <span className={css.controlLabel}>
-                    {reasoningRows.find(row => row.active)?.label ?? t('composer.reasoningDefault')}
-                  </span>
-                  <IconChevronDownOutline14 className={css.controlChevron} />
-                </span>
-              }
-              rows={reasoningRows}
-            />
-            <span className={css.contextSeat}><ContextMeter sessionId={sessionId} /></span>
+            <ModelSelect sessionId={sessionId} disabled={disabled} />
             {running
               ? (
                 <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>

@@ -12,16 +12,10 @@
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--zx-label) 13%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--zx-bg-card) 86%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(138%);
-  backdrop-filter: blur(16px) saturate(138%);
-  box-shadow:
-    0 20px 52px color-mix(in srgb, #000 18%, transparent),
-    0 4px 14px color-mix(in srgb, #000 11%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
-  transform: translateZ(0);
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, var(--zx-border-control));
+  border-radius: 22px;
+  background: var(--dsw-specific-input-major, var(--zx-bg-card));
+  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card));
   transition:
     border-color var(--zx-motion-fast),
     border-radius 220ms cubic-bezier(.2, .8, .2, 1),
@@ -29,26 +23,17 @@
     background var(--zx-motion-fast);
 }
 
-[data-dcode-acrylic] .shell {
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  backdrop-filter: blur(16px) saturate(150%);
-}
-
 .shellCompact {
-  border-radius: 28px;
+  border-radius: 22px;
 }
 
 .shellExpanded {
-  border-radius: 16px;
+  border-radius: 22px;
 }
 
 .shellFocused {
-  border-color: color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border));
-  box-shadow:
-    0 22px 58px color-mix(in srgb, #000 20%, transparent),
-    0 5px 16px color-mix(in srgb, #000 12%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 19%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--zx-accent) 18%, transparent);
+  border-color: var(--dsw-alias-state-business-primary, var(--zx-accent));
+  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card)), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 12%, transparent);
 }
 
 .referenceActive:not(.dropActive) {
@@ -109,6 +94,71 @@
   min-width: 0;
 }
 
+.queueBanner {
+  position: relative;
+  z-index: var(--zx-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  width: min(calc(var(--zx-reading-width) - 24px), calc(100% - 24px));
+  min-height: 32px;
+  margin: 0 auto 6px;
+  padding: 4px 6px 4px var(--zx-space-3);
+  border: var(--zx-border-hairline);
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 84%, transparent);
+  box-shadow: var(--zx-shadow-floating), var(--zx-shadow-inset-top);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+  animation: queueBannerIn 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.queueCount { flex: none; color: var(--zx-accent); font-weight: var(--zx-weight-semibold); }
+.queuePreview { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueEdit { min-width: 0; flex: 1; height: 24px; border: 1px solid var(--zx-border-control); border-radius: var(--zx-radius-pill); padding: 0 var(--zx-space-3); background: var(--zx-bg-panel); color: var(--zx-label); font: inherit; }
+.queueEdit:focus { outline: none; box-shadow: var(--zx-focus-ring); }
+.queueButtons { display: inline-flex; gap: 2px; flex: none; }
+.queueButtons button { height: 24px; border: 0; border-radius: var(--zx-radius-pill); padding: 0 var(--zx-space-2); background: transparent; color: var(--zx-label-secondary); font: inherit; font-size: var(--zx-text-micro); cursor: pointer; }
+.queueButtons button:hover:not(:disabled) { background: var(--zx-bg-hover); color: var(--zx-label); }
+.queueButtons button:disabled { opacity: var(--zx-opacity-disabled); cursor: default; }
+
+.referenceMenu {
+  position: absolute;
+  z-index: var(--zx-z-popover);
+  right: 10px;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding: var(--zx-space-2);
+  border: var(--zx-border-hairline);
+  border-radius: var(--zx-radius-xl);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 88%, transparent);
+  box-shadow: var(--zx-shadow-popover), var(--zx-shadow-inset-top);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+  animation: commandMenuIn 150ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.referenceRow { display: contents; }
+.referenceGroup { padding: 7px 9px 4px; color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); font-weight: var(--zx-weight-semibold); letter-spacing: .04em; text-transform: uppercase; }
+.referenceOption { display: grid; grid-template-columns: 20px minmax(90px, auto) minmax(0, 1fr); align-items: center; gap: var(--zx-space-2); width: 100%; min-height: 36px; border: 0; border-radius: var(--zx-radius-md); padding: 5px 9px; background: transparent; color: var(--zx-label-secondary); font: inherit; font-size: var(--zx-text-xs); text-align: left; cursor: pointer; }
+.referenceOption:hover,
+.referenceOptionActive { background: var(--zx-bg-hover); color: var(--zx-label); }
+.referenceOptionActive { box-shadow: inset 2px 0 var(--zx-accent); }
+.referenceKind { color: var(--zx-accent); text-align: center; }
+.referenceLabel,
+.referenceDetail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.referenceDetail { color: var(--zx-label-tertiary); }
+
+.contextPills { display: flex; flex-wrap: wrap; gap: var(--zx-space-1); padding: 9px 15px 0; }
+.contextPill { display: inline-flex; align-items: center; gap: 5px; height: 24px; max-width: 220px; padding: 0 3px 0 8px; border: 1px solid color-mix(in srgb, var(--zx-accent) 28%, var(--zx-border)); border-radius: var(--zx-radius-pill); background: color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-panel)); color: var(--zx-label-secondary); font-size: var(--zx-text-micro); }
+.contextPill > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contextPill button { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--zx-label-faint); cursor: pointer; }
+.contextPill button:hover { background: var(--zx-bg-hover); color: var(--zx-label); }
+
 .commandMenu {
   position: absolute;
   z-index: var(--zx-z-popover);
@@ -125,7 +175,7 @@
   backdrop-filter: blur(18px) saturate(135%);
   box-shadow:
     0 18px 44px color-mix(in srgb, #000 20%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+    var(--zx-shadow-inset-top);
   animation: commandMenuIn 150ms cubic-bezier(.2, .8, .2, 1);
 }
 
@@ -189,15 +239,15 @@
 .input {
   display: block;
   width: 100%;
-  max-height: min(38vh, 280px);
-  min-height: 48px;
-  padding: 13px 16px 5px;
+  max-height: min(38vh, 336px);
+  min-height: 52px;
+  padding: 14px 16px 4px;
   border: 0;
   background: transparent;
   color: var(--zx-label);
   font: inherit;
   font-size: var(--zx-text-sm);
-  line-height: var(--zx-leading-body);
+  line-height: 24px;
   resize: none;
   box-sizing: border-box;
   overflow-y: auto;
@@ -375,7 +425,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--zx-space-2);
-  padding: 3px 9px 9px;
+  padding: 2px 8px 6px;
   min-width: 0;
 }
 
@@ -396,8 +446,8 @@
   padding: 0;
   border: 0;
   border-radius: var(--zx-radius-pill);
-  background: transparent;
-  color: var(--zx-label-muted);
+  background: var(--dsw-specific-selector, var(--zx-bg-raised));
+  color: var(--dsw-alias-label-primary, var(--zx-label));
   cursor: pointer;
   transition:
     background var(--zx-motion-fast),
@@ -407,7 +457,7 @@
 }
 
 .attachButton:hover:not(:disabled) {
-  background: var(--zx-bg-hover);
+  background: var(--dsw-alias-interactive-bg-hover-solid, var(--zx-bg-hover));
   color: var(--zx-label);
 }
 
@@ -483,6 +533,11 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes queueBannerIn {
+  from { opacity: 0; transform: translateY(4px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Popover triggers otherwise keep their min-content width. Keeping the
    groups shrinkable lets the composer preserve a dedicated right seat for
    model controls and the send action at compact widths. */
@@ -511,11 +566,11 @@
 
 .controlTrigger {
   max-width: 220px;
-  height: 26px;
+  height: 28px;
   padding: 0 7px 0 8px;
-  border: 1px solid color-mix(in srgb, var(--zx-label) 9%, transparent);
-  border-radius: var(--zx-radius-pill);
-  background: color-mix(in srgb, var(--zx-label) 4%, transparent);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-sm);
   line-height: 20px;
@@ -528,8 +583,7 @@
 }
 
 .controlTrigger:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--zx-label) 15%, transparent);
-  background: color-mix(in srgb, var(--zx-label) 8%, transparent);
+  background: var(--dsw-alias-interactive-bg-hover, var(--zx-bg-hover));
 }
 
 .controlTrigger:active:not(:disabled) {
@@ -552,6 +606,10 @@
   color: var(--zx-warn);
 }
 
+.securityPermission {
+  background: transparent;
+}
+
 .control :global(svg) {
   flex: 0 0 auto;
   width: 14px;
@@ -567,7 +625,8 @@
 }
 
 .modelTrigger {
-  background: color-mix(in srgb, var(--zx-label) 6%, transparent);
+  max-width: 300px;
+  background: transparent;
 }
 
 .reasoningTrigger .controlLabel {
@@ -644,12 +703,12 @@
   place-items: center;
   flex: 0 0 34px;
   width: 34px;
-  height: var(--zx-control-lg);
+  height: 34px;
   padding: 0;
   border: 0;
   border-radius: var(--zx-radius-pill);
-  background: var(--zx-label);
-  color: var(--zx-bg-app);
+  background: var(--dsw-alias-button-info-fill, #3964fe);
+  color: #fff;
   cursor: pointer;
   box-shadow: var(--zx-shadow-card);
   transition:
@@ -660,7 +719,7 @@
 }
 
 .send:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--zx-label) 88%, var(--zx-bg-app));
+  background: var(--dsw-alias-button-info-hover, #3158e8);
   transform: translateY(-1px);
 }
 
@@ -669,7 +728,7 @@
 }
 
 .send:disabled {
-  opacity: var(--zx-opacity-disabled);
+  opacity: 0.4;
   cursor: default;
 }
 
@@ -679,8 +738,8 @@
 }
 
 .stop {
-  background: var(--zx-bg-active);
-  color: var(--zx-label);
+  background: var(--dsw-alias-button-info-fill, #3964fe);
+  color: #fff;
 }
 
 .send :global(svg) {
@@ -727,20 +786,24 @@
   margin: 0 auto var(--zx-space-2);
   display: flex;
   align-items: center;
-  gap: var(--zx-space-2);
+  gap: 8px;
+  padding-left: 8px;
 }
 
-.projectChip {
+.projectChip,
+.headerChip {
   display: inline-flex;
   align-items: center;
-  gap: var(--zx-space-2);
-  padding: var(--zx-space-1) var(--zx-space-3);
-  border: 1px solid var(--zx-border-control);
-  border-radius: var(--zx-radius-md);
-  background: var(--zx-bg-card);
-  color: var(--zx-label-secondary);
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, var(--zx-label));
   font: inherit;
-  font-size: var(--zx-text-xs);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition:
     background var(--zx-motion-fast),
@@ -750,18 +813,34 @@
     transform var(--zx-motion-fast);
 }
 
-.projectChip:hover {
-  background: var(--zx-bg-hover);
+.projectChip:hover,
+.headerChip:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, var(--zx-bg-hover));
   color: var(--zx-label);
 }
 
-.projectChip:active {
+.projectChip:active,
+.headerChip:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.projectChip:focus-visible {
+.projectChip:focus-visible,
+.headerChip:focus-visible {
   outline: none;
   box-shadow: var(--zx-focus-ring);
+}
+
+.headerChipContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.headerChipContent > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @container (max-width: 720px) {
@@ -813,6 +892,8 @@
     max-width: 112px;
   }
 
+  .securityPermission .controlLabel { display: none; }
+
   .commandOption {
     grid-template-columns: minmax(82px, auto) minmax(0, 1fr);
   }
@@ -831,4 +912,7 @@
     animation: none;
     transition: none;
   }
+
+  .queueBanner,
+  .referenceMenu { animation: none; }
 }

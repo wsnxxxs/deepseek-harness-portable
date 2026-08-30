@@ -90,7 +90,7 @@ function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
               <div className={css.goalText}>
                 {goal.goal.objective}
                 <div className={css.goalMeta}>
-                  {done}/{todos.length || '—'} · {goal.roundsStarted} rounds
+                  {done}/{todos.length || '—'} · {t('goal.rounds', { count: goal.roundsStarted })}
                 </div>
               </div>
             </div>
@@ -271,11 +271,11 @@ function TerminalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
       for (const call of walkCalls(block)) {
         if ('isError' in call) continue
         const summary = summarizeTool(call.name, call.argsRaw)
-        if (summary.kind === 'run') chunks.push(`\u001b[2m$ ${summary.detail || call.name}\u001b[0m\n\u001b[33m● running…\u001b[0m`)
+        if (summary.kind === 'run') chunks.push(`\u001b[2m$ ${summary.detail || call.name}\u001b[0m\n\u001b[33m● ${t('aside.running')}\u001b[0m`)
       }
     }
     return chunks.join('\n\n')
-  }, [chat, trajectory])
+  }, [chat, t, trajectory])
 
   return (
     <section className={`${css.section} ${css.terminalSection}`}>

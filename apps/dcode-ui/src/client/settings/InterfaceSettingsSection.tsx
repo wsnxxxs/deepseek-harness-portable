@@ -40,7 +40,7 @@ export function InterfaceSettingsSection({ mode, t }: InterfaceSettingsSectionPr
 
   return (
     <div className={css.root}>
-      <div className={css.title}>{copy('settings.interface')}</div>
+      <h2 className={css.title}>{copy('settings.interface')}</h2>
       <p className={css.lead}>{copy('settings.interfaceBody')}</p>
       {/* Official first, then the workbench: keep the same order across every
           switch surface, so the pair never reads differently in two places. */}
