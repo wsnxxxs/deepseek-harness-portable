@@ -695,6 +695,33 @@
   line-height: var(--zx-leading-tight);
 }
 
+.readinessIssue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-2);
+  padding: 2px var(--zx-space-3) var(--zx-space-1) var(--zx-space-4);
+  color: var(--zx-warn);
+  font-size: var(--zx-text-xs);
+}
+
+.readinessIssue button {
+  flex: none;
+  min-height: 26px;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  padding: 0 var(--zx-space-3);
+  background: color-mix(in srgb, var(--zx-accent) 13%, transparent);
+  color: var(--zx-accent);
+  font: inherit;
+  font-weight: var(--zx-weight-semibold);
+  cursor: pointer;
+}
+
+.readinessIssue button:hover {
+  background: color-mix(in srgb, var(--zx-accent) 20%, transparent);
+}
+
 .headerRow {
   width: min(var(--zx-reading-width), 100%);
   margin: 0 auto var(--zx-space-2);

@@ -28,6 +28,7 @@ import {
 } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
+import type { ModelReadiness } from '../settings/readiness.ts'
 import { Popover, type MenuRow } from './ui.tsx'
 import { ContextMeter } from './ContextMeter.tsx'
 import css from './Composer.module.css'
@@ -38,6 +39,9 @@ export interface ComposerProps {
   readonly blank?: boolean
   readonly cwd?: string
   readonly onOpenWorkspace?: () => void
+  readonly readiness?: ModelReadiness
+  readonly onSelectModel?: () => void
+  readonly onConfigureProvider?: () => void
   /** Active `@query` at the caret; reserved for the file/symbol reference picker. */
   readonly onReferenceQueryChange?: (query: string | undefined) => void
 }
@@ -176,7 +180,7 @@ function AttachmentRail(props: {
 }
 
 /** Prompt entry and the session controls. */
-export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQueryChange }: ComposerProps) {
+export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, onReferenceQueryChange }: ComposerProps) {
   const runtime = useRuntime()
   const t = useT()
   const session = useSessionSnapshot(sessionId)
@@ -188,6 +192,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
   const [fallbackDraft, setFallbackDraft] = useState('')
   const [focused, setFocused] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [readinessIssue, setReadinessIssue] = useState<'model' | 'credential' | undefined>()
   const [dragActive, setDragActive] = useState(false)
   const [commandIndex, setCommandIndex] = useState(0)
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false)
@@ -217,9 +222,15 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
     }
     setFallbackDraft(sessionId === undefined ? '' : drafts.get(sessionId) ?? '')
     setError(undefined)
+    setReadinessIssue(undefined)
     setActiveReferenceQuery(undefined)
     previousSession.current = sessionId
   }, [sessionId])
+
+  useEffect(() => {
+    if (readinessIssue === 'model' && readiness?.model === 'ready') setReadinessIssue(undefined)
+    if (readinessIssue === 'credential' && readiness?.credential === 'ready') setReadinessIssue(undefined)
+  }, [readiness, readinessIssue])
 
   useEffect(() => {
     onReferenceQueryChange?.(activeReferenceQuery)
@@ -450,6 +461,14 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
     if (sessionId === undefined) return
     const text = draft.trim()
     if (text === '' && inputState.imageIds.length === 0) return
+    if (!text.startsWith('/') && readiness?.model === 'missing') {
+      setReadinessIssue('model')
+      return
+    }
+    if (!text.startsWith('/') && readiness?.credential === 'missing') {
+      setReadinessIssue('credential')
+      return
+    }
     if (input !== undefined) {
       setError(undefined)
       setActiveReferenceQuery(undefined)
@@ -482,7 +501,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
         handle.abandon()
         setError(cause instanceof Error ? cause.message : String(cause))
       })
-  }, [draft, input, inputState.imageIds, runtime, sessionId])
+  }, [draft, input, inputState.imageIds, readiness, runtime, sessionId])
 
   const stop = useCallback(() => {
     if (sessionId === undefined) return
@@ -655,6 +674,17 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
             event.currentTarget.value = ''
           }}
         />
+        {readinessIssue === undefined
+          ? null
+          : (
+            <div className={css.readinessIssue} role="alert">
+              <span>{readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential')}</span>
+              <button
+                type="button"
+                onClick={readinessIssue === 'model' ? onSelectModel : onConfigureProvider}
+              >{readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey')}</button>
+            </div>
+          )}
         {error === undefined ? null : <div className={css.error} role="alert">{error}</div>}
         <div className={css.controls}>
           <div className={css.leadingControls}>
@@ -696,7 +726,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, onReferenceQu
               rows={modeRows}
             />
           </div>
-          <div className={css.trailingControls}>
+          <div className={css.trailingControls} data-dcode-model-select="">
             {running
               ? (
                 <div className={css.busyHints} aria-label={t('composer.busyHints')}>

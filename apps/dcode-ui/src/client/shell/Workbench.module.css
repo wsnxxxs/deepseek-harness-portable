@@ -143,6 +143,46 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
   flex: 1 1 0;
 }
 
+.readiness {
+  box-sizing: border-box;
+  width: min(var(--zx-reading-width), calc(100% - 2 * var(--zx-space-5)));
+  margin: 0 auto var(--zx-space-2);
+  padding: 7px 9px;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-lg);
+  background: color-mix(in srgb, var(--zx-bg-card) 72%, transparent);
+  box-shadow: var(--zx-shadow-inset-top);
+}
+
+.readinessSummary,
+.readinessItem {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-height: 30px;
+}
+
+.readinessSummary {
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+}
+
+.readinessCheck {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--zx-success) 14%, transparent);
+  color: var(--zx-success);
+}
+
+.readinessItem {
+  justify-content: space-between;
+  padding-left: 26px;
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+}
 /* The preview sidebar: a column of the frame, not a sheet over it, so the
    panel it carries — changes, goal, the diff viewer — can be worked in
    while the conversation stays readable beside it. */

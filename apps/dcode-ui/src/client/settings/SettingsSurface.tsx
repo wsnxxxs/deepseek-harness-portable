@@ -287,7 +287,7 @@ function modelCredentialRef(provider: string, profile: Record<string, unknown> |
   return named ?? `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
 }
 
-interface ModelProviderRow {
+export interface ModelProviderRow {
   readonly id: string
   readonly name: string
   readonly active: boolean
@@ -303,7 +303,7 @@ interface ModelProviderRow {
   readonly declared?: boolean
 }
 
-interface ModelSettingsData {
+export interface ModelSettingsData {
   readonly catalog: ModelCatalog
   readonly providers: readonly ModelProviderRow[]
   readonly writable: boolean
@@ -356,7 +356,7 @@ function modelProviderRows(
   return rows
 }
 
-async function loadModelSettings(runtime: DcodeRuntime): Promise<ModelSettingsData> {
+export async function loadModelSettings(runtime: DcodeRuntime): Promise<ModelSettingsData> {
   const [catalog, registered, configurable, described] = await Promise.all([
     runtime.remote.session.modelCatalog(),
     runtime.remote.llm.listProviders(),
@@ -428,10 +428,12 @@ function ModelProviderCard(props: {
   row: ModelProviderRow
   writable: boolean
   onReload: () => void
+  initiallyOpen?: boolean
+  onSaved?: () => void
 }) {
   const runtime = useRuntime()
   const t = useT()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(props.initiallyOpen === true)
   const [baseURL, setBaseURL] = useState(() => stringAt(props.row.profile, ['baseURL']) ?? '')
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
@@ -495,6 +497,7 @@ function ModelProviderCard(props: {
       }
       setOpen(false)
       props.onReload()
+      props.onSaved?.()
     } catch (cause: unknown) {
       setFailure(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -591,7 +594,7 @@ function ModelProviderCard(props: {
 }
 
 /** Provider routes, catalog, and the editable credential/profile controls. */
-function ModelsSection() {
+function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved?: () => void }) {
   const runtime = useRuntime()
   const t = useT()
   const models = useAsync(async () => await loadModelSettings(runtime), [runtime])
@@ -628,7 +631,16 @@ function ModelsSection() {
       </div>
       {value.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.models.credentialWarning')}: ${value.credentialError}`}</div>}
       <div className={css.providerList}>
-        {value.providers.map(row => <ModelProviderCard key={row.id} row={row} writable={value.writable} onReload={models.reload} />)}
+        {value.providers.map(row => (
+          <ModelProviderCard
+            key={row.id}
+            row={row}
+            writable={value.writable}
+            initiallyOpen={row.id === props.focusedProvider}
+            onReload={models.reload}
+            onSaved={row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined}
+          />
+        ))}
       </div>
       {value.catalog.groups.map(group => (
         <div className={css.card} key={group.id}>
@@ -1250,6 +1262,8 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
   const t = useT()
   const state = useNavigation(navigation)
 
+  useEffect(() => () => { navigation.patch({ settingsProvider: undefined }) }, [navigation])
+
   const icons: Partial<Record<SettingsSection, React.ReactNode>> = {
     general: <IconSettingsOutline16 />,
     models: <IconApiOutline14 size={16} />,
@@ -1272,7 +1286,12 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     switch (state.settingsSection) {
       case 'general':
       case 'appearance': return <GeneralSection />
-      case 'models': return <ModelsSection />
+      case 'models': return (
+        <ModelsSection
+          focusedProvider={state.settingsProvider}
+          onFocusedProviderSaved={state.settingsProvider === undefined ? undefined : () => { navigation.show('session') }}
+        />
+      )
       case 'skills': return <SkillsSection sessionId={sessionId} />
       case 'commands': return <CommandsSection sessionId={sessionId} />
       case 'plugins': return <PluginSettingsSection />

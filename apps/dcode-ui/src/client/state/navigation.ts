@@ -76,6 +76,8 @@ export interface NavigationState {
   readonly railPinned: boolean
   readonly asidePinned: boolean
   readonly settingsSection: SettingsSection
+  /** Provider editor requested from an in-task readiness action. */
+  readonly settingsProvider: string | undefined
   readonly diff: DiffTarget | undefined
   /** Tool call whose full output the details tab is showing. */
   readonly inspectedCallId: string | undefined
@@ -95,6 +97,7 @@ const INITIAL: NavigationState = {
   railPinned: false,
   asidePinned: false,
   settingsSection: 'general',
+  settingsProvider: undefined,
   diff: undefined,
   inspectedCallId: undefined,
 }
@@ -109,6 +112,8 @@ export interface NavigationStore {
   show(view: WorkbenchView): void
   /** Open the settings surface at one section. */
   openSettings(section: SettingsSection): void
+  /** Open one provider editor and return to the task after it saves. */
+  openProviderSettings(provider: string): void
   /** Open the preview sidebar on one tab, dismissing the summary card. */
   openAside(tab: AsideTab): void
   /** Open the diff viewer on one path, which also reveals the aside. */
@@ -166,6 +171,7 @@ export function createNavigationStore(): NavigationStore {
     // that changes what is showing behind it also dismisses it.
     show: view => { patch({ view, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false } : {}) }) },
     openSettings: section => { patch({ view: 'settings', settingsSection: section, paletteOpen: false }) },
+    openProviderSettings: provider => { patch({ view: 'settings', settingsSection: 'models', settingsProvider: provider, paletteOpen: false }) },
     // Picking a row in the summary card is a navigation, so the card gives
     // way to the panel it just sent the operator to.
     openAside: tab => { patch({ aside: tab, asideOpen: true, summaryOpen: false, ...pin('asidePinned') }) },

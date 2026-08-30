@@ -42,6 +42,7 @@ import { Transcript } from '../chat/Transcript.tsx'
 import { LearningHome } from '../learning/LearningHome.tsx'
 import { PluginsHome } from '../plugins/PluginsHome.tsx'
 import { SettingsSurface } from '../settings/SettingsSurface.tsx'
+import { useModelReadiness, type ModelReadiness } from '../settings/readiness.ts'
 import css from './Workbench.module.css'
 
 /** Props of the workbench root. */
@@ -92,6 +93,53 @@ class SettingsBoundary extends Component<{
   }
 }
 
+function ReadinessCard(props: {
+  readonly hasWorkspace: boolean
+  readonly hasSession: boolean
+  readonly model: ModelReadiness
+  readonly onOpenWorkspace: () => void
+  readonly onNewTask: () => void
+  readonly onSelectModel: () => void
+  readonly onConfigureProvider: () => void
+  readonly t: Translate
+}) {
+  const complete = [
+    props.hasWorkspace,
+    props.hasSession,
+    props.model.model === 'ready',
+    props.model.credential === 'ready',
+  ].filter(Boolean).length
+  const missing = [
+    !props.hasWorkspace
+      ? { label: props.t('readiness.workspace'), action: props.t('readiness.openWorkspace'), onClick: props.onOpenWorkspace }
+      : undefined,
+    props.hasWorkspace && !props.hasSession
+      ? { label: props.t('readiness.session'), action: props.t('readiness.newTask'), onClick: props.onNewTask }
+      : undefined,
+    props.hasSession && props.model.model === 'missing'
+      ? { label: props.t('readiness.model'), action: props.t('readiness.selectModel'), onClick: props.onSelectModel }
+      : undefined,
+    props.model.model === 'ready' && props.model.credential === 'missing'
+      ? { label: props.t('readiness.credential', { provider: props.model.provider ?? '' }), action: props.t('readiness.configureKey'), onClick: props.onConfigureProvider }
+      : undefined,
+  ].filter((item): item is { label: string; action: string; onClick: () => void } => item !== undefined)
+  if (missing.length === 0) return null
+  return (
+    <div className={css.readiness} aria-label={props.t('readiness.title')}>
+      <div className={css.readinessSummary}>
+        <span className={css.readinessCheck} aria-hidden>✓</span>
+        <span>{props.t('readiness.complete', { count: complete, total: 4 })}</span>
+      </div>
+      {missing.map(item => (
+        <div className={css.readinessItem} key={item.label}>
+          <span>{item.label}</span>
+          <Button onClick={item.onClick}>{item.action}</Button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Resolve the working directory of the current session, which every
  * workspace-scoped panel (git, files) is addressed by.
@@ -120,6 +168,8 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const pendingQuestion = usePendingQuestion(sessionId)
   const cwd = useCurrentCwd(sessionId)
   const blank = useConversationBlank(sessionId)
+  const modelReadiness = useModelReadiness(sessionId)
+  const { groups } = useWorkspaceGroups()
   const { scheme } = useAppearance()
   const [browsing, setBrowsing] = useState(false)
   const [railWidth, setRailWidth] = useState(readRailWidth)
@@ -241,6 +291,14 @@ export function Workbench({ navigation }: WorkbenchProps) {
       })
       .catch(() => { setBrowsing(true) })
   }, [runtime, adoptWorkspace])
+
+  const selectModel = useCallback(() => {
+    frame?.querySelector<HTMLButtonElement>('[data-dcode-model-select] button[aria-haspopup]')?.click()
+  }, [frame])
+
+  const configureProvider = useCallback(() => {
+    if (modelReadiness.provider !== undefined) navigation.openProviderSettings(modelReadiness.provider)
+  }, [modelReadiness.provider, navigation])
 
   // The global keyboard layer. Registered on the document so it works while
   // focus is inside the composer, and scoped to this surface's lifetime.
@@ -392,6 +450,20 @@ export function Workbench({ navigation }: WorkbenchProps) {
               {/* Content-driven: the plan card only appears while the task has
                   a plan; trace activity lives in the environment summary. */}
               <PlanCard key={sessionId} sessionId={sessionId} />
+              {blank
+                ? (
+                  <ReadinessCard
+                    hasWorkspace={groups.length > 0}
+                    hasSession={sessionId !== undefined}
+                    model={modelReadiness}
+                    onOpenWorkspace={openWorkspace}
+                    onNewTask={() => { newTask(groups[0]?.workspaceId) }}
+                    onSelectModel={selectModel}
+                    onConfigureProvider={configureProvider}
+                    t={t}
+                  />
+                )
+                : null}
               {pendingQuestion === undefined
                 ? (
                   <Composer
@@ -399,6 +471,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
                     blank={blank}
                     cwd={cwd}
                     onOpenWorkspace={openWorkspace}
+                    readiness={modelReadiness}
+                    onSelectModel={selectModel}
+                    onConfigureProvider={configureProvider}
                   />
                 )
                 : <QuestionComposer pending={pendingQuestion} />}
