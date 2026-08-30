@@ -114,15 +114,162 @@
   grid-column: 1 / -1;
 }
 
-.terminalSection {
+.commandOutputSection {
   min-height: 0;
   flex: 1;
 }
 
-.terminalOutput {
-  min-height: 260px;
-  max-height: none;
+.commandList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+}
+
+.commandEntry {
+  overflow: hidden;
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-card);
+}
+
+.commandEntry[data-status='failed'] {
+  border-color: color-mix(in srgb, var(--zx-error) 36%, var(--zx-border-soft));
+}
+
+.commandEntryHead {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.commandLocate {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
   flex: 1;
+  min-width: 0;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commandLocate:hover,
+.commandExpand:hover {
+  background: var(--zx-bg-hover);
+}
+
+.commandLocate:focus-visible,
+.commandExpand:focus-visible {
+  outline: none;
+  box-shadow: inset var(--zx-focus-ring);
+}
+
+.commandStatusIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  color: var(--zx-success);
+}
+
+.commandEntry[data-status='failed'] .commandStatusIcon {
+  color: var(--zx-error);
+}
+
+.commandIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.commandText,
+.commandSummary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commandText {
+  color: var(--zx-label);
+  font-family: var(--zx-font-mono);
+  font-size: var(--zx-text-xs);
+}
+
+.commandSummary {
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+}
+
+.commandExpand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--zx-control-sm);
+  border: 0;
+  background: transparent;
+  color: var(--zx-label-tertiary);
+  cursor: pointer;
+}
+
+.commandExpand svg {
+  transition: transform var(--zx-motion);
+}
+
+.commandChevronOpen {
+  transform: rotate(90deg);
+}
+
+.commandMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+  padding: 0 var(--zx-space-3) var(--zx-space-2) calc(var(--zx-space-3) + 26px);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.commandMeta > span + span::before {
+  margin-right: var(--zx-space-2);
+  color: var(--zx-label-decor);
+  content: '·';
+}
+
+.commandStatusText {
+  color: var(--zx-success);
+  font-weight: var(--zx-weight-medium);
+}
+
+.commandEntry[data-status='running'] .commandStatusText {
+  color: var(--zx-label-secondary);
+}
+
+.commandEntry[data-status='failed'] .commandStatusText,
+.commandFailedOutput {
+  color: var(--zx-error);
+}
+
+.commandBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);
+  border-top: 1px solid var(--zx-border-soft);
+}
+
+.commandOutputHead {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
 }
 
 @media (max-width: 620px) {
@@ -290,7 +437,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tabIndicator,
-  .stepProgress {
+  .stepProgress,
+  .commandExpand svg {
     transition: none;
     animation: none;
   }

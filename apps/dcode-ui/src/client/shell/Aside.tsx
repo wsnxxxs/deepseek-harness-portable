@@ -9,9 +9,10 @@
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  IconChecklistOutline14, IconCheckOutline14, IconCloseOutline16, IconGoalOutline16,
+  IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16,
+  IconGoalOutline16, IconWarningOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -25,9 +26,10 @@ import {
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
 import { DiffViewer } from '../git/DiffViewer.tsx'
-import { EmptyState, Pill, Spinner, ui } from './ui.tsx'
-import { latestTodos, parseArgs, resultText, summarizeTool } from '../chat/tools.ts'
+import { CopyButton, EmptyState, Pill, Spinner, ui } from './ui.tsx'
+import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, toolDurationMs } from '../chat/tools.ts'
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
+import { stripAnsi } from '../chat/ansi.ts'
 import css from './Aside.module.css'
 
 /** Props of the floating right card. */
@@ -242,51 +244,186 @@ function DetailsPanel({
   )
 }
 
-/** Persistent command output assembled from the current session ledger. */
-function TerminalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
+type CommandStatus = 'running' | 'success' | 'failed'
+
+interface CommandExit {
+  readonly output: string
+  readonly label: string
+  readonly failed: boolean
+}
+
+/** Recover the exit marker emitted by the shipped bash/pwsh tools. */
+function commandExit(
+  text: string,
+  isError: boolean,
+  defaultZero: boolean,
+  background: boolean,
+  t: ReturnType<typeof useT>,
+): CommandExit {
+  if (isError) return { output: text, label: t('aside.commandToolFailed'), failed: true }
+  if (background) return { output: text, label: t('aside.commandBackground'), failed: false }
+  const signal = /\n\[killed by signal: ([^\]\n]+)\]$/.exec(text)
+  if (signal?.[1] !== undefined) {
+    return { output: text.slice(0, signal.index), label: t('aside.commandSignal', { signal: signal[1] }), failed: true }
+  }
+  const exit = /\n\[exit code: (\d+)\]$/.exec(text)
+  if (exit?.[1] === undefined && !defaultZero) {
+    return { output: text, label: t('aside.commandCompleted'), failed: false }
+  }
+  const code = exit?.[1] === undefined ? 0 : Number(exit[1])
+  return {
+    output: exit === null ? text : text.slice(0, exit.index),
+    label: t('aside.commandExit', { code }),
+    failed: code !== 0,
+  }
+}
+
+/** One command invocation; it keeps its own disclosure and wrap preference. */
+function CommandOutputEntry({ block, onLocated }: { block: ToolCallBlock; onLocated: () => void }) {
+  const t = useT()
+  const settled = 'isError' in block
+  const name = settled ? block.call?.name ?? 'tool' : block.name
+  const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
+  const summary = summarizeTool(name, argsRaw)
+  const args = parseArgs(argsRaw)
+  const commandArgument = [args.command, args.input, args.script]
+    .find((value): value is string => typeof value === 'string' && value.trim() !== '')
+  const command = commandArgument ?? (summary.detail || name)
+  const result = settled
+    ? commandExit(
+        resultText(block.content),
+        block.isError,
+        name === 'bash' || name === 'pwsh' || name === 'powershell',
+        args.run_in_background === true,
+        t,
+      )
+    : { output: '', label: t('aside.commandPending'), failed: false }
+  const status: CommandStatus = settled ? result.failed ? 'failed' : 'success' : 'running'
+  const [open, setOpen] = useState(() => status === 'failed')
+  const [wrap, setWrap] = useState(true)
+  const contentId = useId()
+  const startedAt = useRef(block.time)
+  const [now, setNow] = useState(Date.now)
+  const duration = settled ? toolDurationMs(block) : Math.max(0, now - startedAt.current)
+  const plainOutput = stripAnsi(result.output.slice(0, 4096)).trim()
+  const outputSummary = plainOutput === ''
+    ? t('aside.commandNoOutput')
+    : plainOutput.split(/\r?\n/, 1)[0]?.trim() || t('aside.commandNoOutput')
+
+  useEffect(() => {
+    if (settled) return undefined
+    const timer = window.setInterval(() => { setNow(Date.now()) }, 100)
+    return () => { window.clearInterval(timer) }
+  }, [settled])
+
+  useEffect(() => {
+    if (status === 'failed') setOpen(true)
+  }, [status])
+
+  const locate = (): void => {
+    const target = [...document.querySelectorAll<HTMLElement>('[data-tool-call-id]')]
+      .find(element => element.dataset.toolCallId === block.callId)
+    if (target === undefined) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.querySelector<HTMLElement>('button')?.focus({ preventScroll: true })
+    onLocated()
+  }
+
+  return (
+    <article className={css.commandEntry} data-status={status}>
+      <div className={css.commandEntryHead}>
+        <button type="button" className={css.commandLocate} onClick={locate} title={t('aside.commandLocate')}>
+          <span className={css.commandStatusIcon} aria-hidden>
+            {status === 'running'
+              ? <Spinner size="sm" />
+              : status === 'failed' ? <IconWarningOutline16 /> : <IconCheckOutline14 size={16} />}
+          </span>
+          <span className={css.commandIdentity}>
+            <code className={css.commandText} title={command}>{command}</code>
+            <span className={css.commandSummary} title={outputSummary}>{outputSummary}</span>
+          </span>
+        </button>
+        <CopyButton text={command} label={t('aside.commandCopy')} copiedLabel={t('common.copied')} />
+        <button
+          type="button"
+          className={css.commandExpand}
+          aria-expanded={open}
+          aria-controls={contentId}
+          aria-label={open ? t('aside.commandCollapse') : t('aside.commandExpand')}
+          onClick={() => { setOpen(value => !value) }}
+        >
+          <IconChevronRightOutline14 className={open ? css.commandChevronOpen : undefined} />
+        </button>
+      </div>
+      <div className={css.commandMeta} role="status">
+        <span className={css.commandStatusText}>
+          {status === 'running'
+            ? t('aside.commandRunning')
+            : status === 'failed' ? t('aside.commandFailed') : t('aside.commandSuccess')}
+        </span>
+        <span>{duration === undefined ? t('aside.commandDurationUnknown') : formatToolDuration(duration)}</span>
+        <span>{result.label}</span>
+      </div>
+      {open
+        ? (
+          <div className={css.commandBody} id={contentId}>
+            <div className={css.commandOutputHead}>
+              <span>{t('details.output')}</span>
+              {result.output === '' ? null : <OutputToolbar text={result.output} wrap={wrap} onWrap={setWrap} />}
+            </div>
+            {settled
+              ? result.output === ''
+                ? <EmptyState>{t('aside.commandNoOutput')}</EmptyState>
+                : <AnsiOutput text={result.output} wrap={wrap} className={status === 'failed' ? css.commandFailedOutput : undefined} />
+              : <EmptyState><Spinner size="sm" /> {t('aside.commandWaitingOutput')}</EmptyState>}
+          </div>
+        )
+        : null}
+    </article>
+  )
+}
+
+/** Persistent per-invocation command output from the current session ledger. */
+function CommandOutputPanel({ sessionId, onLocated }: { sessionId: SessionId | undefined; onLocated: () => void }) {
   const t = useT()
   const chat = useChatSnapshot(sessionId)
   const trajectory = useTrajectorySnapshot(sessionId)
-  const [wrap, setWrap] = useState(false)
-  const output = useMemo(() => {
+  const commands = useMemo(() => {
     const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
       ? chat?.legacy.nodes ?? []
       : trajectory.eventNodes
-    const chunks: string[] = []
-    for (const node of nodes) {
-      if (node.kind !== 'tool-result') continue
-      for (const block of walkCalls(node as ToolCallBlock)) {
-        if (!('isError' in block)) continue
-        const name = block.call?.name ?? ''
-        const summary = summarizeTool(name, block.call?.argsRaw)
-        if (summary.kind !== 'run') continue
-        const command = summary.detail || String(parseArgs(block.call?.argsRaw).command ?? name)
-        const text = resultText(block.content)
-        chunks.push(`\u001b[2m$ ${command}\u001b[0m${text === '' ? '' : `\n${text}`}`)
-      }
-    }
     const running = trajectory === undefined || trajectory.runningCalls.length === 0
       ? chat?.legacy.runningCalls ?? []
       : trajectory.runningCalls
-    for (const block of running) {
-      for (const call of walkCalls(block)) {
-        if ('isError' in call) continue
-        const summary = summarizeTool(call.name, call.argsRaw)
-        if (summary.kind === 'run') chunks.push(`\u001b[2m$ ${summary.detail || call.name}\u001b[0m\n\u001b[33m● ${t('aside.running')}\u001b[0m`)
-      }
+    const calls: ToolCallBlock[] = []
+    const seen = new Set<string>()
+    const admit = (block: ToolCallBlock): void => {
+      if (seen.has(block.callId)) return
+      const name = 'isError' in block ? block.call?.name ?? '' : block.name
+      const argsRaw = 'isError' in block ? block.call?.argsRaw : block.argsRaw
+      if (summarizeTool(name, argsRaw).kind !== 'run') return
+      seen.add(block.callId)
+      calls.push(block)
     }
-    return chunks.join('\n\n')
-  }, [chat, t, trajectory])
+    for (const node of nodes) {
+      if (node.kind !== 'tool-result') continue
+      for (const block of walkCalls(node as ToolCallBlock)) admit(block)
+    }
+    for (const root of running) {
+      for (const block of walkCalls(root)) admit(block)
+    }
+    return calls
+  }, [chat, trajectory])
 
   return (
-    <section className={`${css.section} ${css.terminalSection}`}>
+    <section className={`${css.section} ${css.commandOutputSection}`}>
       <header className={css.sectionHead}>
-        <span className={ui.grow}>{t('aside.terminal')}</span>
-        {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
+        <span className={ui.grow}>{t('aside.commandOutput')}</span>
+        {commands.length === 0 ? null : <Pill>{commands.length}</Pill>}
       </header>
-      {output === ''
-        ? <EmptyState>{t('aside.terminalEmpty')}</EmptyState>
-        : <AnsiOutput text={output} wrap={wrap} className={css.terminalOutput} />}
+      {commands.length === 0
+        ? <EmptyState>{t('aside.commandOutputEmpty')}</EmptyState>
+        : <div className={css.commandList}>{commands.map(block => <CommandOutputEntry key={block.callId} block={block} onLocated={onLocated} />)}</div>}
     </section>
   )
 }
@@ -300,7 +437,7 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
 
   const labels: Record<AsideTab, string> = {
     changes: t('git.changes'),
-    terminal: t('aside.terminal'),
+    terminal: t('aside.commandOutput'),
     goal: t('goal.title'),
     details: t('details.title'),
   }
@@ -387,7 +524,9 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
             </div>
           )
           : null}
-        {state.aside === 'terminal' ? <TerminalPanel sessionId={sessionId} /> : null}
+        {state.aside === 'terminal'
+          ? <CommandOutputPanel sessionId={sessionId} onLocated={() => { navigation.closeCompactOverlay() }} />
+          : null}
         {state.aside === 'goal' ? <GoalPanel sessionId={sessionId} /> : null}
         {state.aside === 'details'
           ? <DetailsPanel sessionId={sessionId} callId={state.inspectedCallId} cwd={cwd} diff={state.diff} />

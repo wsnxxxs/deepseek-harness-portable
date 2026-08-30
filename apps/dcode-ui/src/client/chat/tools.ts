@@ -130,6 +130,11 @@ export function summarizeTool(name: string, argsRaw: string | undefined): ToolSu
   switch (name) {
     case 'bash':
     case 'pwsh':
+    case 'shell':
+    case 'run':
+    case 'exec':
+    case 'exec_command':
+    case 'powershell':
     case 'terminal_send':
     case 'run_command':
       return { ...base, kind: 'run', detail: oneLine(firstString(args, ['command', 'input', 'script']) ?? '') }

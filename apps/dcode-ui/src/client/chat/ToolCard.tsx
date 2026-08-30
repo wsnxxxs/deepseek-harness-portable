@@ -90,7 +90,7 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
       : t('chat.running')
 
   return (
-    <div className={css.group}>
+    <div className={css.group} data-tool-call-id={block.callId}>
       <div className={`${css.card} ${emphasized ? css.cardEmphasized : ''}`}>
         <button
           type="button"

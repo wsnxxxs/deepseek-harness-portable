@@ -15,6 +15,21 @@ import { hasAnsi, parseAnsi, stripAnsi, type AnsiSpan } from './ansi.ts'
 import { CopyButton } from '../shell/ui.tsx'
 import css from './AnsiOutput.module.css'
 
+const PLAIN_MAX_LINES = 4000
+const PLAIN_MAX_CHARS = 262_144
+
+/** Keep the plain-text fast path while routing oversized output through the bounded parser. */
+function plainOutputNeedsBounding(text: string): boolean {
+  if (text.length > PLAIN_MAX_CHARS) return true
+  let lines = 1
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) !== 10) continue
+    lines += 1
+    if (lines > PLAIN_MAX_LINES) return true
+  }
+  return false
+}
+
 /** Props of the output block. */
 export interface AnsiOutputProps {
   readonly text: string
@@ -43,8 +58,8 @@ function spanStyle(span: AnsiSpan): React.CSSProperties | undefined {
 /** Styled terminal output. */
 export function AnsiOutput({ text, wrap, className }: AnsiOutputProps) {
   const t = useT()
-  const styled = hasAnsi(text)
-  const document = useMemo(() => (styled ? parseAnsi(text) : undefined), [styled, text])
+  const parsed = hasAnsi(text) || plainOutputNeedsBounding(text)
+  const document = useMemo(() => (parsed ? parseAnsi(text) : undefined), [parsed, text])
 
   const body = document === undefined
     ? text
