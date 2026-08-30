@@ -1,0 +1,103 @@
+diff --git a/lib/index.js b/lib/index.js
+index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c4de9c065 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -62,6 +62,14 @@ const GITHUB_API = 'https://api.github.com/search/repositories'
+ const REFRESH_MS = 10 * 60 * 1000
+ const DEFAULT_PER_PAGE = 50
+ const MAX_PER_PAGE = 100
++// This allow-list is an explicit Portable source, not a conclusion drawn from
++// a topic, repository name, or star count. Review details remain in the UI's
++// shipped audit catalogue; the Host only publishes discovery metadata.
++const CURATED_REPOSITORIES = {
++  'omdsh-dev/dsh-genui': { category: 'interface', featuredSource: 'portable-review-catalog' },
++  'anionex/dsh-vision-toolkit': { category: 'vision', featuredSource: 'portable-review-catalog' },
++  'zseven-w/dsh-openpencil': { category: 'design', featuredSource: 'portable-review-catalog' },
++}
+ // When this host module loaded ≈ when the harness booted this bundle. Used to
+ // tell whether an installed plugin was added/modified AFTER this boot (→ it
+ // needs a restart to activate) or before it (→ already active, no restart hint).
+@@ -1520,8 +1528,12 @@ export default {
+-
++
+    async function fetchPage(q, page, perPage) {
+       const params = new URLSearchParams({ q, per_page: String(perPage), page: String(page) })
+-      params.set('sort', 'stars')
+-      params.set('order', 'desc')
++      // Empty browsing stays popularity ordered. Searches use GitHub's best
++      // match so name and description relevance is not displaced by stars.
++      if (q === TOPIC_QUERY) {
++        params.set('sort', 'stars')
++        params.set('order', 'desc')
++      }
+       const url = `${GITHUB_API}?${params.toString()}`
+       const res = await fetch(url, {
+         headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'dsh-plugin-marketplace' },
+@@ -1555,6 +1567,34 @@ export default {
+       return record
+     }
+-
++
++    function maintenanceFor(updatedAt) {
++      const updated = Date.parse(updatedAt)
++      if (!Number.isFinite(updated)) return 'unknown'
++      return Date.now() - updated <= 180 * 24 * 60 * 60 * 1000 ? 'active' : 'stale'
++    }
++
++    function discoveryItem(item, curated) {
++      return {
++        ...item,
++        source: curated ? 'portable-curated' : 'github-topic',
++        featured: !!curated,
++        featuredSource: curated ? curated.featuredSource : null,
++        category: curated ? curated.category : 'unknown',
++        reviewStatus: curated ? 'reviewed' : 'unknown',
++        compatibility: 'unknown',
++        maintenance: maintenanceFor(item.updatedAt),
++      }
++    }
++
++    async function curatedItems(force) {
++      const rows = await Promise.all(Object.entries(CURATED_REPOSITORIES).map(async ([fullName, metadata]) => {
++        const record = await ensurePage(`repo:${fullName}`, 1, 1, force)
++        const item = record.items.find((candidate) => candidate.fullName.toLowerCase() === fullName)
++        return item ? discoveryItem(item, metadata) : null
++      }))
++      return rows.filter(Boolean)
++    }
++
+     // ── HTTP feed for the browser half ───────────────────────────────────
+     const handler = async (req, res) => {
+       try {
+@@ -1563,15 +1603,19 @@ export default {
+         const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
+         const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Number(url.searchParams.get('per_page')) || DEFAULT_PER_PAGE))
+         const force = url.searchParams.get('force') === '1'
++        const scope = url.searchParams.get('scope') === 'curated' ? 'curated' : 'explore'
+         const query = q ? `${TOPIC_QUERY} ${q}` : TOPIC_QUERY
+-        const record = await ensurePage(query, page, perPage, force)
+-        const hasMore = page * perPage < record.total
++        const record = scope === 'curated'
++          ? { items: await curatedItems(force), total: Object.keys(CURATED_REPOSITORIES).length, fetchedAt: Date.now() }
++          : await ensurePage(query, page, perPage, force)
++        const hasMore = scope === 'explore' && page * perPage < record.total
+         // Mark repos already installed in the profile so the UI can show
+         // "已安装" instead of a live install button after a restart, plus
+         // whether a restart is still pending (so the "重启后生效" hint clears
+         // once the harness has actually restarted).
+         const installed = installedInfo()
+-        const items = record.items.map((it) => {
++        const items = record.items.map((raw) => {
++          const it = scope === 'curated' ? raw : discoveryItem(raw, null)
+           const info = installed.get(it.fullName)
+           return { ...it, installed: !!info, needsRestart: !!(info && info.needsRestart) }
+         })
+@@ -1585,6 +1629,8 @@ export default {
+           q,
+           fetchedAt: record.fetchedAt,
+           error: null,
++          platform: process.platform,
++          scope,
+         }))
+       } catch (e) {
+         res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })

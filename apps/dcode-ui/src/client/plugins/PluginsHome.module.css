@@ -122,6 +122,40 @@
 
 /* ── toolbar ─────────────────────────────────────────────────────────── */
 
+.discoveryTabs {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+  padding: var(--zx-space-1);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-panel);
+  overflow-x: auto;
+}
+
+.discoveryTab {
+  flex: 0 0 auto;
+  min-height: var(--zx-control-sm);
+  padding: 0 var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-sm);
+  background: transparent;
+  color: var(--zx-label-muted);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+}
+
+.discoveryTab:hover {
+  color: var(--zx-label);
+}
+
+.discoveryTabActive {
+  background: var(--zx-bg-card);
+  color: var(--zx-label);
+  box-shadow: var(--zx-shadow-card);
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -164,6 +198,43 @@
 
 .searchInput::placeholder {
   color: var(--zx-label-tertiary);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--zx-space-2);
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-1);
+  min-width: 0;
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+}
+
+.filterField select {
+  min-width: 0;
+  height: var(--zx-control-sm);
+  padding: 0 var(--zx-space-2);
+  border: 1px solid var(--zx-border-control);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-card);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+}
+
+.exploreWarning {
+  padding: var(--zx-space-3) var(--zx-space-4);
+  border: 1px solid color-mix(in srgb, var(--zx-warn) 35%, var(--zx-border-soft));
+  border-radius: var(--zx-radius-md);
+  background: color-mix(in srgb, var(--zx-warn) 8%, var(--zx-bg-card));
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
+  line-height: var(--zx-leading-body);
 }
 
 .meta {
@@ -236,6 +307,19 @@ a.meta:hover {
   gap: var(--zx-space-3);
 }
 
+.compactGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--zx-space-3);
+  align-items: start;
+}
+
+.denseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-1);
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -243,6 +327,29 @@ a.meta:hover {
   border-radius: var(--zx-radius-lg);
   background: var(--zx-bg-card);
   box-shadow: var(--zx-shadow-card);
+}
+
+.compactCard .cardBody {
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-3) var(--zx-space-4);
+}
+
+.compactCard .description {
+  -webkit-line-clamp: 2;
+}
+
+.denseCard {
+  border-radius: var(--zx-radius-md);
+  box-shadow: none;
+}
+
+.denseCard .cardBody {
+  gap: var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-4) var(--zx-space-3);
+}
+
+.denseCard .description {
+  -webkit-line-clamp: 1;
 }
 
 .cardHead {
@@ -635,4 +742,12 @@ a.name:hover {
 
 :global([data-dcode-layout='compact']) .body {
   padding: var(--zx-space-5);
+}
+
+:global([data-dcode-layout='compact']) .filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:global([data-dcode-layout='compact']) .compactGrid {
+  grid-template-columns: 1fr;
 }

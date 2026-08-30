@@ -9,6 +9,7 @@ overrides:
   '@deepseek-ai/schemastery': link:vendor/deepseek-harness/vendor/schemastery
 
 patchedDependencies:
+  dsh-plugin-marketplace@0.3.1: 52e1b261f9cad9fcbafbb8c396679aa085aeb4ad17f79954186c32721737fb6a
   node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
 
 importers:
@@ -984,7 +985,7 @@ importers:
         version: link:../vision-bridge
       dsh-plugin-marketplace:
         specifier: github:AwesomeHou/dsh-plugin-marketplace#463e6cb856272018a7f5a76e260a0d1ef5b589e3
-        version: https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3
+        version: https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=52e1b261f9cad9fcbafbb8c396679aa085aeb4ad17f79954186c32721737fb6a)
       js-yaml:
         specifier: ^4.2.0
         version: 4.3.1
@@ -21932,7 +21933,7 @@ snapshots:
 
   dotenv@16.6.1: {}
 
-  dsh-plugin-marketplace@https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3: {}
+  dsh-plugin-marketplace@https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=52e1b261f9cad9fcbafbb8c396679aa085aeb4ad17f79954186c32721737fb6a): {}
 
   dts-resolver@3.0.0(oxc-resolver@11.24.2):
     optionalDependencies:

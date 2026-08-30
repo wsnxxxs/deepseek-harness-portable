@@ -10,6 +10,7 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { auditFor, reviewedRepositories } from '../lib/types/client/plugins/audits.js'
 import {
   createMarketClient, formatBytes, formatSpeed, lifecycleSteps, normalizeInstalled,
   normalizeJob, normalizeMarketPage, pendingRestart,
@@ -179,9 +180,12 @@ test('a search reaches the Host as a paged query', async () => {
   assert.equal(params.get('q'), 'vision')
   assert.equal(params.get('page'), '2')
   assert.equal(params.get('per_page'), '50')
+  assert.equal(params.get('scope'), 'explore')
   // An empty keyword asks for the whole topic rather than for the empty string.
-  await client.list('', 1)
-  assert.equal(new URLSearchParams(seen.slice(seen.indexOf('?') + 1)).get('q'), null)
+  await client.list('', 1, undefined, 'curated')
+  const emptyParams = new URLSearchParams(seen.slice(seen.indexOf('?') + 1))
+  assert.equal(emptyParams.get('q'), null)
+  assert.equal(emptyParams.get('scope'), 'curated')
 })
 
 test('a job the Host has forgotten terminates polling instead of hanging it', async () => {
@@ -205,4 +209,41 @@ test('a transport failure is an ordinary refusal, not a missing marketplace', as
   assert.equal(answer.ok, false)
   assert.equal(answer.unavailable, false)
   assert.equal(answer.error, 'offline')
+})
+
+test('catalogue metadata stays unknown when an older Host does not provide it', () => {
+  const page = normalizeMarketPage({ items: [{ fullName: 'owner/repository', stars: 99 }] }, 1)
+  assert.equal(page.items[0].source, 'unknown')
+  assert.equal(page.items[0].reviewStatus, 'unknown')
+  assert.equal(page.items[0].compatibility, 'unknown')
+  assert.equal(page.items[0].maintenance, 'unknown')
+  assert.equal(page.items[0].featured, false)
+})
+
+test('explicit Host discovery metadata survives normalization', () => {
+  const page = normalizeMarketPage({
+    platform: 'win32',
+    items: [{
+      fullName: 'omdsh-dev/dsh-genui',
+      source: 'portable-curated',
+      featured: true,
+      featuredSource: 'portable-review-catalog',
+      category: 'interface',
+      reviewStatus: 'reviewed',
+      compatibility: 'unknown',
+      maintenance: 'active',
+      updatedAt: '2026-08-20T00:00:00Z',
+    }],
+  }, 1)
+  assert.equal(page.platform, 'win32')
+  assert.equal(page.items[0].featured, true)
+  assert.equal(page.items[0].source, 'portable-curated')
+  assert.equal(page.items[0].category, 'interface')
+  assert.equal(page.items[0].maintenance, 'active')
+})
+
+test('only repositories with bundled review records are reviewed', () => {
+  assert.ok(reviewedRepositories().length > 0)
+  assert.equal(auditFor('omdsh-dev/dsh-genui')?.reviewed, true)
+  assert.equal(auditFor('popular/dsh-plugin-name'), undefined)
 })

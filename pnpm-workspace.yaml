@@ -35,6 +35,7 @@ overrides:
 # Keep the embedded runtime on the exact native PTY patch reviewed and shipped
 # by the pinned upstream release.
 patchedDependencies:
+  dsh-plugin-marketplace@0.3.1: patches/dsh-plugin-marketplace@0.3.1.patch
   node-pty@1.2.0-beta.15: vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
 
 allowBuilds:

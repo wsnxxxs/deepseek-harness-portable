@@ -24,6 +24,11 @@ type Bilingual = Readonly<Record<AuditLocale, string>>
 export interface PluginAudit {
   /** Whether Portable has a review record at all. */
   readonly reviewed: boolean
+  /** Explicit discovery metadata maintained with the review record. */
+  readonly featured: boolean
+  readonly featuredSource: Bilingual
+  readonly category: 'interface' | 'vision' | 'design'
+  readonly compatibility: Readonly<Record<'win32' | 'darwin' | 'linux', 'compatible' | 'incompatible' | 'unknown'>>
   readonly contract: Bilingual
   readonly platform: Bilingual
   readonly runtime: Bilingual
@@ -37,6 +42,10 @@ export interface PluginAudit {
 const REVIEWED: Readonly<Record<string, PluginAudit>> = {
   'omdsh-dev/dsh-genui': {
     reviewed: true,
+    featured: true,
+    featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+    category: 'interface',
+    compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
     contract: {
       en: '^0.1.0-rc.6 (no exact-profile compatibility claim for rc7/Portable)',
       zh: '^0.1.0-rc.6（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -68,6 +77,10 @@ const REVIEWED: Readonly<Record<string, PluginAudit>> = {
   },
   'anionex/dsh-vision-toolkit': {
     reviewed: true,
+    featured: true,
+    featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+    category: 'vision',
+    compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
     contract: {
       en: '^0.1.0-rc.6 (no exact-profile compatibility claim for rc7/Portable)',
       zh: '^0.1.0-rc.6（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -99,6 +112,10 @@ const REVIEWED: Readonly<Record<string, PluginAudit>> = {
   },
   'zseven-w/dsh-openpencil': {
     reviewed: true,
+    featured: true,
+    featuredSource: { en: 'Portable review catalog', zh: 'Portable 审阅目录' },
+    category: 'design',
+    compatibility: { win32: 'unknown', darwin: 'unknown', linux: 'unknown' },
     contract: {
       en: 'Several ^0.1.0-rc.6 packages (no exact-profile compatibility claim for rc7/Portable)',
       zh: '多个 ^0.1.0-rc.6 包（rc7/Portable 未做 exact-profile 兼容声明）',
@@ -137,4 +154,9 @@ const REVIEWED: Readonly<Record<string, PluginAudit>> = {
  */
 export function auditFor(fullName: string): PluginAudit | undefined {
   return REVIEWED[fullName.toLowerCase()]
+}
+
+/** Repositories that have a real bundled review record. */
+export function reviewedRepositories(): readonly string[] {
+  return Object.keys(REVIEWED)
 }
