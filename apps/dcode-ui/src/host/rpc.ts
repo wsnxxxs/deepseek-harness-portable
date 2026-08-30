@@ -12,7 +12,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  commit, containedRelativePath, readBranches, readDiff, readStatus, undoHunk, undoPaths,
+  commit, containedRelativePath, readBranches, readDiff, readStatus, stagePaths, undoHunk, undoPaths, unstagePaths,
 } from './git.ts'
 
 /** Every endpoint this channel answers. */
@@ -20,6 +20,8 @@ export const DCODE_ENDPOINTS = [
   'git/status',
   'git/diff',
   'git/branches',
+  'git/stage',
+  'git/unstage',
   'git/commit',
   'git/undo',
   'file/read',
@@ -71,11 +73,11 @@ function requireString(payload: Record<string, unknown>, field: string, maxLengt
 }
 
 /** Read an optional bounded string-array field out of an untrusted payload. */
-function optionalPaths(payload: Record<string, unknown>, field: string): readonly string[] | undefined {
+function optionalPaths(payload: Record<string, unknown>, field: string, limit = 500): readonly string[] | undefined {
   const value = payload[field]
   if (value === undefined) return undefined
   if (!Array.isArray(value)) throw new Error(`${field} must be an array of paths`)
-  if (value.length > 500) throw new Error(`${field} must contain at most 500 paths`)
+  if (value.length > limit) throw new Error(`${field} must contain at most ${String(limit)} paths`)
   return value.map((entry, index) => {
     if (typeof entry !== 'string' || entry.trim() === '') throw new Error(`${field}[${String(index)}] must be a non-empty string`)
     return entry
@@ -110,10 +112,17 @@ export async function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unkn
       case 'git/branches': {
         return { ok: true, value: { branches: await readBranches(requireCwd(body)) } }
       }
+      case 'git/stage':
+      case 'git/unstage': {
+        const cwd = requireCwd(body)
+        const paths = optionalPaths(body, 'paths', 2000)
+        if (paths === undefined || paths.length === 0) return failure('bad-request', 'paths must list at least one file')
+        return { ok: true, value: endpoint === 'git/stage' ? await stagePaths(cwd, paths) : await unstagePaths(cwd, paths) }
+      }
       case 'git/commit': {
         const cwd = requireCwd(body)
         const message = requireString(body, 'message', 8000)
-        return { ok: true, value: await commit(cwd, message, optionalPaths(body, 'paths')) }
+        return { ok: true, value: await commit(cwd, message) }
       }
       case 'git/undo': {
         const cwd = requireCwd(body)

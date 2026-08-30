@@ -7,12 +7,16 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint } from '../lib/index.js'
 
 test('the channel and its endpoint roster are stable', () => {
   assert.equal(DCODE_CHANNEL, '/dcode')
   assert.deepEqual([...DCODE_ENDPOINTS], [
-    'git/status', 'git/diff', 'git/branches', 'git/commit', 'git/undo', 'file/read',
+    'git/status', 'git/diff', 'git/branches', 'git/stage', 'git/unstage', 'git/commit', 'git/undo', 'file/read',
   ])
 })
 
@@ -55,6 +59,37 @@ test('undo requires at least one path', async () => {
   const answer = await handleDcodeEndpoint('git/undo', { cwd: process.cwd(), paths: [] })
   assert.equal(answer.ok, false)
   assert.equal(answer.error.code, 'bad-request')
+})
+
+test('stage and unstage endpoints update status without commit staging implicitly', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'dcode-git-'))
+  const run = (...args) => execFileSync('git', args, { cwd, stdio: 'ignore' })
+  try {
+    run('init')
+    run('config', 'user.name', 'DCode Test')
+    run('config', 'user.email', 'dcode@example.invalid')
+    await writeFile(join(cwd, 'tracked.txt'), 'one\n')
+    run('add', '--', 'tracked.txt')
+    run('commit', '--message', 'initial')
+    await writeFile(join(cwd, 'tracked.txt'), 'two\n')
+
+    const staged = await handleDcodeEndpoint('git/stage', { cwd, paths: ['tracked.txt'] })
+    assert.equal(staged.ok, true)
+    let status = await handleDcodeEndpoint('git/status', { cwd })
+    assert.equal(status.ok, true)
+    assert.equal(status.value.files.find(file => file.path === 'tracked.txt')?.staged, true)
+
+    const unstaged = await handleDcodeEndpoint('git/unstage', { cwd, paths: ['tracked.txt'] })
+    assert.equal(unstaged.ok, true)
+    status = await handleDcodeEndpoint('git/status', { cwd })
+    assert.equal(status.ok, true)
+    assert.equal(status.value.files.find(file => file.path === 'tracked.txt')?.staged, false)
+
+    const refused = await handleDcodeEndpoint('git/commit', { cwd, message: 'must not auto-stage' })
+    assert.deepEqual(refused, { ok: true, value: { committed: false, reason: 'nothing-staged' } })
+  } finally {
+    await rm(cwd, { recursive: true, force: true })
+  }
 })
 
 test('undo refuses a non-string path entry', async () => {

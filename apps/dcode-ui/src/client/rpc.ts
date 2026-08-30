@@ -10,10 +10,10 @@
 
 import type { DcodeEndpoint, DcodeResult } from '../host/rpc.ts'
 import type {
-  GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStatus,
+  GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStageResult, GitStatus,
 } from '../host/git.ts'
 
-export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStatus } from '../host/git.ts'
+export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts'
 
 /** The Connection RPC face this module needs. */
 export interface RpcCarrier {
@@ -59,7 +59,9 @@ export interface DcodeApi {
   status(cwd: string): Promise<DcodeResult<GitStatus>>
   diff(cwd: string, path: string, staged?: boolean): Promise<DcodeResult<GitDiff>>
   branches(cwd: string): Promise<DcodeResult<{ branches: readonly GitBranch[] }>>
-  commit(cwd: string, message: string, paths?: readonly string[]): Promise<DcodeResult<GitCommitResult>>
+  stage(cwd: string, paths: readonly string[]): Promise<DcodeResult<GitStageResult>>
+  unstage(cwd: string, paths: readonly string[]): Promise<DcodeResult<GitStageResult>>
+  commit(cwd: string, message: string): Promise<DcodeResult<GitCommitResult>>
   undo(cwd: string, paths: readonly string[]): Promise<DcodeResult<{ outcomes: readonly GitRestoreOutcome[] }>>
   undoHunk(cwd: string, path: string, patch: string, staged?: boolean): Promise<DcodeResult<{ outcomes: readonly GitRestoreOutcome[] }>>
   readFile(cwd: string, path: string): Promise<DcodeResult<FileRead>>
@@ -84,7 +86,9 @@ export function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi {
     status: cwd => call('git/status', { cwd }),
     diff: (cwd, path, staged = false) => call('git/diff', { cwd, path, staged }),
     branches: cwd => call('git/branches', { cwd }),
-    commit: (cwd, message, paths) => call('git/commit', { cwd, message, ...(paths === undefined ? {} : { paths }) }),
+    stage: (cwd, paths) => call('git/stage', { cwd, paths }),
+    unstage: (cwd, paths) => call('git/unstage', { cwd, paths }),
+    commit: (cwd, message) => call('git/commit', { cwd, message }),
     undo: (cwd, paths) => call('git/undo', { cwd, paths }),
     undoHunk: (cwd, path, patch, staged = false) => call('git/undo', { cwd, path, patch, staged }),
     readFile: (cwd, path) => call('file/read', { cwd, path }),

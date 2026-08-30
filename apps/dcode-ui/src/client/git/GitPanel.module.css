@@ -35,6 +35,14 @@
   white-space: nowrap;
 }
 
+.pending {
+  padding: var(--zx-space-1) var(--zx-space-2);
+  border-radius: var(--zx-radius-sm);
+  background: var(--zx-bg-active);
+  color: var(--zx-accent);
+  font-size: var(--zx-text-micro);
+}
+
 .branchRow {
   display: flex;
   align-items: center;
@@ -138,9 +146,26 @@
 }
 
 .groupCount {
+  margin-left: var(--zx-space-1);
   color: var(--zx-label-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+.groupAction {
+  min-height: 22px;
+  padding: 0 var(--zx-space-2);
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-accent);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  text-transform: none;
+  cursor: pointer;
+}
+
+.groupAction:hover:not(:disabled) { background: var(--zx-bg-hover); }
+.groupAction:disabled { opacity: var(--zx-opacity-disabled); cursor: default; }
 
 .files {
   display: flex;
@@ -177,18 +202,43 @@
 .file {
   display: flex;
   align-items: center;
-  gap: var(--zx-space-3);
   width: 100%;
   min-height: 28px;
-  padding: var(--zx-space-1) var(--zx-space-3);
-  border: 0;
   background: transparent;
   color: var(--zx-label);
+}
+
+.fileOpen {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-3);
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: var(--zx-space-1) var(--zx-space-2) var(--zx-space-1) var(--zx-space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
   font-size: var(--zx-text-xs);
-  text-align: left;
   cursor: pointer;
 }
+
+.fileAction {
+  flex: none;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--zx-accent);
+  font: inherit;
+  font-size: var(--zx-text-md);
+  cursor: pointer;
+}
+
+.fileAction:hover:not(:disabled) { background: var(--zx-bg-active); }
+.fileAction:disabled { color: var(--zx-label-faint); cursor: default; }
 
 .file + .file {
   border-top: 1px solid var(--zx-border-soft);
@@ -198,7 +248,8 @@
   background: var(--zx-bg-hover);
 }
 
-.file:focus-visible {
+.fileOpen:focus-visible,
+.fileAction:focus-visible {
   outline: none;
   box-shadow: var(--zx-focus-ring);
 }
@@ -260,6 +311,15 @@
   flex-direction: column;
   gap: var(--zx-space-2);
 }
+
+.commitSummary,
+.commitBlocked {
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+}
+
+.commitBlocked { color: var(--zx-warn); }
 
 .commitInputRow { position: relative; display: flex; }
 .commitInputRow .input { padding-right: 36px; }

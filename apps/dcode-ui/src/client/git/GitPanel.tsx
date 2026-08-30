@@ -97,16 +97,49 @@ function fileTree(files: readonly GitFileChange[]): readonly FileTreeNode[] {
 }
 
 function FileTree({
-  files, staged, selected, onOpenDiff, statsLabel, fileStatusLabel, collapsed,
+  files, staged, selected, onOpenDiff, onToggle, statsLabel, fileStatusLabel, actionLabel, collapsed, mutation,
 }: {
   readonly files: readonly GitFileChange[]
   readonly staged: boolean
   readonly selected: DiffTarget | undefined
   readonly onOpenDiff: (path: string, staged: boolean) => void
+  readonly onToggle: (file: GitFileChange, staged: boolean) => void
   readonly statsLabel: (file: GitFileChange) => string
   readonly fileStatusLabel: (file: GitFileChange) => string
+  readonly actionLabel: (file: GitFileChange, staged: boolean) => string
   readonly collapsed: boolean
+  readonly mutation: ReturnType<typeof useGitStatus>['mutation']
 }) {
+  const row = (file: GitFileChange, name: string, depth?: number): React.ReactNode => {
+    const conflicted = file.status === 'conflicted'
+    const pending = mutation?.kind === (staged ? 'unstage' : 'stage') && mutation.paths.includes(file.path)
+    return (
+      <div
+        key={`${file.code}:${file.path}:${String(staged)}`}
+        className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
+        style={depth === undefined ? undefined : { paddingLeft: `${String(depth * 12 + 8)}px` }}
+      >
+        <button type="button" className={css.fileOpen} onClick={() => { onOpenDiff(file.path, staged) }} title={file.path}>
+          <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
+          <span className={css.path}><bdi>{name}</bdi></span>
+          <span className={css.lineBadge} aria-label={statsLabel(file)}>
+            <span className={css.badgeAdded}>+{file.insertions}</span>
+            <span className={css.badgeRemoved}>-{file.deletions}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className={css.fileAction}
+          aria-label={actionLabel(file, staged)}
+          title={actionLabel(file, staged)}
+          disabled={conflicted || mutation !== undefined}
+          onClick={() => { onToggle(file, staged) }}
+        >
+          {pending ? <Spinner /> : staged ? '−' : '+'}
+        </button>
+      </div>
+    )
+  }
   const render = (nodes: readonly FileTreeNode[], depth = 0): React.ReactNode => nodes.map((node) => {
     if (node.file === undefined) {
       return (
@@ -119,39 +152,10 @@ function FileTree({
         </div>
       )
     }
-    const file = node.file
-    return (
-      <button
-        key={`${file.code}:${file.path}:${String(staged)}`}
-        type="button"
-        className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
-        style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}
-        onClick={() => { onOpenDiff(file.path, staged) }}
-        title={file.path}
-      >
-        <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
-        <span className={css.path}><bdi>{node.name}</bdi></span>
-        <span className={css.lineBadge} aria-label={statsLabel(file)}>
-          <span className={css.badgeAdded}>+{file.insertions}</span>
-          <span className={css.badgeRemoved}>-{file.deletions}</span>
-        </span>
-      </button>
-    )
+    return row(node.file, node.name, depth)
   })
   if (collapsed) {
-    return <>{files.map(file => (
-      <button
-        key={`${file.code}:${file.path}:${String(staged)}`}
-        type="button"
-        className={`${css.file} ${selected?.path === file.path && selected.staged === staged ? css.fileActive : ''}`}
-        onClick={() => { onOpenDiff(file.path, staged) }}
-        title={file.path}
-      >
-        <span className={`${css.code} ${codeClass(file)}`} aria-label={fileStatusLabel(file)}>{codeMark(file)}</span>
-        <span className={css.path}><bdi>{file.path}</bdi></span>
-        <span className={css.lineBadge} aria-label={statsLabel(file)}><span className={css.badgeAdded}>+{file.insertions}</span><span className={css.badgeRemoved}>-{file.deletions}</span></span>
-      </button>
-    ))}</>
+    return <>{files.map(file => row(file, file.path))}</>
   }
   return <>{render(fileTree(files))}</>
 }
@@ -168,6 +172,15 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   const [branches, setBranches] = useState<readonly { name: string; current: boolean }[]>([])
   const [filter, setFilter] = useState<'all' | 'modified' | 'untracked'>('all')
   const [foldersCollapsed, setFoldersCollapsed] = useState(false)
+
+  const toggleStage = useCallback((files: readonly GitFileChange[], staged: boolean) => {
+    const paths = files.filter(file => file.status !== 'conflicted').map(file => file.path)
+    if (paths.length === 0) return
+    setNote(undefined)
+    void (staged ? git.unstage(paths) : git.stage(paths)).then((error) => {
+      if (error !== undefined) setNote({ text: error, error: true })
+    })
+  }, [git])
 
   // The branch list is read once per workspace and refreshed with the status,
   // so opening the menu costs nothing.
@@ -205,10 +218,12 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
       }
       setMessage('')
       setNote({ text: t('git.committed', { commit: result.value.commit ?? '' }), error: false })
-      git.refresh()
     }).catch((cause: unknown) => {
       setNote({ text: cause instanceof Error ? cause.message : String(cause), error: true })
-    }).finally(() => { setCommitting(false) })
+    }).finally(() => {
+      setCommitting(false)
+      git.refresh()
+    })
   }, [runtime, cwd, message, git, t])
 
   if (git.unavailable) return <EmptyState>{t('git.unavailable')}</EmptyState>
@@ -222,8 +237,10 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   const workspace = groups.find(group => group.path === cwd)
   const visibleFiles = status.files.filter(file => filter === 'all'
     || (filter === 'untracked' ? file.status === 'untracked' : file.status !== 'untracked'))
-  const stagedFiles = visibleFiles.filter(file => file.staged)
-  const unstagedFiles = visibleFiles.filter(file => !file.staged)
+  const stagedFiles = status.files.filter(file => file.staged)
+  const unstagedFiles = status.files.filter(file => !file.staged)
+  const visibleStagedFiles = visibleFiles.filter(file => file.staged)
+  const visibleUnstagedFiles = visibleFiles.filter(file => !file.staged)
   const suggestedMessage = (() => {
     const files = status.files
     if (files.length === 0) return ''
@@ -234,13 +251,30 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
     return `${verb}: update ${scope}`
   })()
 
-  const fileGroup = (label: string, files: readonly GitFileChange[], staged: boolean) => files.length === 0
+  const commitSummary = stagedFiles.slice(0, 2).map(file => file.path.split('/').pop() ?? file.path).join(', ')
+    + (stagedFiles.length > 2 ? ` +${String(stagedFiles.length - 2)}` : '')
+
+  const fileGroup = (
+    label: string,
+    files: readonly GitFileChange[],
+    allFiles: readonly GitFileChange[],
+    staged: boolean,
+  ) => files.length === 0
     ? null
     : (
       <section className={css.fileGroup} aria-label={label}>
         <div className={css.groupHead}>
-          <span>{label}</span>
-          <span className={css.groupCount}>{files.length}</span>
+          <span>{label} <span className={css.groupCount}>{files.length}</span></span>
+          <button
+            type="button"
+            className={css.groupAction}
+            disabled={committing || git.mutation !== undefined || allFiles.every(file => file.status === 'conflicted')}
+            onClick={() => { toggleStage(allFiles, staged) }}
+          >
+            {git.mutation?.kind === (staged ? 'unstage' : 'stage') && git.mutation.paths.length > 1
+              ? t(staged ? 'git.unstaging' : 'git.staging')
+              : t(staged ? 'git.unstageAll' : 'git.stageAll')}
+          </button>
         </div>
         <div className={css.files} role="tree">
           <FileTree
@@ -248,9 +282,14 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
             staged={staged}
             selected={selected}
             onOpenDiff={onOpenDiff}
+            onToggle={(file, isStaged) => { toggleStage([file], isStaged) }}
             statsLabel={file => t('git.fileStats', { insertions: file.insertions, deletions: file.deletions })}
             fileStatusLabel={file => statusLabel(file, t)}
+            actionLabel={(file, isStaged) => file.status === 'conflicted'
+              ? t('git.conflictCannotStage')
+              : t(isStaged ? 'git.unstageFile' : 'git.stageFile', { path: file.path })}
             collapsed={foldersCollapsed}
+            mutation={git.mutation}
           />
         </div>
       </section>
@@ -269,6 +308,10 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         <span className={css.summaryLabel}>{t('git.changes')}</span>
         <DiffCount insertions={status.insertions} deletions={status.deletions} />
       </div>
+
+      {git.mutation === undefined
+        ? null
+        : <div className={css.pending} role="status">{t(git.mutation.kind === 'stage' ? 'git.stagingCount' : 'git.unstagingCount', { count: git.mutation.paths.length })}</div>}
 
       <div className={css.fileToolbar}>
         <span className={css.filters} role="group" aria-label={t('git.filterChangedFiles')}>
@@ -333,12 +376,17 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         ? <EmptyState>{t('git.clean')}</EmptyState>
         : (
           <div className={css.fileGroups}>
-            {fileGroup(t('git.staged'), stagedFiles, true)}
-            {fileGroup(t('git.unstaged'), unstagedFiles, false)}
+            {fileGroup(t('git.staged'), visibleStagedFiles, stagedFiles, true)}
+            {fileGroup(t('git.unstaged'), visibleUnstagedFiles, unstagedFiles, false)}
           </div>
         )}
 
       <div className={css.commit}>
+        <div className={stagedFiles.length === 0 ? css.commitBlocked : css.commitSummary} role="status">
+          {stagedFiles.length === 0
+            ? t('git.commitBlocked')
+            : t('git.commitSummary', { count: stagedFiles.length, summary: commitSummary })}
+        </div>
         <div className={css.commitInputRow}>
           <textarea
             className={css.input}
@@ -348,12 +396,12 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
             placeholder={t('git.commitPlaceholder')}
             onChange={event => { setMessage(event.target.value) }}
           />
-          <button type="button" className={css.suggest} disabled={suggestedMessage === ''} onClick={() => { setMessage(suggestedMessage) }} title={t('git.suggestCommit')} aria-label={t('git.suggestCommit')}><IconSparkle16 /></button>
+          <button type="button" className={css.suggest} disabled={suggestedMessage === '' || message.trim() !== ''} onClick={() => { setMessage(current => current.trim() === '' ? suggestedMessage : current) }} title={t('git.suggestCommit')} aria-label={t('git.suggestCommit')}><IconSparkle16 /></button>
         </div>
         <div className={css.actions}>
           <Button
             primary
-            disabled={committing || message.trim() === '' || stagedFiles.length === 0}
+            disabled={committing || git.mutation !== undefined || message.trim() === '' || stagedFiles.length === 0}
             onClick={commit}
           >
             {committing ? t('git.committing') : t('git.commit')}

@@ -13,7 +13,7 @@
  * @module @dsh-portable/dcode-ui/client/git/useGit
  */
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type DcodeRuntime } from '../state/runtime.ts'
 import { useSessionSnapshot } from '../state/hooks.ts'
@@ -117,6 +117,12 @@ export interface GitState extends GitSnapshot {
   readonly unavailable: boolean
   /** Re-read the working tree now, for every consumer of this workspace. */
   readonly refresh: () => void
+  /** The explicit index operation currently running in this panel. */
+  readonly mutation: { readonly kind: 'stage' | 'unstage'; readonly paths: readonly string[] } | undefined
+  /** Stage paths, returning an error message on refusal. */
+  readonly stage: (paths: readonly string[]) => Promise<string | undefined>
+  /** Unstage paths, returning an error message on refusal. */
+  readonly unstage: (paths: readonly string[]) => Promise<string | undefined>
 }
 
 /**
@@ -127,6 +133,8 @@ export interface GitState extends GitSnapshot {
 export function useGitStatus(cwd: string | undefined, sessionId: SessionId | undefined): GitState {
   const runtime = useRuntime()
   const session = useSessionSnapshot(sessionId)
+  const [mutation, setMutation] = useState<GitState['mutation']>(undefined)
+  const mutationRef = useRef<GitState['mutation']>(undefined)
 
   const record = useMemo(() => cwd === undefined ? undefined : recordFor(cwd), [cwd])
 
@@ -159,6 +167,34 @@ export function useGitStatus(cwd: string | undefined, sessionId: SessionId | und
     if (cwd !== undefined) load(runtime, cwd, true)
   }, [runtime, cwd])
 
+  const mutate = useCallback(async (kind: 'stage' | 'unstage', paths: readonly string[]) => {
+    if (cwd === undefined) return 'no workspace selected'
+    if (mutationRef.current !== undefined) return 'another Git operation is already running'
+    const next = { kind, paths: [...paths] } as const
+    mutationRef.current = next
+    setMutation(next)
+    try {
+      const result = kind === 'stage'
+        ? await runtime.git.stage(cwd, paths)
+        : await runtime.git.unstage(cwd, paths)
+      return result.ok ? undefined : result.error.message
+    } catch (cause) {
+      return cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      load(runtime, cwd, true)
+      mutationRef.current = undefined
+      setMutation(undefined)
+    }
+  }, [runtime, cwd])
+
+  const stage = useCallback(async (paths: readonly string[]) => await mutate('stage', paths), [mutate])
+  const unstage = useCallback(async (paths: readonly string[]) => await mutate('unstage', paths), [mutate])
+
+  useEffect(() => {
+    mutationRef.current = undefined
+    setMutation(undefined)
+  }, [cwd])
+
   // First read for a workspace nobody has looked at yet.
   useEffect(() => {
     if (cwd !== undefined) load(runtime, cwd, false)
@@ -182,7 +218,7 @@ export function useGitStatus(cwd: string | undefined, sessionId: SessionId | und
   }, [cwd, refresh])
 
   return useMemo(
-    () => ({ ...snapshot, unavailable: !runtime.git.available, refresh }),
-    [snapshot, runtime, refresh],
+    () => ({ ...snapshot, unavailable: !runtime.git.available, refresh, mutation, stage, unstage }),
+    [snapshot, runtime, refresh, mutation, stage, unstage],
   )
 }

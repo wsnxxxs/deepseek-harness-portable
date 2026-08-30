@@ -36,6 +36,17 @@ test('a rename record consumes its following source path', () => {
 test('conflicted rows are not reported as ordinary modifications', () => {
   const rows = parsePorcelain(['UU merged.ts', 'AA both.ts'].join('\0'))
   assert.deepEqual(rows.map(row => row.status), ['conflicted', 'conflicted'])
+  assert.deepEqual(rows.map(row => row.staged), [false, false])
+})
+
+test('a path changed in the index and work tree appears in both groups', () => {
+  const rows = parsePorcelain(['MM src/a.ts', 'AM src/new.ts'].join('\0'))
+  assert.deepEqual(rows.map(row => [row.path, row.status, row.staged]), [
+    ['src/a.ts', 'modified', true],
+    ['src/a.ts', 'modified', false],
+    ['src/new.ts', 'added', true],
+    ['src/new.ts', 'modified', false],
+  ])
 })
 
 test('numstat counts land per path and a binary blob counts as zero', () => {

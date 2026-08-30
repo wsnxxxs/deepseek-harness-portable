@@ -98,6 +98,11 @@ export interface GitCommitResult {
   readonly reason?: string
 }
 
+/** Result of staging or unstaging an explicit set of paths. */
+export interface GitStageResult {
+  readonly updated: readonly string[]
+}
+
 /** Outcome of restoring one path. */
 export interface GitRestoreOutcome {
   readonly path: string
@@ -190,6 +195,16 @@ function statusOf(code: string): GitFileChange['status'] {
   return 'modified'
 }
 
+/** Map one side of an XY status onto the presentation status for that side. */
+function statusOfSide(letter: string, fallback: GitFileChange['status']): GitFileChange['status'] {
+  if (letter === 'A') return 'added'
+  if (letter === 'D') return 'deleted'
+  if (letter === 'R' || letter === 'C') return 'renamed'
+  if (letter === '?') return 'untracked'
+  if (letter === 'M' || letter === 'T') return 'modified'
+  return fallback
+}
+
 /** Parse `git status --porcelain=v1 -z` into rows (NUL-separated; renames carry two records). */
 export function parsePorcelain(output: string): GitFileChange[] {
   const rows: GitFileChange[] = []
@@ -200,29 +215,41 @@ export function parsePorcelain(output: string): GitFileChange[] {
     const code = record.slice(0, 2)
     const path = record.slice(3)
     if (path === '') continue
-    if (code.startsWith('R') || code.startsWith('C')) {
+    if (code.includes('R') || code.includes('C')) {
       // Rename/copy records are followed by their source path in the next record.
       const from = records[index + 1]
       index += 1
-      rows.push({
+      const base = {
         path,
         code,
-        status: statusOf(code),
-        staged: code[0] !== ' ' && code !== '??',
         insertions: 0,
         deletions: 0,
         ...(from === undefined || from === '' ? {} : { from }),
-      })
+      }
+      if ((code[0] ?? ' ') !== ' ') {
+        rows.push({ ...base, status: statusOfSide(code[0] ?? ' ', statusOf(code)), staged: true })
+      }
+      if ((code[1] ?? ' ') !== ' ') {
+        rows.push({ ...base, status: statusOfSide(code[1] ?? ' ', statusOf(code)), staged: false })
+      }
       continue
     }
-    rows.push({
-      path,
-      code,
-      status: statusOf(code),
-      staged: code[0] !== ' ' && code !== '??',
-      insertions: 0,
-      deletions: 0,
-    })
+    const coarse = statusOf(code)
+    const base = { path, code, insertions: 0, deletions: 0 }
+    if (coarse === 'conflicted') {
+      rows.push({ ...base, status: 'conflicted', staged: false })
+      continue
+    }
+    if (code === '??') {
+      rows.push({ ...base, status: 'untracked', staged: false })
+      continue
+    }
+    if ((code[0] ?? ' ') !== ' ') {
+      rows.push({ ...base, status: statusOfSide(code[0] ?? ' ', coarse), staged: true })
+    }
+    if ((code[1] ?? ' ') !== ' ') {
+      rows.push({ ...base, status: statusOfSide(code[1] ?? ' ', coarse), staged: false })
+    }
   }
   return rows
 }
@@ -414,33 +441,64 @@ export async function readBranches(cwd: string): Promise<readonly GitBranch[]> {
     }))
 }
 
+/** Resolve and de-duplicate browser-supplied paths, refusing unresolved conflicts. */
+async function mutablePaths(root: string, paths: readonly string[]): Promise<readonly string[]> {
+  if (paths.length === 0) throw new Error('paths must list at least one file')
+  const contained = [...new Set(paths.map(path => containedRelativePath(root, path)))]
+  const status = await git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+  const conflicted = new Set(parsePorcelain(status.stdout)
+    .filter(row => row.status === 'conflicted')
+    .map(row => row.path))
+  const requestedConflict = contained.find(path => conflicted.has(path))
+  if (requestedConflict !== undefined) throw new Error(`conflicted path cannot be staged here: ${requestedConflict}`)
+  return contained
+}
+
+/** Stage an explicit set of non-conflicted paths. */
+export async function stagePaths(cwd: string, paths: readonly string[]): Promise<GitStageResult> {
+  const root = await workTreeRoot(cwd)
+  if (root === undefined) throw new Error('not a git work tree')
+  const contained = await mutablePaths(root, paths)
+  for (let index = 0; index < contained.length; index += 200) {
+    await git(root, ['add', '--', ...contained.slice(index, index + 200)])
+  }
+  return { updated: contained }
+}
+
+/** Unstage an explicit set of non-conflicted paths without changing the work tree. */
+export async function unstagePaths(cwd: string, paths: readonly string[]): Promise<GitStageResult> {
+  const root = await workTreeRoot(cwd)
+  if (root === undefined) throw new Error('not a git work tree')
+  const contained = await mutablePaths(root, paths)
+  const head = await git(root, ['rev-parse', '--verify', 'HEAD'], { tolerateFailure: true })
+  for (let index = 0; index < contained.length; index += 200) {
+    const chunk = contained.slice(index, index + 200)
+    if (head.code === 0) {
+      await git(root, ['restore', '--staged', '--', ...chunk])
+    } else {
+      // `restore --staged` needs HEAD. In a new repository every index entry
+      // is an addition, so removing it from the index leaves the work tree intact.
+      await git(root, ['rm', '--cached', '--ignore-unmatch', '--', ...chunk])
+    }
+  }
+  return { updated: contained }
+}
+
 /**
- * Stage the requested paths (or every change) and commit them.
+ * Commit exactly what is already staged.
  *
- * The commit is an explicit operator action from the Git panel: nothing is
- * pushed, no branch is created, and an empty index is reported back rather
- * than forced through with `--allow-empty`.
+ * The commit is an explicit operator action from the Git panel: it never
+ * stages work-tree changes, pushes, changes branches, or permits an empty
+ * commit.
  * @param cwd - any directory inside the repository.
  * @param message - commit message; leading/trailing whitespace is trimmed.
- * @param paths - paths to stage first; omitted stages every tracked and untracked change.
  * @returns whether a commit was created, with the short hash or the refusal reason.
  */
-export async function commit(
-  cwd: string,
-  message: string,
-  paths?: readonly string[],
-): Promise<GitCommitResult> {
+export async function commit(cwd: string, message: string): Promise<GitCommitResult> {
   const root = await workTreeRoot(cwd)
   if (root === undefined) throw new Error('not a git work tree')
   const trimmed = message.trim()
   if (trimmed === '') return { committed: false, reason: 'empty-message' }
-
-  if (paths === undefined || paths.length === 0) {
-    await git(root, ['add', '--all', '--'])
-  } else {
-    const contained = paths.map(path => containedRelativePath(root, path))
-    await git(root, ['add', '--', ...contained])
-  }
 
   const staged = await git(root, ['diff', '--cached', '--name-only'], { tolerateFailure: true })
   if (staged.stdout.trim() === '') return { committed: false, reason: 'nothing-staged' }
