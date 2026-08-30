@@ -230,6 +230,7 @@ const CONTAINER_INPUT_PATHS = [
   'THIRD_PARTY_NOTICES.md',
   'scripts/setup.iss',
   'scripts/setup-runtime-preflight.ps1',
+  'scripts/setup-launch-after-exit.ps1',
   'scripts/build/create-windows-zip.ps1',
   'apps/desktop/electron-builder.yml',
 ]

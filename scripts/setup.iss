@@ -54,6 +54,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#MyReleaseDir}\{#MyZipName}"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "{#MyIconPath}"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "setup-runtime-preflight.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "setup-launch-after-exit.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyLauncherExeName}"; IconFilename: "{app}\assets\deepseek.ico"; WorkingDir: "{app}"
@@ -63,7 +64,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyLauncherExeName}"; IconFilename: "{app}\assets\deepseek.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyLauncherExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\setup-launch-after-exit.ps1"" -SetupProcessId {code:GetSetupProcessId} -Executable ""{app}\{#MyLauncherExeName}"" -WorkingDirectory ""{app}"""; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{app}"; Flags: runhidden nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
@@ -72,6 +73,14 @@ Type: filesandordirs; Name: "{app}"
 var
   DeleteUserData: Boolean;
   RuntimePreflightResultCode: Integer;
+
+function GetCurrentProcessId(): LongWord;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
+
+function GetSetupProcessId(Param: String): String;
+begin
+  Result := IntToStr(GetCurrentProcessId());
+end;
 
 function DshHomePath(): String;
 var
