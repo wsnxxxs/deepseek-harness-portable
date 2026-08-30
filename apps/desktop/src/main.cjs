@@ -26,7 +26,7 @@ const {
   DEFAULT_UI_MODE, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
 } = require('@dsh-portable/dcode-ui/ui-mode-contract')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
-const { probeHarnessHealth } = require('./ready-url.cjs')
+const { probeHarnessHealth, waitForOnboardingReady } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
 const {
   iconPath: platformIconPath,
@@ -80,6 +80,7 @@ const SLOW_STARTUP_MS = 20_000
 // marketplace before the runtime publishes its listening event. Keep enough
 // budget for that first-run work while still surfacing a genuinely stuck boot.
 const STARTUP_TIMEOUT_MS = 180_000
+const BROWSER_BOOT_TIMEOUT_MS = 30_000
 const RENDERER_FIRST_PAINT_TIMEOUT_MS = 5_000
 const SPLASH_FADE_MS = 420
 const STOP_TIMEOUT_MS = 5_000
@@ -928,16 +929,17 @@ async function restartHarness() {
       await stopHarness()
       const url = await startHarness(workspace(), controller.signal)
       if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
+      await waitForOnboardingReady(url, { timeoutMs: BROWSER_BOOT_TIMEOUT_MS })
+      if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
       harnessUrl = url
-      // The runtime emits its authenticated `listening` event only after Loader
-      // activation and the initial client graph scan. Do not put another token
-      // exchange on the critical path; deep HTTP checks resume in the bounded
-      // background monitor once the renderer is visible.
       sendSplashState({ kind: 'loading' })
       setHarnessHealth({ state: 'connected', consecutiveFailures: 0, message: '' })
       writeUpdateProbeIfRequested()
       sendSplashStatus('interface')
       if (window !== undefined && !window.isDestroyed()) {
+        // index.html contains a process-local plugin batch graph. An installer
+        // upgrade must never reuse the prior process's cached document.
+        await window.webContents.session.clearCache()
         await window.loadURL(withUiModeParam(url, uiMode))
         if (controller.signal.aborted) throw makeStartupError('Harness startup was cancelled.', lastStartupLog, 'ABORTED')
         if (DISPLAY_DESKTOP_WINDOWS && !window.isVisible()) window.show()

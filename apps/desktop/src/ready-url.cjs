@@ -11,8 +11,12 @@ function readyUrl(output) {
   return clean.match(/(?:^|\r?\n)dsh web:\s*(http:\/\/127\.0\.0\.1:\d+)/)?.[1]
 }
 
-/** The browser shell cannot activate until its shell and portable feature roots exist. */
+/** Bootstrap package whose blocking client bundle creates the browser module system. */
+const CLIENT_MODULES_ENTRY = '@deepseek-ai/dsh-client-modules'
+
+/** The browser shell cannot activate until its bootstrap, shell, and portable feature roots exist. */
 const REQUIRED_CLIENT_ENTRIES = [
+  CLIENT_MODULES_ENTRY,
   '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-layout',
   '@dsh-portable/interactive-learning',
@@ -86,7 +90,7 @@ async function probeHarnessHealth(baseUrl, options = {}) {
  * from an API response: the browser consumes this exact snapshot on navigation.
  *
  * @param {string} html - served index document.
- * @returns {{ entries?: Array<{ id?: string, inject?: string[] }> }|undefined}
+ * @returns {{ rev?: string, entries?: Array<{ id?: string, inject?: string[] }>, batches?: Array<{ phase?: string, url?: string, entries?: string[] }> }|undefined}
  */
 function parseBootManifest(html) {
   if (typeof html !== 'string') return undefined
@@ -97,6 +101,33 @@ function parseBootManifest(html) {
     return manifest !== null && typeof manifest === 'object' ? manifest : undefined
   } catch {
     return undefined
+  }
+}
+
+/** Decode the only HTML entity emitted inside generated plugin URLs. */
+function scriptSources(html) {
+  if (typeof html !== 'string') return []
+  return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)]
+    .map(match => match[1].replaceAll('&amp;', '&'))
+}
+
+/**
+ * Read one coherent browser-boot snapshot from the exact served HTML.
+ *
+ * A populated graph alone is insufficient: the parser bootstrap must also be
+ * emitted as a blocking script. Without it the Vite shell still loads, but it
+ * can only render `HTML did not preload @deepseek-ai/dsh-client-modules`.
+ */
+function browserBootSnapshot(html) {
+  const manifest = parseBootManifest(html)
+  if (!hasRequiredClientGraph(manifest) || !Array.isArray(manifest?.batches)) return undefined
+  const bootstrap = manifest.batches.find(batch => batch?.phase === 'bootstrap'
+    && Array.isArray(batch.entries)
+    && batch.entries.includes(CLIENT_MODULES_ENTRY))
+  if (typeof bootstrap?.url !== 'string' || !scriptSources(html).includes(bootstrap.url)) return undefined
+  return {
+    bootstrapUrl: bootstrap.url,
+    revision: typeof manifest.rev === 'string' ? manifest.rev : '',
   }
 }
 
@@ -154,7 +185,8 @@ async function waitForOnboardingReady(baseUrl, options = {}) {
   const deadline = Date.now() + timeoutMs
   let lastReason = 'settings.describe has not completed'
   let settingsReady = false
-  let clientGraphReady = false
+  let stableBrowserSnapshot
+  let stableBrowserSnapshotCount = 0
   while (Date.now() < deadline) {
     const remainingMs = () => Math.min(1500, Math.max(1, deadline - Date.now()))
     if (!sessionEstablished) {
@@ -215,30 +247,55 @@ async function waitForOnboardingReady(baseUrl, options = {}) {
         lastReason = error instanceof Error ? error.message : String(error)
       }
     }
-    if (!clientGraphReady) {
-      try {
-        const response = await fetch(indexUrl, {
-          headers: requestHeaders({ 'cache-control': 'no-cache' }),
-          signal: AbortSignal.timeout(remainingMs()),
-        })
-        if (!response.ok) {
-          lastReason = `web index HTTP ${response.status}`
-        } else if (hasRequiredClientGraph(parseBootManifest(await response.text()))) {
-          clientGraphReady = true
+    let browserSnapshotCoherent = false
+    let browserReady = false
+    try {
+      const response = await fetch(indexUrl, {
+        headers: requestHeaders({ 'cache-control': 'no-cache' }),
+        signal: AbortSignal.timeout(remainingMs()),
+      })
+      if (!response.ok) {
+        lastReason = `web index HTTP ${response.status}`
+      } else {
+        const snapshot = browserBootSnapshot(await response.text())
+        if (snapshot === undefined) {
+          lastReason = 'client plugin bootstrap is not populated'
         } else {
-          lastReason = 'client plugin graph is not populated'
+          const bootstrapResponse = await fetch(new URL(snapshot.bootstrapUrl, indexUrl), {
+            headers: requestHeaders({ 'cache-control': 'no-cache' }),
+            signal: AbortSignal.timeout(remainingMs()),
+          })
+          if (!bootstrapResponse.ok) {
+            lastReason = `client plugin bootstrap HTTP ${bootstrapResponse.status}`
+          } else if (!(await bootstrapResponse.text()).includes(CLIENT_MODULES_ENTRY)) {
+            lastReason = 'client plugin bootstrap did not register the module system'
+          } else {
+            const signature = `${snapshot.revision}\n${snapshot.bootstrapUrl}`
+            browserSnapshotCoherent = true
+            stableBrowserSnapshotCount = signature === stableBrowserSnapshot
+              ? stableBrowserSnapshotCount + 1
+              : 1
+            stableBrowserSnapshot = signature
+            browserReady = stableBrowserSnapshotCount >= 2
+            if (!browserReady) lastReason = 'client plugin bootstrap has not stabilized'
+          }
         }
-      } catch (error) {
-        lastReason = error instanceof Error ? error.message : String(error)
       }
+    } catch (error) {
+      lastReason = error instanceof Error ? error.message : String(error)
     }
-    if (settingsReady && clientGraphReady) return
+    if (!browserSnapshotCoherent) {
+      stableBrowserSnapshot = undefined
+      stableBrowserSnapshotCount = 0
+    }
+    if (settingsReady && browserReady) return
     await new Promise(resolve => setTimeout(resolve, intervalMs))
   }
   throw new Error(`Host onboarding readiness timed out: ${lastReason}`)
 }
 
 module.exports = {
+  browserBootSnapshot,
   hasRequiredClientGraph,
   parseBootManifest,
   probeHarnessHealth,

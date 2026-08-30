@@ -55,10 +55,12 @@ test('directory-picker auto patch maps WSL to the Windows native backend', async
   assert.equal(patchDirectoryPickerAuto(output), output)
 })
 
-test('frontend-static patch caches only hashed assets', async () => {
+test('frontend-static patch disables dynamic HTML caching and caches only hashed assets', async () => {
   const source = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js'), 'utf8')
   const output = patchFrontendStaticCacheHeaders(source)
   assert.match(output, /IMMUTABLE_STATIC_CACHE/)
+  assert.match(output, /DYNAMIC_HTML_CACHE = "no-store"/)
+  assert.match(output, /type === HTML_MIME/)
   assert.match(output, /isImmutableStaticAsset/)
   assert.match(output, /assets\\\/\[\^\/\]\+\-/)
   assert.equal(patchFrontendStaticCacheHeaders(output), output)

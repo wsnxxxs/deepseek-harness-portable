@@ -2,6 +2,7 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createServer } = require('node:http')
 const {
+  browserBootSnapshot,
   hasRequiredClientGraph,
   parseBootManifest,
   probeHarnessHealth,
@@ -38,6 +39,7 @@ test('normalizes a trailing listening slash to the exact settings RPC route', ()
 test('client readiness requires the portable feature rows', () => {
   const shellOnly = {
     entries: [
+      { id: '@deepseek-ai/dsh-client-modules', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-session', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
@@ -58,6 +60,32 @@ test('client readiness requires the portable feature rows', () => {
   }), true)
 })
 
+test('browser readiness requires the blocking client-modules bootstrap script', () => {
+  const manifest = {
+    rev: 'stable-rev',
+    entries: [
+      { id: '@deepseek-ai/dsh-client-modules', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-session', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+      { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+    ],
+    batches: [{
+      phase: 'bootstrap',
+      url: '/plugins/bootstrap.js?rev=stable&part=1',
+      entries: ['@deepseek-ai/dsh-client-modules'],
+    }],
+  }
+  const assignment = `<script>window.__DSH_BOOT__ = ${JSON.stringify(manifest)}</script>`
+  assert.equal(browserBootSnapshot(assignment), undefined)
+  assert.deepEqual(browserBootSnapshot(
+    `<script src="/plugins/bootstrap.js?rev=stable&amp;part=1"></script>${assignment}`,
+  ), {
+    bootstrapUrl: '/plugins/bootstrap.js?rev=stable&part=1',
+    revision: 'stable-rev',
+  })
+})
+
 test('parses the current globalThis boot manifest assignment', () => {
   const manifest = { entries: [{ id: '@dsh-portable/interactive-learning', inject: [] }] }
   const html = `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(manifest)}</script>`
@@ -67,20 +95,32 @@ test('parses the current globalThis boot manifest assignment', () => {
 test('waits for onboarding and the complete client graph instead of trusting the first HTTP 200', async () => {
   let settingsAttempts = 0
   let indexAttempts = 0
+  let bootstrapAttempts = 0
   const server = createServer((request, response) => {
+    if (request.url?.startsWith('/plugins/bootstrap.js')) {
+      bootstrapAttempts += 1
+      response.writeHead(200, { 'content-type': 'text/javascript' })
+      response.end('window.__ModuleLoader__.load({id:"@deepseek-ai/dsh-client-modules"})')
+      return
+    }
     if (request.url !== '/api/settings/describe') {
       indexAttempts += 1
-      const entries = indexAttempts < 3
-        ? []
-        : [
+      const complete = indexAttempts >= 3
+      const entries = complete ? [
+            { id: '@deepseek-ai/dsh-client-modules', inject: [] },
             { id: '@deepseek-ai/dsh-client-ui-session', inject: ['@deepseek-ai/dsh-client-connection'] },
             { id: '@deepseek-ai/dsh-client-connection', inject: [] },
             { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
             { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
             { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-          ]
+          ] : []
+      const batches = complete ? [{
+        phase: 'bootstrap',
+        url: '/plugins/bootstrap.js?rev=stable',
+        entries: ['@deepseek-ai/dsh-client-modules'],
+      }] : []
       response.writeHead(200, { 'content-type': 'text/html' })
-      response.end(`<html><head><script>window.__DSH_BOOT__ = ${JSON.stringify({ entries })}</script></head></html>`)
+      response.end(`<html><head>${complete ? '<script src="/plugins/bootstrap.js?rev=stable"></script>' : ''}<script>window.__DSH_BOOT__ = ${JSON.stringify({ rev: 'stable', entries, batches })}</script></head></html>`)
       return
     }
     settingsAttempts += 1
@@ -94,7 +134,8 @@ test('waits for onboarding and the complete client graph instead of trusting the
     const address = server.address()
     await waitForOnboardingReady(`http://127.0.0.1:${address.port}/`, { timeoutMs: 2_000, intervalMs: 1 })
     assert.equal(settingsAttempts, 3)
-    assert.equal(indexAttempts, 3)
+    assert.equal(indexAttempts, 4)
+    assert.equal(bootstrapAttempts, 2)
   } finally {
     await new Promise(resolve => server.close(resolve))
   }
