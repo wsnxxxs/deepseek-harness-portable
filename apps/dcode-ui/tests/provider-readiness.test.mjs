@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { providerReadiness, visibleProviderRows } from '../lib/types/client/settings/provider-readiness.js'
+import {
+  providerReadiness, providerRemovable, visibleProviderRows,
+} from '../lib/types/client/settings/provider-readiness.js'
 
 const base = {
   active: true,
@@ -48,11 +50,29 @@ test('keyless providers are neutral and Remote errors are red', () => {
 })
 
 test('the unconfigured generic DeepSeek placeholder is hidden beside the official provider', () => {
-  const official = { id: 'deepseek-official', profile: {}, credential: { configured: true, writable: true } }
-  const placeholder = { id: 'deepseek', profile: undefined, credential: { configured: false, writable: true } }
+  const official = { id: 'deepseek-official', userProfile: undefined }
+  const placeholder = { id: 'deepseek', userProfile: undefined }
   assert.deepEqual(visibleProviderRows([official, placeholder]), [official])
 
-  const configuredGeneric = { ...placeholder, profile: { apiKeyEnv: 'DEEPSEEK_API_KEY' } }
+  const configuredGeneric = { ...placeholder, userProfile: { apiKeyEnv: 'DEEPSEEK_API_KEY' } }
   assert.deepEqual(visibleProviderRows([official, configuredGeneric]), [official, configuredGeneric])
   assert.deepEqual(visibleProviderRows([placeholder]), [placeholder])
+})
+
+test('every user-owned provider profile can be deleted, but built-ins cannot', () => {
+  assert.equal(providerRemovable({
+    settingsNs: 'llm-pi-ai',
+    settingsPath: ['providers', 'xiaomi'],
+    userProfile: { apiKeyEnv: 'XIAOMI_API_KEY' },
+  }), true)
+  assert.equal(providerRemovable({
+    settingsNs: 'llm-deepseek',
+    settingsPath: [],
+    userProfile: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+  }), false)
+  assert.equal(providerRemovable({
+    settingsNs: 'llm-pi-ai',
+    settingsPath: ['providers', 'openai'],
+    userProfile: undefined,
+  }), false)
 })

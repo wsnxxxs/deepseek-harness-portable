@@ -36,7 +36,8 @@ import usageCardClasses from './UsageCards.module.css'
 import { SelectMenu } from './SelectMenu.tsx'
 import { PluginSettingsSection } from './PluginSettingsSection.tsx'
 import {
-  providerReadiness, visibleProviderRows, type ProviderReadiness, type ProviderReadinessFacts,
+  providerReadiness, providerRemovable, visibleProviderRows,
+  type ProviderReadiness, type ProviderReadinessFacts,
 } from './provider-readiness.ts'
 import css from './SettingsSurface.module.css'
 import type {
@@ -406,6 +407,7 @@ function ModelProviderCard(props: {
   const profileEditable = props.writable && props.row.namespace !== undefined && props.row.settingsNs !== ''
   const keyEditable = props.row.credential?.writable !== false
   const editable = profileEditable || keyEditable
+  const removable = profileEditable && providerRemovable(props.row)
 
   useEffect(() => {
     if (open) return
@@ -472,7 +474,7 @@ function ModelProviderCard(props: {
   }
 
   const remove = async (): Promise<void> => {
-    if (deleting || props.row.declared !== true || !profileEditable) return
+    if (deleting || !removable) return
     if (!window.confirm(t('settings.models.deleteConfirm', { name: props.row.name }))) return
     setDeleting(true)
     setFailure(undefined)
@@ -547,7 +549,7 @@ function ModelProviderCard(props: {
               }}
             >{t('common.edit')}</Button>
             : editable ? null : <span className={css.badge}>{t('common.readOnly')}</span>}
-          {props.row.declared === true && profileEditable
+          {removable
             ? <button type="button" className={css.dangerButton} disabled={deleting} onClick={() => { void remove() }}>
               {deleting ? t('settings.models.deleting') : t('settings.models.delete')}
             </button>

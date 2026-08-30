@@ -6,8 +6,13 @@ export function visibleProviderRows(rows) {
     if (!rows.some(row => row.id === 'deepseek-official'))
         return [...rows];
     return rows.filter(row => row.id !== 'deepseek'
-        || row.profile !== undefined
-        || row.credential?.configured === true);
+        || row.userProfile !== undefined);
+}
+/** Only a provider profile owned by the user layer can be removed safely. */
+export function providerRemovable(row) {
+    return row.settingsNs !== ''
+        && row.settingsPath.length > 0
+        && row.userProfile !== undefined;
 }
 /**
  * Derive the one status rendered by provider lists and editors.

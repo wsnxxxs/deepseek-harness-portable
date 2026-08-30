@@ -29,8 +29,7 @@ export interface ProviderReadiness {
 
 export interface ProviderDisplayFacts {
   readonly id: string
-  readonly profile: Record<string, unknown> | undefined
-  readonly credential: CredentialInfo | undefined
+  readonly userProfile: Record<string, unknown> | undefined
 }
 
 /**
@@ -40,8 +39,20 @@ export interface ProviderDisplayFacts {
 export function visibleProviderRows<Row extends ProviderDisplayFacts>(rows: readonly Row[]): Row[] {
   if (!rows.some(row => row.id === 'deepseek-official')) return [...rows]
   return rows.filter(row => row.id !== 'deepseek'
-    || row.profile !== undefined
-    || row.credential?.configured === true)
+    || row.userProfile !== undefined)
+}
+
+export interface ProviderRemovalFacts {
+  readonly settingsNs: string
+  readonly settingsPath: readonly string[]
+  readonly userProfile: Record<string, unknown> | undefined
+}
+
+/** Only a provider profile owned by the user layer can be removed safely. */
+export function providerRemovable(row: ProviderRemovalFacts): boolean {
+  return row.settingsNs !== ''
+    && row.settingsPath.length > 0
+    && row.userProfile !== undefined
 }
 
 /**
