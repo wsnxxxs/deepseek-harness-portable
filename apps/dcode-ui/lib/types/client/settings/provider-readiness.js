@@ -1,4 +1,15 @@
 /**
+ * Hide the generic pi-ai DeepSeek placeholder when the dedicated official
+ * provider is present. An explicitly configured generic route remains visible.
+ */
+export function visibleProviderRows(rows) {
+    if (!rows.some(row => row.id === 'deepseek-official'))
+        return [...rows];
+    return rows.filter(row => row.id !== 'deepseek'
+        || row.profile !== undefined
+        || row.credential?.configured === true);
+}
+/**
  * Derive the one status rendered by provider lists and editors.
  * `active` only means that an adapter route is registered; it never proves a
  * connection. With no connection probe on the Runtime, green therefore means

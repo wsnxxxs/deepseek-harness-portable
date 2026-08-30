@@ -36,7 +36,7 @@ import usageCardClasses from './UsageCards.module.css'
 import { SelectMenu } from './SelectMenu.tsx'
 import { PluginSettingsSection } from './PluginSettingsSection.tsx'
 import {
-  providerReadiness, type ProviderReadiness, type ProviderReadinessFacts,
+  providerReadiness, visibleProviderRows, type ProviderReadiness, type ProviderReadinessFacts,
 } from './provider-readiness.ts'
 import css from './SettingsSurface.module.css'
 import type {
@@ -746,15 +746,16 @@ function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved
   if (models.error !== undefined && models.value === undefined) return <EmptyState>{models.error}</EmptyState>
   if (models.value === undefined) return <EmptyState>{t('common.error')}</EmptyState>
   const value = models.value
-  const configured = value.providers.filter(row => row.credential?.configured === true || row.active)
-  const addable = value.providers.filter(row =>
+  const providers = visibleProviderRows(value.providers)
+  const configured = providers.filter(row => row.credential?.configured === true || row.active)
+  const addable = providers.filter(row =>
     row.credential?.configured !== true && !row.active && row.settingsNs !== '')
   const draft = addingProvider === undefined
     ? undefined
     : addable.find(row => row.id === addingProvider)
   const focused = props.focusedProvider === undefined
     ? undefined
-    : value.providers.find(row => row.id === props.focusedProvider)
+    : providers.find(row => row.id === props.focusedProvider)
   const visible = focused === undefined
     ? configured
     : [focused, ...configured.filter(row => row.id !== focused.id)]

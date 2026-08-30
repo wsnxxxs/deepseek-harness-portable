@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { providerReadiness } from '../lib/types/client/settings/provider-readiness.js'
+import { providerReadiness, visibleProviderRows } from '../lib/types/client/settings/provider-readiness.js'
 
 const base = {
   active: true,
@@ -45,4 +45,14 @@ test('keyless providers are neutral and Remote errors are red', () => {
     reason: 'credential-error',
     detail: 'vault offline',
   })
+})
+
+test('the unconfigured generic DeepSeek placeholder is hidden beside the official provider', () => {
+  const official = { id: 'deepseek-official', profile: {}, credential: { configured: true, writable: true } }
+  const placeholder = { id: 'deepseek', profile: undefined, credential: { configured: false, writable: true } }
+  assert.deepEqual(visibleProviderRows([official, placeholder]), [official])
+
+  const configuredGeneric = { ...placeholder, profile: { apiKeyEnv: 'DEEPSEEK_API_KEY' } }
+  assert.deepEqual(visibleProviderRows([official, configuredGeneric]), [official, configuredGeneric])
+  assert.deepEqual(visibleProviderRows([placeholder]), [placeholder])
 })
