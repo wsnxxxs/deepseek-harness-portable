@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Stop', 'Diagnose')]
+  [ValidateSet('Stop', 'Diagnose', 'CleanupTree')]
   [string]$Mode = 'Stop',
   [Parameter(Mandatory = $true)]
   [string]$InstallRoot,
@@ -24,6 +24,174 @@ function Test-PathWithin([string]$Candidate, [string]$Root) {
   return $candidatePath.Equals($rootPath, [StringComparison]::OrdinalIgnoreCase) -or
     $candidatePath.StartsWith($rootPath + '\', [StringComparison]::OrdinalIgnoreCase)
 }
+
+function Write-PreflightReport($Data) {
+  $reportDirectory = Split-Path -Parent $ReportPath
+  if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
+    $null = New-Item -ItemType Directory -Force -Path $reportDirectory
+  }
+  $Data | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
+}
+
+# Inno Setup's DelTree uses legacy MAX_PATH file APIs. The packaged runtime
+# contains dependency paths that can exceed 260 characters, so use a small
+# native helper with the \\?\ prefix for cleanup operations. Reparse points are
+# removed as links and are never traversed outside the requested tree.
+if (-not ('DshSetup.LongPathFileSystem' -as [type])) {
+  Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+namespace DshSetup {
+  public static class LongPathFileSystem {
+    const uint INVALID_FILE_ATTRIBUTES = 0xffffffff;
+    const uint FILE_ATTRIBUTE_DIRECTORY = 0x10;
+    const uint FILE_ATTRIBUTE_READONLY = 0x1;
+    const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
+    const int ERROR_FILE_NOT_FOUND = 2;
+    const int ERROR_PATH_NOT_FOUND = 3;
+    const int ERROR_NO_MORE_FILES = 18;
+    static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct WIN32_FIND_DATA {
+      public uint dwFileAttributes;
+      public System.Runtime.InteropServices.ComTypes.FILETIME ftCreationTime;
+      public System.Runtime.InteropServices.ComTypes.FILETIME ftLastAccessTime;
+      public System.Runtime.InteropServices.ComTypes.FILETIME ftLastWriteTime;
+      public uint nFileSizeHigh;
+      public uint nFileSizeLow;
+      public uint dwReserved0;
+      public uint dwReserved1;
+      [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string cFileName;
+      [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)] public string cAlternateFileName;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern uint GetFileAttributesW(string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool SetFileAttributesW(string name, uint attributes);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool DeleteFileW(string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool RemoveDirectoryW(string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr FindFirstFileW(string name, out WIN32_FIND_DATA data);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool FindNextFileW(IntPtr handle, out WIN32_FIND_DATA data);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool FindClose(IntPtr handle);
+
+    static string ToLongPath(string value) {
+      if (String.IsNullOrWhiteSpace(value)) throw new ArgumentException("A path is required.");
+      if (value.StartsWith(@"\\?\", StringComparison.Ordinal)) return value.TrimEnd('\\');
+      var full = System.IO.Path.GetFullPath(value);
+      if (full.Length > 3) full = full.TrimEnd('\\');
+      if (full.StartsWith(@"\\", StringComparison.Ordinal)) return @"\\?\UNC\" + full.Substring(2);
+      return @"\\?\" + full;
+    }
+
+    static bool Missing(int error) {
+      return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
+    }
+
+    static void ThrowLastError(string operation, string path) {
+      var error = Marshal.GetLastWin32Error();
+      throw new Win32Exception(error, operation + " failed for " + path + " (" + error + ")");
+    }
+
+    static bool ClearReadonly(string path, uint attributes) {
+      return (attributes & FILE_ATTRIBUTE_READONLY) == 0 ||
+        SetFileAttributesW(path, attributes & ~FILE_ATTRIBUTE_READONLY);
+    }
+
+    static void DeleteEntry(string path) {
+      var attributes = GetFileAttributesW(path);
+      if (attributes == INVALID_FILE_ATTRIBUTES) {
+        var error = Marshal.GetLastWin32Error();
+        if (Missing(error)) return;
+        ThrowLastError("GetFileAttributesW", path);
+      }
+
+      var directory = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+      var reparse = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+      if (!directory || reparse) {
+        if (directory) {
+          if (!ClearReadonly(path, attributes) && !Missing(Marshal.GetLastWin32Error()))
+            ThrowLastError("SetFileAttributesW", path);
+          if (RemoveDirectoryW(path)) return;
+        } else {
+          if (!ClearReadonly(path, attributes) && !Missing(Marshal.GetLastWin32Error()))
+            ThrowLastError("SetFileAttributesW", path);
+          if (DeleteFileW(path)) return;
+        }
+        var error = Marshal.GetLastWin32Error();
+        if (Missing(error)) return;
+        ThrowLastError(directory ? "RemoveDirectoryW" : "DeleteFileW", path);
+      }
+
+      WIN32_FIND_DATA data;
+      var handle = FindFirstFileW(path + @"\*", out data);
+      if (handle == INVALID_HANDLE_VALUE) {
+        var error = Marshal.GetLastWin32Error();
+        if (!Missing(error)) ThrowLastError("FindFirstFileW", path);
+      } else {
+        try {
+          do {
+            var name = data.cFileName;
+            if (name != "." && name != "..") DeleteEntry(path + "\\" + name);
+          } while (FindNextFileW(handle, out data));
+          var error = Marshal.GetLastWin32Error();
+          if (error != ERROR_NO_MORE_FILES) ThrowLastError("FindNextFileW", path);
+        } finally {
+          FindClose(handle);
+        }
+      }
+
+      if (!ClearReadonly(path, attributes) && !Missing(Marshal.GetLastWin32Error()))
+        ThrowLastError("SetFileAttributesW", path);
+      if (RemoveDirectoryW(path)) return;
+      var removeError = Marshal.GetLastWin32Error();
+      if (!Missing(removeError)) ThrowLastError("RemoveDirectoryW", path);
+    }
+
+    public static bool Exists(string path) {
+      return GetFileAttributesW(ToLongPath(path)) != INVALID_FILE_ATTRIBUTES;
+    }
+
+    public static void DeleteTree(string path) {
+      DeleteEntry(ToLongPath(path));
+    }
+  }
+}
+'@
+}
+
+if ($Mode -eq 'CleanupTree') {
+  $installPath = Get-NormalizedPath $InstallRoot
+  $targetPath = Get-NormalizedPath $ResourcePath
+  if ([string]::IsNullOrWhiteSpace($targetPath) -or
+      $targetPath.Equals($installPath, [StringComparison]::OrdinalIgnoreCase) -or
+      -not (Test-PathWithin $targetPath $installPath)) {
+    throw ('Refusing to delete a path outside the installation root: ' + $targetPath)
+  }
+  $existed = [DshSetup.LongPathFileSystem]::Exists($targetPath)
+  if ($existed) { [DshSetup.LongPathFileSystem]::DeleteTree($targetPath) }
+  $remaining = [DshSetup.LongPathFileSystem]::Exists($targetPath)
+  Write-PreflightReport ([ordered]@{
+    schemaVersion = 1
+    timestampUtc = [DateTime]::UtcNow.ToString('o')
+    mode = $Mode
+    installRoot = $installPath
+    resourcePath = $targetPath
+    existed = $existed
+    removed = -not $remaining
+  })
+  if ($remaining) { exit 11 }
+  exit 0
+}
+
 
 function Get-ProcessSnapshot {
   @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ForEach-Object {
@@ -182,10 +350,6 @@ $report = [ordered]@{
   restartManagerError = $lockError
 }
 
-$reportDirectory = Split-Path -Parent $ReportPath
-if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
-  $null = New-Item -ItemType Directory -Force -Path $reportDirectory
-}
-$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
+Write-PreflightReport $report
 if ($report.remainingOwnedProcesses.Count -gt 0) { exit 10 }
 exit 0

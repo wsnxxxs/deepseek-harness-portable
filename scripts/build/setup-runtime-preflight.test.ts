@@ -28,6 +28,35 @@ test('Setup uses collision-free transaction paths and no global image-name taskk
   assert.match(source, /setup-runtime-lock-report\.json/)
   assert.match(source, /\.setup-orphan-runtime-' \+ RunId/)
   assert.match(source, /CleanupOrphanRuntimes\(AppDir\)/)
+  assert.match(source, /RunRuntimePreflight\('CleanupTree'/)
+  assert.match(readFileSync(preflight, 'utf8'), /ValidateSet\('Stop', 'Diagnose', 'CleanupTree'\)/)
+})
+test('long-path cleanup removes a runtime tree beyond MAX_PATH', {
+  skip: process.platform !== 'win32',
+}, () => {
+  const temporary = mkdtempSync(join(tmpdir(), 'dsh-long-path-cleanup-'))
+  const installRoot = join(temporary, 'DeepSeek Harness')
+  const target = join(installRoot, '.setup-orphan-runtime-test')
+  const nested = join(target, 'resources', 'app', 'node_modules', '@deepseek-ai', 'dsh-session-telemetry-otel', 'node_modules', '@opentelemetry', 'resources', 'build', 'esnext', 'detectors', 'platform', 'node', 'machine-id')
+  const payload = join(nested, 'getMachineId-unsupported.js')
+  const report = join(temporary, 'cleanup-report.json')
+  mkdirSync(nested, { recursive: true })
+  writeFileSync(payload, 'long-path-probe')
+  assert.ok(payload.length >= 260, `fixture must exceed MAX_PATH: ${payload.length}`)
+  const result = runPreflight([
+    '-Mode', 'CleanupTree',
+    '-InstallRoot', installRoot,
+    '-ResourcePath', target,
+    '-ReportPath', report,
+  ])
+  try {
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+    assert.equal(existsSync(target), false)
+    const evidence = JSON.parse(readFileSync(report, 'utf8').replace(/^\uFEFF/, '')) as { removed: boolean }
+    assert.equal(evidence.removed, true)
+  } finally {
+    rmSync(temporary, { recursive: true, force: true })
+  }
 })
 
 test('Setup completion launches the desktop app as the original user without shell execution', () => {

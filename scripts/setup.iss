@@ -167,6 +167,20 @@ begin
     Log(Format('Runtime preflight could not stop every verified product process (exit code %d); the critical swap will check again.', [RuntimePreflightResultCode]));
 end;
 
+procedure CleanupDirectoryLongPath(const Path: String);
+var
+  ReportPath: String;
+begin
+  // Inno's DelTree cannot remove dependency paths beyond MAX_PATH. The
+  // preflight helper uses a native long-path walk, while DelTree remains a
+  // compatibility fallback for ordinary directories.
+  ReportPath := AddBackslash(ExpandConstant('{app}')) + 'setup-runtime-cleanup-report.json';
+  RunRuntimePreflight('CleanupTree', Path, '', ReportPath);
+  DeleteFile(ReportPath);
+  if DirExists(Path) then
+    DelTree(Path, True, True, True);
+end;
+
 procedure RemoveDirectoryWithRetry(const Path: String);
 var
   Attempt: Integer;
@@ -175,7 +189,7 @@ begin
   begin
     if not DirExists(Path) then
       Exit;
-    DelTree(Path, True, True, True);
+    CleanupDirectoryLongPath(Path);
     if not DirExists(Path) then
       Exit;
     Log('DSH_SETUP_TRACE postinstall-enter');
@@ -199,7 +213,7 @@ begin
       if DirExists(OrphanPath) then
       begin
         Log('DSH_SETUP_TRACE orphan-cleanup-' + OrphanPath);
-        DelTree(OrphanPath, True, True, True);
+        CleanupDirectoryLongPath(OrphanPath);
         if DirExists(OrphanPath) then
           Log('DSH_SETUP_TRACE orphan-retained-' + OrphanPath);
       end;
@@ -396,7 +410,7 @@ begin
 
     if HadOldRuntime then
     begin
-      DelTree(BackupRuntime, True, True, True);
+      CleanupDirectoryLongPath(BackupRuntime);
       if DirExists(BackupRuntime) then
       begin
         OrphanRuntime := AddBackslash(AppDir) + '.setup-orphan-runtime-' + RunId;
@@ -414,7 +428,7 @@ begin
     // abandoned portable-updater journal roll this installation backward on
     // the first shortcut launch.
     DeleteFile(AddBackslash(AppDir) + '.update-transaction.json');
-    DelTree(AddBackslash(AppDir) + '.update-backups', True, True, True);
+    CleanupDirectoryLongPath(AddBackslash(AppDir) + '.update-backups');
     RemoveDirectoryWithRetry(StageDir);
   end;
 end;
