@@ -31,6 +31,9 @@ import type { DcodeKey } from '../locales.ts'
 import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
 import { SelectMenu } from './SelectMenu.tsx'
 import { PluginSettingsSection } from './PluginSettingsSection.tsx'
+import {
+  providerReadiness, type ProviderReadiness, type ProviderReadinessFacts,
+} from './provider-readiness.ts'
 import css from './SettingsSurface.module.css'
 import type {
   CredentialInfo, JsonValue, LlmConfigurableProvider, LlmProviderInfo,
@@ -295,6 +298,8 @@ interface ModelProviderRow {
   readonly userProfile: Record<string, unknown> | undefined
   readonly credentialRef: string
   readonly credential: CredentialInfo | undefined
+  readonly credentialError?: string
+  readonly providerError?: string
   readonly declared?: boolean
 }
 
@@ -389,10 +394,33 @@ async function loadModelSettings(runtime: DcodeRuntime): Promise<ModelSettingsDa
       configurable.value,
       described.value.namespaces,
       credentials,
-    ),
+    ).map(row => {
+      const failure = catalog.value.failures.find(candidate => candidate.id === row.id)
+      return {
+        ...row,
+        ...credentialError === undefined ? {} : { credentialError },
+        ...failure === undefined ? {} : { providerError: failure.message },
+      }
+    }),
     writable: described.value.writable,
     hasDocument: described.value.hasDocument,
     ...credentialError === undefined ? {} : { credentialError },
+  }
+}
+
+function providerReadinessLabel(readiness: ProviderReadiness, t: ReturnType<typeof useT>): string {
+  switch (readiness.reason) {
+    case 'missing-api-key': return t('settings.models.keyMissing')
+    case 'not-configured': return t('settings.models.notConfigured')
+    case 'credential-configured': return t('settings.models.keyConfigured')
+    case 'key-not-required': return t('settings.models.keyNotRequired')
+    case 'credential-error': return readiness.detail === undefined
+      ? t('settings.models.credentialErrorUnknown')
+      : t('settings.models.credentialError', { error: readiness.detail })
+    case 'provider-error': return t('settings.models.providerError', { error: readiness.detail ?? t('common.error') })
+    case 'configuration-error': return readiness.detail === undefined
+      ? t('settings.models.configurationErrorUnknown')
+      : t('settings.models.configurationError', { error: readiness.detail })
   }
 }
 
@@ -474,26 +502,36 @@ function ModelProviderCard(props: {
     }
   }
 
-  const credentialConfigured = props.row.credential?.configured === true
-  const credentialDeclared = stringAt(props.row.profile, ['apiKeyEnv']) !== undefined
-  const statusLabel = credentialConfigured
-    ? t('settings.models.keyConfigured')
-    : credentialDeclared
-      ? t('settings.models.keyMissing')
-      : props.row.profile === undefined
-        ? t('settings.models.notConfigured')
-        : t('settings.models.keyNotRequired')
-  const statusClass = credentialConfigured
+  const requiresApiKey = props.row.settingsNs === ''
+    ? false
+    : props.row.profile === undefined
+      ? undefined
+      : stringAt(props.row.profile, ['apiKeyEnv']) !== undefined
+  const readinessFacts: ProviderReadinessFacts = {
+    active: props.row.active,
+    configured: props.row.profile !== undefined || props.row.settingsNs === '',
+    requiresApiKey,
+    credential: props.row.credential,
+    ...props.row.credentialError === undefined ? {} : { credentialError: props.row.credentialError },
+    ...props.row.providerError === undefined ? {} : { providerError: props.row.providerError },
+    ...failure === undefined ? {} : { configurationError: failure },
+  }
+  const readiness = providerReadiness(readinessFacts)
+  const statusLabel = providerReadinessLabel(readiness, t)
+  const statusClass = readiness.kind === 'ready'
     ? css.statusDotGood
-    : credentialDeclared
+    : readiness.kind === 'unconfigured'
       ? css.statusDotMissing
-      : css.statusDotNeutral
+      : readiness.kind === 'error'
+        ? css.statusDotError
+        : css.statusDotNeutral
   const editorId = `dcode-provider-editor-${props.row.id.replace(/[^a-z0-9_-]/gi, '-')}`
 
   return (
     <div className={css.providerCard}>
       <div className={`${css.providerHead} ${ui.cardHeader}`}>
         <span className={`${css.statusDot} ${statusClass}`} role="img" aria-label={statusLabel} title={statusLabel} />
+        <span className={css.providerStatusText}>{statusLabel}</span>
         <div className={css.rowText}>
           <div className={css.rowTitle}>{props.row.name}</div>
           <div className={css.rowBody}>{props.row.id}{props.row.active ? '' : ` · ${t('settings.models.inactive')}`}</div>
@@ -509,6 +547,10 @@ function ModelProviderCard(props: {
       {open
         ? (
           <div className={css.providerEditor} id={editorId}>
+            <div className={css.providerEditorStatus} role="status" aria-label={statusLabel} title={statusLabel}>
+              <span className={`${css.statusDot} ${statusClass}`} aria-hidden="true" />
+              <span>{statusLabel}</span>
+            </div>
             <label className={css.field}>
               <span className={css.fieldLabel}>{t('settings.models.apiKey')}</span>
               <input

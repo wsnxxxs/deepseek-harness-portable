@@ -409,8 +409,25 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-warn) 14%, transparent);
 }
 
+.statusDotError {
+  background: var(--zx-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zx-error) 14%, transparent);
+}
+
 .statusDotNeutral {
   background: var(--zx-label-tertiary);
+}
+
+.providerStatusText {
+  color: var(--zx-label-muted);
+}
+
+.providerEditorStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
 }
 
 .providerEditor {
