@@ -56,6 +56,9 @@ export const en = {
   'top.toggleAside': 'Toggle details panel',
   'top.togglePreview': 'Show or hide the preview sidebar',
   'top.toggleSummary': 'Show or hide the environment summary',
+  'top.contextChanges': '{count} changed files',
+  'top.contextError': 'Tool failed',
+  'top.contextGoal': 'Goal active',
   'top.moreActions': 'More actions',
   'top.officialUi': 'Switch to the official interface',
 
@@ -785,6 +788,9 @@ export const zh: Record<DcodeKey, string> = {
   'top.toggleAside': '切换详情面板',
   'top.togglePreview': '显示/隐藏预览侧边栏',
   'top.toggleSummary': '显示/隐藏环境信息摘要',
+  'top.contextChanges': '{count} 个文件有变更',
+  'top.contextError': '工具执行失败',
+  'top.contextGoal': '目标进行中',
   'top.moreActions': '更多操作',
   'top.officialUi': '切换到官方版界面',
 

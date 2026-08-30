@@ -14,16 +14,24 @@ import type {
   PointerEvent as ReactPointerEvent, ReactNode,
 } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { dcodeScope } from '../tokens.ts'
-import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import {
-  useConversationBlank, useCurrentSessionId, usePendingQuestion, useWorkspaceGroups,
+  compactOverlayOf, useNavigation, type CompactOverlay, type NavigationStore,
+  type TaskContext,
+} from '../state/navigation.ts'
+import {
+  useConversationBlank, useCurrentSessionId, usePendingQuestion, useProjectionValue,
+  useTrajectorySnapshot, useWorkspaceGroups,
 } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useLayoutSize } from '../state/layout.ts'
 import {
   clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth,
 } from '../state/rail-width.ts'
+import {
+  clampAsideWidth, ASIDE_WIDTH, readAsideWidth, writeAsideWidth,
+} from '../state/aside-width.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
 import { ACRYLIC_ATTRIBUTE } from '../theme.ts'
@@ -43,12 +51,52 @@ import { LearningHome } from '../learning/LearningHome.tsx'
 import { PluginsHome } from '../plugins/PluginsHome.tsx'
 import { SettingsSurface } from '../settings/SettingsSurface.tsx'
 import { useModelReadiness, type ModelReadiness } from '../settings/readiness.ts'
+import { useGitStatus } from '../git/useGit.ts'
 import css from './Workbench.module.css'
 
 /** Props of the workbench root. */
 export interface WorkbenchProps {
   /** The view-state store shared with the keyboard layer and the palette. */
   readonly navigation: NavigationStore
+}
+
+const COMPACT_OVERLAY_HISTORY_KEY = '__dcodeCompactOverlay'
+
+function historyOverlay(value: unknown): CompactOverlay | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const overlay = (value as Record<string, unknown>)[COMPACT_OVERLAY_HISTORY_KEY]
+  return overlay === 'rail' || overlay === 'aside' || overlay === 'summary' ? overlay : undefined
+}
+
+function historyStateWithOverlay(overlay: CompactOverlay): Record<string, unknown> {
+  const current = typeof history.state === 'object' && history.state !== null
+    ? history.state as Record<string, unknown>
+    : {}
+  return { ...current, [COMPACT_OVERLAY_HISTORY_KEY]: overlay }
+}
+
+interface GoalProjectionView {
+  readonly goal: { readonly phase: string }
+}
+
+function failedCallIn(block: ToolCallBlock): string | undefined {
+  for (let index = block.subCalls.length - 1; index >= 0; index -= 1) {
+    const failed = failedCallIn(block.subCalls[index] as ToolCallBlock)
+    if (failed !== undefined) return failed
+  }
+  return 'isError' in block && block.isError ? block.callId : undefined
+}
+
+/** Most recent failure that the Details panel can inspect. */
+function latestFailure(nodes: readonly ConversationNode[]): { hasError: boolean, callId?: string } {
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = nodes[index]
+    if (node?.kind === 'tool-result') {
+      const callId = failedCallIn(node as ToolCallBlock)
+      if (callId !== undefined) return { hasError: true, callId }
+    }
+  }
+  return { hasError: false }
 }
 
 /** Keep a settings initialization failure local to the replaceable surface. */
@@ -164,17 +212,37 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
+  const compactOverlay = compactOverlayOf(state)
   const sessionId = useCurrentSessionId()
   const pendingQuestion = usePendingQuestion(sessionId)
   const cwd = useCurrentCwd(sessionId)
   const blank = useConversationBlank(sessionId)
+  const git = useGitStatus(cwd, sessionId)
+  const trajectory = useTrajectorySnapshot(sessionId)
+  const goal = useProjectionValue<GoalProjectionView | null>(sessionId, 'goal')
   const modelReadiness = useModelReadiness(sessionId)
   const { groups } = useWorkspaceGroups()
-  const { scheme } = useAppearance()
+  const { scheme, fontSize } = useAppearance()
   const [browsing, setBrowsing] = useState(false)
   const [railWidth, setRailWidth] = useState(readRailWidth)
   const [railResizing, setRailResizing] = useState(false)
   const railDrag = useRef<{ pointerId: number, startX: number, startWidth: number, width: number }>()
+
+  const [asideWidth, setAsideWidth] = useState(readAsideWidth)
+  const [asideResizing, setAsideResizing] = useState(false)
+  const asideDrag = useRef<{ pointerId: number, startX: number, startWidth: number, width: number }>()
+
+  const taskContext = useMemo<TaskContext>(() => {
+    const failure = latestFailure(trajectory?.eventNodes ?? [])
+    return {
+      hasChanges: (git.status?.files.length ?? 0) > 0,
+      hasError: failure.hasError,
+      goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
+      failedCallId: failure.callId,
+    }
+  }, [git.status, goal, trajectory])
+
+  useEffect(() => { navigation.setWorkspace(cwd) }, [cwd, navigation])
 
   // The frame fits itself to its own width rather than the window's: it is
   // mounted into a host slot, and how much room that slot has is a fact only
@@ -231,11 +299,128 @@ export function Workbench({ navigation }: WorkbenchProps) {
     resizeRail(next, true)
   }, [railWidth, resizeRail])
 
+  const resizeAside = useCallback((width: number, persist = false) => {
+    const next = clampAsideWidth(width)
+    setAsideWidth(next)
+    if (persist) writeAsideWidth(next)
+    return next
+  }, [])
+
+  const startAsideResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    asideDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: asideWidth,
+      width: asideWidth,
+    }
+    setAsideResizing(true)
+  }, [asideWidth])
+
+  const moveAsideResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = asideDrag.current
+    if (drag === undefined || drag.pointerId !== event.pointerId) return
+    drag.width = resizeAside(drag.startWidth + drag.startX - event.clientX)
+  }, [resizeAside])
+
+  const finishAsideResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = asideDrag.current
+    if (drag === undefined || drag.pointerId !== event.pointerId) return
+    writeAsideWidth(drag.width)
+    asideDrag.current = undefined
+    setAsideResizing(false)
+  }, [])
+
+  const resizeAsideWithKeyboard = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let next: number | undefined
+    const step = event.shiftKey ? 24 : 8
+    if (event.key === 'ArrowLeft') next = asideWidth + step
+    if (event.key === 'ArrowRight') next = asideWidth - step
+    if (event.key === 'Home') next = ASIDE_WIDTH.min
+    if (event.key === 'End') next = ASIDE_WIDTH.max
+    if (next === undefined) return
+    event.preventDefault()
+    resizeAside(next, true)
+  }, [asideWidth, resizeAside])
+
   const restoreOverlayFocus = useCallback((target: 'rail' | 'aside' | 'summary') => {
     window.requestAnimationFrame(() => {
       frame?.querySelector<HTMLElement>(`[data-dcode-focus-target="${target}"]`)?.focus()
     })
   }, [frame])
+
+  const dismissCompactOverlay = useCallback(() => {
+    const overlay = compactOverlayOf(navigation.getSnapshot())
+    navigation.closeCompactOverlay()
+    if (overlay !== undefined) restoreOverlayFocus(overlay)
+  }, [navigation, restoreOverlayFocus])
+
+  // A compact overlay owns one same-URL history entry. Browser Back therefore
+  // dismisses it before it can leave the workbench; closing it through its
+  // button, scrim, or Escape consumes that entry in the same way. Replacing
+  // the marker when overlays switch keeps the mutually-exclusive hand-off to
+  // a single history step, and Forward can restore the marked overlay.
+  const previousCompactOverlay = useRef<CompactOverlay>()
+  const overlayFromPopState = useRef(false)
+  const programmaticHistoryBack = useRef(false)
+  const compactOverlayRef = useRef(compactOverlay)
+  compactOverlayRef.current = compactOverlay
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent): void => {
+      if (programmaticHistoryBack.current) {
+        programmaticHistoryBack.current = false
+        return
+      }
+      const current = compactOverlayRef.current
+      if (current !== undefined) {
+        overlayFromPopState.current = true
+        dismissCompactOverlay()
+        return
+      }
+      const forwardOverlay = historyOverlay(event.state)
+      if (forwardOverlay !== undefined && navigation.getSnapshot().layout === 'compact') {
+        overlayFromPopState.current = true
+        navigation.openCompactOverlay(forwardOverlay)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      if (historyOverlay(history.state) !== undefined) {
+        const next = { ...(history.state as Record<string, unknown>) }
+        delete next[COMPACT_OVERLAY_HISTORY_KEY]
+        history.replaceState(next, '')
+      }
+    }
+  }, [dismissCompactOverlay, navigation])
+
+  useEffect(() => {
+    const previous = previousCompactOverlay.current
+    previousCompactOverlay.current = compactOverlay
+    if (previous === compactOverlay) return
+
+    if (compactOverlay !== undefined) {
+      if (overlayFromPopState.current) {
+        overlayFromPopState.current = false
+        return
+      }
+      if (previous === undefined) history.pushState(historyStateWithOverlay(compactOverlay), '')
+      else history.replaceState(historyStateWithOverlay(compactOverlay), '')
+      return
+    }
+
+    if (previous !== undefined) {
+      if (overlayFromPopState.current) {
+        overlayFromPopState.current = false
+      } else if (historyOverlay(history.state) !== undefined) {
+        programmaticHistoryBack.current = true
+        history.back()
+      }
+    }
+  }, [compactOverlay])
 
   // A native backdrop only shows through a transparent document, and the
   // desktop shell paints an opaque page ground of its own. Clearing it is
@@ -257,12 +442,15 @@ export function Workbench({ navigation }: WorkbenchProps) {
     document.body.setAttribute('data-dcode-scope', '')
     document.body.setAttribute('data-dcode-scheme', scheme)
     document.body.setAttribute(ACRYLIC_ATTRIBUTE, '')
+    document.body.style.setProperty('--dsh-content-font-size', `${fontSize}px`)
+    document.body.style.setProperty('--zx-font-size-base', `${fontSize}px`)
     return () => {
       document.body.removeAttribute('data-dcode-scope')
       document.body.removeAttribute('data-dcode-scheme')
       document.body.removeAttribute(ACRYLIC_ATTRIBUTE)
+      document.body.style.removeProperty('--zx-font-size-base')
     }
-  }, [scheme])
+  }, [scheme, fontSize])
 
   const newTask = useCallback((workspaceId?: string) => {
     navigation.show('session')
@@ -335,29 +523,24 @@ export function Workbench({ navigation }: WorkbenchProps) {
         event.preventDefault()
         const snapshot = navigation.getSnapshot()
         if (snapshot.paletteOpen) navigation.togglePalette(false)
+        else if (compactOverlayOf(snapshot) !== undefined) dismissCompactOverlay()
         else if (snapshot.summaryOpen) {
           navigation.toggleSummary(false)
           restoreOverlayFocus('summary')
         } else if (snapshot.diff !== undefined) {
           navigation.closeDiff()
           restoreOverlayFocus('aside')
-        } else if (snapshot.layout === 'compact' && snapshot.railOpen) {
-          navigation.closeRail()
-          restoreOverlayFocus('rail')
-        } else if (snapshot.layout === 'compact' && snapshot.asideOpen) {
-          navigation.toggleAside()
-          restoreOverlayFocus('aside')
         }
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [navigation, newTask, openWorkspace, restoreOverlayFocus])
+  }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus])
 
   const fullSurface = state.view !== 'session'
   // Compact holds both side panels over the conversation instead of beside
   // it, so there they need a scrim to dismiss against.
-  const drawer = state.layout === 'compact' && (state.railOpen || state.asideOpen)
+  const overlayOpen = compactOverlay !== undefined
 
   return (
     <div
@@ -367,7 +550,13 @@ export function Workbench({ navigation }: WorkbenchProps) {
       data-dcode-scheme={scheme}
       data-dcode-layout={state.layout}
       data-rail-resizing={railResizing ? '' : undefined}
-      style={{ '--zx-rail-width': `${railWidth}px` } as CSSProperties}
+      data-aside-resizing={asideResizing ? '' : undefined}
+      style={{
+        '--zx-rail-width': `${railWidth}px`,
+        '--zx-aside-width': `${asideWidth}px`,
+        '--zx-font-size-base': `${fontSize}px`,
+        '--dsh-content-font-size': `${fontSize}px`,
+      } as CSSProperties}
       {...{ [ACRYLIC_ATTRIBUTE]: '' }}
     >
       {fullSurface
@@ -393,15 +582,12 @@ export function Workbench({ navigation }: WorkbenchProps) {
         )
         : (
           <>
-            {drawer
+            {overlayOpen
               ? (
                 <div
                   className={css.scrim}
                   role="presentation"
-                  onClick={() => {
-                    if (state.railOpen) navigation.closeRail()
-                    if (state.asideOpen) navigation.toggleAside()
-                  }}
+                  onClick={dismissCompactOverlay}
                 />
               )
               : null}
@@ -409,7 +595,6 @@ export function Workbench({ navigation }: WorkbenchProps) {
               <LeftRail
                 navigation={navigation}
                 onNewTask={newTask}
-                onOpenWorkspace={openWorkspace}
               />
               {state.railOpen && state.layout !== 'compact'
                 ? (
@@ -433,12 +618,13 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 : null}
             </div>
             <div className={`${css.center} ${blank ? css.centerBlank : ''}`}>
-              <TopBar navigation={navigation} sessionId={sessionId} cwd={cwd} />
+              <TopBar navigation={navigation} sessionId={sessionId} cwd={cwd} context={taskContext} />
               <SummaryCard
                 navigation={navigation}
                 sessionId={sessionId}
                 cwd={cwd}
                 open={state.summaryOpen}
+                compact={state.layout === 'compact'}
               />
               <Transcript
                 navigation={navigation}
@@ -447,43 +633,66 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 blank={blank}
                 compact={state.layout === 'compact'}
               />
-              {/* Content-driven: the plan card only appears while the task has
-                  a plan; trace activity lives in the environment summary. */}
-              <PlanCard key={sessionId} sessionId={sessionId} />
-              {blank
-                ? (
-                  <ReadinessCard
-                    hasWorkspace={groups.length > 0}
-                    hasSession={sessionId !== undefined}
-                    model={modelReadiness}
-                    onOpenWorkspace={openWorkspace}
-                    onNewTask={() => { newTask(groups[0]?.workspaceId) }}
-                    onSelectModel={selectModel}
-                    onConfigureProvider={configureProvider}
-                    t={t}
-                  />
-                )
-                : null}
-              {pendingQuestion === undefined
-                ? (
-                  <Composer
-                    sessionId={sessionId}
-                    blank={blank}
-                    cwd={cwd}
-                    onOpenWorkspace={openWorkspace}
-                    readiness={modelReadiness}
-                    onSelectModel={selectModel}
-                    onConfigureProvider={configureProvider}
-                  />
-                )
-                : <QuestionComposer pending={pendingQuestion} />}
+              {/* The composer seat is the plan card's anchor. The card is
+                  absolutely positioned above this wrapper, so it floats over
+                  the transcript instead of shortening its scroll viewport. */}
+              <div className={css.composerSeat}>
+                <PlanCard key={sessionId} sessionId={sessionId} />
+                {blank
+                  ? (
+                    <ReadinessCard
+                      hasWorkspace={groups.length > 0}
+                      hasSession={sessionId !== undefined}
+                      model={modelReadiness}
+                      onOpenWorkspace={openWorkspace}
+                      onNewTask={() => { newTask(groups[0]?.workspaceId) }}
+                      onSelectModel={selectModel}
+                      onConfigureProvider={configureProvider}
+                      t={t}
+                    />
+                  )
+                  : null}
+                {pendingQuestion === undefined
+                  ? (
+                    <Composer
+                      sessionId={sessionId}
+                      blank={blank}
+                      cwd={cwd}
+                      onOpenWorkspace={openWorkspace}
+                      readiness={modelReadiness}
+                      onSelectModel={selectModel}
+                      onConfigureProvider={configureProvider}
+                    />
+                  )
+                  : <QuestionComposer pending={pendingQuestion} />}
+              </div>
               {/* Balances the transcript's share of the free height while the
                   conversation is blank; inert otherwise. Kept after the
                   composer so the phase change never remounts it. */}
               <div className={css.filler} aria-hidden />
             </div>
             <div className={`${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`}>
-              <Aside navigation={navigation} sessionId={sessionId} cwd={cwd} />
+              {state.asideOpen && state.layout !== 'compact'
+                ? (
+                  <div
+                    className={css.asideResizeHandle}
+                    role="separator"
+                    aria-label={t('nav.resize')}
+                    aria-orientation="vertical"
+                    aria-valuemin={ASIDE_WIDTH.min}
+                    aria-valuemax={ASIDE_WIDTH.max}
+                    aria-valuenow={asideWidth}
+                    tabIndex={0}
+                    onPointerDown={startAsideResize}
+                    onPointerMove={moveAsideResize}
+                    onPointerUp={finishAsideResize}
+                    onPointerCancel={finishAsideResize}
+                    onKeyDown={resizeAsideWithKeyboard}
+                    onDoubleClick={() => { resizeAside(ASIDE_WIDTH.default, true) }}
+                  />
+                )
+                : null}
+              <Aside navigation={navigation} sessionId={sessionId} cwd={cwd} context={taskContext} />
             </div>
           </>
         )}

@@ -14,7 +14,10 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import { fitPanels, initialLayoutSize, LAYOUT_FIT, type LayoutSize } from './layout.ts'
+import {
+  fitPanels, initialLayoutSize, LAYOUT_FIT, readContextPanelPreference,
+  writeContextPanelPreference, type LayoutSize,
+} from './layout.ts'
 
 /** The top-level surfaces the left rail selects between. */
 export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
@@ -22,13 +25,41 @@ export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details'
 
+/** The three surfaces that occupy the compact frame as overlays. */
+export type CompactOverlay = 'rail' | 'aside' | 'summary'
+
 /** Stable visual and keyboard order of the preview-panel tabs. */
 export const ASIDE_TABS: readonly AsideTab[] = ['changes', 'terminal', 'goal', 'details']
 
+/** Facts that decide which context deserves the shortest path. */
+export interface TaskContext {
+  readonly hasChanges: boolean
+  readonly hasError: boolean
+  readonly goalActive: boolean
+  readonly failedCallId?: string
+}
+
+/** Highest-priority automatic context signal, if the task has one. */
+export function primaryAsideTab(context: TaskContext): AsideTab | undefined {
+  if (context.hasError) return 'details'
+  if (context.hasChanges) return 'changes'
+  if (context.goalActive) return 'goal'
+  return undefined
+}
+
+/** Put the most actionable context first while retaining every existing tab. */
+export function orderedAsideTabs(context: TaskContext): readonly AsideTab[] {
+  const priority: AsideTab[] = []
+  if (context.hasError) priority.push('details')
+  if (context.hasChanges) priority.push('changes')
+  if (context.goalActive) priority.push('goal')
+  return [...new Set([...priority, ...ASIDE_TABS])]
+}
+
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
-export function adjacentAsideTab(tab: AsideTab, direction: -1 | 1): AsideTab {
-  const index = ASIDE_TABS.indexOf(tab)
-  return ASIDE_TABS[(index + direction + ASIDE_TABS.length) % ASIDE_TABS.length] ?? 'changes'
+export function adjacentAsideTab(tab: AsideTab, direction: -1 | 1, tabs: readonly AsideTab[] = ASIDE_TABS): AsideTab {
+  const index = tabs.indexOf(tab)
+  return tabs[(index + direction + tabs.length) % tabs.length] ?? 'changes'
 }
 
 /** Settings sections, mirroring the official settings surface's own groups. */
@@ -75,6 +106,10 @@ export interface NavigationState {
    */
   readonly railPinned: boolean
   readonly asidePinned: boolean
+  /** Explicit docked-panel choice, retained while compact temporarily hides it. */
+  readonly asidePreferredOpen: boolean | undefined
+  /** Workspace whose manual context-panel choice is currently in force. */
+  readonly workspace: string | undefined
   readonly settingsSection: SettingsSection
   /** Provider editor requested from an in-task readiness action. */
   readonly settingsProvider: string | undefined
@@ -96,6 +131,8 @@ const INITIAL: NavigationState = {
   layout: INITIAL_LAYOUT,
   railPinned: false,
   asidePinned: false,
+  asidePreferredOpen: undefined,
+  workspace: undefined,
   settingsSection: 'general',
   settingsProvider: undefined,
   diff: undefined,
@@ -116,6 +153,8 @@ export interface NavigationStore {
   openProviderSettings(provider: string): void
   /** Open the preview sidebar on one tab, dismissing the summary card. */
   openAside(tab: AsideTab): void
+  /** Apply the remembered context-panel choice when the workspace changes. */
+  setWorkspace(workspace: string | undefined): void
   /** Open the diff viewer on one path, which also reveals the aside. */
   openDiff(path: string, staged?: boolean): void
   /** Close the diff viewer. */
@@ -124,11 +163,13 @@ export interface NavigationStore {
   inspect(callId: string | undefined): void
   togglePalette(open?: boolean): void
   toggleRail(): void
-  /** Close the rail, which is how the compact drawer's scrim dismisses it. */
-  closeRail(): void
   toggleAside(): void
   /** Show or hide the environment summary card. */
   toggleSummary(open?: boolean): void
+  /** Open exactly one compact overlay, closing either of its peers. */
+  openCompactOverlay(overlay: CompactOverlay): void
+  /** Dismiss whichever compact overlay is showing. */
+  closeCompactOverlay(): void
   /**
    * Fit the panels to a width class.
    *
@@ -137,6 +178,15 @@ export interface NavigationStore {
    * {@link fitPanels}.
    */
   fit(size: LayoutSize): void
+}
+
+/** Resolve the active compact overlay; docked layouts have no overlay. */
+export function compactOverlayOf(state: NavigationState): CompactOverlay | undefined {
+  if (state.layout !== 'compact') return undefined
+  if (state.summaryOpen) return 'summary'
+  if (state.asideOpen) return 'aside'
+  if (state.railOpen) return 'rail'
+  return undefined
 }
 
 /**
@@ -154,11 +204,24 @@ export function createNavigationStore(): NavigationStore {
    */
   const pin = (key: 'railPinned' | 'asidePinned'): Partial<NavigationState> =>
     (state.layout === 'compact' ? {} : { [key]: true })
+  const compactOverlayPatch = (overlay: CompactOverlay): Partial<NavigationState> => {
+    if (state.layout !== 'compact') return {}
+    return {
+      railOpen: overlay === 'rail',
+      asideOpen: overlay === 'aside',
+      summaryOpen: overlay === 'summary',
+    }
+  }
   const patch = (next: Partial<NavigationState>): void => {
     const merged = { ...state, ...next }
     if ((Object.keys(next) as Array<keyof NavigationState>).every(key => Object.is(state[key], merged[key]))) return
     state = merged
     emit()
+  }
+  const rememberAside = (open: boolean): Partial<NavigationState> => {
+    if (state.layout === 'compact') return {}
+    writeContextPanelPreference(state.workspace, open)
+    return { asidePinned: true, asidePreferredOpen: open }
   }
   return {
     getSnapshot: () => state,
@@ -169,27 +232,57 @@ export function createNavigationStore(): NavigationStore {
     patch,
     // The compact drawer floats over the conversation, so every rail entry
     // that changes what is showing behind it also dismisses it.
-    show: view => { patch({ view, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false } : {}) }) },
-    openSettings: section => { patch({ view: 'settings', settingsSection: section, paletteOpen: false }) },
-    openProviderSettings: provider => { patch({ view: 'settings', settingsSection: 'models', settingsProvider: provider, paletteOpen: false }) },
+    show: view => { patch({ view, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
+    openSettings: section => { patch({ view: 'settings', settingsSection: section, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
+    openProviderSettings: provider => { patch({ view: 'settings', settingsSection: 'models', settingsProvider: provider, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
     // Picking a row in the summary card is a navigation, so the card gives
     // way to the panel it just sent the operator to.
-    openAside: tab => { patch({ aside: tab, asideOpen: true, summaryOpen: false, ...pin('asidePinned') }) },
+    openAside: tab => { patch({ aside: tab, asideOpen: true, summaryOpen: false, ...compactOverlayPatch('aside'), ...rememberAside(true) }) },
+    setWorkspace: workspace => {
+      if (state.workspace === workspace) return
+      const preferred = readContextPanelPreference(workspace)
+      patch({
+        workspace,
+        asideOpen: state.layout === 'compact' ? false : preferred ?? false,
+        asidePinned: preferred !== undefined,
+        asidePreferredOpen: preferred,
+        diff: undefined,
+        inspectedCallId: undefined,
+      })
+    },
     openDiff: (path, staged = false) => {
-      patch({ diff: { path, staged }, aside: 'changes', asideOpen: true, ...pin('asidePinned') })
+      patch({ diff: { path, staged }, aside: 'changes', asideOpen: true, ...compactOverlayPatch('aside'), ...rememberAside(true) })
     },
     closeDiff: () => { patch({ diff: undefined }) },
     inspect: callId => {
-      patch({ inspectedCallId: callId, aside: 'details', asideOpen: true, ...pin('asidePinned') })
+      patch({ inspectedCallId: callId, aside: 'details', asideOpen: true, ...compactOverlayPatch('aside'), ...rememberAside(true) })
     },
     togglePalette: open => { patch({ paletteOpen: open ?? !state.paletteOpen }) },
-    toggleRail: () => { patch({ railOpen: !state.railOpen, ...pin('railPinned') }) },
-    closeRail: () => { patch({ railOpen: false, ...pin('railPinned') }) },
-    toggleAside: () => { patch({ asideOpen: !state.asideOpen, ...pin('asidePinned') }) },
-    toggleSummary: open => { patch({ summaryOpen: open ?? !state.summaryOpen }) },
+    toggleRail: () => {
+      const open = !state.railOpen
+      patch({ railOpen: open, ...(open ? compactOverlayPatch('rail') : {}), ...pin('railPinned') })
+    },
+    toggleAside: () => {
+      const open = !state.asideOpen
+      patch({ asideOpen: open, ...(open ? compactOverlayPatch('aside') : {}), ...rememberAside(open) })
+    },
+    toggleSummary: open => {
+      const next = open ?? !state.summaryOpen
+      patch({ summaryOpen: next, ...(next ? compactOverlayPatch('summary') : {}) })
+    },
+    openCompactOverlay: overlay => { patch(compactOverlayPatch(overlay)) },
+    closeCompactOverlay: () => {
+      if (state.layout === 'compact') patch({ railOpen: false, asideOpen: false, summaryOpen: false })
+    },
     fit: size => {
       if (state.layout === size) return
-      patch({ layout: size, ...fitPanels(size, state) })
+      const fitted = fitPanels(size, state)
+      patch({
+        layout: size,
+        ...fitted,
+        asideOpen: size === 'compact' ? false : state.asidePreferredOpen ?? false,
+        asidePinned: state.asidePreferredOpen !== undefined,
+      })
     },
   }
 }

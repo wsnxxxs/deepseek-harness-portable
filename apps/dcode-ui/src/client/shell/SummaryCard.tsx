@@ -31,6 +31,7 @@ import { EMPTY_TRAJECTORY_SNAPSHOT } from '../state/runtime.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { latestTodos } from '../chat/tools.ts'
 import { ui } from './ui.tsx'
+import { useModalFocus } from './use-modal-focus.ts'
 import css from './SummaryCard.module.css'
 
 /** Props of the summary card. */
@@ -40,6 +41,8 @@ export interface SummaryCardProps {
   readonly cwd: string | undefined
   /** Top-bar controlled visibility. */
   readonly open: boolean
+  /** Compact summaries are modal bottom sheets rather than anchored cards. */
+  readonly compact: boolean
 }
 
 /** The goal projection's shape, read structurally to avoid a package edge. */
@@ -150,7 +153,7 @@ function Row(props: {
 }
 
 /** The environment digest, or null while the top bar keeps it closed. */
-export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardProps) {
+export function SummaryCard({ navigation, sessionId, cwd, open, compact }: SummaryCardProps) {
   const cardRef = useRef<HTMLElement>(null)
   const t = useT()
   const { groups } = useWorkspaceGroups()
@@ -172,12 +175,16 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
     [groups, cwd, sessionId],
   )
 
-  useEffect(() => {
-    if (!open) return undefined
+  useModalFocus(open && compact, cardRef, { onClose: () => { navigation.toggleSummary(false) } })
 
-    const onDocumentClick = (event: MouseEvent): void => {
+  useEffect(() => {
+    if (!open || compact) return undefined
+
+    const onDocumentPointerDown = (event: PointerEvent): void => {
       const target = event.target
       if (target instanceof Node && cardRef.current?.contains(target) === true) return
+      if (target instanceof Element
+        && target.closest('[data-dcode-focus-target="summary"]') !== null) return
       navigation.toggleSummary(false)
     }
     const onDocumentKeyDown = (event: KeyboardEvent): void => {
@@ -190,13 +197,13 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
       })
     }
 
-    document.addEventListener('click', onDocumentClick)
+    document.addEventListener('pointerdown', onDocumentPointerDown)
     document.addEventListener('keydown', onDocumentKeyDown, true)
     return () => {
-      document.removeEventListener('click', onDocumentClick)
+      document.removeEventListener('pointerdown', onDocumentPointerDown)
       document.removeEventListener('keydown', onDocumentKeyDown, true)
     }
-  }, [navigation, open])
+  }, [compact, navigation, open])
 
   if (!open) return null
 
@@ -208,7 +215,14 @@ export function SummaryCard({ navigation, sessionId, cwd, open }: SummaryCardPro
   const running = trajectory?.runningCalls.length ?? 0
 
   return (
-    <section ref={cardRef} className={css.card} aria-label={t('summary.title')}>
+    <section
+      ref={cardRef}
+      className={css.card}
+      aria-label={t('summary.title')}
+      aria-modal={compact ? true : undefined}
+      role={compact ? 'dialog' : undefined}
+      tabIndex={compact ? -1 : undefined}
+    >
       <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.title}>{t('summary.title')}</span>
         <button

@@ -117,7 +117,10 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  /* The transcript owns vertical scrolling. Keeping this stacking column
+     visible lets anchored tooltips and summary/popover surfaces escape the
+     column without being clipped; the root still clips to the viewport. */
+  overflow: visible;
   /* Query container for everything stacked inside it. What the composer, the
      plan card and the transcript have to fit is this column, which is the
      window less whatever the rail and the card are holding — so they ask the
@@ -141,6 +144,16 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
 
 .centerBlank .filler {
   flex: 1 1 0;
+}
+
+/* One in-flow seat owns the variable-height composer/question surface. The
+   plan card anchors to its top edge but stays out of layout, allowing the
+   transcript to continue behind the translucent floating surface. */
+.composerSeat {
+  position: relative;
+  z-index: var(--zx-z-sticky);
+  flex: none;
+  min-width: 0;
 }
 
 .readiness {
@@ -183,10 +196,18 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
   color: var(--zx-label-secondary);
   font-size: var(--zx-text-xs);
 }
+
+/* Keep enough trailing scroll room to lift the final response above an open
+   plan. This is scrollable breathing room, not a viewport cut-out. */
+.center:has([data-dcode-plan-card]) {
+  --zx-transcript-plan-clearance: calc(min(300px, 34vh) + var(--zx-space-3));
+}
+
 /* The preview sidebar: a column of the frame, not a sheet over it, so the
    panel it carries — changes, goal, the diff viewer — can be worked in
    while the conversation stays readable beside it. */
 .aside {
+  position: relative;
   width: var(--zx-aside-width);
   min-width: var(--zx-aside-width);
   display: flex;
@@ -199,6 +220,47 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
     min-width var(--zx-motion),
     transform var(--zx-motion),
     visibility var(--zx-motion);
+}
+
+/* A forgiving hit target over the divider, with a quiet visible line only
+   while the operator points at it or moves it from the keyboard. */
+.asideResizeHandle {
+  position: absolute;
+  z-index: var(--zx-z-sticky);
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 7px;
+  touch-action: none;
+  cursor: col-resize;
+  outline: none;
+}
+
+.asideResizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--zx-accent);
+  opacity: 0;
+  transition: opacity var(--zx-motion-fast);
+}
+
+.asideResizeHandle:hover::after,
+.asideResizeHandle:focus-visible::after,
+.root[data-aside-resizing] .asideResizeHandle::after {
+  opacity: 0.8;
+}
+
+.root[data-aside-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.root[data-aside-resizing] .aside {
+  transition: none;
 }
 
 .asideCollapsed {

@@ -17,7 +17,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type SessionLogDownloadState } from '../state/runtime.ts'
 import { useSessionList, useWorkspaceGroups } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
-import { useNavigation, type NavigationStore } from '../state/navigation.ts'
+import {
+  primaryAsideTab, useNavigation, type NavigationStore, type TaskContext,
+} from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { IconButton, Popover, ui } from './ui.tsx'
 import css from './TopBar.module.css'
@@ -32,10 +34,11 @@ export interface TopBarProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
   readonly cwd: string | undefined
+  readonly context: TaskContext
 }
 
 /** Task context, the left session rail toggle, sharing, and inspector control. */
-export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
+export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
@@ -56,6 +59,12 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
   )
 
   const dirty = (git.status?.files.length ?? 0) > 0
+  const contextTab = primaryAsideTab(context)
+  const contextLabel = contextTab === 'details'
+    ? t('top.contextError')
+    : contextTab === 'changes'
+      ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
+      : contextTab === 'goal' ? t('top.contextGoal') : undefined
   // While the first read is outstanding the chip shows nothing rather than
   // asserting "not a repository" about a directory it has not looked at yet.
   const branchLabel = git.pending
@@ -145,6 +154,22 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
           </button>
         )}
 
+      {!state.asideOpen && contextTab !== undefined && contextLabel !== undefined
+        ? (
+          <button
+            type="button"
+            className={`${css.contextHint} ${contextTab === 'details' ? css.contextHintError : ''}`}
+            onClick={() => {
+              if (contextTab === 'details') navigation.inspect(context.failedCallId)
+              else navigation.openAside(contextTab)
+            }}
+          >
+            <span className={css.contextDot} aria-hidden />
+            <span className={css.contextLabel}>{contextLabel}</span>
+          </button>
+        )
+        : null}
+
       <span className={css.divider} aria-hidden />
       <div className={css.actions}>
         <button
@@ -153,6 +178,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
           aria-label={shareTooltip}
           aria-busy={shareBusy}
           data-tooltip={shareTooltip}
+          data-tooltip-align="right"
           disabled={sessionId === undefined || sessionLogDownload === undefined || shareBusy}
           onClick={() => {
             if (sessionId !== undefined && sessionLogDownload !== undefined) {
@@ -169,6 +195,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
             className={css.layoutButton}
             active={state.summaryOpen}
             dataFocusTarget="summary"
+            tooltipAlign="right"
             onClick={() => { navigation.toggleSummary() }}
           >
             <TopBarListIcon size={16} />
@@ -178,6 +205,7 @@ export function TopBar({ navigation, sessionId, cwd }: TopBarProps) {
             className={css.layoutButton}
             active={state.asideOpen}
             dataFocusTarget="aside"
+            tooltipAlign="right"
             onClick={() => { navigation.toggleAside() }}
           >
             <IconPanelLeftOutline16 className={ui.mirrored} size={14} />

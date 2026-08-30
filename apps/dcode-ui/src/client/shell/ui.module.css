@@ -1,10 +1,10 @@
 /** Workbench atoms: the card, row, pill, icon button and popover shared by every panel. */
 
 .card {
-  border: 1px solid var(--zx-border-soft);
+  border: var(--zx-border-hairline);
   border-radius: var(--zx-radius-lg);
   background: var(--zx-bg-card);
-  box-shadow: var(--zx-shadow-card);
+  box-shadow: var(--zx-shadow-card), var(--zx-shadow-inset-top);
   overflow: hidden;
 }
 
@@ -17,6 +17,16 @@
   font-weight: var(--zx-weight-medium);
   font-size: var(--zx-text-xs);
   color: var(--zx-label-secondary);
+  box-shadow: var(--zx-shadow-inset-top);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
+}
+
+.cardHeader:where(button):active:not(:disabled) {
+  transform: scale(0.995);
 }
 
 .cardBody {
@@ -44,13 +54,18 @@
   height: var(--zx-control-xs);
   padding: 0 var(--zx-space-2);
   border: 1px solid transparent;
-  border-radius: var(--zx-radius-md);
+  border-radius: var(--zx-radius-pill);
   background: transparent;
   color: var(--zx-label-secondary);
   font: inherit;
   font-size: var(--zx-text-xs);
   cursor: pointer;
-  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    border-color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .tooltipTarget {
@@ -62,7 +77,9 @@
   z-index: var(--zx-z-tooltip);
   top: calc(100% + 6px);
   left: 50%;
-  max-width: 240px;
+  width: max-content;
+  max-width: min(240px, calc(100vw - var(--zx-space-3) * 2));
+  box-sizing: border-box;
   padding: 5px 8px;
   border: 1px solid var(--zx-border-control);
   border-radius: var(--zx-radius-sm);
@@ -78,7 +95,9 @@
   transform: translate(-50%, -2px);
   transition: opacity var(--zx-motion-fast), transform var(--zx-motion-fast), visibility var(--zx-motion-fast);
   visibility: hidden;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
 }
 
 .tooltipTarget:hover::after,
@@ -88,9 +107,26 @@
   visibility: visible;
 }
 
+/* Controls near the viewport's right edge anchor their label to that edge
+   instead of centring a potentially long string beyond the visible area. */
+.tooltipTarget[data-tooltip-align='right']::after {
+  right: 0;
+  left: auto;
+  transform: translateY(-2px);
+}
+
+.tooltipTarget[data-tooltip-align='right']:hover::after,
+.tooltipTarget[data-tooltip-align='right']:focus-visible::after {
+  transform: translateY(0);
+}
+
 .iconButton:hover:not(:disabled) {
   background: var(--zx-bg-hover);
   color: var(--zx-label);
+}
+
+.iconButton:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .iconButton:disabled {
@@ -116,18 +152,27 @@
   height: var(--zx-control-sm);
   padding: 0 var(--zx-space-4);
   border: 1px solid var(--zx-border-control);
-  border-radius: var(--zx-radius-md);
+  border-radius: var(--zx-radius-pill);
   background: var(--zx-bg-raised);
   color: var(--zx-label);
   font: inherit;
   font-size: var(--zx-text-xs);
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast);
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    border-color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .button:hover:not(:disabled) {
   background: var(--zx-bg-hover);
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .button:disabled {
@@ -208,20 +253,26 @@
 .popover {
   position: absolute;
   z-index: var(--zx-z-popover);
-  min-width: 200px;
-  max-width: 340px;
-  max-height: 60vh;
+  min-width: min(200px, calc(100vw - var(--zx-space-4) * 2));
+  max-width: min(340px, calc(100vw - var(--zx-space-4) * 2));
+  max-height: min(60vh, calc(100dvh - var(--zx-space-4) * 2));
+  box-sizing: border-box;
   overflow: hidden auto;
   padding: var(--zx-space-1);
-  border: 1px solid color-mix(in srgb, var(--zx-label) 18%, transparent);
-  border-radius: 12px;
+  border: var(--zx-border-hairline);
+  border-radius: var(--zx-radius-2xl);
   background: var(--zx-bg-overlay);
   background: color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);
   box-shadow:
     var(--zx-shadow-popover),
-    inset 0 1px 0 color-mix(in srgb, var(--zx-label) 12%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(130%);
-  backdrop-filter: blur(20px) saturate(130%);
+    var(--zx-shadow-inset-top);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
+[data-dcode-acrylic] .card {
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
 }
 
 .popoverUp {
@@ -239,6 +290,13 @@
   left: auto;
 }
 
+@media (max-width: 480px) {
+  .popover {
+    min-width: min(180px, calc(100vw - var(--zx-space-3) * 2));
+    max-width: calc(100vw - var(--zx-space-3) * 2);
+  }
+}
+
 .menuItem {
   display: flex;
   align-items: center;
@@ -247,17 +305,26 @@
   min-height: 36px;
   padding: var(--zx-space-2) var(--zx-space-3);
   border: 0;
-  border-radius: var(--zx-radius-md);
+  border-radius: var(--zx-radius-pill);
   background: transparent;
   color: var(--zx-label);
   font: inherit;
   font-size: var(--zx-text-xs);
   text-align: left;
   cursor: pointer;
+  transition:
+    background var(--zx-motion-fast),
+    color var(--zx-motion-fast),
+    box-shadow var(--zx-motion-fast),
+    transform var(--zx-motion-fast);
 }
 
 .menuItem:hover {
   background: var(--zx-bg-hover);
+}
+
+.menuItem:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 .menuItem:disabled {
@@ -357,6 +424,30 @@
   height: var(--zx-spinner-sm);
 }
 
+/* A restrained material glint for live Tool and Thinking surfaces. The
+   overlay carries no layout and accepts no input, so state changes never
+   disturb text selection, focus, or hit targets. */
+.shimmerActive {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.shimmerActive::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--zx-label) 14%, transparent);
+  -webkit-mask-image: linear-gradient(108deg, transparent 20%, #000 42%, #000 58%, transparent 80%);
+  mask-image: linear-gradient(108deg, transparent 20%, #000 42%, #000 58%, transparent 80%);
+  content: '';
+  pointer-events: none;
+  transform: translate3d(-120%, 0, 0);
+  animation: zx-shimmer 2.8s cubic-bezier(0.22, 0.68, 0.32, 1) infinite;
+  will-change: transform;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;
@@ -373,8 +464,20 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes zx-shimmer {
+  0%, 12% { opacity: .16; transform: translate3d(-120%, 0, 0); }
+  46% { opacity: .72; transform: translate3d(120%, 0, 0); }
+  58%, 100% { opacity: .12; transform: translate3d(120%, 0, 0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 2s; }
+  .shimmerActive::after {
+    animation: none;
+    opacity: .08;
+    transform: none;
+    will-change: auto;
+  }
 }
 
 /* Horizontal flip: one panel glyph serves both the left and the right toggle. */

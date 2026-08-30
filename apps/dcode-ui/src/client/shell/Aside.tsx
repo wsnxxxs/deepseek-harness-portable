@@ -19,8 +19,8 @@ import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import {
-  adjacentAsideTab, ASIDE_TABS, useNavigation,
-  type AsideTab, type DiffTarget, type NavigationStore,
+  adjacentAsideTab, orderedAsideTabs, useNavigation,
+  type AsideTab, type DiffTarget, type NavigationStore, type TaskContext,
 } from '../state/navigation.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
@@ -35,6 +35,7 @@ export interface AsideProps {
   readonly navigation: NavigationStore
   readonly sessionId: SessionId | undefined
   readonly cwd: string | undefined
+  readonly context: TaskContext
 }
 
 /** The goal projection's shape, read structurally to avoid a package edge. */
@@ -291,7 +292,7 @@ function TerminalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
 }
 
 /** The docked preview sidebar with its content views. */
-export function Aside({ navigation, sessionId, cwd }: AsideProps) {
+export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
   const tabPrefix = useId()
@@ -303,16 +304,17 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
     goal: t('goal.title'),
     details: t('details.title'),
   }
-  const tabs = ASIDE_TABS.map(id => ({ id, label: labels[id] }))
+  const tabOrder = orderedAsideTabs(context)
+  const tabs = tabOrder.map(id => ({ id, label: labels[id] }))
   const panelId = `${tabPrefix}-panel`
   const moveTab = (event: React.KeyboardEvent<HTMLButtonElement>, index: number): void => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
     event.preventDefault()
     const next = event.key === 'Home'
-      ? ASIDE_TABS[0]
+      ? tabOrder[0]
       : event.key === 'End'
-        ? ASIDE_TABS[ASIDE_TABS.length - 1]
-        : adjacentAsideTab(tabs[index]?.id ?? state.aside, event.key === 'ArrowRight' ? 1 : -1)
+        ? tabOrder[tabOrder.length - 1]
+        : adjacentAsideTab(tabs[index]?.id ?? state.aside, event.key === 'ArrowRight' ? 1 : -1, tabOrder)
     if (next === undefined) return
     navigation.openAside(next)
     tabRefs.current[next]?.focus()
@@ -351,7 +353,7 @@ export function Aside({ navigation, sessionId, cwd }: AsideProps) {
         ))}
         <span
           className={css.tabIndicator}
-          style={{ transform: `translateX(${String(ASIDE_TABS.indexOf(state.aside) * 100)}%)` }}
+          style={{ transform: `translateX(${String(tabOrder.indexOf(state.aside) * 100)}%)` }}
           aria-hidden
         />
       </div>

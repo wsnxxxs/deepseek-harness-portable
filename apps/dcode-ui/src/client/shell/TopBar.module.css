@@ -103,6 +103,51 @@
   color: var(--zx-warn);
 }
 
+.contextHint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-width: 0;
+  height: var(--zx-control-xs);
+  padding: 0 var(--zx-space-3);
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-accent) 10%, transparent);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  font-size: var(--zx-text-xs);
+  cursor: pointer;
+}
+
+.contextHint:hover {
+  background: color-mix(in srgb, var(--zx-accent) 16%, transparent);
+  color: var(--zx-label);
+}
+
+.contextHint:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.contextHintError {
+  background: color-mix(in srgb, var(--zx-error) 11%, transparent);
+  color: var(--zx-error);
+}
+
+.contextDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.contextLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .actions {
   display: inline-flex;
   align-items: center;
@@ -189,8 +234,13 @@
    --------------------------------------------------------------------------- */
 
 [data-dcode-layout='compact'] .chipLabel,
-[data-dcode-layout='compact'] .shareLabel {
+[data-dcode-layout='compact'] .shareLabel,
+[data-dcode-layout='compact'] .contextLabel {
   display: none;
+}
+
+[data-dcode-layout='compact'] .contextHint {
+  padding: 0 var(--zx-space-2);
 }
 
 [data-dcode-layout='compact'] .chip,

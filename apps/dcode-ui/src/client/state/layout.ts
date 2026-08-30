@@ -23,9 +23,8 @@ export type LayoutSize = 'compact' | 'medium' | 'wide'
  * Inclusive lower bound of each class, in CSS pixels of the frame's width.
  *
  * `medium` is the width at which the rail can dock without squeezing the
- * conversation below a readable column; `wide` is the width at which the
- * details card also fits beside it, in the gutter the reading measure leaves
- * rather than on top of the text.
+ * conversation below a readable column; `wide` leaves enough room for an
+ * operator-requested context panel without changing its default visibility.
  */
 export const LAYOUT_BREAKPOINTS = {
   medium: 900,
@@ -58,14 +57,37 @@ export interface PanelFit {
  * What each class opens on its own.
  *
  * Compact hands the whole frame to the conversation and leaves both panels to
- * be summoned; medium docks the rail; wide adds the details card. These are
- * defaults, not rules — the operator's own toggles win until the class
- * changes underneath them.
+ * be summoned; medium and wide dock the rail while context stays opt-in.
+ * These are defaults, not rules — the operator's workspace choice wins.
  */
 export const LAYOUT_FIT: Record<LayoutSize, PanelFit> = {
   compact: { railOpen: false, asideOpen: false },
   medium: { railOpen: true, asideOpen: false },
-  wide: { railOpen: true, asideOpen: true },
+  wide: { railOpen: true, asideOpen: false },
+}
+
+const CONTEXT_PANEL_PREFERENCES_KEY = 'dcode.contextPanel.preferences'
+
+/** Read the operator's explicit context-panel choice for one workspace. */
+export function readContextPanelPreference(workspace: string | undefined): boolean | undefined {
+  if (workspace === undefined || typeof localStorage === 'undefined') return undefined
+  try {
+    const value = JSON.parse(localStorage.getItem(CONTEXT_PANEL_PREFERENCES_KEY) ?? '{}') as Record<string, unknown>
+    return typeof value[workspace] === 'boolean' ? value[workspace] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Remember an explicit context-panel choice without coupling it to a session. */
+export function writeContextPanelPreference(workspace: string | undefined, open: boolean): void {
+  if (workspace === undefined || typeof localStorage === 'undefined') return
+  try {
+    const current = JSON.parse(localStorage.getItem(CONTEXT_PANEL_PREFERENCES_KEY) ?? '{}') as Record<string, unknown>
+    localStorage.setItem(CONTEXT_PANEL_PREFERENCES_KEY, JSON.stringify({ ...current, [workspace]: open }))
+  } catch {
+    // Storage availability must not affect navigation.
+  }
 }
 
 /** A panel pair and whether the operator has overridden either one. */

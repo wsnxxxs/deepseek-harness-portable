@@ -19,6 +19,11 @@ import css from './ui.module.css'
 /** Class names other modules compose against (they own their own layout). */
 export const ui = css
 
+/** The shared material-glint class for live Tool and Thinking surfaces. */
+export function shimmerActive(active = true): string {
+  return active ? css.shimmerActive : ''
+}
+
 /** A square control that carries an icon and an accessible name. */
 export function IconButton(props: {
   label: string
@@ -28,6 +33,7 @@ export function IconButton(props: {
   disabled?: boolean
   className?: string
   dataFocusTarget?: string
+  tooltipAlign?: 'center' | 'right'
 }) {
   return (
     <button
@@ -36,6 +42,7 @@ export function IconButton(props: {
       aria-label={props.label}
       aria-pressed={props.active}
       data-tooltip={props.label}
+      data-tooltip-align={props.tooltipAlign === 'right' ? 'right' : undefined}
       data-dcode-focus-target={props.dataFocusTarget}
       disabled={props.disabled}
       onClick={props.onClick}

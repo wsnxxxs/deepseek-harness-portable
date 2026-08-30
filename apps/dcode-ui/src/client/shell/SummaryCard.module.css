@@ -18,7 +18,9 @@
   display: flex;
   flex-direction: column;
   width: min(320px, calc(100% - var(--zx-space-4) * 2 - var(--summary-trigger-offset)));
+  max-width: calc(100vw - var(--zx-space-4) * 2);
   max-height: calc(100% - var(--zx-topbar-height) - var(--zx-space-5));
+  box-sizing: border-box;
   overflow: hidden auto;
   border: 1px solid var(--zx-border-soft);
   border-radius: var(--zx-radius-xl);
@@ -49,6 +51,32 @@
   from {
     opacity: 0;
     transform: translateY(-6px);
+  }
+}
+
+/* Compact frames present the digest as the one active modal surface. It rises
+   from the bottom above the shared scrim, leaving the top bar visible as
+   context without competing with the composer underneath. */
+:global([data-dcode-layout='compact']) .card {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  max-width: none;
+  max-height: min(72dvh, calc(100% - var(--zx-topbar-height) - var(--zx-space-4)));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: var(--zx-radius-2xl) var(--zx-radius-2xl) 0 0;
+  animation-name: sheetIn;
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
   }
 }
 
