@@ -38,6 +38,7 @@ import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { MessageNavRail } from '../shell/MessageNavRail.tsx'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
+import { useMessageFeedback, type MessageFeedbackState } from './message-feedback.ts'
 import {
   aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns,
   type ToolActivityGroup as ToolActivityGroupData,
@@ -60,125 +61,6 @@ export interface TranscriptProps {
 }
 
 type FeedbackRating = 'positive' | 'negative'
-
-interface FeedbackItem {
-  readonly messageId: string
-  readonly rating: FeedbackRating
-  readonly version: string
-}
-
-interface FeedbackFailure {
-  readonly code?: string
-  readonly message?: string
-}
-
-type FeedbackBusinessResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: FeedbackFailure }
-
-type FeedbackCarrier<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: FeedbackFailure }
-
-interface MessageFeedbackRemote {
-  list(request: { sessionId: SessionId }): Promise<FeedbackCarrier<FeedbackBusinessResult<{ items: readonly FeedbackItem[] }>>>
-  put(request: {
-    sessionId: SessionId
-    messageId: string
-    rating: FeedbackRating
-    ifVersion: string | null
-  }): Promise<FeedbackCarrier<FeedbackBusinessResult<FeedbackItem>>>
-  delete(request: {
-    sessionId: SessionId
-    messageId: string
-    ifVersion: string
-  }): Promise<FeedbackCarrier<FeedbackBusinessResult<{ absent: true }>>>
-}
-
-interface MessageFeedbackState {
-  readonly enabled: boolean
-  readonly items: ReadonlyMap<string, FeedbackItem>
-  readonly pending: ReadonlySet<string>
-  readonly error: string | undefined
-  toggle(messageId: string, rating: FeedbackRating): Promise<string | undefined>
-}
-
-function feedbackError(error: FeedbackFailure | undefined): Error {
-  return new Error(error?.message ?? error?.code ?? 'feedback request failed')
-}
-
-/** Read and mutate the durable feedback sidecar shared by assistant rows. */
-function useMessageFeedback(sessionId: SessionId | undefined): MessageFeedbackState {
-  const runtime = useRuntime()
-  const remote = (runtime.remote as unknown as { messageFeedback?: MessageFeedbackRemote }).messageFeedback
-  const [items, setItems] = useState<ReadonlyMap<string, FeedbackItem>>(() => new Map())
-  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set())
-  const [error, setError] = useState<string | undefined>(undefined)
-  const itemsRef = useRef<ReadonlyMap<string, FeedbackItem>>(new Map())
-  const pendingRef = useRef<Set<string>>(new Set())
-
-  useEffect(() => {
-    let live = true
-    const empty = new Map<string, FeedbackItem>()
-    itemsRef.current = empty
-    setItems(empty)
-    setError(undefined)
-    if (sessionId === undefined || remote === undefined) return () => { live = false }
-    void remote.list({ sessionId }).then((carried) => {
-      if (!live) return
-      if (!carried.ok) throw feedbackError(carried.error)
-      const result = carried.value
-      if (!result.ok) throw feedbackError(result.error)
-      const next = new Map(result.value.items.map(item => [item.messageId, item]))
-      itemsRef.current = next
-      setItems(next)
-    }).catch((cause: unknown) => {
-      if (!live) return
-      setError(cause instanceof Error ? cause.message : String(cause))
-    })
-    return () => { live = false }
-  }, [remote, sessionId])
-
-  const toggle = useCallback(async (messageId: string, rating: FeedbackRating): Promise<string | undefined> => {
-    if (sessionId === undefined || remote === undefined || pendingRef.current.has(messageId)) return undefined
-    pendingRef.current.add(messageId)
-    setPending(new Set(pendingRef.current))
-    setError(undefined)
-    const current = itemsRef.current.get(messageId)
-    try {
-      if (current?.rating === rating) {
-        const carried = await remote.delete({ sessionId, messageId, ifVersion: current.version })
-        if (!carried.ok) throw feedbackError(carried.error)
-        if (!carried.value.ok) throw feedbackError(carried.value.error)
-        const next = new Map(itemsRef.current)
-        next.delete(messageId)
-        itemsRef.current = next
-        setItems(next)
-      } else {
-        const carried = await remote.put({
-          sessionId,
-          messageId,
-          rating,
-          ifVersion: current?.version ?? null,
-        })
-        if (!carried.ok) throw feedbackError(carried.error)
-        if (!carried.value.ok) throw feedbackError(carried.value.error)
-        const next = new Map(itemsRef.current)
-        next.set(messageId, carried.value.value)
-        itemsRef.current = next
-        setItems(next)
-      }
-      return undefined
-    } catch (cause: unknown) {
-      return cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      pendingRef.current.delete(messageId)
-      setPending(new Set(pendingRef.current))
-    }
-  }, [remote, sessionId])
-
-  return { enabled: remote !== undefined, items, pending, error, toggle }
-}
 
 /** Click-to-expand image viewer for durable and local message images. */
 function ImageLightbox(props: { src: string; alt: string }) {
@@ -541,7 +423,7 @@ function AssistantActions(props: {
   const [branchError, setBranchError] = useState<string | undefined>(undefined)
   const [feedbackError, setFeedbackError] = useState<string | undefined>(undefined)
   const text = assistantText(props.node.blocks)
-  const messageId = props.node.messageId === undefined ? undefined : String(props.node.messageId)
+  const messageId = props.node.messageId
   const item = messageId === undefined ? undefined : props.feedback.items.get(messageId)
   const pending = messageId === undefined ? false : props.feedback.pending.has(messageId)
 
@@ -585,7 +467,7 @@ function AssistantActions(props: {
         )}
         {props.feedback.enabled && messageId !== undefined
           ? (
-            <>
+            <span style={{ display: 'contents' }} onPointerEnter={props.feedback.ensure} onFocusCapture={props.feedback.ensure}>
               <IconButton
                 label={t('chat.feedback.positive')}
                 className={css.messageAction}
@@ -604,7 +486,7 @@ function AssistantActions(props: {
               >
                 <IconDislikeOutline16 />
               </IconButton>
-            </>
+            </span>
           )
           : null}
       </span>
@@ -837,7 +719,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   const chat = useChatSnapshot(sessionId)
   const session = useSessionSnapshot(sessionId)
   const git = useGitStatus(cwd, sessionId)
-  const feedback = useMessageFeedback(sessionId)
+  const feedback = useMessageFeedback(runtime.messageFeedback, sessionId)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
   const highlightTimerRef = useRef<number | undefined>(undefined)

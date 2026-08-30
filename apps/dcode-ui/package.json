@@ -51,6 +51,7 @@
         "@dsh-portable/interactive-learning"
       ],
       "external": [
+        "@deepseek-ai/dsh-client-ui-message-feedback/client",
         "@dsh-portable/interactive-learning/client"
       ],
       "platform": "web"
@@ -69,7 +70,7 @@
     "build": "tsc -b && tsdown",
     "bundle": "tsdown",
     "watch": "tsdown --watch",
-    "test": "tsc -b && tsdown && node --test tests/*.test.mjs"
+    "test": "tsc -b && tsdown && vitest run tests/message-feedback.client.spec.tsx && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -89,6 +90,7 @@
     "@deepseek-ai/dsh-client-ui-trajectory": "workspace:^",
     "@deepseek-ai/dsh-client-ui-agent-preset": "workspace:^",
     "@deepseek-ai/dsh-client-ui-layout": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-message-feedback": "workspace:^",
     "@deepseek-ai/dsh-client-ui-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
     "@deepseek-ai/dsh-client-ui-renderer": "workspace:^",
@@ -104,14 +106,17 @@
     "@deepseek-ai/dsh-session-log-export": "workspace:^",
     "@deepseek-ai/dsh-user-questions": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-message-feedback": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
     "@types/node": "^22.13.10",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.7",
+    "jsdom": "29.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tsdown": "^0.22.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.8"
   }
 }

@@ -25,6 +25,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { MessageFeedbackRemote } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
   ComposerAttachment, ConversationController, ConversationTimelineSnapshot, DraftAttachmentId, SessionInput,
@@ -165,6 +166,8 @@ export interface DcodeRuntime {
   readonly navigation: WorkspaceNavigation | undefined
   /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
   readonly remote: ClientRemote
+  /** Stable feedback namespace captured once for this Runtime's lifetime. */
+  readonly messageFeedback: MessageFeedbackRemote | undefined
   /** Official settings scope/schema/mirror services used by settings sections. */
   readonly settings: DcodeSettingsServices
   /** Shared Conversation service: draft attachments and the per-session input machine. */
@@ -281,6 +284,12 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
   const sessionLogDownload = ctx.get('sessionLogDownload') as SessionLogDownloadFace | undefined
   const conversationSettings = settingsScope?.bind<{ busyEnter?: BusyEnterBehavior }>({ namespace: 'ui-conversation' })
   const fallbackLocale: LocaleSnapshot = { active: 'en', locales: [], revision: 0 }
+  // Cordis contextualizes a nested service with a fresh traceable Proxy on
+  // every property read. Capture this namespace once so React sees one
+  // identity for the owning Runtime's whole lifetime.
+  const messageFeedback = (ctx.remote as ClientRemote & {
+    readonly messageFeedback?: MessageFeedbackRemote
+  }).messageFeedback
 
   // One cache per session id: the Chat target face is identity-stable for a
   // binding, and `useSyncExternalStore` needs a stable subscribe reference.
@@ -292,6 +301,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
     workspaces,
     navigation,
     remote: ctx.remote,
+    messageFeedback,
     settings: {
       scope: settingsScope,
       schema: settingsSchema,
