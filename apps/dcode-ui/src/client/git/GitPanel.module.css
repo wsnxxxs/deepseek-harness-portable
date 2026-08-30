@@ -86,7 +86,7 @@
 .fileGroups {
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-3);
+  gap: var(--zx-space-2);
 }
 
 .fileToolbar {
@@ -192,6 +192,7 @@
 
 .groupAction:hover:not(:disabled) { background: var(--zx-bg-hover); }
 .groupAction:disabled { opacity: var(--zx-opacity-disabled); cursor: default; }
+.groupAction:focus-visible { outline: none; box-shadow: var(--zx-focus-ring); }
 
 .files {
   border: 1px solid var(--zx-border-soft);
@@ -216,7 +217,7 @@
   top: 0;
   right: 0;
   left: 0;
-  border-bottom: 1px solid var(--zx-border-soft);
+  border-bottom: 1px solid var(--zx-border-subtle);
   box-sizing: border-box;
 }
 
@@ -266,7 +267,7 @@
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: var(--zx-space-1) var(--zx-space-2) var(--zx-space-1) var(--zx-space-3);
+  padding: 0 var(--zx-space-2) 0 var(--zx-space-3);
   border: 0;
   background: transparent;
   color: inherit;
@@ -339,7 +340,7 @@
   flex: 1;
   flex-direction: column;
   min-width: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .pathDetail {

@@ -150,6 +150,12 @@
   color: var(--zx-label);
 }
 
+.discoveryTab:focus-visible,
+.filterField select:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
 .discoveryTabActive {
   background: var(--zx-bg-card);
   color: var(--zx-label);
@@ -317,7 +323,8 @@ a.meta:hover {
 .denseList {
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-1);
+  gap: 0;
+  border-top: 1px solid var(--zx-border-soft);
 }
 
 .card {
@@ -339,17 +346,57 @@ a.meta:hover {
 }
 
 .denseCard {
-  border-radius: var(--zx-radius-md);
+  border: 0;
+  border-bottom: 1px solid var(--zx-border-soft);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.denseCard:hover {
+  background: var(--zx-bg-panel);
+}
+
+.denseCard .cardHead {
+  min-height: var(--zx-control-md);
+  padding: var(--zx-space-2) var(--zx-space-3) 0;
   box-shadow: none;
 }
 
 .denseCard .cardBody {
-  gap: var(--zx-space-2);
-  padding: var(--zx-space-2) var(--zx-space-4) var(--zx-space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'description facts'
+    'review review';
+  align-items: center;
+  gap: var(--zx-space-1) var(--zx-space-3);
+  padding: var(--zx-space-1) var(--zx-space-3) var(--zx-space-2);
 }
 
 .denseCard .description {
+  grid-area: description;
   -webkit-line-clamp: 1;
+}
+
+.denseCard .facts {
+  grid-area: facts;
+  flex-wrap: nowrap;
+  gap: var(--zx-space-1);
+}
+
+.denseCard .review {
+  grid-area: review;
+  border: 0;
+  border-top: 1px solid var(--zx-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.denseCard .reviewSummary {
+  min-height: var(--zx-control-2xs);
+  padding: 0;
+  font-size: var(--zx-text-micro);
 }
 
 .cardHead {

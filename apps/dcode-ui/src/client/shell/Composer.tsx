@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14,
-  IconFolderOpenOutline16, IconPaperclipOutline16, IconPlusOutline16,
+  IconPaperclipOutline16, IconPlusOutline16,
   IconSendOutline16, IconStopFill16,
   RiskConfirmation,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -23,7 +23,7 @@ import type { CommandDescriptor } from '@deepseek-ai/dsh-client-ui-commands/clie
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type BusyEnterBehavior } from '../state/runtime.ts'
 import {
-  useAsync, useObservable, useProjectionValue, useSessionInput, useSessionSnapshot, useWorkspaceGroups,
+  useAsync, useObservable, useProjectionValue, useSessionInput, useSessionSnapshot,
 } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
@@ -605,16 +605,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     send(mode)
   }, [busyEnter, chooseReference, commandIndex, commandMatches, commandMenuOpen, completeCommand, contextPills, draft, referenceIndex, referenceItems, referenceMenuOpen, removeContextPill, running, send])
 
-  const { groups } = useWorkspaceGroups()
-  const workspaceTitle = useMemo(() => {
-    if (cwd !== undefined) {
-      const match = groups.find(group => group.path === cwd)
-      if (match) return match.title
-      return cwd.split(/[\\/]/).filter(Boolean).pop() || cwd
-    }
-    return undefined
-  }, [groups, cwd])
-
   const disabled = sessionId === undefined
   const compact = draft.trim() === '' && attachments.length === 0 && error === undefined
   const currentPermission = permissions?.options.find(option => option.value === permissions.currentValue)
@@ -651,16 +641,13 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       {blank && sessionId !== undefined
         ? (
           <div className={css.headerRow}>
-            <button
-              type="button"
-              className={css.projectChip}
-              onClick={onOpenWorkspace}
-              title={cwd}
-            >
-              <IconFolderOpenOutline16 />
-              <span>{workspaceTitle ?? t('nav.openWorkspace')}</span>
-              <IconChevronDownOutline14 />
-            </button>
+            {cwd === undefined
+              ? (
+                <button type="button" className={css.projectChip} onClick={onOpenWorkspace}>
+                  <span>{t('nav.openWorkspace')}</span>
+                </button>
+              )
+              : null}
             <Popover
               label={t('composer.mode')}
               disabled={modeRows.length === 0}
@@ -674,6 +661,22 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               )}
               rows={modeRows}
             />
+            {cwd === undefined
+              ? null
+              : (
+                <div className={css.starterActions} aria-label={t('composer.starters')}>
+                  {(['explain', 'changes', 'tests'] as const).map(action => (
+                    <button
+                      key={action}
+                      type="button"
+                      className={css.starterAction}
+                      onClick={() => { updateDraft(t(`composer.starter.${action}.prompt`)) }}
+                    >
+                      {t(`composer.starter.${action}`)}
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
         )
         : null}

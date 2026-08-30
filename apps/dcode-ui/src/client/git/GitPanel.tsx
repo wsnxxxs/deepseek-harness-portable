@@ -69,7 +69,7 @@ function statusLabel(file: GitFileChange, t: ReturnType<typeof useT>): string {
   }
 }
 
-const TREE_ROW_HEIGHT = 40
+const TREE_ROW_HEIGHT = 34
 const TREE_MAX_HEIGHT = 280
 const LARGE_DIRECTORY_SIZE = 24
 const EMPTY_FILES: readonly GitFileChange[] = []

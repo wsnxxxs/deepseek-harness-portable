@@ -45,6 +45,12 @@
   color: var(--zx-label);
 }
 
+.back:focus-visible,
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
 .group {
   padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
   color: var(--zx-label-tertiary);
@@ -91,7 +97,7 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-6);
+  gap: var(--zx-space-5);
 }
 
 /* DSH feature sections keep their own business UI and slot-owned states. This
@@ -112,7 +118,7 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-3);
+  gap: var(--zx-space-2);
 }
 
 .sectionTitle {
@@ -202,18 +208,19 @@
 }
 
 .card {
-  border: 1px solid var(--zx-border-soft);
+  border: 1px solid var(--zx-border-subtle);
   border-radius: var(--zx-radius-lg);
-  background: var(--zx-bg-card);
-  box-shadow: var(--zx-shadow-card);
+  background: var(--zx-bg-panel);
+  box-shadow: none;
   overflow: hidden;
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: var(--zx-space-4);
-  padding: var(--zx-space-4) var(--zx-space-5);
+  gap: var(--zx-space-3);
+  min-height: var(--zx-control-xl);
+  padding: var(--zx-space-2) var(--zx-space-4);
 }
 
 .row + .row {
@@ -236,7 +243,7 @@
   margin-top: 2px;
   color: var(--zx-label-muted);
   font-size: var(--zx-text-xs);
-  line-height: var(--zx-leading-body);
+  line-height: var(--zx-leading-snug);
 }
 
 .inlineError {
