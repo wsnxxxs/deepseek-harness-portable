@@ -6,18 +6,19 @@
  * the official three-column frame. A second registration at a lower priority
  * shadows that frame, so:
  *
- * - selecting the modern surface registers {@link Workbench} into `root`;
- * - selecting the classic surface disposes that registration and the official
- *   AppFrame renders again, untouched.
+ * - selecting the workbench registers {@link Workbench} into `root`;
+ * - selecting any other surface disposes that registration, so either the
+ *   official AppFrame renders again untouched or the surface that claimed a
+ *   lower priority renders instead.
  *
- * Both directions are a slot mutation inside the live page. The DSH Runtime,
+ * Every direction is a slot mutation inside the live page. The DSH Runtime,
  * the Host connection, the Session list, every open Conversation and all
- * Workspace state are shared by construction — neither surface owns a copy —
- * so switching costs a React remount and nothing else.
+ * Workspace state are shared by construction — no surface owns a copy — so
+ * switching costs a React remount and nothing else.
  *
- * The classic surface additionally receives a General settings item
- * registered here, so the switch is reachable from inside the official UI as
- * well.
+ * The switch row inside the official settings page is NOT registered here: it
+ * lists every surface, so it belongs to `@dsh-portable/ui-mode` rather than to
+ * any one of them.
  * @module @dsh-portable/dcode-ui/client
  */
 
@@ -43,17 +44,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 import type {} from '@deepseek-ai/dsh-client-ui-permission-presets/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-session-log-export/client'
-import { createUiModeStore, type UiModeStore } from './mode.ts'
+import type { UiModeController } from '@dsh-portable/ui-mode/client'
 import { createNavigationStore } from './state/navigation.ts'
 import { createDcodeRuntime, DcodeRuntimeProvider } from './state/runtime.ts'
 import { bindTranslate, TranslateProvider } from './state/i18n.ts'
 import { DCODE_NS, en, zh, type DcodeKey } from './locales.ts'
 import { Workbench } from './shell/Workbench.tsx'
-import { InterfaceSettingsSection } from './settings/InterfaceSettingsSection.tsx'
 import { ModelsUsageCard } from './settings/ModelsUsageCard.tsx'
 
 export { Workbench } from './shell/Workbench.tsx'
-export { createUiModeStore, readBridge, type UiModeBridge, type UiModeStore } from './mode.ts'
 export { createNavigationStore, type NavigationState, type NavigationStore } from './state/navigation.ts'
 export { createDcodeRuntime, type DcodeRuntime } from './state/runtime.ts'
 export { fuzzyMatch } from './shell/CommandPalette.tsx'
@@ -88,7 +87,7 @@ export const name = 'dcode-ui-client'
  */
 export const inject = [
   'slots', 'locale', 'settingsScope', 'settingsSchema', 'sessions', 'workspaces', 'conversation', 'uiConversation',
-  'uiSession', 'connection', 'commandUi',
+  'uiSession', 'connection', 'commandUi', 'uiMode',
   'remote',
   'remote.session',
   'remote.commands',
@@ -107,13 +106,14 @@ export const inject = [
  * Shadow priority of the workbench's `root` registration.
  *
  * Lowest renders. The official AppFrame registers at the default 0, so any
- * negative value wins; a wide margin leaves room for a future surface to sit
- * between the two without renumbering this one.
+ * negative value wins. Mission Control claims -2000; the gap between them is
+ * deliberate, so a further surface can sit between without renumbering either.
+ *
+ * Priorities do not decide WHICH surface shows — the mode store does, and each
+ * surface registers only while it is selected — so the ordering matters only in
+ * the moment one registration is being swapped for another.
  */
 const ROOT_PRIORITY = -1000
-
-/** Order of the interface item in the classic General settings page (right below Appearance, order 10). */
-const SETTINGS_GENERAL_ITEM_ORDER = 10.5
 
 /** Order of the usage card in the classic Models page footer area. */
 const SETTINGS_MODELS_FOOTER_ORDER = 0
@@ -124,7 +124,7 @@ const SETTINGS_MODELS_FOOTER_ORDER = 0
  * @param mode - the page's mode store.
  * @returns a disposer that removes any active registration and the subscription.
  */
-function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void {
+function bindRootRegistration(ctx: ClientContext, mode: UiModeController): () => void {
   const navigation = createNavigationStore()
   const runtime = createDcodeRuntime(ctx, mode)
   const t = bindTranslate(ctx.locale.bind(DCODE_NS))
@@ -183,20 +183,7 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeStore): () => void
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(DCODE_NS, { zh, en }), 'dcode-ui: dictionaries')
 
-  const mode = createUiModeStore()
-  ctx.effect(() => () => { mode.dispose() }, 'dcode-ui: mode store')
-  ctx.effect(() => bindRootRegistration(ctx, mode), 'dcode-ui: root surface')
-
-  // The switch inside the classic General settings page. Registered through
-  // `settings.general.item` so it joins the existing page instead of adding a
-  // top-level settings section.
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'dcode-interface',
-    order: SETTINGS_GENERAL_ITEM_ORDER,
-    locale: DCODE_NS,
-    inject: () => ({ mode }),
-  }, InterfaceSettingsSection))
+  ctx.effect(() => bindRootRegistration(ctx, ctx.uiMode), 'dcode-ui: root surface')
 
   // The usage card on the classic Models page. `settings.models.footer` is the
   // seat that page declares for out-of-tree plugins, so the official section

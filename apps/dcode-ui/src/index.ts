@@ -28,11 +28,15 @@ export {
   type GitBranch, type GitCommitResult, type GitDiff, type GitFileChange,
   type GitRestoreOutcome, type GitStatus,
 } from './host/git.ts'
+// Re-exported, not owned: the vocabulary moved to `@dsh-portable/ui-mode` when
+// a third surface arrived, because the Electron shell and each surface must
+// agree on mode names without any of them depending on one particular front
+// end. These aliases keep existing importers of this package working.
 export {
   DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT,
-  UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, otherUiMode, resolveUiMode,
+  UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode,
   uiModeFromSearch, withUiModeParam, type UiMode,
-} from './ui-mode.ts'
+} from '@dsh-portable/ui-mode'
 
 /** Stable Cordis plugin name. */
 export const name = 'dcode-ui'

@@ -23,8 +23,8 @@ const { evaluateUpdateLaunch } = require('./update-transaction.cjs')
 const { ensureUnifiedDshHome } = require('./workspace-service.cjs')
 const { readConfigStore, updateConfigStore } = require('./config-store.cjs')
 const {
-  DEFAULT_UI_MODE, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
-} = require('@dsh-portable/dcode-ui/ui-mode-contract')
+  DEFAULT_UI_MODE, UI_MODES, UI_MODE_IPC_CHANNEL, normalizeUiMode, withUiModeParam,
+} = require('@dsh-portable/ui-mode/ui-mode-contract')
 const { RuntimeSupervisor, runtimeStartupError } = require('./runtime-supervisor.cjs')
 const { probeHarnessHealth, waitForOnboardingReady } = require('./ready-url.cjs')
 const { shouldDisplayDesktopWindows } = require('./window-display-policy.cjs')
@@ -1752,22 +1752,18 @@ function menuItems() {
     { type: 'separator' },
     {
       label: desktopText('menu.interface'),
-      // Official first, then the workbench — the same order both settings
-      // panels present, so the pair never reads differently in two places.
-      submenu: [
-        {
-          label: desktopText('menu.interfaceOfficial'),
-          type: 'radio',
-          checked: uiMode === 'official',
-          click: () => { applyUiMode('official') },
-        },
-        {
-          label: desktopText('menu.interfaceWorkbench'),
-          type: 'radio',
-          checked: uiMode === 'dcode',
-          click: () => { applyUiMode('dcode') },
-        },
-      ],
+      // Rendered from UI_MODES so this submenu presents the same surfaces in
+      // the same order as every in-page switch, and so adding a surface never
+      // means editing the menu. `rebuildMenus` reticks the whole template, so
+      // the radio state follows a switch made anywhere.
+      submenu: UI_MODES.map(id => ({
+        // `desktopText` yields '' for a key it has no string for, which would
+        // be an unclickable-looking blank row; the id is at least selectable.
+        label: desktopText(`menu.interfaceMode.${id}`) || id,
+        type: 'radio',
+        checked: uiMode === id,
+        click: () => { applyUiMode(id) },
+      })),
     },
     { type: 'separator' },
     { label: desktopText('menu.checkUpdates'), click: () => { void checkForUpdates(true) } },

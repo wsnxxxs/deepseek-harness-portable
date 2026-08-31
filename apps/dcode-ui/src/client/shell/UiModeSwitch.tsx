@@ -1,45 +1,63 @@
 /**
  * The front-end mode switch segmented control.
  *
- * Placed in the Appearance section alongside the theme switch, allowing
- * operators to switch between the official and workbench front-ends.
+ * Placed in the Appearance section alongside the theme switch, so an operator
+ * can leave the workbench for any other surface from the same row they change
+ * the theme in.
+ *
+ * The roster and its wording come from `@dsh-portable/ui-mode`, not from here:
+ * the workbench must not carry its own translation of another surface's name,
+ * and a surface added later must appear in this control without editing it.
+ * Only the glyphs are local, because an icon is a presentation choice of this
+ * particular control.
  * @module @dsh-portable/dcode-ui/client/shell/UiModeSwitch
  */
 
 import { useSyncExternalStore } from 'react'
-import { IconSettingsOutline16, IconSparkle16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ComponentType } from 'react'
+import {
+  IconGoalOutline16, IconSettingsOutline16, IconSparkle16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import { MODE_COPY, UI_MODES, type UiMode } from '@dsh-portable/ui-mode/client'
 import { useRuntime } from '../state/runtime.ts'
-import { useT } from '../state/i18n.ts'
 import css from './ThemeSwitch.module.css'
 
-/** The segmented official / workbench mode control. */
+/**
+ * One glyph per surface.
+ *
+ * Spelled as a total record so adding a surface to `UI_MODES` without choosing
+ * an icon is a compile error here rather than a blank segment at runtime.
+ */
+const MODE_GLYPH: Readonly<Record<UiMode, ComponentType>> = {
+  official: IconSettingsOutline16,
+  dcode: IconSparkle16,
+  crew: IconGoalOutline16,
+}
+
+/** The segmented interface control, one segment per registered surface. */
 export function UiModeSwitch() {
   const runtime = useRuntime()
-  const t = useT()
+  const t = runtime.uiModeT
   const mode = useSyncExternalStore(runtime.mode.subscribe, runtime.mode.get, runtime.mode.get)
 
   return (
-    <div className={css.group} role="radiogroup" aria-label={t('settings.interface')}>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={mode === 'official'}
-        className={`${css.segment} ${mode === 'official' ? css.segmentActive : ''}`}
-        onClick={() => { runtime.mode.set('official') }}
-      >
-        <span className={css.glyph} aria-hidden><IconSettingsOutline16 /></span>
-        <span className={css.label}>{t('settings.modeOfficial')}</span>
-      </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={mode === 'dcode'}
-        className={`${css.segment} ${mode === 'dcode' ? css.segmentActive : ''}`}
-        onClick={() => { runtime.mode.set('dcode') }}
-      >
-        <span className={css.glyph} aria-hidden><IconSparkle16 /></span>
-        <span className={css.label}>{t('settings.modeWorkbench')}</span>
-      </button>
+    <div className={css.group} role="radiogroup" aria-label={t('interface')}>
+      {UI_MODES.map((id) => {
+        const Glyph = MODE_GLYPH[id]
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={mode === id}
+            className={`${css.segment} ${mode === id ? css.segmentActive : ''}`}
+            onClick={() => { runtime.mode.set(id) }}
+          >
+            <span className={css.glyph} aria-hidden><Glyph /></span>
+            <span className={css.label}>{t(MODE_COPY[id].title)}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -90,6 +90,7 @@ function Row(props: { title: string; body?: string; control?: React.ReactNode })
 function GeneralSection() {
   const runtime = useRuntime()
   const t = useT()
+  const uiModeT = runtime.uiModeT
   const locale = useSyncExternalStore(
     runtime.locale.subscribe,
     runtime.locale.getSnapshot,
@@ -167,9 +168,11 @@ function GeneralSection() {
                 )}
               />
             )}
+          {/* Copy comes from the ui-mode dictionary, like the switch itself:
+              the roster of surfaces is not the workbench's to describe. */}
           <Row
-            title={t('settings.interface')}
-            body={t('settings.interfaceBody')}
+            title={uiModeT('interface')}
+            body={uiModeT('interface.body')}
             control={<UiModeSwitch />}
           />
           <Row

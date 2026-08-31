@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
-const contract = require('@dsh-portable/dcode-ui/ui-mode-contract')
+const contract = require('@dsh-portable/ui-mode/ui-mode-contract')
 const config = require('./config-store.cjs')
 
 test('desktop config consumes the shared UI-mode contract', () => {

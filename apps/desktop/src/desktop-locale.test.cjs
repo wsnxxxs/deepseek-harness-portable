@@ -40,3 +40,20 @@ test('returns complete locale-specific messages with substitutions', () => {
   assert.equal(messageForLocale('en', 'menu.openWorkspace', { path: 'C:\\workspace' }), 'Open Workspace (C:\\workspace)')
   assert.notEqual(messageForLocale('zh', 'release.noHistory'), '')
 })
+
+test('every selectable interface has a menu label in both locales', () => {
+  // The Interface submenu maps over UI_MODES. `messageForLocale` yields '' for
+  // a key it has no string for, so a surface added without labels would render
+  // as blank rows rather than fail anywhere — this is the check that catches it.
+  const { UI_MODES } = require('@dsh-portable/ui-mode/ui-mode-contract')
+
+  assert.ok(UI_MODES.length > 0)
+  for (const locale of ['en', 'zh']) {
+    for (const mode of UI_MODES) {
+      const label = messageForLocale(locale, `menu.interfaceMode.${mode}`)
+      assert.equal(typeof label, 'string')
+      assert.notEqual(label, '', `${locale} is missing a menu label for the ${mode} interface`)
+    }
+    assert.notEqual(messageForLocale(locale, 'menu.interface'), '')
+  }
+})

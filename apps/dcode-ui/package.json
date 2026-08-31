@@ -15,14 +15,6 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./ui-mode": {
-      "types": "./lib/types/ui-mode.d.ts",
-      "default": "./lib/ui-mode.js"
-    },
-    "./ui-mode-contract": {
-      "types": "./ui-mode-contract.d.cts",
-      "default": "./ui-mode-contract.cjs"
-    },
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -48,11 +40,13 @@
         "@deepseek-ai/dsh-client-ui-commands",
         "@deepseek-ai/dsh-session-log-export",
         "@deepseek-ai/dsh-api-remotes",
-        "@dsh-portable/interactive-learning"
+        "@dsh-portable/interactive-learning",
+        "@dsh-portable/ui-mode"
       ],
       "external": [
         "@deepseek-ai/dsh-client-ui-message-feedback/client",
-        "@dsh-portable/interactive-learning/client"
+        "@dsh-portable/interactive-learning/client",
+        "@dsh-portable/ui-mode/client"
       ],
       "platform": "web"
     }
@@ -60,9 +54,6 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
-    "lib/ui-mode.js",
-    "ui-mode-contract.cjs",
-    "ui-mode-contract.d.cts",
     "lib/**/*.css",
     "lib/types/**/*.d.ts"
   ],
@@ -74,7 +65,8 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/schemastery": "workspace:^"
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@dsh-portable/ui-mode": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-api-remotes": "workspace:^",

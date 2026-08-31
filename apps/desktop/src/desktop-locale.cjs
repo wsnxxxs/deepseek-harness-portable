@@ -21,8 +21,13 @@ const MESSAGES = {
       clearWebStorage: 'Reset Web Cache and Restart',
       aboutAndUpdates: 'About & Release Notes',
       interface: 'Interface',
-      interfaceOfficial: 'Official',
-      interfaceWorkbench: 'Workbench',
+      // Keyed by mode id: the submenu maps over UI_MODES, so a surface added
+      // without a label here falls back to its id rather than to a blank row.
+      interfaceMode: {
+        official: 'Official',
+        dcode: 'Workbench',
+        crew: 'Mission Control',
+      },
       maintenance: 'Advanced Settings',
       quit: 'Quit',
       desktopMenu: 'Desktop menu',
@@ -178,8 +183,11 @@ const MESSAGES = {
       clearWebStorage: '重置界面缓存并重启',
       aboutAndUpdates: '关于与更新日志',
       interface: '界面',
-      interfaceOfficial: '官方版',
-      interfaceWorkbench: '工作台',
+      interfaceMode: {
+        official: '官方版',
+        dcode: '工作台',
+        crew: '任务指挥台',
+      },
       maintenance: '高级设置',
       quit: '退出',
       desktopMenu: '桌面菜单',

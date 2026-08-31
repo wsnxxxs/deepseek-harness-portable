@@ -43,6 +43,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: link:../../vendor/deepseek-harness/vendor/schemastery
         version: link:../../vendor/deepseek-harness/vendor/schemastery
+      '@dsh-portable/ui-mode':
+        specifier: workspace:^
+        version: link:../../packages/ui-mode
     devDependencies:
       '@deepseek-ai/dsh-api-remotes':
         specifier: workspace:^
@@ -170,12 +173,12 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@dsh-portable/dcode-ui':
-        specifier: workspace:^
-        version: link:../dcode-ui
       '@dsh-portable/desktop-protocol':
         specifier: workspace:^
         version: link:../../packages/desktop-protocol
+      '@dsh-portable/ui-mode':
+        specifier: workspace:^
+        version: link:../../packages/ui-mode
       js-yaml:
         specifier: ^4.2.0
         version: 4.3.1
@@ -980,6 +983,9 @@ importers:
       '@dsh-portable/interactive-learning':
         specifier: workspace:^
         version: link:../interactive-learning
+      '@dsh-portable/ui-mode':
+        specifier: workspace:^
+        version: link:../../packages/ui-mode
       '@dsh-portable/vision-bridge':
         specifier: workspace:^
         version: link:../vision-bridge
@@ -1082,6 +1088,43 @@ importers:
       '@dsh-portable/platform-contract':
         specifier: workspace:^
         version: link:../platform-contract
+
+  packages/ui-mode:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/vendor/cordis
+    devDependencies:
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/locale
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-settings
+      '@deepseek-ai/dsh-client-ui-settings-general':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-settings-general
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-slots
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.1
+      '@types/react':
+        specifier: ^18.3.18
+        version: 18.3.31
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.14(oxc-resolver@11.24.2)(publint@0.3.23)(tsx@4.23.12)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
   vendor/deepseek-harness:
     devDependencies:

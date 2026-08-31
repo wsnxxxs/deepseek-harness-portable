@@ -37,7 +37,7 @@ import type {
   SettingsDescribeFace, SettingsSchemaService,
 } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import type { UiModeStore } from '../mode.ts'
+import { UI_MODE_NS, type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client'
 import { createLearningCall, createDcodeApi, type RpcCarrier, type DcodeApi } from '../rpc.ts'
 import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../theme.ts'
 
@@ -198,8 +198,15 @@ export interface DcodeRuntime {
    * instead of a second translation of the same words.
    */
   readonly learningT: (key: string, params?: Record<string, unknown>) => string
+  /**
+   * The interface switch's own bound translate function, for the same reason
+   * as {@link learningT}: the roster of surfaces and their names belong to
+   * `@dsh-portable/ui-mode`, so every switch renders one set of words rather
+   * than each surface translating the other surfaces' names itself.
+   */
+  readonly uiModeT: (key: UiModeKey) => string
   /** The active-mode store shared with every switch entry point. */
-  readonly mode: UiModeStore
+  readonly mode: UiModeController
   /**
    * Resolve the Chat transcript feed of one session.
    * @param sessionId - session to observe.
@@ -269,7 +276,7 @@ interface UiSessionFace {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): DcodeRuntime {
+export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): DcodeRuntime {
   const sessions = ctx.get('sessions') as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
   const uiConversation = ctx.get('uiConversation') as UiConversationFace | undefined
@@ -340,6 +347,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): Dcode
     // The pack registers this namespace itself; an assembly without it falls
     // back to the raw key, which is still readable and never throws.
     learningT: locale?.bind('interactive-learning') ?? (key => key),
+    uiModeT: locale?.bind(UI_MODE_NS) ?? (key => key),
     mode,
     binding: sessionId => sessions.binding(sessionId),
     scope: sessionId => sessions.scope(sessionId),

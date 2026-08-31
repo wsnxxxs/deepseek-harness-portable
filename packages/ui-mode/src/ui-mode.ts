@@ -1,34 +1,39 @@
 /**
  * The desktop/web UI-mode vocabulary, shared by every switch entry point.
  *
- * Two front ends run inside one browser page over one DSH Runtime: the
- * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot) and
- * this distribution's modern workbench. Switching is a slot re-registration,
- * never a Runtime restart, so both surfaces keep reading the same Session,
- * Workspace, Conversation and Settings state.
+ * Several front ends run inside ONE browser page over ONE DSH Runtime: the
+ * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot), the
+ * workbench, and Mission Control. Switching is a slot re-registration, never a
+ * Runtime restart, so every surface keeps reading the same Session, Workspace,
+ * Conversation and Settings state.
  *
  * This module is deliberately dependency-free: the Electron main process
- * (CommonJS), the DSH host plugin, and the browser bundle all resolve the
- * same constants, so a mode string cannot drift between the menu, the tray,
- * the desktop config file and the URL.
- * @module @dsh-portable/dcode-ui/ui-mode
+ * (CommonJS), the DSH host plugins, and every browser bundle resolve the same
+ * constants, so a mode string cannot drift between the menu, the tray, the
+ * desktop config file and the URL.
+ *
+ * It lives in its own package rather than inside a surface because the
+ * vocabulary outranks any one surface: the Electron shell must know the mode
+ * names without depending on a front end, and two independently bundled
+ * surfaces must agree on them without depending on each other.
+ * @module @dsh-portable/ui-mode
  */
 
-import contract from '@dsh-portable/dcode-ui/ui-mode-contract'
+import contract from '@dsh-portable/ui-mode/ui-mode-contract'
 
 /** One selectable front end. */
-export type UiMode = 'dcode' | 'official'
+export type UiMode = 'official' | 'dcode' | 'crew'
 
 /** Every selectable front end, in presentation order. */
 export const UI_MODES: readonly UiMode[] = contract.UI_MODES
 
 /**
- * The mode a surface without an explicit preference adopts. The modern
- * workbench is the default; the official UI is never removed, only unselected.
+ * The mode a surface without an explicit preference adopts. The workbench is
+ * the default; no surface is ever removed by selecting another, only unselected.
  */
 export const DEFAULT_UI_MODE: UiMode = contract.DEFAULT_UI_MODE
 
-/** URL query parameter carrying an explicit mode (`?view=dcode`, `?view=official`). */
+/** URL query parameter carrying an explicit mode (`?view=dcode`). */
 export const UI_MODE_QUERY_PARAM = contract.UI_MODE_QUERY_PARAM
 
 /** `localStorage` key holding the browser-side preference. */
@@ -66,12 +71,21 @@ export function resolveUiMode(...candidates: readonly unknown[]): UiMode {
 }
 
 /**
- * The other mode — what a toggle entry switches to.
+ * The next mode in presentation order — what a cycling entry switches to.
+ *
+ * This replaced a two-mode `otherUiMode`. A keyboard shortcut or a menu
+ * accelerator has no list to choose from, so it needs a total order rather
+ * than an opposite; wrapping keeps every surface reachable from every other.
  * @param mode - current mode.
- * @returns the mode a toggle selects.
+ * @param direction - `1` for the next surface, `-1` for the previous.
+ * @returns the mode a cycling entry selects.
  */
-export function otherUiMode(mode: UiMode): UiMode {
-  return mode === 'dcode' ? 'official' : 'dcode'
+export function cycleUiMode(mode: UiMode, direction: 1 | -1 = 1): UiMode {
+  const index = UI_MODES.indexOf(mode)
+  // An unknown current mode cannot be positioned in the ring; start from the
+  // default rather than wrapping off a -1 index.
+  if (index < 0) return DEFAULT_UI_MODE
+  return UI_MODES[(index + direction + UI_MODES.length) % UI_MODES.length] as UiMode
 }
 
 /**

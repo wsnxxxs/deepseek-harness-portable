@@ -1,10 +1,12 @@
 /**
- * The switch as it appears inside the CLASSIC settings surface.
+ * The switch as it appears inside the OFFICIAL settings surface.
  *
- * This is the one stylesheet in the package that does not opt into the
- * workbench token scope: it renders inside the official settings shell and
- * must read as one of its rows, so it uses the Host's own theme aliases
- * directly and keeps the surrounding spacing scale.
+ * It renders inside the official settings shell and must read as one of its
+ * rows, so it uses the Host's own theme aliases directly and keeps the
+ * surrounding spacing scale rather than any surface's token scope.
+ *
+ * `.option` flexes from a 180px basis and the row wraps, so the control grows
+ * with the number of registered surfaces instead of assuming a fixed count.
  */
 
 .root {
