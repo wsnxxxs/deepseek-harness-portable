@@ -16,6 +16,7 @@ import {
   STALE_MANAGED_FALLBACK_PACKAGES,
   stageStaleManagedFallback,
   validateInteractiveLearningPresetSurface,
+  validatePortablePresetSurface,
 } from './packaged-smoke.js'
 
 const learningEvidence: InteractiveLearningReleaseEvidence = {
@@ -107,6 +108,34 @@ test('packaged smoke requires a healthy selectable Learning preset and exact age
       content: "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n",
     }, learningEvidence),
     /exactly one learning-agent/,
+  )
+})
+
+test('packaged smoke exposes exactly the measured portable modes and experience packs as system presets', () => {
+  const modeSupport = {
+    standard: { level: 'native' as const },
+    minimal: { level: 'unavailable' as const },
+    crew: { level: 'native' as const },
+  }
+  const list = {
+    presets: [
+      { id: 'learning', trust: 'system' },
+      { id: 'crew', trust: 'system' },
+      { id: 'standard', trust: 'system' },
+    ],
+  }
+  assert.doesNotThrow(() => validatePortablePresetSurface(list, modeSupport, ['learning']))
+  assert.throws(
+    () => validatePortablePresetSurface({
+      presets: [...list.presets, { id: 'upstream-extra', trust: 'system' }],
+    }, modeSupport, ['learning']),
+    /do not equal portable roster/,
+  )
+  assert.throws(
+    () => validatePortablePresetSurface({
+      presets: list.presets.map(preset => preset.id === 'crew' ? { ...preset, trust: 'user' } : preset),
+    }, modeSupport, ['learning']),
+    /must have system trust: crew/,
   )
 })
 

@@ -164,6 +164,44 @@ export function validateInteractiveLearningPresetSurface(
   }
 }
 
+/** Require the live selector to expose only this target's portable system roster. */
+export function validatePortablePresetSurface(
+  listValue: unknown,
+  modeSupport: Readonly<Record<string, MeasuredModeSupport>>,
+  experiencePresetIds: readonly string[],
+): void {
+  const list = object(listValue, 'agentPreset.list value')
+  if (!Array.isArray(list.presets)) throw new Error('packaged agentPreset.list has no presets array')
+  const presets = list.presets.map((value, index) => object(value, `agentPreset.list row ${String(index + 1)}`))
+  const actualIds = presets.map((preset, index) => {
+    if (typeof preset.id !== 'string' || preset.id.length === 0) {
+      throw new Error(`packaged agentPreset.list row ${String(index + 1)} has no preset id`)
+    }
+    return preset.id
+  })
+  if (new Set(actualIds).size !== actualIds.length) {
+    throw new Error('packaged agentPreset.list contains duplicate preset ids')
+  }
+  const expectedIds = [...new Set([
+    ...Object.entries(modeSupport)
+      .filter(([, support]) => support.level !== 'unavailable')
+      .map(([id]) => id),
+    ...experiencePresetIds,
+  ])].sort()
+  const sortedActualIds = [...actualIds].sort()
+  if (JSON.stringify(sortedActualIds) !== JSON.stringify(expectedIds)) {
+    throw new Error(
+      `packaged selector preset ids ${JSON.stringify(sortedActualIds)} do not equal portable roster ${JSON.stringify(expectedIds)}`,
+    )
+  }
+  const nonSystem = presets
+    .filter(preset => preset.trust !== 'system')
+    .map(preset => String(preset.id))
+  if (nonSystem.length > 0) {
+    throw new Error(`packaged portable presets must have system trust: ${nonSystem.join(', ')}`)
+  }
+}
+
 export async function runtimeRpc(baseUrl: string, method: string, payload: Record<string, unknown>, timeoutMs: number): Promise<unknown> {
   const rpcId = `packaged-smoke-${method}-${Date.now()}`
   const endpoint = method.replaceAll('.', '/')
@@ -308,8 +346,10 @@ export async function runPackagedSmoke(options: PackagedSmokeOptions): Promise<P
     const readValue = await runtimeRpc(runtimeUrl, 'agentPresets.read', { agentPreset: 'learning' }, rpcTimeout)
     validateInteractiveLearningPresetSurface(listValue, readValue, interactiveLearning)
     const evidencePath = join(dshHome, '.system-agent-presets', '.runtime-capabilities.json')
+    const coreEvidence = validateEvidence(JSON.parse(await readFile(evidencePath, 'utf8')) as unknown, options.target)
+    validatePortablePresetSurface(listValue, coreEvidence.modeSupport, [interactiveLearning.preset.id])
     return {
-      ...validateEvidence(JSON.parse(await readFile(evidencePath, 'utf8')) as unknown, options.target),
+      ...coreEvidence,
       interactiveLearning,
     }
   } finally {
