@@ -80,6 +80,7 @@ function modeLabel(id: string, fallback: string, t: Translate): string {
     case 'ptc': return t('composer.mode.ptc')
     case 'minimal': return t('composer.mode.minimal')
     case 'cordis': return t('composer.mode.cordis')
+    case 'crew': return t('composer.mode.crew')
     default: return fallback
   }
 }
