@@ -14,6 +14,8 @@
     "@deepseek-ai/dsh-command-compact",
     "@deepseek-ai/dsh-compaction-basic",
     "@deepseek-ai/dsh-compaction-tool-result-pruner",
+    "@deepseek-ai/dsh-experimental-agent-team",
+    "@deepseek-ai/dsh-experimental-tool-agent-team",
     "@deepseek-ai/dsh-fs-local",
     "@deepseek-ai/dsh-home-paths",
     "@deepseek-ai/dsh-launch-environment",
@@ -24,6 +26,7 @@
     "@deepseek-ai/dsh-terminal",
     "@deepseek-ai/dsh-terminal-bash",
     "@deepseek-ai/dsh-tool-ask-user",
+    "@deepseek-ai/dsh-tool-bash",
     "@deepseek-ai/dsh-tool-bash-persistent",
     "@deepseek-ai/dsh-tool-cordis",
     "@deepseek-ai/dsh-tool-fs",
@@ -32,6 +35,7 @@
     "@deepseek-ai/dsh-tool-jobs",
     "@deepseek-ai/dsh-tool-pwsh",
     "@deepseek-ai/dsh-tool-ralph",
+    "@deepseek-ai/dsh-tool-session-query",
     "@deepseek-ai/dsh-tool-skill",
     "@deepseek-ai/dsh-tool-str-replace-editor",
     "@deepseek-ai/dsh-tool-subagent",
@@ -44,9 +48,10 @@
     "@dsh-portable/dcode-ui",
     "@dsh-portable/desktop-protocol",
     "@dsh-portable/interactive-learning",
+    "@dsh-portable/ui-mode",
     "@dsh-portable/vision-bridge"
   ],
-  "closureHash": "sha256:e2ae7e5a02e02b1ba66087d646a12ff51dd6e0d28c894642d73eacf31ef60d00",
+  "closureHash": "sha256:9efe1a821451e3f7b512ee754bffca8d3e436f663fb26d38d73ca249b0836cb0",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -492,6 +497,16 @@
       "name": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
       "version": "0.1.2-alpha.1",
       "path": "vendor/deepseek-harness/packages/llm/deepseek-llm-api-extensions"
+    },
+    {
+      "name": "@deepseek-ai/dsh-experimental-agent-team",
+      "version": "0.1.2-alpha.1",
+      "path": "vendor/deepseek-harness/packages/experimental/agent-team"
+    },
+    {
+      "name": "@deepseek-ai/dsh-experimental-tool-agent-team",
+      "version": "0.1.2-alpha.1",
+      "path": "vendor/deepseek-harness/packages/experimental/tool-agent-team"
     },
     {
       "name": "@deepseek-ai/dsh-file-reference",
@@ -1019,6 +1034,11 @@
       "path": "vendor/deepseek-harness/packages/workflow/tool-ralph"
     },
     {
+      "name": "@deepseek-ai/dsh-tool-session-query",
+      "version": "0.1.2-alpha.1",
+      "path": "vendor/deepseek-harness/packages/session-query/tool-session-query"
+    },
+    {
       "name": "@deepseek-ai/dsh-tool-skill",
       "version": "0.1.2-alpha.1",
       "path": "vendor/deepseek-harness/packages/skill/tool-skill"
@@ -1189,6 +1209,11 @@
       "path": "apps/interactive-learning"
     },
     {
+      "name": "@dsh-portable/ui-mode",
+      "version": "0.1.0",
+      "path": "packages/ui-mode"
+    },
+    {
       "name": "@dsh-portable/vision-bridge",
       "version": "0.1.0",
       "path": "apps/vision-bridge"
@@ -1284,6 +1309,8 @@
     "@deepseek-ai/dsh-credentials": "workspace:^",
     "@deepseek-ai/dsh-credentials-local": "workspace:^",
     "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:^",
+    "@deepseek-ai/dsh-experimental-agent-team": "workspace:^",
+    "@deepseek-ai/dsh-experimental-tool-agent-team": "workspace:^",
     "@deepseek-ai/dsh-file-reference": "workspace:^",
     "@deepseek-ai/dsh-file-reference-local": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
@@ -1389,6 +1416,7 @@
     "@deepseek-ai/dsh-tool-pwsh": "workspace:^",
     "@deepseek-ai/dsh-tool-pwsh-persistent": "workspace:^",
     "@deepseek-ai/dsh-tool-ralph": "workspace:^",
+    "@deepseek-ai/dsh-tool-session-query": "workspace:^",
     "@deepseek-ai/dsh-tool-skill": "workspace:^",
     "@deepseek-ai/dsh-tool-str-replace-editor": "workspace:^",
     "@deepseek-ai/dsh-tool-subagent": "workspace:^",
@@ -1423,6 +1451,7 @@
     "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
+    "@dsh-portable/ui-mode": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",
     "dsh-plugin-marketplace": "github:AwesomeHou/dsh-plugin-marketplace#463e6cb856272018a7f5a76e260a0d1ef5b589e3",
     "js-yaml": "^4.2.0",

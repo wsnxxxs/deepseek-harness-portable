@@ -58,6 +58,7 @@ import {
   type RuntimeModeTrace,
 } from './mode-catalog.js'
 import { openBrowser } from './open-browser.js'
+import { describePresetRosterOutcome, reconcilePresetRoster } from './preset-roster.js'
 import {
   ensureMarketplacePreinstalled,
   materializeMarketplaceSeed,
@@ -438,12 +439,41 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
   // The SHIPPED preset root is the part of the roster only this package can
   // resolve: it sits beside the packaged entry in the VFS, and the writable
   // root the roster appends is dsh-agent-presets' own default.
+  //
+  // `includeShippedRoot: false` is what makes the mode contract real. The
+  // roster resolves roots as [upstream shipped, ...config.roots, user] and an
+  // EARLIER root wins a duplicate id, so leaving the upstream root on means
+  // upstream's own `standard`/`ptc`/`minimal`/`cordis` shadow the compiled
+  // portable ones — and the compiler's "no variant fits ⇒ delete preset.yml ⇒
+  // unselectable" gate silently does nothing, because upstream backfills the
+  // id it just removed. Only ids upstream does not ship (`learning`) came from
+  // here before.
+  //
+  // Closing it makes the compiler authoritative, which also makes it able to
+  // leave the roster EMPTY on a target no variant fits. `reconcilePresetRoster`
+  // below is the paired guard: it runs once the catalog is known and never lets
+  // that state reach the operator as an unexplained failure to create sessions.
   if (rows.has('agent-presets')) {
     overlays.push({
       id: 'agent-presets',
       config: {
         ...(rows.get('agent-presets')?.config ?? {}) as Record<string, unknown>,
         roots: [{ path: shippedPresetRoot, trust: 'system' }],
+        includeShippedRoot: false,
+      },
+    })
+  }
+  // The upstream base keeps full-text search disabled for generic profiles.
+  // Crew exposes the model-facing search tools, so the portable product owns a
+  // durable derived index and opens it on the first real search. Exact query
+  // reads remain available before then, and ordinary startup does no indexing.
+  if (rows.has('session-query-sqlite')) {
+    overlays.push({
+      id: 'session-query-sqlite',
+      config: {
+        ...(rows.get('session-query-sqlite')?.config ?? {}) as Record<string, unknown>,
+        path: dshHomePath('session-query.sqlite'),
+        openAt: 'first-search',
       },
     })
   }
@@ -463,6 +493,53 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
         {
           id: 'interactive-learning',
           name: '@dsh-portable/interactive-learning',
+        },
+      ],
+    })
+  }
+  // The Agent Teams runtime, on the HOST plane.
+  //
+  // It provides `agentTeams`, which the Gateway resolves from the host context
+  // for a `direct` Remote invocation, so a preset realm would hide it from
+  // every browser call — and a preset row without a realm is refused at mount.
+  // The `crew` preset therefore contributes only the model-facing Team tools,
+  // which resolve this instance up the scope chain.
+  //
+  // Mounting it unconditionally rather than with the mode keeps
+  // `agentTeams.view(sessionId)` answerable for ANY session: a surface asking
+  // about a non-crew session gets a roster of one and an empty board instead
+  // of an error. Sessions that never mount the Team tools emit no team events,
+  // so the service costs them nothing.
+  //
+  // The limits are upstream's own defaults, from
+  // `packages/experimental/agent-team-profile/cordis.patch.yml`.
+  if (!rows.has('agent-team')) {
+    overlays.push({
+      insert: [
+        {
+          id: 'agent-team',
+          name: '@deepseek-ai/dsh-experimental-agent-team',
+          config: {
+            maxMembers: 8,
+            maxTasks: 256,
+            maxPendingMessagesPerMember: 64,
+            maxMessageBytes: 65536,
+            disposalTimeoutMs: 5000,
+          },
+        },
+      ],
+    })
+  }
+  // The shared interface vocabulary. It renders no surface of its own; it
+  // owns the one mode store every surface reads and the one interface switch
+  // in official settings, so it must be present even when every extension
+  // surface fails to load — that switch is how an operator gets back.
+  if (!rows.has('ui-mode')) {
+    overlays.push({
+      insert: [
+        {
+          id: 'ui-mode',
+          name: '@dsh-portable/ui-mode',
         },
       ],
     })
@@ -502,6 +579,7 @@ const REQUIRED_CLIENT_ENTRIES = [
   '@deepseek-ai/dsh-client-ui-layout',
   '@dsh-portable/interactive-learning',
   '@dsh-portable/vision-bridge',
+  '@dsh-portable/ui-mode',
   '@dsh-portable/dcode-ui',
 ]
 
@@ -739,6 +817,28 @@ async function main(): Promise<void> {
   ])
   traceBoot('compose:complete')
   const presetState = await materializeShippedPresetRoot(capabilityReport)
+  // The roster overlay was composed before the catalog existed, so this is the
+  // first point at which "is the default actually selectable" can be answered.
+  // Overlays are not consumed until the root include mounts, further below.
+  const rosterDiagnostic = describePresetRosterOutcome(
+    reconcilePresetRoster(composed.overlays, presetState.modeCatalog),
+    presetState.root,
+  )
+  if (rosterDiagnostic !== undefined) {
+    if (shellProtocol) {
+      console.log(encodeRuntimeEvent({
+        protocolVersion: RUNTIME_PROTOCOL_VERSION,
+        type: 'diagnostic',
+        code: 'AGENT_PRESET_ROSTER',
+        component: 'runtime-startup',
+        severity: rosterDiagnostic.severity,
+        message: rosterDiagnostic.message,
+        recoverable: true,
+      }))
+    } else {
+      console.error(`${NAME}: ${rosterDiagnostic.message}`)
+    }
+  }
   if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
     console.log(encodeRuntimeEvent({
       protocolVersion: RUNTIME_PROTOCOL_VERSION,

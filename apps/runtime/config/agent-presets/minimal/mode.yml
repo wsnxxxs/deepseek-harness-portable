@@ -31,3 +31,13 @@ variants:
     config: variants/win32-wsl.cordis.yml
     provides:
       shell: persistent-bash
+
+  - id: posix-bash
+    supportLevel: native
+    requires:
+      - terminal.pty.native
+      - shell.bash
+      - shell.bash.persistent
+    config: variants/posix-bash.cordis.yml
+    provides:
+      shell: persistent-bash

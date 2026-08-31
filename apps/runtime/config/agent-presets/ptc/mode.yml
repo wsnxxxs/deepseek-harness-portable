@@ -51,3 +51,14 @@ variants:
     config: variants/win32-powershell.cordis.yml
     provides:
       shell: tool-pwsh
+
+  - id: posix-bash
+    supportLevel: native
+    requires:
+      - shell.bash
+      - sandbox.workspace-write
+    acceptsDegraded:
+      - sandbox.workspace-write
+    config: variants/posix-bash.cordis.yml
+    provides:
+      shell: tool-bash

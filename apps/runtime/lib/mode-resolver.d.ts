@@ -37,6 +37,17 @@ export interface ModeContract {
         readonly exactRows?: readonly string[];
         readonly requiredRows?: readonly string[];
         readonly variantSlots?: Readonly<Record<string, readonly string[]>>;
+        /**
+         * Substrings that identify a MODEL-FACING row by package name, for the
+         * exact-rows gate.
+         *
+         * Defaults to the `@deepseek-ai/dsh-tool-*` and `dsh-agent-tool-*`
+         * families. A mode that mounts a tool package outside those families —
+         * an experimental one, or one this distribution owns — must say so here,
+         * or the gate would count fewer rows than the contract lists and reject a
+         * composition that is in fact correct.
+         */
+        readonly rowNameMarkers?: readonly string[];
     };
     readonly composition?: {
         readonly requiredRows?: readonly string[];

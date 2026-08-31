@@ -10,7 +10,7 @@ import type { CapabilityReport } from './mode-resolver.js'
 const presets = fileURLToPath(new URL('../config/agent-presets/', import.meta.url))
 
 test('every shipped core mode has a contract and every final variant satisfies it', async () => {
-  for (const id of ['standard', 'ptc', 'cordis', 'minimal']) {
+  for (const id of ['standard', 'ptc', 'cordis', 'minimal', 'crew']) {
     const directory = join(presets, id)
     const definition = parseModeDefinition(await readFile(join(directory, 'mode.yml'), 'utf8'), `${id}/mode.yml`)
     assert.equal(definition.id, id)

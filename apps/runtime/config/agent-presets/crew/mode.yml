@@ -1,19 +1,26 @@
-id: cordis
+id: crew
 baseConfig: agent.cordis.yml
 
 contract:
   persona:
-    complete: true
+    complete: false
     includeRuntimeContext: true
   tools:
+    # `tool-agent-team` lives in the upstream experimental family, whose package
+    # name matches neither default marker, so the exact-rows gate would count
+    # one row fewer than this contract lists and reject a correct composition.
+    rowNameMarkers:
+      - '/dsh-tool-'
+      - '/dsh-agent-tool-'
+      - '/dsh-experimental-tool-'
     requiredRows:
       - tool-fs
       - tool-fs-search
       - tool-jobs
       - tool-skill
       - tool-goal
-      - tool-subagent-control
-      - tool-subagent-list-agents
+      - tool-session-query
+      - tool-agent-team
       - tool-subagent
       - tool-subagent-fork
       - tool-workflow
@@ -21,7 +28,6 @@ contract:
       - tool-ask-user
       - tool-todo
       - tool-web
-      - tool-cordis
     variantSlots:
       shell:
         - tool-bash
@@ -34,10 +40,21 @@ contract:
       - compaction-basic
       - command-compact
       - tool-result-pruner
+    # The three-name collision with `tool-agent-team` is kept out by the
+    # contract rather than by a comment: a later edit that reintroduces either
+    # row fails compilation instead of silently reassigning `send_message`,
+    # `interrupt_agent` and `list_agents` to continuable-child semantics.
+    forbiddenRows:
+      - tool-subagent-control
+      - tool-subagent-list-agents
   compaction: enabled
   filesystem: policy-mediated
   sandbox: workspace-write
-  selfModification: cordis-plugin-runtime
+  # The Team service is host-plane by necessity, not by preference; recording
+  # it here keeps the reason with the contract it shapes.
+  crew:
+    teamRuntime: host-plane
+    board: shared-human-agent
 
 variants:
   - id: win32-powershell
@@ -45,6 +62,7 @@ variants:
     requires:
       - shell.powershell
       - sandbox.workspace-write
+      - crew.agent-team
     acceptsDegraded:
       - sandbox.workspace-write
     config: variants/win32-powershell.cordis.yml
@@ -56,6 +74,7 @@ variants:
     requires:
       - shell.bash
       - sandbox.workspace-write
+      - crew.agent-team
     acceptsDegraded:
       - sandbox.workspace-write
     config: variants/posix-bash.cordis.yml

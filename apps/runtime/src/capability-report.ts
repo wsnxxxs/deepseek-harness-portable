@@ -15,11 +15,13 @@ import {
   writeCapabilityReportCache,
 } from './capability-report-cache.js'
 
-const require = createRequire(import.meta.url)
+/** This package's manifest anchors optional dependencies in installed and packaged runtimes. */
+const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.meta.url))
+const installationRequire = createRequire(INSTALL_ANCHOR)
 // node-pty is owned by the local subprocess implementation. Resolve it from
 // that package so the capability probe uses the same dependency path as the
 // shell providers, including the portable runtime's nested dependency layout.
-const subprocessRequire = createRequire(require.resolve('@deepseek-ai/dsh-subprocess-local/package.json'))
+const subprocessRequire = createRequire(installationRequire.resolve('@deepseek-ai/dsh-subprocess-local/package.json'))
 const PROBE_TIMEOUT_MS = 8_000
 
 interface PtyHandle {
@@ -115,6 +117,29 @@ function unavailable(
     state: 'unavailable',
     reason,
     remediation,
+  }
+}
+
+/**
+ * Whether a runtime package is present in this build.
+ *
+ * Every other probe here measures an effect because a platform must never be
+ * credited by declaration. Presence is different in kind: a package either
+ * resolves from the runtime's own dependency closure or it does not, and there
+ * is no partially working state to discover by running it.
+ *
+ * This exists for packages the upstream submodule marks experimental. A bump
+ * that renames or drops one must degrade a mode out of the roster with a
+ * stated reason, not fail the Loader on first use.
+ * @param specifier - package name to resolve from this runtime.
+ * @returns true when the package resolves.
+ */
+function resolvable(specifier: string): boolean {
+  try {
+    installationRequire.resolve(`${specifier}/package.json`)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -330,7 +355,7 @@ async function probeSandboxWorkspaceWrite(): Promise<ProbeOutcome> {
 async function probeDirectoryPickerIpc(): Promise<ProbeOutcome> {
   let manifest: string
   try {
-    manifest = require.resolve('@deepseek-ai/dsh-host-directory-picker-native/package.json')
+    manifest = installationRequire.resolve('@deepseek-ai/dsh-host-directory-picker-native/package.json')
   } catch (error) {
     return {
       ok: false,
@@ -595,6 +620,15 @@ export async function collectCapabilityReport(options: CapabilityReportOptions =
         : 'Use the signed macOS application bundle so the interactive picker can be verified by the native UI lane.',
     )
   }
+  // Build-shaped rather than platform-shaped, so it sits outside the branch.
+  // `crew` requires it; if an upstream bump removes the package, that mode
+  // loses both discovery files and every other mode still compiles.
+  capabilities['crew.agent-team'] = resolvable('@deepseek-ai/dsh-experimental-agent-team')
+    ? { state: 'available', provider: '@deepseek-ai/dsh-experimental-agent-team' }
+    : unavailable(
+      'the Agent Teams runtime is not present in this build',
+      'Rebuild against an upstream revision that ships the experimental Agent Teams packages, or select another mode.',
+    )
   options.trace?.('probes-complete')
 
   const base = {

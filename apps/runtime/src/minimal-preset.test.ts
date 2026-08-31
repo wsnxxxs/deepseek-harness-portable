@@ -1,8 +1,14 @@
 /**
  * Regression tests for the shipped Minimal contract, its explicit runtime
- * variant, and the win32 terminal inspector compatibility bridge.
+ * variants, and the win32 terminal inspector compatibility bridge.
  *
- * `terminal-bash` spawns `C:/Windows/System32/wsl.exe` with `['--', 'bash', ...]`.
+ * Minimal carries no `baseConfig`, so each variant IS the whole composition.
+ * Both must therefore satisfy the same model-facing contract on their own; the
+ * shared assertions below run over every variant rather than over one.
+ *
+ * On win32 `terminal-bash` spawns `C:/Windows/System32/wsl.exe` with
+ * `['--', 'bash', ...]`; the posix variant takes node-pty's default `/bin/bash`
+ * and therefore declares no shell path at all.
  *
  * The win32 inspector stub reports no process-tree members (the WSL VM is not
  * observable from Windows), and spawnTerminal is wrapped to share WSLENV,
@@ -19,6 +25,7 @@ import { adaptWin32SubprocessRuntime, createWin32TerminalInspector } from './win
 
 const modePath = fileURLToPath(new URL('../config/agent-presets/minimal/mode.yml', import.meta.url))
 const win32VariantPath = fileURLToPath(new URL('../config/agent-presets/minimal/variants/win32-wsl.cordis.yml', import.meta.url))
+const posixVariantPath = fileURLToPath(new URL('../config/agent-presets/minimal/variants/posix-bash.cordis.yml', import.meta.url))
 const jsExpressionType = new yaml.Type('tag:yaml.org,2002:js', {
   kind: 'scalar',
   construct: expression => ({ __jsExpr: expression }),
@@ -61,24 +68,46 @@ test('minimal mode declares a stable contract and capability-driven variants', (
   assert.equal(mode.contract.sandbox, 'danger-full-access')
   assert.deepEqual(mode.variants.map(variant => [variant.id, variant.supportLevel]), [
     ['win32-wsl', 'compatible'],
+    ['posix-bash', 'native'],
   ])
-  assert.deepEqual(mode.variants[0].limitations, [
+
+  const win32 = mode.variants.find(variant => variant.id === 'win32-wsl')
+  assert.deepEqual(win32.limitations, [
     'process-tree-unobservable',
     'process-group-signals-emulated',
   ])
+
+  // The native variant reaches Bash directly, so it inherits none of the
+  // bridge's limitations and requires none of the WSL capabilities.
+  const posix = mode.variants.find(variant => variant.id === 'posix-bash')
+  assert.equal(posix.limitations, undefined)
+  assert.deepEqual(posix.requires, ['terminal.pty.native', 'shell.bash', 'shell.bash.persistent'])
+  assert.equal(posix.provides.shell, 'persistent-bash')
+  assert.ok(
+    !posix.requires.some(id => id.startsWith('wsl.') || id === 'terminal.conpty'),
+    'the native variant must not depend on the Windows bridge capabilities',
+  )
 })
 
-test('the minimal variant uses a literal shell implementation without process.platform in config', () => {
-  const win32Source = readFileSync(win32VariantPath, 'utf8')
-  assert.doesNotMatch(win32Source, /process\.platform/)
+test('every minimal variant uses a literal shell implementation with no platform branch', () => {
+  for (const path of [win32VariantPath, posixVariantPath]) {
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /process\.platform/)
+  }
 
   const win32Bash = row(loadVariant(win32VariantPath), 'terminal-bash')
   assert.equal(win32Bash.config.shellPath, 'C:/Windows/System32/wsl.exe')
   assert.deepEqual(win32Bash.config.shellArgs, ['--', 'bash', '--noprofile', '--norc', '-i'])
+
+  // Naming a path here would pin the native variant to one distribution's
+  // layout; the default backend already resolves the host's own Bash.
+  const posixBash = row(loadVariant(posixVariantPath), 'terminal-bash')
+  assert.equal(posixBash.config.shellPath, undefined)
+  assert.equal(posixBash.config.shellArgs, undefined)
+  assert.equal(posixBash.config.timeoutMs, 300000)
 })
 
-test('the minimal variant preserves the model-facing contract', () => {
-  for (const path of [win32VariantPath]) {
+test('every minimal variant preserves the model-facing contract', () => {
+  for (const path of [win32VariantPath, posixVariantPath]) {
     const entries = loadVariant(path)
     const persistentShell = row(entries, 'persistent-shell')
     assert.equal(persistentShell.isolate?.terminals, true)

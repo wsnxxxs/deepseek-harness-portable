@@ -154,6 +154,14 @@ function compositionRows(source: string): CompositionRow[] {
   return rows
 }
 
+/**
+ * Package-name substrings that mark a row as model-facing by default.
+ *
+ * These cover the upstream tool families. A mode mounting a tool package from
+ * outside them declares its own set through `contract.tools.rowNameMarkers`.
+ */
+const DEFAULT_ROW_NAME_MARKERS = ['/dsh-tool-', '/dsh-agent-tool-'] as const
+
 function contractStringArray(value: unknown, label: string): string[] {
   if (value === undefined) return []
   return stringArray(value, label)
@@ -199,10 +207,11 @@ export function validateModeComposition(definition: ModeDefinition, variant: Mod
     ? contractStringArray(tools.requiredRows, `${definition.id}.contract.tools.requiredRows`)
     : contractStringArray(tools.exactRows, `${definition.id}.contract.tools.exactRows`)
   if (exactRows.length > 0) {
+    const markers = tools.rowNameMarkers === undefined
+      ? DEFAULT_ROW_NAME_MARKERS
+      : contractStringArray(tools.rowNameMarkers, `${definition.id}.contract.tools.rowNameMarkers`)
     const enabledToolRows = rows
-      .filter(row => !row.disabled && (
-        row.name?.includes('/dsh-tool-') || row.name?.includes('/dsh-agent-tool-')
-      ))
+      .filter(row => !row.disabled && markers.some(marker => row.name?.includes(marker)))
       .map(row => row.id)
       .sort()
     const expected = [...new Set([...exactRows, ...Object.values(variant.provides ?? {})])].sort()

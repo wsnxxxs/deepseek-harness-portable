@@ -1,0 +1,3 @@
+# Native POSIX shell implementation for the Crew contract.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'

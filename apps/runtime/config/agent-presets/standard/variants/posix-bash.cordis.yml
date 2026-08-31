@@ -1,0 +1,7 @@
+# Native POSIX shell implementation for this contract.
+#
+# The twin of `win32-powershell.cordis.yml`: one row, no OS branch. The shell
+# EXECUTOR (`bash-sandbox`) and the job registry stay on the host plane, so the
+# capability-selected fragment only has to name the model-facing tool.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'

@@ -1,0 +1,214 @@
+# The `crew` agent preset: mission work coordinated on a shared task board.
+#
+# This file is an AGENT-PLANE composition, mounted ONCE under a standing scope;
+# every session naming it joins by scope parentage. The same rules as the other
+# presets apply: a row that PROVIDES a service must sit inside a group carrying
+# an `isolate` realm, or `dsh-agent-presets` rejects the mount.
+#
+# ── Why the Team SERVICE is not here ────────────────────────────────────────
+#
+# `@deepseek-ai/dsh-experimental-agent-team` provides `agentTeams`, and it is a
+# HOST-plane row (see `apps/runtime/src/packaged-bin.ts`) for exactly the reason
+# `goals` is: the Gateway serves the team domain as Remote endpoints whose
+# receiver comes from a generated descriptor with `invocation: { kind: 'direct' }`,
+# so it resolves `agentTeams` on the HOST context. An entry-local realm here
+# would hide it and every browser call would answer `service-unavailable`, while
+# a row without a realm is refused at mount. There is no third option, and the
+# browser needs those endpoints: on this preset the task board is a shared
+# human/agent artifact, not a read-out of what the model did.
+#
+# What this file contributes is the model-facing half: ten Team tools that
+# resolve that host service up the scope chain.
+
+# ── identity ────────────────────────────────────────────────────────────────
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are the Lead of a small agent crew, powered by the {{model}} model. Your working directory is {{cwd}}.
+      The shared task board is the plan of record: before delegating, write the work down as tasks with explicit
+      dependencies and the paths each will write to, and keep every task's status current — the human reads the
+      board, not your narration, and edits it alongside you.
+      Do the work yourself when it is one contiguous change. Spawn a named teammate only when work is genuinely
+      parallel and its write scope is disjoint from every other in-progress task; overlapping scopes are reported
+      as warnings on the board and are yours to resolve, not to ignore.
+      You own the final answer: wait for every teammate whose task the answer depends on before you give it.
+      Ground claims about this repository or about earlier sessions in what you actually read.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── shell ───────────────────────────────────────────────────────────────────
+
+# The capability-selected shell row is appended from the variant fragment
+# declared in mode.yml; this stable base carries no OS branch.
+
+# ── filesystem ──────────────────────────────────────────────────────────────
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+# ── background jobs ────────────────────────────────────────────────────────
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+# ── skills ──────────────────────────────────────────────────────────────────
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+# ── goals ───────────────────────────────────────────────────────────────────
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+# ── cross-session recall ────────────────────────────────────────────────────
+
+# `sessionQuery` and its SQLite FTS5 backend are host-plane and already mounted
+# by the base bundle; only this model-facing consumer is per-preset. It is in
+# this mode and not the others because a crew Lead is the agent most often
+# asked "did we already try this?" — and because a wrong answer there costs a
+# teammate's whole run, not one tool call.
+#
+# Search degrades rather than fails when the FTS backend is unavailable: the
+# service is always present, so the tools always load.
+- id: tool-session-query
+  name: '@deepseek-ai/dsh-tool-session-query'
+  config:
+    maxSearchResults: 100
+    searchTimeoutMs: 30000
+
+# ── crew ────────────────────────────────────────────────────────────────────
+
+# Deliberately NOT inside an isolate group: this row publishes no service. It
+# installs scoped tools into each Team member's own agent context and resolves
+# the host `agentTeams` up the scope chain, so a realm here would only hide the
+# service it needs.
+- id: tool-agent-team
+  name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+  config:
+    freshProvider: spawn
+    forkProvider: fork
+
+# ── plan mode ───────────────────────────────────────────────────────────────
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Do not spawn teammates or claim board tasks: delegation is execution. Reading the board and reading history are grounding, and are allowed. Prefer existing functions and patterns over new machinery.
+
+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Where the plan is meant to run as a crew, say which parts are parallel, what each depends on, and which paths each will write to, so the board can be written from the plan without re-deciding it. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+# ── compaction ──────────────────────────────────────────────────────────────
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# ── delegation ──────────────────────────────────────────────────────────────
+
+# `tool-subagent-control` and `tool-subagent-list-agents` are DELIBERATELY
+# ABSENT, and `contract.composition.forbiddenRows` in mode.yml keeps them out.
+# They register exactly `send_message`, `interrupt_agent` and `list_agents`,
+# which `tool-agent-team` registers with Team semantics — a durable named
+# roster instead of this turn's continuable children. Because they are PRESET
+# rows in `standard`, omitting them here is the entire fix: no host patch, and
+# every other mode keeps them untouched.
+#
+# Both subagent tools are `one-shot` so the host-plane `tool-subagent-report`
+# contributes nothing here: it installs `report` only into CONTINUABLE children.
+# Anonymous one-shot fan-out stays available for work too small to be a task;
+# work worth tracking becomes a teammate and a board entry instead.
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: tool-subagent
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent
+        modelSelectionSettings: true
+        backgroundMode: one-shot
+
+    - id: tool-subagent-fork
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: fork
+        toolName: subagent_fork
+        backgroundMode: one-shot
+
+    - id: workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+    - id: tool-ralph
+      name: '@deepseek-ai/dsh-tool-ralph'
+      config:
+        subagentProvider: spawn
+        maxRounds: 64
+
+# ── remaining model-facing rows ─────────────────────────────────────────────
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000
