@@ -1,0 +1,1 @@
+{"version":3,"file":"ThreadView.d.ts","sourceRoot":"","sources":["../../../../src/client/shell/ThreadView.tsx"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AAGH,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,gCAAgC,CAAA;AAW/D,gCAAgC;AAChC,MAAM,WAAW,eAAe;IAC9B,QAAQ,CAAC,SAAS,EAAE,SAAS,GAAG,SAAS,CAAA;CAC1C;AAED,4CAA4C;AAC5C,wBAAgB,UAAU,CAAC,EAAE,SAAS,EAAE,EAAE,eAAe,+BAqExD"}

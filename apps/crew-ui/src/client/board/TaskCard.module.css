@@ -1,0 +1,151 @@
+/**
+ * One task card.
+ *
+ * A write-scope warning is styled as advice rather than as an error: the host
+ * never refuses the task over it, so the card must not read as broken.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-elevated, transparent);
+}
+
+.busy {
+  opacity: 0.6;
+}
+
+.subject {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, var(--dsw-alias-label-tertiary));
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.ready {
+  color: var(--dsw-alias-label-primary);
+}
+
+.blocked {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.owner {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.chipLabel {
+  color: var(--dsw-alias-label-tertiary);
+  margin-right: 2px;
+}
+
+.chip,
+.scope {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.scope {
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+}
+
+.warning {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, var(--dsw-alias-label-tertiary));
+}
+
+.warningLabel {
+  flex: none;
+  color: var(--dsw-static-orange-500, var(--dsw-alias-label-primary));
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.actions button {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.destructive {
+  margin-left: auto;
+  color: var(--dsw-static-red-500, var(--dsw-alias-label-tertiary)) !important;
+}
+
+.assign {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.assignLabel {
+  white-space: nowrap;
+}
+
+.assign select {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 4px;
+  max-width: 120px;
+}

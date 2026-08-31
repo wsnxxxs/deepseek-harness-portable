@@ -1,0 +1,142 @@
+/** The Inspector's Crew section. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: #172033;
+}
+
+.head {
+  flex: none;
+  padding: 16px 18px 8px;
+}
+
+.title {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 10px 14px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled),
+.rowActive {
+  background: #f1f5f9;
+}
+
+.row:disabled {
+  cursor: default;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.memberCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.status[data-status='running'] { background: #16a34a; }
+.status[data-status='failed'] { background: #dc2626; }
+.status[data-status='provisioning'] { background: #d97706; }
+.status[data-status='inactive'] { opacity: 0.4; }
+
+.description,
+.diagnostic {
+  margin: 0 10px 5px 45px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.diagnostic {
+  color: #c2410c;
+}
+
+.empty {
+  padding: 4px 18px 14px;
+}
+
+.emptyTitle,
+.emptyBody {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.emptyTitle {
+  color: #172033;
+  font-weight: 500;
+}

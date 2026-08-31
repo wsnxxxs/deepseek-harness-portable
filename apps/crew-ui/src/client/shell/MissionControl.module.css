@@ -1,0 +1,339 @@
+/** The Metis-style three-column workspace frame. */
+
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  color: #172033;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.workspace {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rail {
+  flex: none;
+  width: 260px;
+  min-width: 260px;
+  border-right: 1px solid #e2e8f0;
+  background: #f6f7f9;
+  overflow: hidden;
+}
+
+.center {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 360px;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.chatHeader,
+.inspectorHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 50px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.headerLeft,
+.headerUtilities {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.headerLeft {
+  gap: 10px;
+}
+
+.headerUtilities {
+  gap: 8px;
+}
+
+.agentMark,
+.homeMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.agentMark {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+
+.headerCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title,
+.inspectorTitle {
+  overflow: hidden;
+  margin: 0;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: #eef0f3;
+  color: #172033;
+}
+
+.iconButton:focus-visible,
+.primaryAction:focus-visible,
+.inspectorTab:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.3);
+  outline-offset: 2px;
+}
+
+.workspaceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 5px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceChip svg {
+  flex: none;
+}
+
+.missionAlert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 7px 18px;
+  border-bottom: 1px solid #fee2e2;
+  background: #fff7f7;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.missionAlert span {
+  min-width: 0;
+  flex: 1;
+}
+
+.missionAlert button {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.centerBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.homeMark {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 4px;
+  border-radius: 22px;
+}
+
+.home h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 32px;
+}
+
+.home p {
+  max-width: 360px;
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.primaryAction {
+  border: none;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.primaryAction:hover {
+  background: #1d4ed8;
+}
+
+.inspector {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 360px;
+  min-width: 320px;
+  min-height: 0;
+  border-left: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.inspectorHead {
+  padding-left: 18px;
+}
+
+.inspectorTitle {
+  font-size: 14px;
+}
+
+.inspectorTabs {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.inspectorTab {
+  position: relative;
+  flex: none;
+  padding: 7px 7px 9px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.inspectorTab:hover,
+.inspectorTabActive {
+  color: #172033;
+}
+
+.inspectorTabActive::after {
+  position: absolute;
+  right: 7px;
+  bottom: -1px;
+  left: 7px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: #2563eb;
+  content: "";
+}
+
+.inspectorBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  .inspector {
+    width: 320px;
+    min-width: 280px;
+  }
+}
+
+@media (max-width: 860px) {
+  .inspector {
+    display: none;
+  }
+
+  .center {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .rail {
+    width: 224px;
+    min-width: 224px;
+  }
+
+  .chatHeader {
+    padding: 0 10px;
+  }
+
+  .workspaceChip {
+    display: none;
+  }
+}
