@@ -9,14 +9,14 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/shell/LeftRail
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14, IconChevronDownOutline14, IconChevronRightOutline14, IconEditOutline16, IconEllipsisOutline16, IconFolderClose16, IconFolderOpen16, IconNewChatOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, Modal, relativeTime, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14, IconChevronDownOutline14, IconChevronRightOutline14, IconEditOutline16, IconEllipsisOutline16, IconFolderClose16, IconFolderOpen16, IconNewChatOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16, relativeTime, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { commandShortcut } from "../platform.js";
 import { useRuntime } from "../state/runtime.js";
 import { useSessionList, useWorkspaceGroups } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
 import { useGitStatus } from "../git/useGit.js";
-import { EmptyState, IconButton, Popover, ui } from "./ui.js";
+import { EmptyState, FocusingModal, IconButton, Popover, ui } from "./ui.js";
 import css from './LeftRail.module.css';
 /** Suffix per relative-time bucket; `now` shows the bare word. */
 const AGE_SUFFIX = {
@@ -31,15 +31,21 @@ function useAge() {
         return `${String(n)}${AGE_SUFFIX[unit] ?? ''}`;
     }, []);
 }
+function pathLeaf(path) {
+    if (path === undefined || path.trim() === '')
+        return undefined;
+    const normalized = path.replace(/[\\/]+$/, '');
+    const leaf = normalized.slice(Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/')) + 1);
+    return leaf === '' ? undefined : leaf;
+}
 /** One session row. */
 function SessionRow(props) {
     const { session, current } = props;
     const t = useT();
-    return (_jsxs("div", { className: css.rowShell, children: [_jsxs("button", { type: "button", className: `${css.row} ${current ? css.rowActive : ''}`, onClick: props.onOpen, title: session.displayTitle, "data-session-id": session.id, children: [session.running
-                        ? _jsx("span", { className: `${css.dot} ${css.dotRunning}`, "aria-hidden": true })
-                        : session.completed === true
-                            ? _jsx("span", { className: `${css.dot} ${css.dotDone}`, "aria-hidden": true })
-                            : _jsx("span", { className: css.dot, "aria-hidden": true }), _jsx("span", { className: css.rowTitle, children: session.displayTitle }), _jsx("span", { className: css.rowTime, children: props.age })] }), _jsx(Popover, { label: t('top.moreActions'), placement: "down", align: "end", triggerClassName: css.rowMenu, trigger: _jsx(IconEllipsisOutline16, {}), rows: [
+    const stateLabel = session.running
+        ? t('nav.running')
+        : session.completed === true ? t('nav.completed') : t('nav.idle');
+    return (_jsxs("div", { className: css.rowShell, children: [_jsxs("button", { type: "button", className: `${css.row} ${current ? css.rowActive : ''}`, onClick: props.onOpen, title: session.displayTitle, "data-session-id": session.id, "aria-current": current ? 'true' : undefined, children: [_jsxs("span", { className: css.rowAvatar, "aria-hidden": true, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: `${css.rowPresence} ${session.running ? css.dotRunning : session.completed === true ? css.dotDone : ''}` })] }), _jsx("span", { className: ui.visuallyHidden, children: stateLabel }), _jsxs("span", { className: css.rowCopy, children: [_jsx("span", { className: css.rowTitle, children: session.displayTitle }), _jsx("span", { className: css.rowSubtitle, children: pathLeaf(session.cwd) ?? stateLabel })] }), _jsx("span", { className: css.rowTime, children: props.age })] }), _jsx(Popover, { label: t('top.moreActions'), placement: "down", align: "end", triggerClassName: css.rowMenu, trigger: _jsx(IconEllipsisOutline16, {}), rows: [
                     {
                         id: 'rename',
                         label: t('common.edit'),
@@ -51,13 +57,6 @@ function SessionRow(props) {
                         label: t('session.archive'),
                         icon: _jsx(IconArchiveOutline20, { size: 16 }),
                         onSelect: props.onArchive,
-                    },
-                    {
-                        id: 'delete',
-                        label: t('session.delete'),
-                        icon: _jsx(IconTrashOutline16, {}),
-                        danger: true,
-                        onSelect: props.onDelete,
                     },
                 ] })] }));
 }
@@ -99,9 +98,18 @@ export function LeftRail({ navigation, onNewTask }) {
     const searchRef = useRef(null);
     const treeRef = useRef(null);
     const [query, setQuery] = useState('');
-    const [collapsed, setCollapsed] = useState(() => new Set());
-    const [deleteTarget, setDeleteTarget] = useState();
-    const [deleting, setDeleting] = useState(false);
+    const [collapsed, setCollapsed] = useState(() => {
+        try {
+            const raw = localStorage.getItem('dcode.rail.collapsed');
+            if (raw === null)
+                return new Set();
+            const parsed = JSON.parse(raw);
+            return new Set(Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === 'string') : []);
+        }
+        catch {
+            return new Set();
+        }
+    });
     const [sessionRenameTarget, setSessionRenameTarget] = useState();
     const [sessionRenameDraft, setSessionRenameDraft] = useState('');
     const [sessionRenaming, setSessionRenaming] = useState(false);
@@ -121,6 +129,14 @@ export function LeftRail({ navigation, onNewTask }) {
             return next;
         });
     }, []);
+    useEffect(() => {
+        try {
+            localStorage.setItem('dcode.rail.collapsed', JSON.stringify([...collapsed]));
+        }
+        catch {
+            // Storage unavailable: the collapse state simply does not survive a reload.
+        }
+    }, [collapsed]);
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const filteredGroups = useMemo(() => groups.map((group) => {
         if (normalizedQuery === '')
@@ -255,7 +271,7 @@ export function LeftRail({ navigation, onNewTask }) {
         })
             .finally(() => { setRemoving(false); });
     }, [removing, removeTarget, runtime]);
-    return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsxs("div", { className: css.top, children: [_jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: searchRef, type: "search", className: css.searchInput, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); }, onKeyDown: (event) => {
+    return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsxs("div", { className: css.top, children: [_jsxs("div", { className: css.brand, children: [_jsx("span", { className: css.brandMark, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("span", { className: css.brandCopy, children: [_jsx("strong", { children: "DCode" }), _jsx("span", { children: t('nav.agentWorkspace') })] })] }), _jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: searchRef, type: "search", className: css.searchInput, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); }, onKeyDown: (event) => {
                                     if (event.key === 'Escape' && query !== '') {
                                         event.preventDefault();
                                         setQuery('');
@@ -271,34 +287,23 @@ export function LeftRail({ navigation, onNewTask }) {
                         return;
                     event.preventDefault();
                     moveSession(event.key === 'ArrowDown' ? 1 : -1);
-                }, children: [_jsxs("div", { className: css.treeActions, children: [_jsxs("button", { type: "button", className: `${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`, onClick: () => { navigation.show('plugins'); }, children: [_jsx(IconCordisPluginOutline14, { size: 16 }), _jsx("span", { className: ui.grow, children: t('nav.plugins') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'learning' ? css.actionActive : ''}`, onClick: () => { navigation.show('learning'); }, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: ui.grow, children: t('nav.learning') })] })] }), hasRows ? _jsx("div", { className: css.treeDivider, "aria-hidden": true }) : null, hasRows
+                }, children: [_jsxs("div", { className: css.treeActions, children: [_jsxs("button", { type: "button", className: `${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`, onClick: () => { navigation.show('plugins'); }, children: [_jsx(IconCordisPluginOutline14, { size: 16 }), _jsx("span", { className: ui.grow, children: t('nav.plugins') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'learning' ? css.actionActive : ''}`, onClick: () => { navigation.show('learning'); }, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: ui.grow, children: t('nav.learning') })] })] }), hasRows ? _jsx("div", { className: css.sectionLabel, children: t('nav.conversations') }) : null, hasRows ? _jsx("div", { className: css.treeDivider, "aria-hidden": true }) : null, hasRows
                         ? (_jsxs(_Fragment, { children: [filteredGroups.map(group => (_jsxs("div", { className: css.group, children: [_jsx(WorkspaceRow, { group: group, collapsed: collapsed.has(group.workspaceId), onToggle: () => { toggleGroup(group.workspaceId); }, onNewTask: () => { onNewTask(group.workspaceId); }, onRename: () => { openRename(group); }, onRemove: () => { openRemove(group); } }), collapsed.has(group.workspaceId)
                                             ? null
-                                            : group.sessions.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); }, onDelete: () => { setDeleteTarget(session); } }, session.id)))] }, group.workspaceId))), filteredUngrouped.length === 0
+                                            : group.sessions.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); } }, session.id)))] }, group.workspaceId))), filteredUngrouped.length === 0
                                     ? null
-                                    : (_jsxs("div", { className: css.group, children: [_jsx("div", { className: css.groupHeader, children: _jsx("span", { className: css.groupName, children: t('nav.ungrouped') }) }), filteredUngrouped.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); }, onDelete: () => { setDeleteTarget(session); } }, session.id)))] }))] }))
-                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsxs("button", { type: "button", className: `${css.settingsTrigger} ${state.view === 'settings' ? css.settingsTriggerActive : ''}`, onClick: () => { navigation.openSettings('general'); }, children: [_jsx(IconSettingsOutline16, {}), _jsx("span", { children: t('nav.settings') })] }) }), _jsxs(Modal, { open: sessionRenameTarget !== undefined, onClose: () => { if (!sessionRenaming)
+                                    : (_jsxs("div", { className: css.group, children: [_jsx("div", { className: css.groupHeader, children: _jsx("span", { className: css.groupName, children: t('nav.ungrouped') }) }), filteredUngrouped.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.navigation?.archiveSession(session.id); } }, session.id)))] }))] }))
+                        : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsxs("button", { type: "button", className: `${css.settingsTrigger} ${state.view === 'settings' ? css.settingsTriggerActive : ''}`, onClick: () => { navigation.openSettings('general'); }, children: [_jsx(IconSettingsOutline16, {}), _jsx("span", { children: t('nav.settings') })] }) }), _jsxs(FocusingModal, { open: sessionRenameTarget !== undefined, onClose: () => { if (!sessionRenaming)
                     setSessionRenameTarget(undefined); }, title: t('common.edit'), closeLabel: t('common.close'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: sessionRenaming, onClick: () => { setSessionRenameTarget(undefined); }, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", disabled: sessionRenaming || sessionRenameDraft.trim() === '' || sessionRenameDraft.trim() === sessionRenameTarget?.displayTitle, onClick: confirmSessionRename, children: sessionRenaming ? t('common.saving') : t('common.save') })] })), children: [_jsx("input", { className: css.workspaceInput, value: sessionRenameDraft, "aria-label": t('common.edit'), autoFocus: true, disabled: sessionRenaming, onChange: event => { setSessionRenameDraft(event.target.value); setSessionRenameError(undefined); }, onKeyDown: (event) => {
                             if (event.key !== 'Enter')
                                 return;
                             event.preventDefault();
                             confirmSessionRename();
-                        } }), sessionRenameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: sessionRenameError })] }), _jsx(Modal, { open: deleteTarget !== undefined, onClose: () => { if (!deleting)
-                    setDeleteTarget(undefined); }, title: t('session.deleteTitle'), closeLabel: t('common.close'), description: t('session.deleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", autoFocus: true, disabled: deleting, onClick: () => { if (!deleting)
-                                setDeleteTarget(undefined); }, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: deleting, onClick: () => {
-                                const target = deleteTarget;
-                                if (target === undefined || deleting)
-                                    return;
-                                setDeleting(true);
-                                void runtime.sessions.delete(target.id)
-                                    .then(() => { setDeleteTarget(undefined); })
-                                    .catch(() => { })
-                                    .finally(() => { setDeleting(false); });
-                            }, children: t('session.delete') })] })) }), _jsxs(Modal, { open: renameTarget !== undefined, onClose: closeRename, title: t('workspace.renameTitle'), closeLabel: t('common.close'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: renaming, onClick: closeRename, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", disabled: renaming || renameDraft.trim() === '' || renameTarget === undefined || renameDraft.trim() === renameTarget.title, onClick: confirmRename, children: t('workspace.rename') })] })), children: [_jsx("input", { className: css.workspaceInput, value: renameDraft, "aria-label": t('workspace.name'), autoFocus: true, disabled: renaming, onChange: event => { setRenameDraft(event.target.value); setRenameError(undefined); }, onKeyDown: event => {
+                        } }), sessionRenameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: sessionRenameError })] }), _jsxs(FocusingModal, { open: renameTarget !== undefined, onClose: closeRename, title: t('workspace.renameTitle'), closeLabel: t('common.close'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: renaming, onClick: closeRename, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", disabled: renaming || renameDraft.trim() === '' || renameTarget === undefined || renameDraft.trim() === renameTarget.title, onClick: confirmRename, children: t('workspace.rename') })] })), children: [_jsx("input", { className: css.workspaceInput, value: renameDraft, "aria-label": t('workspace.name'), autoFocus: true, disabled: renaming, onChange: event => { setRenameDraft(event.target.value); setRenameError(undefined); }, onKeyDown: event => {
                             if (event.key !== 'Enter')
                                 return;
                             event.preventDefault();
                             confirmRename();
-                        } }), renameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: renameError })] }), _jsxs(Modal, { open: removeTarget !== undefined, onClose: closeRemove, title: t('workspace.removeTitle'), closeLabel: t('common.close'), description: removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title }), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: removing, onClick: closeRemove, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: removing, onClick: confirmRemove, children: t('workspace.remove') })] })), children: [removing ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('workspace.removePending') }) : null, removeError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: removeError })] })] }));
+                        } }), renameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: renameError })] }), _jsxs(FocusingModal, { open: removeTarget !== undefined, onClose: closeRemove, title: t('workspace.removeTitle'), closeLabel: t('common.close'), description: removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title }), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: removing, onClick: closeRemove, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: removing, onClick: confirmRemove, children: t('workspace.remove') })] })), children: [removing ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('workspace.removePending') }) : null, removeError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: removeError })] })] }));
 }
 //# sourceMappingURL=LeftRail.js.map

@@ -129,7 +129,11 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
         const face = runtime.binding(target)?.session
         if (face !== undefined) {
           const handle = face.beginSubmission({ text: opening, images: [] })
-          await face.prompt([{ type: 'text', text: opening }], 'queue', undefined, handle.requestId)
+          const sent = await face.prompt([{ type: 'text', text: opening }], 'queue', undefined, handle.requestId)
+          if (!sent.ok) {
+            handle.abandon()
+            setFailure(sent.error.message)
+          }
         }
       } catch (cause) {
         setFailure(cause instanceof Error ? cause.message : String(cause))

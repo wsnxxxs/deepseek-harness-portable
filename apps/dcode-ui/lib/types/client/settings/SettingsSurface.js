@@ -50,6 +50,7 @@ function Row(props) {
 function GeneralSection() {
     const runtime = useRuntime();
     const t = useT();
+    const uiModeT = runtime.uiModeT;
     const locale = useSyncExternalStore(runtime.locale.subscribe, runtime.locale.getSnapshot, runtime.locale.getSnapshot);
     const busyEnter = useSyncExternalStore(runtime.busyEnter.subscribe, runtime.busyEnter.getSnapshot, runtime.busyEnter.getSnapshot);
     const theme = runtime.theme;
@@ -77,7 +78,7 @@ function GeneralSection() {
                             : (_jsx(Row, { title: t('settings.themeCustom'), control: (_jsx(SelectMenu, { value: snapshot?.preference ?? snapshot?.active.id ?? 'system', ariaLabel: t('settings.themeCustom'), options: [
                                         { id: 'system', label: t('theme.system') },
                                         ...(snapshot?.themes ?? []).map(entry => ({ id: entry.id, label: entry.id })),
-                                    ], onChange: (value) => { theme?.setTheme?.(value); } })) })), _jsx(Row, { title: t('settings.interface'), body: t('settings.interfaceBody'), control: _jsx(UiModeSwitch, {}) }), _jsx(Row, { title: t('settings.fontSize'), control: !canSetFontSize
+                                    ], onChange: (value) => { theme?.setTheme?.(value); } })) })), _jsx(Row, { title: uiModeT('interface'), body: uiModeT('interface.body'), control: _jsx(UiModeSwitch, {}) }), _jsx(Row, { title: t('settings.fontSize'), control: !canSetFontSize
                                 ? _jsx("span", { className: css.badge, children: fontSize })
                                 : (_jsxs("span", { className: css.stepper, children: [_jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} −`, disabled: fontSize <= 11, onClick: () => { setFontSize(Math.max(11, fontSize - 1)); }, children: "\u2212" }), _jsx("span", { className: css.stepperValue, children: fontSize }), _jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} +`, disabled: fontSize >= 22, onClick: () => { setFontSize(Math.min(22, fontSize + 1)); }, children: "+" })] })) })] }) }), _jsx(Section, { title: t('settings.busyEnter'), body: t('settings.busyEnterBody'), children: _jsx("div", { className: css.card, children: _jsx(Row, { title: t('settings.busyEnter'), control: (_jsx(SelectMenu, { value: busyEnter, ariaLabel: t('settings.busyEnter'), options: [
                                 { id: 'queue', label: t('settings.busyEnter.queue') },
@@ -111,6 +112,12 @@ function stringAt(source, path) {
 function modelCredentialRef(provider, profile) {
     const named = stringAt(profile, ['apiKeyEnv']);
     return named ?? `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`;
+}
+function providerOptionLabel(row) {
+    if (row.name.trim().toLowerCase() !== row.id.toLowerCase())
+        return row.name;
+    const acronyms = new Map([['ai', 'AI'], ['api', 'API'], ['aws', 'AWS'], ['gcp', 'GCP'], ['ibm', 'IBM'], ['openai', 'OpenAI']]);
+    return row.id.split('-').map(part => acronyms.get(part) ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(' ');
 }
 function modelProviderRows(registered, configurable, namespaces, credentials) {
     const active = new Set(registered.map(provider => provider.id));
@@ -471,10 +478,7 @@ function ModelsSection(props) {
                         : null] }), value.credentialError === undefined ? null : _jsx("div", { className: css.notice, children: `${t('settings.models.credentialWarning')}: ${value.credentialError}` }), _jsxs("div", { className: css.providerList, children: [visible.map(row => (_jsx(ModelProviderCard, { row: row, writable: value.writable, initiallyOpen: row.id === props.focusedProvider, onReload: models.reload, onSaved: row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined }, row.id))), visible.length === 0 ? _jsx("div", { className: css.modelsEmpty, children: t('settings.models.empty') }) : null] }), draft === undefined ? null : (_jsx(ModelProviderCard, { row: draft, writable: value.writable, initiallyOpen: true, onReload: models.reload, onClose: () => { setAddingProvider(undefined); } }, `add-${draft.id}`)), addingCustom
                 ? _jsx(CustomProviderForm, { rows: value.providers, writable: value.writable, onCancel: () => { setAddingCustom(false); }, onCreated: () => { setAddingCustom(false); models.reload(); } })
                 : null, draft === undefined && !addingCustom
-                ? (_jsxs("div", { className: css.addActions, children: [_jsx("div", { className: css.addSelect, children: _jsx(SelectMenu, { value: "__add_provider__", ariaLabel: t('settings.models.addProvider'), disabled: !value.writable || addable.length === 0, options: [
-                                    { id: '__add_provider__', label: _jsxs(_Fragment, { children: [_jsx(IconPlusOutline16, {}), t('settings.models.addProvider')] }), disabled: true },
-                                    ...addable.map(row => ({ id: row.id, label: row.name, detail: row.id })),
-                                ], onChange: (provider) => { setAddingProvider(provider); setAddingCustom(false); } }) }), _jsxs("button", { type: "button", className: css.addButton, disabled: !value.writable, onClick: () => { setAddingCustom(true); setAddingProvider(undefined); }, children: [_jsx(IconPlusOutline16, {}), t('settings.models.addCustomProvider')] })] }))
+                ? (_jsxs("div", { className: css.addActions, children: [_jsx("div", { className: css.addSelect, children: _jsx(SelectMenu, { value: "", ariaLabel: t('settings.models.addProvider'), placeholder: _jsxs(_Fragment, { children: [_jsx(IconPlusOutline16, {}), t('settings.models.addProvider')] }), disabled: !value.writable || addable.length === 0, options: addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id })), onChange: (provider) => { setAddingProvider(provider); setAddingCustom(false); } }) }), _jsxs("button", { type: "button", className: css.addButton, disabled: !value.writable, onClick: () => { setAddingCustom(true); setAddingProvider(undefined); }, children: [_jsx(IconPlusOutline16, {}), t('settings.models.addCustomProvider')] })] }))
                 : null, value.catalog.failures.length === 0 ? null : (_jsxs("details", { className: css.modelFailures, children: [_jsxs("summary", { children: [t('settings.models.failures'), " (", value.catalog.failures.length, ")"] }), value.catalog.failures.map(failure => _jsxs("p", { children: [failure.name, ": ", failure.message] }, failure.id))] }))] }));
 }
 /** Human-invocable skills visible to the current session. */
@@ -714,12 +718,14 @@ function SubagentsSection({ sessionId }) {
         return _jsx(EmptyState, { children: catalog.error });
     if (catalog.value?.ok === false)
         return _jsx(EmptyState, { children: catalog.value.error.message });
-    const members = catalog.value?.ok === true
-        ? catalog.value.value.members ?? []
+    const entries = catalog.value?.ok === true
+        ? catalog.value.value.entries
         : [];
-    return (_jsx(Section, { title: t('settings.subagents'), body: t('settings.count', { count: members.length }), children: members.length === 0
+    return (_jsx(Section, { title: t('settings.subagents'), body: t('settings.count', { count: entries.length }), children: entries.length === 0
             ? _jsx(EmptyState, { children: t('settings.subagentsEmpty') })
-            : (_jsx("div", { className: css.card, children: members.map(member => (_jsx(Row, { title: member.name ?? member.childSessionId, body: member.status }, member.childSessionId))) })) }));
+            : (_jsx("div", { className: css.card, children: entries.map(entry => (_jsx(Row, { title: entry.kind === 'child' ? entry.label ?? entry.id : entry.id, body: entry.kind === 'child'
+                        ? `${entry.activity} · ${entry.mode}`
+                        : entry.reason }, entry.id))) })) }));
 }
 /**
  * Registered settings namespaces, filtered to those a section is about.
@@ -761,9 +767,6 @@ function UsageSection() {
     const totals = useMemo(() => summarizeUsage(aggregateUsage(list)), [list]);
     if (list.phase === 'pending') {
         return (_jsx(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: _jsx("div", { className: css.card, children: _jsx("div", { className: css.usageStatus, role: "status", children: t('settings.usageLoading') }) }) }));
-    }
-    if (list.state === 'error') {
-        return (_jsx(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: _jsx("div", { className: css.card, role: "alert", children: _jsx("div", { className: css.usageStatus, children: list.error?.message ?? t('settings.usageError') }) }) }));
     }
     return (_jsxs(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: [_jsxs("div", { className: css.usageTotal, children: [_jsx("span", { className: css.usageTotalTitle, children: t('settings.usageTotal') }), _jsx("strong", { className: css.usageTotalValue, children: formatTokenCount(totals.totalTokens) }), _jsx("span", { className: css.usageTotalScope, children: t('settings.usageScope', {
                             sessions: formatTokenCount(totals.sessions),

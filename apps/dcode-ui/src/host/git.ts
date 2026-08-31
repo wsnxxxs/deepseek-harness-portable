@@ -545,7 +545,47 @@ export async function undoPaths(
     }
     const tracked = await git(root, ['ls-files', '--error-unmatch', '--', relativePath], { tolerateFailure: true })
     if (tracked.code === 0) {
+      // A path in the index but absent from HEAD is a newly added file:
+      // `restore --source=HEAD` removes the index entry *and* deletes the
+      // work-tree file with exit 0 and no backup copy. Such files are
+      // cleared from the index and quarantined like untracked ones instead.
+      const inHead = await git(root, ['cat-file', '-e', 'HEAD:' + relativePath], { tolerateFailure: true })
+      if (inHead.code !== 0) {
+        const unstaged = await git(root, ['restore', '--staged', '--', relativePath], { tolerateFailure: true })
+        if (unstaged.code !== 0) {
+          outcomes.push({ path: relativePath, result: 'skipped', reason: unstaged.stderr.trim().slice(0, 300) })
+          continue
+        }
+        try {
+          const destination = join(quarantineRoot, relativePath)
+          await mkdir(dirname(destination), { recursive: true })
+          await rename(join(root, relativePath), destination)
+          outcomes.push({
+            path: relativePath,
+            result: 'quarantined',
+            movedTo: `.dsh/dcode-undo/${stamp}/${relativePath}`,
+          })
+        } catch (error) {
+          // The index entry is already cleared; a work-tree file that is
+          // missing too has nothing to preserve and counts as restored.
+          const code = (error as { code?: unknown } | null)?.code
+          outcomes.push(code === 'ENOENT'
+            ? { path: relativePath, result: 'restored' }
+            : { path: relativePath, result: 'skipped', reason: error instanceof Error ? error.message : String(error) })
+        }
+        continue
+      }
       // Reset the index entry as well, so a staged edit does not survive the undo.
+      const restored = await git(root, ['restore', '--staged', '--worktree', '--source=HEAD', '--', relativePath], { tolerateFailure: true })
+      outcomes.push(restored.code === 0
+        ? { path: relativePath, result: 'restored' }
+        : { path: relativePath, result: 'skipped', reason: restored.stderr.trim().slice(0, 300) })
+      continue
+    }
+    // Not in the index either: restore a deleted tracked path from HEAD, and
+    // quarantine a genuinely untracked file.
+    const inHead = await git(root, ['cat-file', '-e', 'HEAD:' + relativePath], { tolerateFailure: true })
+    if (inHead.code === 0) {
       const restored = await git(root, ['restore', '--staged', '--worktree', '--source=HEAD', '--', relativePath], { tolerateFailure: true })
       outcomes.push(restored.code === 0
         ? { path: relativePath, result: 'restored' }

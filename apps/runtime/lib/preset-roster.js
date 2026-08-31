@@ -66,16 +66,30 @@ export function reconcilePresetRoster(overlays, catalog) {
     overlay.config.default = selected.modeId;
     return { kind: 'default-replaced', configured, selected };
 }
-/** Disable the Host Team service whenever the compiled Crew preset is unavailable. */
+/** The host row that exists only to serve the Crew preset. */
+const CREW_ROWS = ['agent-team'];
+/**
+ * Withdraw the whole Crew product whenever its compiled preset is unavailable.
+ *
+ * The `agent-team` service is the host-side dependency of the Crew preset.
+ * The Crew board surface is no longer a separate frontend: DCode's Agent
+ * Inspector is the single frontend for agent orchestration.
+ *
+ * @param overlays - composed overlay list; Crew's host row is disabled in place.
+ * @param catalog - the compiled mode catalog.
+ * @returns whether Crew survives this boot.
+ */
 export function reconcileCrewRuntime(overlays, catalog) {
     if (catalog.modes.crew?.selectable === true)
         return 'enabled';
-    const alreadyDisabled = overlays.some(entry => {
-        const patch = entry;
-        return patch.id === 'agent-team' && patch.disabled === true;
-    });
-    if (!alreadyDisabled)
-        overlays.push({ id: 'agent-team', disabled: true });
+    for (const id of CREW_ROWS) {
+        const alreadyDisabled = overlays.some((entry) => {
+            const patch = entry;
+            return patch.id === id && patch.disabled === true;
+        });
+        if (!alreadyDisabled)
+            overlays.push({ id, disabled: true });
+    }
     return 'disabled';
 }
 /**

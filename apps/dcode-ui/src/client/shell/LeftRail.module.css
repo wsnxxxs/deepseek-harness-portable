@@ -21,6 +21,50 @@
   -webkit-app-region: no-drag;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  min-height: 38px;
+  padding: 0 var(--zx-space-2);
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);
+  border-radius: 9px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 76%, white), var(--zx-accent));
+  color: var(--zx-on-accent);
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--zx-accent) 22%, transparent);
+}
+
+.brandMark :global(svg) { width: 16px; height: 16px; }
+
+.brandCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.brandCopy strong {
+  color: var(--zx-label);
+  font-size: var(--zx-text-sm);
+  letter-spacing: .01em;
+}
+
+.brandCopy span {
+  overflow: hidden;
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .searchField {
   display: flex;
   align-items: center;
@@ -113,6 +157,15 @@
   flex-direction: column;
   gap: 2px;
   padding-top: var(--zx-space-2);
+}
+
+.sectionLabel {
+  padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  font-weight: var(--zx-weight-semibold);
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 /* Separates the rail's fixed destinations from the task tree they scroll
@@ -268,8 +321,9 @@
 }
 
 .rowActive {
-  background: var(--zx-bg-active);
+  background: color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-active));
   color: var(--zx-label);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
 }
 
 .rowMenu {
@@ -289,9 +343,52 @@
 }
 
 .rowTitle {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowAvatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--zx-label) 8%, transparent);
+  color: var(--zx-label-muted);
+}
+
+.rowAvatar :global(svg) { width: 14px; height: 14px; }
+
+.rowPresence {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--zx-bg-panel);
+  border-radius: 50%;
+  background: var(--zx-label-tertiary);
+}
+
+.rowPresence.dotRunning,
+.rowPresence.dotDone { width: 7px; height: 7px; }
+
+.rowCopy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.rowSubtitle {
+  overflow: hidden;
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

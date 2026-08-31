@@ -16,7 +16,7 @@ import {
   FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
   IconDislikeOutline16, IconEditOutline16, IconLikeOutline16,
-  IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
+  IconSearchOutline16, IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -121,6 +121,7 @@ function Reasoning(props: {
   tokenCount?: number
   labels: MarkdownLabels
 }) {
+  const t = useT()
   const [open, setOpen] = useState(props.streaming)
   const panelId = useId()
   const startedAt = useRef(Date.now())
@@ -140,8 +141,10 @@ function Reasoning(props: {
 
   const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1000))
   const title = props.streaming
-    ? `Thinking (${seconds}s)…`
-    : `Thought for ${seconds}s${props.tokenCount === undefined ? '' : ` · ${compactTokens(props.tokenCount)} tokens`}`
+    ? t('chat.thinkingProgress', { seconds })
+    : props.tokenCount === undefined
+      ? t('chat.thoughtFor', { seconds })
+      : `${t('chat.thoughtFor', { seconds })} · ${t('chat.tokens', { count: compactTokens(props.tokenCount) })}`
   return (
     <div className={`${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''} ${shimmerActive(props.streaming)}`}>
       <button
@@ -169,6 +172,7 @@ function Reasoning(props: {
 
 /** Lightweight waiting row before the first assistant delta arrives. */
 function ThinkingStatus() {
+  const t = useT()
   const startedAt = useRef(Date.now())
   const [seconds, setSeconds] = useState(0)
   useEffect(() => {
@@ -181,7 +185,7 @@ function ThinkingStatus() {
     <div className={`${css.reasoning} ${css.reasoningStreaming} ${shimmerActive()}`} role="status" aria-live="polite">
       <div className={css.reasoningHead}>
         <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
-        <span className={css.reasoningTitle}>Thinking ({seconds}s)…</span>
+        <span className={css.reasoningTitle}>{t('chat.thinkingProgress', { seconds })}</span>
       </div>
     </div>
   )
@@ -196,6 +200,10 @@ function ToolActivityGroup(props: {
   const [open, setOpen] = useState(false)
   const contentId = useId()
   const summary = [
+    props.group.memoryCount === 0 ? undefined : t(
+      props.group.memoryCount === 1 ? 'chat.toolActivity.memoryOne' : 'chat.toolActivity.memoryMany',
+      { count: props.group.memoryCount },
+    ),
     props.group.readCount === 0 ? undefined : t(
       props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany',
       { count: props.group.readCount },
@@ -215,7 +223,11 @@ function ToolActivityGroup(props: {
         aria-controls={contentId}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.toolActivityIcon} aria-hidden><IconSearchOutline16 /></span>
+        <span className={css.toolActivityIcon} aria-hidden>
+          {props.group.memoryCount > 0 && props.group.readCount === 0 && props.group.searchCount === 0
+            ? <IconSparkle16 />
+            : <IconSearchOutline16 />}
+        </span>
         <span className={css.toolActivitySummary}>{summary}</span>
         {props.group.durationMs === undefined
           ? null
@@ -399,10 +411,38 @@ function AssistantActions(props: {
   const [branching, setBranching] = useState(false)
   const [branchError, setBranchError] = useState<string | undefined>(undefined)
   const [feedbackError, setFeedbackError] = useState<string | undefined>(undefined)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteBusy, setNoteBusy] = useState(false)
+  const [noteError, setNoteError] = useState<string | undefined>(undefined)
   const text = assistantText(props.node.blocks)
   const messageId = props.node.messageId
   const item = messageId === undefined ? undefined : props.feedback.items.get(messageId)
   const pending = messageId === undefined ? false : props.feedback.pending.has(messageId)
+
+  useEffect(() => {
+    if (noteOpen) { setNoteDraft(item?.note ?? ''); setNoteError(undefined) }
+  }, [noteOpen, item?.note])
+
+  const saveNote = useCallback(() => {
+    if (messageId === undefined || item?.rating === undefined) return
+    setNoteBusy(true)
+    setNoteError(undefined)
+    void props.feedback.saveNote(messageId, item.rating, noteDraft).then((failure) => {
+      if (failure !== undefined) setNoteError(failure)
+      else { setNoteOpen(false); setNoteDraft('') }
+    }).finally(() => { setNoteBusy(false) })
+  }, [item?.rating, messageId, noteDraft, props.feedback])
+
+  const clearSavedNote = useCallback(() => {
+    if (messageId === undefined) return
+    setNoteBusy(true)
+    setNoteError(undefined)
+    void props.feedback.clearNote(messageId).then((failure) => {
+      if (failure !== undefined) setNoteError(failure)
+      else { setNoteOpen(false); setNoteDraft('') }
+    }).finally(() => { setNoteBusy(false) })
+  }, [messageId, props.feedback])
 
   const branch = useCallback(async () => {
     if (branching) return
@@ -463,10 +503,50 @@ function AssistantActions(props: {
               >
                 <IconDislikeOutline16 />
               </IconButton>
+              <IconButton
+                label={item?.note === undefined || item.note === '' ? t('chat.feedback.note') : t('chat.feedback.noteEdit')}
+                className={css.messageAction}
+                active={noteOpen}
+                disabled={pending || item?.rating === undefined}
+                onClick={() => { setNoteOpen(value => !value) }}
+              >
+                <IconEditOutline16 />
+              </IconButton>
             </span>
           )
           : null}
       </span>
+      {noteOpen && messageId !== undefined ? (
+        <span className={css.noteEditor}>
+          <textarea
+            className={css.noteInput}
+            rows={2}
+            value={noteDraft}
+            disabled={noteBusy}
+            placeholder={t('chat.feedback.notePlaceholder')}
+            aria-label={t('chat.feedback.note')}
+            onChange={event => { setNoteDraft(event.target.value); setNoteError(undefined) }}
+            onKeyDown={event => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setNoteOpen(false)
+              }
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                saveNote()
+              }
+            }}
+          />
+          <span className={css.noteActions}>
+            {item?.note === undefined || item.note === '' ? null : (
+              <Button disabled={noteBusy} onClick={clearSavedNote}>{t('chat.feedback.noteRemove')}</Button>
+            )}
+            <Button disabled={noteBusy} onClick={() => { setNoteOpen(false); setNoteError(undefined) }}>{t('chat.feedback.noteCancel')}</Button>
+            <Button primary disabled={noteBusy} onClick={saveNote}>{noteBusy ? t('common.saving') : t('chat.feedback.noteSave')}</Button>
+          </span>
+          {noteError === undefined ? null : <span className={css.actionError} role="alert">{t('chat.feedback.failed', { error: noteError })}</span>}
+        </span>
+      ) : null}
       <span className={`${css.messageActionGroup} ${css.branchActionGroup}`}>
         <IconButton
           label={branching ? t('chat.message.branching') : t('chat.message.branch')}
@@ -721,6 +801,10 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   const partial = chat?.legacy.partial ?? null
   const runningCalls = chat?.legacy.runningCalls ?? []
   const turns = useMemo(() => splitTurns(nodes), [nodes])
+  const queued = useMemo(
+    () => (session?.queue ?? []).filter(item => item.placement !== 'context'),
+    [session?.queue],
+  )
 
   const navigateToTurn = useCallback((index: number) => {
     // Opt out of bottom pinning before smooth scrolling begins, otherwise a
@@ -898,14 +982,14 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
               />
             ))}
 
-            {session?.queue.length === 0
+            {queued.length === 0
               ? null
-              : session?.queue.map(item => (
+              : queued.map(item => (
                 <QueuedMessageRow
                   key={item.id}
                   sessionId={sessionId}
                   item={item}
-                  running={session.running}
+                  running={session?.running === true}
                 />
               ))}
 

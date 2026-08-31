@@ -11,12 +11,11 @@ import {
   uiModeFromSearch, withUiModeParam,
 } from '../lib/ui-mode.js'
 
-test('the workbench is the default and every surface stays selectable', () => {
+test('the workbench is the default and the two frontends stay selectable', () => {
   assert.equal(DEFAULT_UI_MODE, 'dcode')
-  // Presentation order, official first: it is the surface that is always
-  // present, because the others shadow it and any of them failing to load
-  // leaves it rendering.
-  assert.deepEqual([...UI_MODES], ['official', 'dcode', 'crew'])
+  // Presentation order, official first: it is always present, while DCode
+  // shadows it when selected.
+  assert.deepEqual([...UI_MODES], ['official', 'dcode'])
   assert.ok(UI_MODES.includes(DEFAULT_UI_MODE))
 })
 
@@ -29,14 +28,14 @@ test('asUiMode admits exactly the registered surfaces', () => {
 
 test('resolveUiMode takes the first candidate that names a mode', () => {
   assert.equal(resolveUiMode(undefined, 'official', 'dcode'), 'official')
-  assert.equal(resolveUiMode('nonsense', undefined, 'crew'), 'crew')
+  assert.equal(resolveUiMode('nonsense', undefined, 'official'), 'official')
   assert.equal(resolveUiMode(), DEFAULT_UI_MODE)
   assert.equal(resolveUiMode(null, '', {}), DEFAULT_UI_MODE)
 })
 
 test('cycleUiMode walks the whole ring in both directions', () => {
-  assert.deepEqual(UI_MODES.map(mode => cycleUiMode(mode)), ['dcode', 'crew', 'official'])
-  assert.deepEqual(UI_MODES.map(mode => cycleUiMode(mode, -1)), ['crew', 'official', 'dcode'])
+  assert.deepEqual(UI_MODES.map(mode => cycleUiMode(mode)), ['dcode', 'official'])
+  assert.deepEqual(UI_MODES.map(mode => cycleUiMode(mode, -1)), ['dcode', 'official'])
 
   // Every surface must be reachable from every other by repeated cycling;
   // this is what a keyboard entry with no list to pick from relies on.
@@ -65,13 +64,13 @@ test('the URL parameter is written explicitly, including for the default', () =>
 })
 
 test('rewriting preserves every other query parameter and the path', () => {
-  const rewritten = withUiModeParam('http://127.0.0.1:7000/app?token=abc&x=1#frag', 'crew')
+  const rewritten = withUiModeParam('http://127.0.0.1:7000/app?token=abc&x=1#frag', 'official')
   const parsed = new URL(rewritten)
   assert.equal(parsed.pathname, '/app')
   assert.equal(parsed.hash, '#frag')
   assert.equal(parsed.searchParams.get('token'), 'abc')
   assert.equal(parsed.searchParams.get('x'), '1')
-  assert.equal(parsed.searchParams.get('view'), 'crew')
+  assert.equal(parsed.searchParams.get('view'), 'official')
 })
 
 test('rewriting an already-stamped URL replaces rather than appends', () => {
@@ -82,7 +81,7 @@ test('rewriting an already-stamped URL replaces rather than appends', () => {
 
 test('uiModeFromSearch reads the parameter and ignores an unknown value', () => {
   assert.equal(uiModeFromSearch('?view=official'), 'official')
-  assert.equal(uiModeFromSearch('?view=crew&other=1'), 'crew')
+  assert.equal(uiModeFromSearch('?view=official&other=1'), 'official')
   assert.equal(uiModeFromSearch('?view=classic'), undefined)
   assert.equal(uiModeFromSearch(''), undefined)
 })

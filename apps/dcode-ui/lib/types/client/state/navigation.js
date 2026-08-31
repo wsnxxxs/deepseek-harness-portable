@@ -45,7 +45,7 @@ export function adjacentAsideTab(tab, direction, tabs = ASIDE_TABS) {
 const INITIAL_LAYOUT = initialLayoutSize();
 const INITIAL = {
     view: 'session',
-    aside: 'changes',
+    aside: 'goal',
     asideOpen: LAYOUT_FIT[INITIAL_LAYOUT].asideOpen,
     // A card the operator summons, never something the frame opens for them.
     summaryOpen: false,

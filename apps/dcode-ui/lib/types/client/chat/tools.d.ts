@@ -24,13 +24,14 @@ export interface ToolSummary {
     readonly mutating: boolean;
 }
 /** The card head vocabulary. */
-export type ToolKind = 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'plan' | 'skill' | 'other';
+export type ToolKind = 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'memory' | 'plan' | 'skill' | 'other';
 /** A collapsed run of lightweight, successful read/search calls. */
 export interface ToolActivityGroup {
     readonly kind: 'tool-activity';
     readonly blocks: readonly ToolResultNode[];
     readonly readCount: number;
     readonly searchCount: number;
+    readonly memoryCount: number;
     /** Distinct workspace paths touched by the exploration run. */
     readonly fileCount: number;
     /** Sum of call durations when every result retained its call timestamp. */

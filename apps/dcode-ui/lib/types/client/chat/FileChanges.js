@@ -26,18 +26,30 @@ function splitPath(path) {
         ? { dir: '', name: normalized }
         : { dir: normalized.slice(0, index + 1), name: normalized.slice(index + 1) };
 }
-/** Normalize a turn path to the repository-relative form used by git status. */
-function relativePath(path, cwd) {
+/**
+ * Normalize a turn path to the repository-relative form git status reports.
+ *
+ * Git status rows and every `/dcode` path are root-relative, while a tool's
+ * recorded path is absolute or relative to the session cwd; when the workspace
+ * is a repository subdirectory the naive string-crop of the cwd prefix
+ * produces the wrong file and zero line counts.
+ */
+function repoRelative(path, cwd, root) {
     const normalized = path.split('\\').join('/').replace(/^\.\//, '');
+    const r = root === undefined ? undefined : root.split('\\').join('/').replace(/\/$/, '');
+    if (r !== undefined && normalized.startsWith(r + '/'))
+        return normalized.slice(r.length + 1);
     if (cwd === undefined)
         return normalized;
-    const root = cwd.split('\\').join('/').replace(/\/$/, '');
-    return normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : normalized;
+    const c = cwd.split('\\').join('/').replace(/\/$/, '');
+    const absolute = normalized.startsWith(c + '/') ? normalized : `${c}/${normalized}`;
+    return r !== undefined && absolute.startsWith(r + '/')
+        ? absolute.slice(r.length + 1)
+        : absolute.startsWith(c + '/') ? absolute.slice(c.length + 1) : normalized;
 }
-/** Exact-match a turn path against a repository-relative status row. */
-function countsFor(status, path, cwd) {
-    const normalized = relativePath(path, cwd);
-    const row = status?.files.find(file => file.path.split('\\').join('/') === normalized);
+/** Exact-match a normalized path against a repository-relative status row. */
+function countsFor(status, path) {
+    const row = status?.files.find(file => file.path.split('\\').join('/') === path);
     return { insertions: row?.insertions ?? 0, deletions: row?.deletions ?? 0 };
 }
 /** The turn's changed-file summary with its undo action. */
@@ -48,16 +60,18 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
     const [note, setNote] = useState(undefined);
     const [confirmingUndo, setConfirmingUndo] = useState(false);
     const [acknowledgedUndo, setAcknowledgedUndo] = useState(false);
+    const gitPath = useCallback((path) => repoRelative(path, cwd, status?.root), [cwd, status?.root]);
     const totals = useMemo(() => paths.reduce((sum, path) => {
-        const counts = countsFor(status, path, cwd);
+        const counts = countsFor(status, gitPath(path));
         return { insertions: sum.insertions + counts.insertions, deletions: sum.deletions + counts.deletions };
-    }, { insertions: 0, deletions: 0 }), [paths, status, cwd]);
+    }, { insertions: 0, deletions: 0 }), [paths, status, gitPath]);
     const undo = useCallback(() => {
         if (cwd === undefined)
             return;
         setUndoing(true);
         setNote(undefined);
-        void runtime.git.undo(cwd, paths).then((result) => {
+        const targets = paths.map(path => gitPath(path));
+        void runtime.git.undo(cwd, targets).then((result) => {
             if (!result.ok) {
                 setNote({ text: result.error.message, kind: 'error' });
                 return;
@@ -74,7 +88,7 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
         }).catch((cause) => {
             setNote({ text: cause instanceof Error ? cause.message : String(cause), kind: 'error' });
         }).finally(() => { setUndoing(false); });
-    }, [runtime, cwd, paths, onChanged, t]);
+    }, [runtime, cwd, gitPath, onChanged, t]);
     if (paths.length === 0)
         return null;
     return (_jsxs("section", { className: css.card, children: [_jsxs("header", { className: `${css.head} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('changes.count', { count: paths.length }) }), _jsx(DiffCount, { insertions: totals.insertions, deletions: totals.deletions }), _jsxs("button", { type: "button", className: css.undo, disabled: undoing || cwd === undefined || !runtime.git.available, onClick: () => {
@@ -82,8 +96,9 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
                             setConfirmingUndo(true);
                         }, title: t('changes.undo'), children: [undoing ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}), undoing ? t('changes.undoing') : t('changes.undo')] })] }), paths.map((path) => {
                 const { dir, name } = splitPath(path);
-                const counts = countsFor(status, path, cwd);
-                return (_jsxs("button", { type: "button", className: css.row, onClick: () => { onOpenDiff(path); }, title: path, children: [_jsx(IconEditOutline16, {}), _jsx("span", { className: css.path, children: _jsxs("bdi", { children: [dir === '' ? '' : _jsx("span", { className: css.dir, children: dir }), name] }) }), _jsx(DiffCount, { insertions: counts.insertions, deletions: counts.deletions })] }, path));
+                const target = gitPath(path);
+                const counts = countsFor(status, target);
+                return (_jsxs("button", { type: "button", className: css.row, onClick: () => { onOpenDiff(target); }, title: path, children: [_jsx(IconEditOutline16, {}), _jsx("span", { className: css.path, children: _jsxs("bdi", { children: [dir === '' ? '' : _jsx("span", { className: css.dir, children: dir }), name] }) }), _jsx(DiffCount, { insertions: counts.insertions, deletions: counts.deletions })] }, path));
             }), note === undefined
                 ? null
                 : _jsx("p", { className: `${css.note} ${note.kind === 'error' ? css.noteError : ''}`, role: note.kind === 'error' ? 'alert' : 'status', children: note.text }), _jsx(RiskConfirmation, { open: confirmingUndo, title: t('changes.undoConfirmTitle'), description: t('changes.undoConfirmBody'), acknowledgeLabel: t('changes.undoConfirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('changes.undo'), acknowledged: acknowledgedUndo, disabled: undoing, onAcknowledgedChange: setAcknowledgedUndo, onCancel: () => {

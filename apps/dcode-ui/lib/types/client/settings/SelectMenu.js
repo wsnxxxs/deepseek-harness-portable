@@ -2,10 +2,11 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 /** Glass-styled, portal-backed select menu used by the DCode settings fallback. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives';
 import css from './SelectMenu.module.css';
 const VIEWPORT_GUTTER = 8;
 const MENU_GAP = 6;
-const MENU_MAX_HEIGHT = 280;
+const MENU_MAX_HEIGHT = 320;
 function firstEnabled(options, from = 0, direction = 1) {
     for (let index = from; index >= 0 && index < options.length; index += direction) {
         if (options[index]?.disabled !== true)
@@ -14,7 +15,7 @@ function firstEnabled(options, from = 0, direction = 1) {
     return -1;
 }
 /** A native-select replacement that stays inside DCode's visual language. */
-export function SelectMenu({ value, options, onChange, ariaLabel, disabled = false }) {
+export function SelectMenu({ value, options, onChange, ariaLabel, placeholder, disabled = false }) {
     const triggerRef = useRef(null);
     const menuRef = useRef(null);
     const optionRefs = useRef({});
@@ -32,13 +33,13 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         const rect = trigger.getBoundingClientRect();
         const roomBelow = window.innerHeight - rect.bottom - VIEWPORT_GUTTER;
         const above = roomBelow < MENU_MAX_HEIGHT && rect.top > roomBelow;
-        const estimatedHeight = Math.min(MENU_MAX_HEIGHT, Math.max(44, options.length * 40 + 8));
+        const estimatedHeight = Math.min(MENU_MAX_HEIGHT, Math.max(56, options.length * 48 + 16));
         const top = above
             ? Math.max(VIEWPORT_GUTTER, rect.top - estimatedHeight - MENU_GAP)
             : Math.min(window.innerHeight - VIEWPORT_GUTTER - estimatedHeight, rect.bottom + MENU_GAP);
-        const minWidth = Math.max(rect.width, 180);
-        const left = Math.min(Math.max(VIEWPORT_GUTTER, rect.left), Math.max(VIEWPORT_GUTTER, window.innerWidth - minWidth - VIEWPORT_GUTTER));
-        setPosition({ top, left, minWidth, side: above ? 'above' : 'below' });
+        const width = Math.min(Math.max(rect.width, 240), window.innerWidth - VIEWPORT_GUTTER * 2);
+        const left = Math.min(Math.max(VIEWPORT_GUTTER, rect.left), Math.max(VIEWPORT_GUTTER, window.innerWidth - width - VIEWPORT_GUTTER));
+        setPosition({ top, left, width, side: above ? 'above' : 'below' });
     }, [options.length]);
     const close = useCallback((restoreFocus = true) => {
         setOpen(false);
@@ -85,7 +86,9 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
                 return;
             }
             const move = (direction, start) => {
-                const next = firstEnabled(options, start, direction);
+                let next = firstEnabled(options, start, direction);
+                if (next < 0)
+                    next = firstEnabled(options, direction === 1 ? 0 : options.length - 1, direction);
                 if (next >= 0)
                     setActive(next);
             };
@@ -151,17 +154,17 @@ export function SelectMenu({ value, options, onChange, ariaLabel, disabled = fal
         }
     };
     const list = open && position !== undefined && typeof document !== 'undefined'
-        ? createPortal(_jsx("div", { ref: menuRef, id: menuId, role: "listbox", "aria-label": ariaLabel, className: css.menu, "data-side": position.side, style: { top: position.top, left: position.left, minWidth: position.minWidth }, children: options.map((option, index) => (_jsxs("button", { ref: (node) => { optionRefs.current[index] = node; }, type: "button", role: "option", "aria-selected": option.id === value, "aria-disabled": option.disabled === true || undefined, tabIndex: index === active ? 0 : -1, className: `${css.option} ${option.id === value ? css.optionSelected : ''} ${index === active ? css.optionActive : ''}`, disabled: option.disabled, onMouseEnter: () => { if (option.disabled !== true)
+        ? createPortal(_jsx("div", { ref: menuRef, id: menuId, role: "listbox", "aria-label": ariaLabel, className: css.menu, "data-side": position.side, style: { top: position.top, left: position.left, width: position.width }, children: options.map((option, index) => (_jsxs("button", { ref: (node) => { optionRefs.current[index] = node; }, type: "button", role: "option", "aria-selected": option.id === value, "aria-disabled": option.disabled === true || undefined, tabIndex: index === active ? 0 : -1, className: `${css.option} ${option.id === value ? css.optionSelected : ''} ${index === active ? css.optionActive : ''}`, disabled: option.disabled, onMouseEnter: () => { if (option.disabled !== true)
                     setActive(index); }, onClick: () => {
                     if (option.disabled === true)
                         return;
                     onChange(option.id);
                     close();
-                }, children: [_jsxs("span", { className: css.optionText, children: [_jsx("span", { children: option.label }), option.detail === undefined ? null : _jsx("span", { className: css.detail, children: option.detail })] }), option.id === value ? _jsx("span", { className: css.check, "aria-hidden": true, children: "\u2713" }) : null] }, option.id))) }), document.body)
+                }, children: [_jsxs("span", { className: css.optionText, children: [_jsx("span", { className: css.optionLabel, children: option.label }), option.detail === undefined ? null : _jsx("span", { className: css.detail, children: option.detail })] }), option.id === value ? _jsx("span", { className: css.check, "aria-hidden": true, children: "\u2713" }) : null] }, option.id))) }), document.body)
         : null;
     return (_jsxs(_Fragment, { children: [_jsxs("button", { ref: triggerRef, type: "button", className: css.trigger, "aria-label": ariaLabel, "aria-haspopup": "listbox", "aria-expanded": open, "aria-controls": open ? menuId : undefined, disabled: disabled || options.length === 0, onClick: () => { if (open)
                     close(false);
                 else
-                    openMenu(); }, onKeyDown: onTriggerKeyDown, children: [_jsx("span", { className: css.triggerValue, children: selected?.label ?? value }), _jsx("span", { className: `${css.chevron} ${open ? css.chevronOpen : ''}`, "aria-hidden": true, children: "\u2304" })] }), list] }));
+                    openMenu(); }, onKeyDown: onTriggerKeyDown, children: [_jsx("span", { className: `${css.triggerValue} ${selected === undefined ? css.triggerPlaceholder : ''}`, children: selected?.label ?? placeholder ?? value }), _jsx("span", { className: `${css.chevron} ${open ? css.chevronOpen : ''}`, "aria-hidden": true, children: _jsx(IconChevronDownOutline14, { size: 12 }) })] }), list] }));
 }
 //# sourceMappingURL=SelectMenu.js.map

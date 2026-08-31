@@ -24,6 +24,7 @@ import { useGitStatus } from '../git/useGit.ts'
 import { IconButton, Popover, ui } from './ui.tsx'
 import css from './TopBar.module.css'
 import { TopBarDownloadIcon, TopBarListIcon } from './TopBarIcons.tsx'
+import { AgentIdentity } from './AgentIdentity.tsx'
 
 const EMPTY_SESSION_LOG_STATE: SessionLogDownloadState = { bySession: {} }
 const EMPTY_SUBSCRIBE = (_listener: () => void): (() => void) => () => {}
@@ -67,11 +68,11 @@ export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
       : contextTab === 'goal' ? t('top.contextGoal') : undefined
   // While the first read is outstanding the chip shows nothing rather than
   // asserting "not a repository" about a directory it has not looked at yet.
-  const branchLabel = git.pending
+  // A non-repository workspace reports itself inside the Changes panel; the
+  // top bar only claims a branch when one actually exists.
+  const branchLabel = git.pending || git.status?.repository !== true
     ? undefined
-    : git.status?.repository === true
-      ? (git.status.branch ?? (git.status.detached ? 'HEAD' : t('top.branch')))
-      : t('top.noRepository')
+    : (git.status.branch ?? (git.status.detached ? 'HEAD' : t('top.branch')))
 
   const shareEntry = sessionId === undefined
     ? undefined
@@ -114,6 +115,8 @@ export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
       >
         {title ?? t('top.noSession')}
       </span>
+
+      <AgentIdentity navigation={navigation} sessionId={sessionId} />
 
       {workspace === undefined
         ? null

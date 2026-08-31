@@ -13,6 +13,18 @@ import type { CSSProperties, ReactNode } from 'react';
 export declare const ui: Record<string, string>;
 /** The shared material-glint class for live Tool and Thinking surfaces. */
 export declare function shimmerActive(active?: boolean): string;
+/** The workbench modal face with focus containment and restoration. */
+export declare function FocusingModal(props: {
+    open: boolean;
+    onClose: () => void;
+    title: string;
+    closeLabel: string;
+    description?: string;
+    children?: ReactNode;
+    footer?: ReactNode;
+    className?: string;
+    contentClassName?: string;
+}): import("react").JSX.Element;
 /** A square control that carries an icon and an accessible name. */
 export declare function IconButton(props: {
     label: string;

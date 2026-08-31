@@ -32,6 +32,7 @@ function Glyph({ kind }: { kind: ToolKind }) {
     case 'search': return <IconSearchOutline16 />
     case 'web': return <IconBrowseOutline16 />
     case 'agent': return <IconUserOutline16 />
+    case 'memory': return <IconSparkle16 />
     case 'plan': return <IconChecklistOutline14 size={16} />
     case 'skill': return <IconSkillOutline16 />
     default: return <IconSparkle16 />
@@ -75,7 +76,7 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
 
   useEffect(() => {
     if (settled) return undefined
-    const timer = window.setInterval(() => { setNow(Date.now()) }, 100)
+    const timer = window.setInterval(() => { setNow(Date.now()) }, 1000)
     return () => { window.clearInterval(timer) }
   }, [settled])
 
@@ -92,34 +93,42 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
   return (
     <div className={css.group} data-tool-call-id={block.callId}>
       <div className={`${css.card} ${emphasized ? css.cardEmphasized : ''}`}>
-        <button
-          type="button"
-          className={`${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`}
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={() => {
-            setOpen(value => !value)
-            onInspect?.(block.callId)
-          }}
-        >
-          <span className={`${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`} aria-hidden>
-            {settled ? failed ? <IconWarningOutline16 /> : <Glyph kind={summary.kind} /> : <Spinner />}
-          </span>
-          <span className={`${css.verb} ${failed ? css.error : ''}`}>{verb}</span>
-          <span className={css.detail}>{summary.detail === '' ? name : summary.detail}</span>
-          {changes === undefined
-            ? null
-            : (
-              <span className={css.changes} aria-label={`${changes.additions} lines added, ${changes.deletions} lines removed`}>
-                <span className={css.additions}>+{changes.additions}</span>
-                <span className={css.deletions}>−{changes.deletions}</span>
-              </span>
-            )}
-          {duration === undefined
-            ? null
-            : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}
-          <IconChevronRightOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
-        </button>
+        <div className={`${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`}>
+          <button
+            type="button"
+            className={css.headMain}
+            aria-expanded={open}
+            aria-controls={contentId}
+            onClick={() => { setOpen(value => !value) }}
+          >
+            <span className={`${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`} aria-hidden>
+              {settled ? failed ? <IconWarningOutline16 /> : <Glyph kind={summary.kind} /> : <Spinner />}
+            </span>
+            <span className={`${css.verb} ${failed ? css.error : ''}`}>{verb}</span>
+            <span className={css.detail}>{summary.detail === '' ? name : summary.detail}</span>
+            {changes === undefined
+              ? null
+              : (
+                <span className={css.changes} aria-label={`${changes.additions} lines added, ${changes.deletions} lines removed`}>
+                  <span className={css.additions}>+{changes.additions}</span>
+                  <span className={css.deletions}>−{changes.deletions}</span>
+                </span>
+              )}
+            {duration === undefined
+              ? null
+              : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}
+            <IconChevronRightOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
+          </button>
+          <button
+            type="button"
+            className={css.inspect}
+            aria-label={t('chat.inspect')}
+            title={t('chat.inspect')}
+            onClick={() => { onInspect?.(block.callId) }}
+          >
+            <IconSearchOutline16 />
+          </button>
+        </div>
         <div className={`${css.disclosure} ${open ? css.disclosureOpen : ''}`} aria-hidden={!open}>
           <div className={css.disclosureClip}>
             <div className={css.body} id={contentId}>

@@ -11,7 +11,7 @@
  */
 
 import {
-  useCallback, useEffect, useId, useMemo, useRef, useState,
+  forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState,
   type FocusEvent, type KeyboardEvent,
 } from 'react'
 import {
@@ -43,11 +43,16 @@ export interface ModelSelectProps {
   readonly disabled?: boolean
 }
 
+/** Imperative face for opening the picker from outside the composer. */
+export interface ModelSelectHandle {
+  open(): void
+}
+
 function cx(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
-export function ModelSelect({ sessionId, disabled }: ModelSelectProps) {
+export const ModelSelect = forwardRef<ModelSelectHandle, ModelSelectProps>(function ModelSelect({ sessionId, disabled }, ref) {
   const runtime = useRuntime()
   const t = useT()
   const id = useId()
@@ -129,6 +134,8 @@ export function ModelSelect({ sessionId, disabled }: ModelSelectProps) {
       queueMicrotask(() => { triggerRef.current?.focus() })
     }
   }, [])
+
+  useImperativeHandle(ref, () => ({ open: () => { show() } }), [])
 
   useEffect(() => {
     if (!open) return undefined
@@ -388,4 +395,4 @@ export function ModelSelect({ sessionId, disabled }: ModelSelectProps) {
       )}
     </div>
   )
-}
+})

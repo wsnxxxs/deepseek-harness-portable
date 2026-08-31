@@ -51,7 +51,17 @@ export declare function selectableModes(catalog: RuntimeModeCatalog): RuntimeMod
  * @returns what was done, for diagnostics.
  */
 export declare function reconcilePresetRoster(overlays: readonly PatchOptions[], catalog: RuntimeModeCatalog): PresetRosterOutcome;
-/** Disable the Host Team service whenever the compiled Crew preset is unavailable. */
+/**
+ * Withdraw the whole Crew product whenever its compiled preset is unavailable.
+ *
+ * The `agent-team` service is the host-side dependency of the Crew preset.
+ * The Crew board surface is no longer a separate frontend: DCode's Agent
+ * Inspector is the single frontend for agent orchestration.
+ *
+ * @param overlays - composed overlay list; Crew's host row is disabled in place.
+ * @param catalog - the compiled mode catalog.
+ * @returns whether Crew survives this boot.
+ */
 export declare function reconcileCrewRuntime(overlays: PatchOptions[], catalog: RuntimeModeCatalog): 'enabled' | 'disabled';
 /**
  * Render one outcome as an operator-facing diagnostic.

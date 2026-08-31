@@ -161,9 +161,13 @@ function MessageNavRailView({ nodes, scrollerRef, onNavigate }: MessageNavRailPr
               <button
                 type="button"
                 className={`${css.bookmark} ${bookmarked ? css.bookmarkActive : ''}`}
-                aria-label={`${bookmarked ? 'Remove bookmark from' : 'Bookmark'} turn ${String(index + 1)}`}
+                aria-label={bookmarked
+                  ? t('chat.turnNavigation.bookmarkRemove', { count: index + 1 })
+                  : t('chat.turnNavigation.bookmarkAdd', { count: index + 1 })}
                 aria-pressed={bookmarked}
-                title={bookmarked ? 'Remove bookmark' : 'Bookmark turn'}
+                title={bookmarked
+                  ? t('chat.turnNavigation.bookmarkRemove', { count: index + 1 })
+                  : t('chat.turnNavigation.bookmarkAdd', { count: index + 1 })}
                 onClick={() => { toggleBookmark(turn.bookmarkId) }}
               >★</button>
             </div>
@@ -179,7 +183,7 @@ function MessageNavRailView({ nodes, scrollerRef, onNavigate }: MessageNavRailPr
             <div className={css.tooltipHeader}>
               <div className={css.tooltipBadgeGroup}>
                 <span className={css.tooltipTurnBadge}>
-                  {t('chat.turnNavigation.turnBadge', { count: previewIndex + 1 }) || `Turn ${previewIndex + 1}`}
+                  {t('chat.turnNavigation.turnBadge', { count: previewIndex + 1 })}
                 </span>
                 <span className={`${css.tooltipMarkerBadge} ${css[`marker_${preview.marker}`]}`}>
                   <span className={css.markerIcon} aria-hidden>{previewMarker.icon}</span>
@@ -192,9 +196,9 @@ function MessageNavRailView({ nodes, scrollerRef, onNavigate }: MessageNavRailPr
             </div>
             <div className={css.tooltipPrompt}>{preview.summary || '…'}</div>
             <div className={css.tooltipFooter}>
-              <span className={css.tooltipHint}>{t('chat.turnNavigation.hint') || 'Click to jump'}</span>
+              <span className={css.tooltipHint}>{t('chat.turnNavigation.hint')}</span>
               {bookmarks.has(preview.bookmarkId) && (
-                <span className={css.tooltipBookmarkedBadge}>★ {t('chat.turnNavigation.bookmarked') || 'Bookmarked'}</span>
+                <span className={css.tooltipBookmarkedBadge}>★ {t('chat.turnNavigation.bookmarked')}</span>
               )}
             </div>
           </div>

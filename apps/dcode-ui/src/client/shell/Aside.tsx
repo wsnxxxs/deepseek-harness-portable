@@ -9,15 +9,15 @@
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16,
-  IconGoalOutline16, IconWarningOutline16,
+  IconGoalOutline16, IconSearchOutline16, IconWarningOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
+import { useAsync, useChatSnapshot, useProjectionValue, useSessionList, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import {
   adjacentAsideTab, orderedAsideTabs, useNavigation,
@@ -26,10 +26,11 @@ import {
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
 import { DiffViewer } from '../git/DiffViewer.tsx'
-import { CopyButton, EmptyState, Pill, Spinner, ui } from './ui.tsx'
+import { Button, CopyButton, EmptyState, Pill, Spinner, ui } from './ui.tsx'
 import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, toolDurationMs } from '../chat/tools.ts'
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import { stripAnsi } from '../chat/ansi.ts'
+import { ChangedFilesOverview, SubagentDetailPanel, SubagentsPanel, type SubagentChildEntry } from './AgentInspector.tsx'
 import css from './Aside.module.css'
 
 /** Props of the floating right card. */
@@ -42,7 +43,7 @@ export interface AsideProps {
 
 /** The goal projection's shape, read structurally to avoid a package edge. */
 interface GoalProjectionView {
-  readonly goal: { readonly objective: string; readonly phase: string }
+  readonly goal: { readonly id: string; readonly revision: number; readonly objective: string; readonly phase: string }
   readonly roundsStarted: number
   readonly updatedAt: number
 }
@@ -62,6 +63,7 @@ function* walkCalls(block: ToolCallBlock): Generator<ToolCallBlock> {
  */
 /** Goal and Progress. */
 function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
+  const runtime = useRuntime()
   const t = useT()
   const goal = useProjectionValue<GoalProjectionView | null>(sessionId, 'goal')
   const projectedTodos = useProjectionValue<readonly TodoItem[] | null>(sessionId, 'todos')
@@ -69,6 +71,33 @@ function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
   const fallbackTodos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat])
   const todos = projectedTodos === undefined ? fallbackTodos : projectedTodos ?? []
   const done = todos.filter(todo => todo.status === 'completed').length
+  const [editingGoal, setEditingGoal] = useState(false)
+  const [goalDraft, setGoalDraft] = useState('')
+  const [goalBusy, setGoalBusy] = useState(false)
+  const [goalError, setGoalError] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (editingGoal && goal?.goal.objective !== undefined) setGoalDraft(goal.goal.objective)
+  }, [editingGoal, goal?.goal.objective])
+
+  const goals = runtime.goals
+  const goalRef = goal == null ? undefined : { id: goal.goal.id, revision: goal.goal.revision }
+  const goalActionDisabled = goalBusy || sessionId === undefined || goals === undefined || goalRef === undefined
+
+  const runGoal = useCallback(async (action: () => Promise<{ ok: boolean; error?: { message: string } }>): Promise<void> => {
+    if (goalBusy) return
+    setGoalBusy(true)
+    setGoalError(undefined)
+    try {
+      const result = await action()
+      if (!result.ok) setGoalError(result.error?.message ?? t('common.error'))
+      else setEditingGoal(false)
+    } catch (cause: unknown) {
+      setGoalError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setGoalBusy(false)
+    }
+  }, [goalBusy, t])
 
   return (
     <>
@@ -90,12 +119,66 @@ function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
           ? <EmptyState>{t('goal.none')}</EmptyState>
           : (
             <div className={css.goal}>
-              <div className={css.goalText}>
-                {goal.goal.objective}
-                <div className={css.goalMeta}>
-                  {done}/{todos.length || '—'} · {t('goal.rounds', { count: goal.roundsStarted })}
+              {editingGoal
+                ? (
+                  <>
+                    <textarea
+                      className={css.goalInput}
+                      rows={3}
+                      value={goalDraft}
+                      disabled={goalBusy}
+                      aria-label={t('goal.edit')}
+                      onChange={event => { setGoalDraft(event.target.value); setGoalError(undefined) }}
+                      onKeyDown={event => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault()
+                          setEditingGoal(false)
+                        }
+                      }}
+                    />
+                    <div className={css.goalActions}>
+                      <Button disabled={goalActionDisabled || goalDraft.trim() === ''} onClick={() => {
+                        const ref = goalRef
+                        if (ref === undefined || goals === undefined || sessionId === undefined) return
+                        void runGoal(() => goals.edit(sessionId, ref, { objective: goalDraft.trim() }))
+                      }}>{t('common.save')}</Button>
+                      <Button disabled={goalBusy} onClick={() => { setEditingGoal(false); setGoalError(undefined) }}>{t('common.cancel')}</Button>
+                    </div>
+                  </>
+                )
+                : (
+                  <div className={css.goalText}>
+                    {goal.goal.objective}
+                    <div className={css.goalMeta}>
+                      {done}/{todos.length || '—'} · {t('goal.rounds', { count: goal.roundsStarted })}
+                    </div>
+                  </div>
+                )}
+              {editingGoal ? null : (
+                <div className={css.goalActions}>
+                  {/* Pause and Resume are one seat showing whichever move the
+                      goal's phase allows. Only Resume used to be here, which
+                      left a running goal with no way to stop it from the panel
+                      that owns it — the Host has offered `pause` all along. A
+                      completed goal gets neither: there is nothing to suspend. */}
+                  {goal.goal.phase === 'completed'
+                    ? null
+                    : (
+                      <Button disabled={goalActionDisabled} onClick={() => {
+                        if (goalRef === undefined || goals === undefined || sessionId === undefined) return
+                        void runGoal(() => (goal.goal.phase === 'paused'
+                          ? goals.resume(sessionId, goalRef)
+                          : goals.pause(sessionId, goalRef)))
+                      }}>{goal.goal.phase === 'paused' ? t('goal.resume') : t('goal.pause')}</Button>
+                    )}
+                  <Button disabled={goalActionDisabled} onClick={() => { setEditingGoal(true) }}>{t('goal.edit')}</Button>
+                  <Button disabled={goalActionDisabled} onClick={() => {
+                    if (goalRef === undefined || goals === undefined || sessionId === undefined) return
+                    void runGoal(() => goals.clear(sessionId, goalRef))
+                  }}>{t('goal.clear')}</Button>
                 </div>
-              </div>
+              )}
+              {goalError === undefined ? null : <div className={css.goalError} role="alert">{goalError}</div>}
             </div>
           )}
       </section>
@@ -217,11 +300,28 @@ function DetailsPanel({
   const summary = summarizeTool(name, argsRaw)
   const output = settled ? resultText(block.content) : ''
 
+  const locate = (): void => {
+    const target = [...document.querySelectorAll<HTMLElement>('[data-tool-call-id]')]
+      .find(element => element.dataset.toolCallId === callId)
+    if (target === undefined) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.querySelector<HTMLElement>('[data-tool-call-id] button, [data-tool-call-id] .headMain')?.focus({ preventScroll: true })
+  }
+
   return (
     <section className={css.section}>
       <header className={css.sectionHead}>
         <span className={ui.grow}>{name}</span>
         <Pill>{summary.kind}</Pill>
+        <button
+          type="button"
+          className={css.locateButton}
+          aria-label={t('details.locate')}
+          title={t('details.locate')}
+          onClick={locate}
+        >
+          <IconSearchOutline16 />
+        </button>
       </header>
       <div className={css.detailBlock}>
         <span className={css.detailLabel}>{t('details.arguments')}</span>
@@ -312,7 +412,7 @@ function CommandOutputEntry({ block, onLocated }: { block: ToolCallBlock; onLoca
 
   useEffect(() => {
     if (settled) return undefined
-    const timer = window.setInterval(() => { setNow(Date.now()) }, 100)
+    const timer = window.setInterval(() => { setNow(Date.now()) }, 1000)
     return () => { window.clearInterval(timer) }
   }, [settled])
 
@@ -432,13 +532,17 @@ function CommandOutputPanel({ sessionId, onLocated }: { sessionId: SessionId | u
 export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
   const t = useT()
   const state = useNavigation(navigation)
+  const list = useSessionList()
+  const [selectedSubagent, setSelectedSubagent] = useState<SubagentChildEntry | undefined>()
   const tabPrefix = useId()
   const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null, details: null })
+
+  useEffect(() => { setSelectedSubagent(undefined) }, [sessionId])
 
   const labels: Record<AsideTab, string> = {
     changes: t('git.changes'),
     terminal: t('aside.commandOutput'),
-    goal: t('goal.title'),
+    goal: t('aside.inspector'),
     details: t('details.title'),
   }
   const tabOrder = orderedAsideTabs(context)
@@ -527,9 +631,40 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
         {state.aside === 'terminal'
           ? <CommandOutputPanel sessionId={sessionId} onLocated={() => { navigation.closeCompactOverlay() }} />
           : null}
-        {state.aside === 'goal' ? <GoalPanel sessionId={sessionId} /> : null}
+        {state.aside === 'goal'
+          ? selectedSubagent === undefined || sessionId === undefined
+            ? (
+              <>
+                <ChangedFilesOverview
+                  cwd={cwd}
+                  sessionId={sessionId}
+                  onOpenDiff={(path, staged) => { navigation.openDiff(path, staged) }}
+                />
+                <GoalPanel sessionId={sessionId} />
+                <SubagentsPanel
+                  sessionId={sessionId}
+                  onSelect={setSelectedSubagent}
+                />
+              </>
+            )
+            : (
+              <SubagentDetailPanel
+                parentSessionId={sessionId}
+                entry={selectedSubagent}
+                navigation={navigation}
+                onBack={() => { setSelectedSubagent(undefined) }}
+              />
+            )
+          : null}
         {state.aside === 'details'
-          ? <DetailsPanel sessionId={sessionId} callId={state.inspectedCallId} cwd={cwd} diff={state.diff} />
+          ? (
+            <DetailsPanel
+              sessionId={selectedSubagent?.id ?? sessionId}
+              callId={state.inspectedCallId}
+              cwd={selectedSubagent === undefined ? cwd : list.byId[selectedSubagent.id]?.cwd ?? cwd}
+              diff={state.diff}
+            />
+          )
           : null}
       </div>
     </aside>

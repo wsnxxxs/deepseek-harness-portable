@@ -1,0 +1,80 @@
+/** Agent identity pill: a small glass avatar and the active DSH preset name. */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 190px;
+  height: 32px;
+  padding: 0 9px 0 5px;
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 20%, var(--zx-border-soft));
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-bg-card) 74%, transparent);
+  color: var(--zx-label-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast), transform var(--zx-motion-fast);
+}
+
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--zx-accent) 38%, var(--zx-border-soft));
+  background: color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-card));
+}
+
+.trigger:active {
+  transform: scale(.985);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 80%, white), var(--zx-accent));
+  color: var(--zx-on-accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--zx-accent) 22%, transparent);
+}
+
+.avatar :global(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.08;
+}
+
+.kicker {
+  color: var(--zx-label-tertiary);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--zx-label);
+  font-size: var(--zx-text-xs);
+  font-weight: var(--zx-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .copy { display: none; }
+  .trigger { width: 32px; padding: 0; justify-content: center; }
+}

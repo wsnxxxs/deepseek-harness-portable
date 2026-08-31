@@ -34,6 +34,16 @@ export interface UiModeBridge {
     setMode?: (mode: UiMode) => void;
     /** Subscribe to desktop-initiated switches; returns an unsubscribe. */
     onMode?: (listener: (mode: UiMode) => void) => () => void;
+    /**
+     * Report which surfaces this page can actually render.
+     *
+     * Only the page knows: availability is a property of which client plugins
+     * loaded, which the Electron main process never sees. Without this report the
+     * application and tray menus would keep offering a surface the in-page switch
+     * has already greyed out, and the more prominent of the two pickers would be
+     * the one telling the operator the wrong thing.
+     */
+    setAvailable?: (modes: readonly UiMode[]) => void;
 }
 /** Read the preload-installed bridge, if this page runs inside the desktop shell. */
 export declare function readBridge(): UiModeBridge | undefined;
@@ -41,6 +51,31 @@ export declare function readBridge(): UiModeBridge | undefined;
 export interface UiModeController {
     /** Current mode. */
     get(): UiMode;
+    /**
+     * Whether a surface capable of rendering this mode is present in this build.
+     *
+     * `official` is always available: it is upstream's own shell, and it is what
+     * renders whenever no extension surface has claimed `root`. Every other mode
+     * is available only once its surface has announced itself, so a build that
+     * ships without a surface — or one whose runtime row the Host disabled
+     * because a capability it needs is missing — reports the mode as
+     * unavailable rather than offering a choice that lands on the official UI
+     * with no explanation.
+     * @param mode - the mode to test.
+     * @returns true when selecting it would actually show that surface.
+     */
+    available(mode: UiMode): boolean;
+    /**
+     * Declare that this page can render one mode.
+     *
+     * Called by a surface's plugin body, which runs only when every service that
+     * surface injects resolved. Announcing is therefore evidence rather than a
+     * claim: a surface that could not load never announces, and the switch says
+     * so instead of silently doing nothing.
+     * @param mode - the mode this caller renders.
+     * @returns a disposer withdrawing the announcement.
+     */
+    announce(mode: UiMode): () => void;
     /**
      * Switch surfaces. Idempotent: selecting the active mode is a no-op, so a
      * menu retick or an echoed desktop message cannot cause a remount.
@@ -55,7 +90,10 @@ export interface UiModeController {
     cycle(direction?: 1 | -1): void;
     /**
      * Observe changes.
-     * @param listener - called after the mode changed.
+     *
+     * Fires for an availability change as well as a mode change, so a switch
+     * rendered before its surfaces finished loading repaints when they arrive.
+     * @param listener - called after the mode or the available set changed.
      * @returns unsubscribe.
      */
     subscribe(listener: (mode: UiMode) => void): () => void;

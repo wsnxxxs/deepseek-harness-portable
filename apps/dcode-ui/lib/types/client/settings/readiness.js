@@ -22,9 +22,11 @@ export function useModelReadiness(sessionId) {
     if (selected === undefined || selected.provider === '' || selected.model === '') {
         return { model: 'missing', credential: 'pending' };
     }
+    // Unknown provider: the selected route is not configurable, so calling it ready
+    // would let the composer send into a route that is guaranteed to fail.
     const row = settings.value.providers.find(candidate => candidate.id === selected.provider);
     if (row === undefined)
-        return { model: 'ready', credential: 'ready', provider: selected.provider };
+        return { model: 'missing', credential: 'pending', provider: selected.provider };
     const status = providerReadiness({
         active: row.active,
         configured: row.profile !== undefined || row.settingsNs === '',

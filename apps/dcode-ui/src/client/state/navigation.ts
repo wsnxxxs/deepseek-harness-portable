@@ -25,7 +25,7 @@ export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details'
 
-/** The three surfaces that occupy the compact frame as overlays. */
+/** The two frontend views that occupy the compact frame as overlays. */
 export type CompactOverlay = 'rail' | 'aside' | 'summary'
 
 /** Stable visual and keyboard order of the preview-panel tabs. */
@@ -122,7 +122,7 @@ const INITIAL_LAYOUT = initialLayoutSize()
 
 const INITIAL: NavigationState = {
   view: 'session',
-  aside: 'changes',
+  aside: 'goal',
   asideOpen: LAYOUT_FIT[INITIAL_LAYOUT].asideOpen,
   // A card the operator summons, never something the frame opens for them.
   summaryOpen: false,

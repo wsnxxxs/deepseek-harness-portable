@@ -8,6 +8,14 @@ export declare class UiModeService extends Service implements UiModeController {
     private readonly store;
     /** Read the active surface. */
     readonly get: () => UiMode;
+    /** Whether a surface for one mode is present in this build. */
+    readonly available: (mode: UiMode) => boolean;
+    /**
+     * Declare that this page can render one mode.
+     * @param mode - the mode the caller renders.
+     * @returns a disposer withdrawing the announcement.
+     */
+    readonly announce: (mode: UiMode) => (() => void);
     /** Switch to one surface. */
     readonly set: (mode: UiMode, origin?: "page" | "desktop") => void;
     /** Advance through the surface roster. */

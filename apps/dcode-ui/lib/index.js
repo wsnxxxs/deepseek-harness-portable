@@ -1,8 +1,8 @@
-import { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, otherUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam } from "./ui-mode.js";
 import z from "@deepseek-ai/schemastery";
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { execFile } from "node:child_process";
+import { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam } from "@dsh-portable/ui-mode";
 //#region lib/types/host/git.js
 /**
 * Bounded git reads and one narrow write path for the modern workbench.
@@ -21,7 +21,7 @@ import { execFile } from "node:child_process";
 /** Wall-clock ceiling for one git invocation. */
 const GIT_TIMEOUT_MS = 1e4;
 /** Byte ceiling on one git invocation's stdout (a very large diff is truncated, never streamed). */
-const GIT_MAX_BUFFER = 8388608;
+const GIT_MAX_BUFFER = 8 * 1024 * 1024;
 /** Ceiling on the number of changed-file rows one status answer carries. */
 const STATUS_ROW_LIMIT = 2e3;
 /** Ceiling on the characters one diff answer carries. */
@@ -536,6 +536,70 @@ async function undoPaths(cwd, paths) {
 			"--",
 			relativePath
 		], { tolerateFailure: true })).code === 0) {
+			if ((await git(root, [
+				"cat-file",
+				"-e",
+				"HEAD:" + relativePath
+			], { tolerateFailure: true })).code !== 0) {
+				const unstaged = await git(root, [
+					"restore",
+					"--staged",
+					"--",
+					relativePath
+				], { tolerateFailure: true });
+				if (unstaged.code !== 0) {
+					outcomes.push({
+						path: relativePath,
+						result: "skipped",
+						reason: unstaged.stderr.trim().slice(0, 300)
+					});
+					continue;
+				}
+				try {
+					const destination = join(quarantineRoot, relativePath);
+					await mkdir(dirname(destination), { recursive: true });
+					await rename(join(root, relativePath), destination);
+					outcomes.push({
+						path: relativePath,
+						result: "quarantined",
+						movedTo: `.dsh/dcode-undo/${stamp}/${relativePath}`
+					});
+				} catch (error) {
+					const code = error?.code;
+					outcomes.push(code === "ENOENT" ? {
+						path: relativePath,
+						result: "restored"
+					} : {
+						path: relativePath,
+						result: "skipped",
+						reason: error instanceof Error ? error.message : String(error)
+					});
+				}
+				continue;
+			}
+			const restored = await git(root, [
+				"restore",
+				"--staged",
+				"--worktree",
+				"--source=HEAD",
+				"--",
+				relativePath
+			], { tolerateFailure: true });
+			outcomes.push(restored.code === 0 ? {
+				path: relativePath,
+				result: "restored"
+			} : {
+				path: relativePath,
+				result: "skipped",
+				reason: restored.stderr.trim().slice(0, 300)
+			});
+			continue;
+		}
+		if ((await git(root, [
+			"cat-file",
+			"-e",
+			"HEAD:" + relativePath
+		], { tolerateFailure: true })).code === 0) {
 			const restored = await git(root, [
 				"restore",
 				"--staged",
@@ -637,7 +701,7 @@ const DCODE_ENDPOINTS = [
 /** RPC channel this plugin answers on. */
 const DCODE_CHANNEL = "/dcode";
 /** Byte ceiling on one `file/read` answer; a larger file comes back truncated. */
-const FILE_READ_LIMIT = 524288;
+const FILE_READ_LIMIT = 512 * 1024;
 /**
 * Whether a value names an endpoint this channel answers.
 * @param value - endpoint string from the wire.
@@ -815,4 +879,4 @@ function apply(ctx, config = {}) {
 	});
 }
 //#endregion
-export { Config, DCODE_CHANNEL, DCODE_ENDPOINTS, DEFAULT_UI_MODE, GitCommandError, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, apply, asUiMode, containedRelativePath, handleDcodeEndpoint, inject, isDcodeEndpoint, name, otherUiMode, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, resolveUiMode, uiModeFromSearch, undoPaths, withUiModeParam, workTreeRoot };
+export { Config, DCODE_CHANNEL, DCODE_ENDPOINTS, DEFAULT_UI_MODE, GitCommandError, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, apply, asUiMode, containedRelativePath, cycleUiMode, handleDcodeEndpoint, inject, isDcodeEndpoint, name, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, resolveUiMode, uiModeFromSearch, undoPaths, withUiModeParam, workTreeRoot };

@@ -15,12 +15,12 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ChatSnapshot, ConversationNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { InputState, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
-  EMPTY_TRAJECTORY_SNAPSHOT, useRuntime, type DcodePendingInteraction, type Observable,
+  EMPTY_TRAJECTORY_SNAPSHOT, useRuntime, type DcodePendingApproval, type DcodePendingInteraction, type Observable,
 } from './runtime.ts'
 
 /**
@@ -79,7 +79,7 @@ export function useObservableSelector<T, S>(
 }
 
 const EMPTY_SESSION_LIST: SessionListState = {
-  ids: [], byId: {}, current: undefined, phase: 'pending', state: 'idle', error: null,
+  ids: [], byId: {}, current: undefined, phase: 'pending',
   subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 }
 
@@ -118,6 +118,16 @@ function questionInteraction(
   return value as DcodePendingInteraction
 }
 
+/** Narrow the shared pending-interaction roster to the approval face. */
+function approvalInteraction(
+  value: SessionPendingInteractionBase | undefined,
+): DcodePendingApproval | undefined {
+  if (value === undefined || value.kind !== 'approval') return undefined
+  if (typeof (value as Partial<DcodePendingApproval>).answer !== 'function') return undefined
+  if (typeof (value as Partial<DcodePendingApproval>).toolName !== 'string') return undefined
+  return value as DcodePendingApproval
+}
+
 /** The Session Controller's list and current selection. */
 export function useSessionList(): SessionListState {
   const runtime = useRuntime()
@@ -141,6 +151,16 @@ export function usePendingQuestion(sessionId: SessionId | undefined): DcodePendi
     runtime.pendingInteractions,
     EMPTY_PENDING_INTERACTIONS,
     snapshot => questionInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)),
+  )
+}
+
+/** The current session's pending host permission request. */
+export function usePendingApproval(sessionId: SessionId | undefined): DcodePendingApproval | undefined {
+  const runtime = useRuntime()
+  return useObservableSelector(
+    runtime.pendingInteractions,
+    EMPTY_PENDING_INTERACTIONS,
+    snapshot => approvalInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)),
   )
 }
 
@@ -209,9 +229,19 @@ export function useTrajectorySnapshot(sessionId: SessionId | undefined): Traject
   return source === undefined ? undefined : snapshot
 }
 
+function isConversationContentNode(node: ConversationNode): boolean {
+  return node.kind === 'user'
+    || node.kind === 'steering'
+    || node.kind === 'assistant'
+    || node.kind === 'tool-result'
+    || node.kind === 'turn-error'
+    || node.kind === 'model-retry'
+    || node.kind === 'turn-max-tokens'
+}
+
 /**
- * Whether the conversation has nothing in it yet — no settled node, no
- * streaming partial, no call in flight.
+ * Whether the conversation has nothing in it yet — no settled conversation node,
+ * no streaming partial, no call in flight.
  *
  * This is the layout's phase gate: a blank conversation centres the greeting
  * and the composer the way the official surface does, and the first arriving
@@ -222,12 +252,19 @@ export function useTrajectorySnapshot(sessionId: SessionId | undefined): Traject
  * @returns true while there is nothing to show.
  */
 export function useConversationBlank(sessionId: SessionId | undefined): boolean {
+  const session = useSessionSnapshot(sessionId)
   const chat = useChatSnapshot(sessionId)
+  const list = useSessionList()
   if (sessionId === undefined) return true
-  if (chat === undefined) return false
-  return chat.legacy.nodes.length === 0
+  const summaryBlank = list.byId[sessionId]?.blank
+  if (summaryBlank === false) return false
+  if (session !== undefined && !session.blank) return false
+  if (chat === undefined) return summaryBlank === true || (session?.blank ?? false)
+  const hasContentNodes = chat.legacy.nodes.some(isConversationContentNode)
+  return !hasContentNodes
     && chat.legacy.partial === null
     && chat.legacy.runningCalls.length === 0
+    && (session?.blank ?? summaryBlank ?? true)
 }
 
 /**

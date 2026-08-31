@@ -25,8 +25,8 @@ export declare const en: {
     readonly 'mode.official.body': "The official DeepSeek Harness interface, unchanged.";
     readonly 'mode.dcode': "Workbench";
     readonly 'mode.dcode.body': "A compact desktop layout with git tools, goal and progress panels.";
-    readonly 'mode.crew': "Mission Control";
-    readonly 'mode.crew.body': "A task-board workspace for crew missions: shared board, roster and dossier.";
+    readonly unavailable: "Not available in this build.";
+    readonly 'unavailable.selected': "This window is showing the official interface, because the selected one is not part of this build.";
 };
 export declare const zh: Record<UiModeKey, string>;
 /** Key union of this package's dictionary. */

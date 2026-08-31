@@ -55,7 +55,7 @@ export function useObservableSelector(source, fallback, select) {
     return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 const EMPTY_SESSION_LIST = {
-    ids: [], byId: {}, current: undefined, phase: 'pending', state: 'idle', error: null,
+    ids: [], byId: {}, current: undefined, phase: 'pending',
     subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
 };
 const EMPTY_PENDING_INTERACTIONS = new Map();
@@ -84,6 +84,16 @@ function questionInteraction(value) {
         return undefined;
     return value;
 }
+/** Narrow the shared pending-interaction roster to the approval face. */
+function approvalInteraction(value) {
+    if (value === undefined || value.kind !== 'approval')
+        return undefined;
+    if (typeof value.answer !== 'function')
+        return undefined;
+    if (typeof value.toolName !== 'string')
+        return undefined;
+    return value;
+}
 /** The Session Controller's list and current selection. */
 export function useSessionList() {
     const runtime = useRuntime();
@@ -98,6 +108,11 @@ export function useCurrentSessionId() {
 export function usePendingQuestion(sessionId) {
     const runtime = useRuntime();
     return useObservableSelector(runtime.pendingInteractions, EMPTY_PENDING_INTERACTIONS, snapshot => questionInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)));
+}
+/** The current session's pending host permission request. */
+export function usePendingApproval(sessionId) {
+    const runtime = useRuntime();
+    return useObservableSelector(runtime.pendingInteractions, EMPTY_PENDING_INTERACTIONS, snapshot => approvalInteraction(sessionId === undefined ? undefined : snapshot.get(sessionId)));
 }
 const EMPTY_WORKSPACES = {
     items: [], order: [], archivedSessionIds: [], state: 'idle', phase: 'loading', error: null,
@@ -155,9 +170,18 @@ export function useTrajectorySnapshot(sessionId) {
     const snapshot = useObservable(source, EMPTY_TRAJECTORY_SNAPSHOT);
     return source === undefined ? undefined : snapshot;
 }
+function isConversationContentNode(node) {
+    return node.kind === 'user'
+        || node.kind === 'steering'
+        || node.kind === 'assistant'
+        || node.kind === 'tool-result'
+        || node.kind === 'turn-error'
+        || node.kind === 'model-retry'
+        || node.kind === 'turn-max-tokens';
+}
 /**
- * Whether the conversation has nothing in it yet — no settled node, no
- * streaming partial, no call in flight.
+ * Whether the conversation has nothing in it yet — no settled conversation node,
+ * no streaming partial, no call in flight.
  *
  * This is the layout's phase gate: a blank conversation centres the greeting
  * and the composer the way the official surface does, and the first arriving
@@ -168,14 +192,23 @@ export function useTrajectorySnapshot(sessionId) {
  * @returns true while there is nothing to show.
  */
 export function useConversationBlank(sessionId) {
+    const session = useSessionSnapshot(sessionId);
     const chat = useChatSnapshot(sessionId);
+    const list = useSessionList();
     if (sessionId === undefined)
         return true;
-    if (chat === undefined)
+    const summaryBlank = list.byId[sessionId]?.blank;
+    if (summaryBlank === false)
         return false;
-    return chat.legacy.nodes.length === 0
+    if (session !== undefined && !session.blank)
+        return false;
+    if (chat === undefined)
+        return summaryBlank === true || (session?.blank ?? false);
+    const hasContentNodes = chat.legacy.nodes.some(isConversationContentNode);
+    return !hasContentNodes
         && chat.legacy.partial === null
-        && chat.legacy.runningCalls.length === 0;
+        && chat.legacy.runningCalls.length === 0
+        && (session?.blank ?? summaryBlank ?? true);
 }
 /**
  * One host-computed projection of a session (`goal`, `plan`, `permissions`,

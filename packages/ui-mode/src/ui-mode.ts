@@ -2,8 +2,8 @@
  * The desktop/web UI-mode vocabulary, shared by every switch entry point.
  *
  * Several front ends run inside ONE browser page over ONE DSH Runtime: the
- * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot), the
- * workbench, and Mission Control. Switching is a slot re-registration, never a
+ * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot) and the
+ * DCode workbench. Switching is a slot re-registration, never a
  * Runtime restart, so every surface keeps reading the same Session, Workspace,
  * Conversation and Settings state.
  *
@@ -22,7 +22,7 @@
 import contract from '@dsh-portable/ui-mode/ui-mode-contract'
 
 /** One selectable front end. */
-export type UiMode = 'official' | 'dcode' | 'crew'
+export type UiMode = 'official' | 'dcode'
 
 /** Every selectable front end, in presentation order. */
 export const UI_MODES: readonly UiMode[] = contract.UI_MODES

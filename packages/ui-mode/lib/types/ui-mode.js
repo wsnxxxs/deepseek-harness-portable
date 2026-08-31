@@ -2,8 +2,8 @@
  * The desktop/web UI-mode vocabulary, shared by every switch entry point.
  *
  * Several front ends run inside ONE browser page over ONE DSH Runtime: the
- * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot), the
- * workbench, and Mission Control. Switching is a slot re-registration, never a
+ * official DSH UI (`ui-layout`'s AppFrame in the built-in `root` slot) and the
+ * DCode workbench. Switching is a slot re-registration, never a
  * Runtime restart, so every surface keeps reading the same Session, Workspace,
  * Conversation and Settings state.
  *

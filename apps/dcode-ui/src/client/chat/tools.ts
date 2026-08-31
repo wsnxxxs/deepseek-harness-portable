@@ -28,7 +28,7 @@ export interface ToolSummary {
 
 /** The card head vocabulary. */
 export type ToolKind =
-  | 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'plan' | 'skill' | 'other'
+  | 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'memory' | 'plan' | 'skill' | 'other'
 
 /** A collapsed run of lightweight, successful read/search calls. */
 export interface ToolActivityGroup {
@@ -36,6 +36,7 @@ export interface ToolActivityGroup {
   readonly blocks: readonly ToolResultNode[]
   readonly readCount: number
   readonly searchCount: number
+  readonly memoryCount: number
   /** Distinct workspace paths touched by the exploration run. */
   readonly fileCount: number
   /** Sum of call durations when every result retained its call timestamp. */
@@ -126,6 +127,18 @@ export function summarizeTool(name: string, argsRaw: string | undefined): ToolSu
   const path = firstString(args, PATH_FIELDS)
   const files = path === undefined ? [] : [path]
   const base = { files, mutating: MUTATING.has(name) }
+
+  // Memory is an orchestration primitive in Metis: it is visible as a work
+  // phase alongside reads, searches and agent delegation instead of falling
+  // into the generic tool bucket. Keep the name check broad so packaged and
+  // user-authored memory tools share the same presentation.
+  if (name.toLocaleLowerCase().includes('memory')) {
+    return {
+      ...base,
+      kind: 'memory',
+      detail: oneLine(firstString(args, ['query', 'pattern', 'text', 'content']) ?? ''),
+    }
+  }
 
   switch (name) {
     case 'bash':
@@ -251,7 +264,12 @@ function hasToolError(block: ToolCallBlock): boolean {
 function aggregatableActivity(node: ConversationNode): node is ToolResultNode {
   if (node.kind !== 'tool-result' || hasToolError(node)) return false
   const summary = summarizeTool(node.call?.name ?? '', node.call?.argsRaw)
-  return !summary.mutating && (summary.kind === 'read' || summary.kind === 'search' || summary.kind === 'web')
+  return !summary.mutating && (
+    summary.kind === 'read'
+    || summary.kind === 'search'
+    || summary.kind === 'web'
+    || summary.kind === 'memory'
+  )
 }
 
 /**
@@ -271,6 +289,7 @@ export function aggregateToolActivity(nodes: readonly ConversationNode[]): reado
     }
     let readCount = 0
     let searchCount = 0
+    let memoryCount = 0
     const files = new Set<string>()
     const durations = run.map(toolDurationMs)
     for (const block of run) {
@@ -278,12 +297,14 @@ export function aggregateToolActivity(nodes: readonly ConversationNode[]): reado
       for (const path of summarizeTool(block.call?.name ?? '', block.call?.argsRaw).files) files.add(path)
       if (kind === 'read') readCount += 1
       if (kind === 'search' || kind === 'web') searchCount += 1
+      if (kind === 'memory') memoryCount += 1
     }
     items.push({
       kind: 'tool-activity',
       blocks: run,
       readCount,
       searchCount,
+      memoryCount,
       fileCount: files.size === 0 ? run.length : files.size,
       durationMs: durations.every((value): value is number => value !== undefined)
         ? durations.reduce((total, value) => total + value, 0)

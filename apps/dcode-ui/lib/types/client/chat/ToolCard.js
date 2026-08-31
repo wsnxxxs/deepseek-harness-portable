@@ -26,6 +26,7 @@ function Glyph({ kind }) {
         case 'search': return _jsx(IconSearchOutline16, {});
         case 'web': return _jsx(IconBrowseOutline16, {});
         case 'agent': return _jsx(IconUserOutline16, {});
+        case 'memory': return _jsx(IconSparkle16, {});
         case 'plan': return _jsx(IconChecklistOutline14, { size: 16 });
         case 'skill': return _jsx(IconSkillOutline16, {});
         default: return _jsx(IconSparkle16, {});
@@ -59,7 +60,7 @@ export function ToolCard({ block, onInspect }) {
     useEffect(() => {
         if (settled)
             return undefined;
-        const timer = window.setInterval(() => { setNow(Date.now()); }, 100);
+        const timer = window.setInterval(() => { setNow(Date.now()); }, 1000);
         return () => { window.clearInterval(timer); };
     }, [settled]);
     useEffect(() => {
@@ -71,14 +72,11 @@ export function ToolCard({ block, onInspect }) {
         : settled
             ? t('chat.ran')
             : t('chat.running');
-    return (_jsxs("div", { className: css.group, "data-tool-call-id": block.callId, children: [_jsxs("div", { className: `${css.card} ${emphasized ? css.cardEmphasized : ''}`, children: [_jsxs("button", { type: "button", className: `${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`, "aria-expanded": open, "aria-controls": contentId, onClick: () => {
-                            setOpen(value => !value);
-                            onInspect?.(block.callId);
-                        }, children: [_jsx("span", { className: `${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), changes === undefined
-                                ? null
-                                : (_jsxs("span", { className: css.changes, "aria-label": `${changes.additions} lines added, ${changes.deletions} lines removed`, children: [_jsxs("span", { className: css.additions, children: ["+", changes.additions] }), _jsxs("span", { className: css.deletions, children: ["\u2212", changes.deletions] })] })), duration === undefined
-                                ? null
-                                : _jsxs("span", { className: css.duration, children: [formatToolDuration(duration), settled ? '' : '…'] }), _jsx(IconChevronRightOutline14, { className: `${css.chevron} ${open ? css.chevronOpen : ''}` })] }), _jsx("div", { className: `${css.disclosure} ${open ? css.disclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.disclosureClip, children: _jsxs("div", { className: css.body, id: contentId, children: [argsRaw === undefined || argsRaw.trim() === ''
+    return (_jsxs("div", { className: css.group, "data-tool-call-id": block.callId, children: [_jsxs("div", { className: `${css.card} ${emphasized ? css.cardEmphasized : ''}`, children: [_jsxs("div", { className: `${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`, children: [_jsxs("button", { type: "button", className: css.headMain, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: `${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), changes === undefined
+                                        ? null
+                                        : (_jsxs("span", { className: css.changes, "aria-label": `${changes.additions} lines added, ${changes.deletions} lines removed`, children: [_jsxs("span", { className: css.additions, children: ["+", changes.additions] }), _jsxs("span", { className: css.deletions, children: ["\u2212", changes.deletions] })] })), duration === undefined
+                                        ? null
+                                        : _jsxs("span", { className: css.duration, children: [formatToolDuration(duration), settled ? '' : '…'] }), _jsx(IconChevronRightOutline14, { className: `${css.chevron} ${open ? css.chevronOpen : ''}` })] }), _jsx("button", { type: "button", className: css.inspect, "aria-label": t('chat.inspect'), title: t('chat.inspect'), onClick: () => { onInspect?.(block.callId); }, children: _jsx(IconSearchOutline16, {}) })] }), _jsx("div", { className: `${css.disclosure} ${open ? css.disclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.disclosureClip, children: _jsxs("div", { className: css.body, id: contentId, children: [argsRaw === undefined || argsRaw.trim() === ''
                                         ? null
                                         : (_jsxs(_Fragment, { children: [_jsx("span", { className: css.bodyLabel, children: t('details.arguments') }), _jsx("pre", { className: css.output, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw })] })), settled
                                         ? (_jsxs(_Fragment, { children: [_jsxs("span", { className: css.bodyRow, children: [_jsx("span", { className: css.bodyLabel, children: t('details.output') }), duration === undefined ? null : _jsx("span", { className: css.toolbarDuration, children: formatToolDuration(duration) }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''

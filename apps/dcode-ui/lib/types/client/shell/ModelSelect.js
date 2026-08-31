@@ -10,7 +10,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  *
  * @module @dsh-portable/dcode-ui/client/shell/ModelSelect
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState, } from 'react';
 import { IconCheckOutline16, IconChevronDownOutline14, IconChevronRightOutline14, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useAsync, useProjectionValue } from "../state/hooks.js";
@@ -19,7 +19,7 @@ import css from './ModelSelect.module.css';
 function cx(...classes) {
     return classes.filter(Boolean).join(' ');
 }
-export function ModelSelect({ sessionId, disabled }) {
+export const ModelSelect = forwardRef(function ModelSelect({ sessionId, disabled }, ref) {
     const runtime = useRuntime();
     const t = useT();
     const id = useId();
@@ -80,6 +80,7 @@ export function ModelSelect({ sessionId, disabled }) {
             queueMicrotask(() => { triggerRef.current?.focus(); });
         }
     }, []);
+    useImperativeHandle(ref, () => ({ open: () => { show(); } }), []);
     useEffect(() => {
         if (!open)
             return undefined;
@@ -204,5 +205,5 @@ export function ModelSelect({ sessionId, disabled }) {
                                 const selected = effectiveEffort === level.effort;
                                 return (_jsxs("button", { ref: itemRef(), type: "button", role: "menuitemradio", "aria-checked": selected, className: cx(css.option, selected && css.selected), disabled: selecting, onClick: () => { chooseEffort(level.effort); }, children: [_jsx("span", { className: css.optionCopy, children: _jsx("span", { className: css.modelName, children: level.label }) }), _jsx("span", { className: css.check, children: selected ? _jsx(IconCheckOutline16, {}) : null })] }, level.key));
                             }) }))] }))] }));
-}
+});
 //# sourceMappingURL=ModelSelect.js.map

@@ -20,7 +20,6 @@ export const UI_MODE_NS = 'uiMode'
 export const MODE_COPY: Readonly<Record<UiMode, { readonly title: UiModeKey, readonly body: UiModeKey }>> = {
   official: { title: 'mode.official', body: 'mode.official.body' },
   dcode: { title: 'mode.dcode', body: 'mode.dcode.body' },
-  crew: { title: 'mode.crew', body: 'mode.crew.body' },
 }
 
 export const en = {
@@ -30,8 +29,8 @@ export const en = {
   'mode.official.body': 'The official DeepSeek Harness interface, unchanged.',
   'mode.dcode': 'Workbench',
   'mode.dcode.body': 'A compact desktop layout with git tools, goal and progress panels.',
-  'mode.crew': 'Mission Control',
-  'mode.crew.body': 'A task-board workspace for crew missions: shared board, roster and dossier.',
+  'unavailable': 'Not available in this build.',
+  'unavailable.selected': 'This window is showing the official interface, because the selected one is not part of this build.',
 } as const
 
 export const zh: Record<UiModeKey, string> = {
@@ -41,8 +40,8 @@ export const zh: Record<UiModeKey, string> = {
   'mode.official.body': '官方 DeepSeek Harness 界面，保持原样。',
   'mode.dcode': '工作台',
   'mode.dcode.body': '紧凑的桌面布局，带 Git 工具、目标与进度面板。',
-  'mode.crew': '任务指挥台',
-  'mode.crew.body': '以任务看板为中心的协作工作区：共享看板、队友花名册与资料档案。',
+  'unavailable': '当前构建不包含此界面。',
+  'unavailable.selected': '所选界面不属于当前构建，本窗口正在显示官方版界面。',
 }
 
 /** Key union of this package's dictionary. */

@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
 			}
 			return to;
 		};
-		var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
+		var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
 			value: mod,
 			enumerable: true
 		}) : target, mod));
@@ -46,11 +46,7 @@ window.__ModuleLoader__.load({
 			* always present: the extension surfaces shadow it, and any of them failing to
 			* load leaves it rendering. `DEFAULT_UI_MODE` is a separate decision.
 			*/
-			const UI_MODES = Object.freeze([
-				"official",
-				"dcode",
-				"crew"
-			]);
+			const UI_MODES = Object.freeze(["official", "dcode"]);
 			function normalizeUiMode(value) {
 				return UI_MODES.includes(value) ? value : void 0;
 			}
@@ -219,6 +215,15 @@ window.__ModuleLoader__.load({
 			let current = resolveUiMode(uiModeFromSearch(globalThis.location?.search ?? ""), readStored(), bridge?.configured);
 			const listeners = /* @__PURE__ */ new Set();
 			const disposers = [];
+			const announced = /* @__PURE__ */ new Map();
+			const notify = () => {
+				for (const listener of [...listeners]) listener(current);
+			};
+			const isAvailable = (mode) => mode === "official" || (announced.get(mode) ?? 0) > 0;
+			/** Push the available set to the desktop shell, in presentation order. */
+			const reportAvailability = () => {
+				bridge?.setAvailable?.(UI_MODES.filter(isAvailable));
+			};
 			writeLocation(current);
 			const apply = (next, origin) => {
 				if (next === current) return;
@@ -226,7 +231,7 @@ window.__ModuleLoader__.load({
 				writeStored(next);
 				writeLocation(next);
 				if (origin === "page") bridge?.setMode?.(next);
-				for (const listener of [...listeners]) listener(next);
+				notify();
 			};
 			if (typeof bridge?.onMode === "function") disposers.push(bridge.onMode((mode) => {
 				apply(resolveUiMode(mode), "desktop");
@@ -251,6 +256,27 @@ window.__ModuleLoader__.load({
 			});
 			return {
 				get: () => current,
+				available: isAvailable,
+				announce: (mode) => {
+					const before = announced.get(mode) ?? 0;
+					announced.set(mode, before + 1);
+					if (before === 0) {
+						notify();
+						reportAvailability();
+					}
+					let withdrawn = false;
+					return () => {
+						if (withdrawn) return;
+						withdrawn = true;
+						const count = (announced.get(mode) ?? 1) - 1;
+						if (count > 0) announced.set(mode, count);
+						else {
+							announced.delete(mode);
+							notify();
+							reportAvailability();
+						}
+					};
+				},
 				set: (mode, origin = "page") => {
 					apply(mode, origin);
 				},
@@ -277,6 +303,14 @@ window.__ModuleLoader__.load({
 			store = createUiModeStore();
 			/** Read the active surface. */
 			get = () => this.store.get();
+			/** Whether a surface for one mode is present in this build. */
+			available = (mode) => this.store.available(mode);
+			/**
+			* Declare that this page can render one mode.
+			* @param mode - the mode the caller renders.
+			* @returns a disposer withdrawing the announcement.
+			*/
+			announce = (mode) => this.store.announce(mode);
 			/** Switch to one surface. */
 			set = (mode, origin = "page") => {
 				this.store.set(mode, origin);
@@ -310,10 +344,6 @@ window.__ModuleLoader__.load({
 			dcode: {
 				title: "mode.dcode",
 				body: "mode.dcode.body"
-			},
-			crew: {
-				title: "mode.crew",
-				body: "mode.crew.body"
 			}
 		};
 		const en = {
@@ -323,8 +353,8 @@ window.__ModuleLoader__.load({
 			"mode.official.body": "The official DeepSeek Harness interface, unchanged.",
 			"mode.dcode": "Workbench",
 			"mode.dcode.body": "A compact desktop layout with git tools, goal and progress panels.",
-			"mode.crew": "Mission Control",
-			"mode.crew.body": "A task-board workspace for crew missions: shared board, roster and dossier."
+			"unavailable": "Not available in this build.",
+			"unavailable.selected": "This window is showing the official interface, because the selected one is not part of this build."
 		};
 		const zh = {
 			"interface": "界面设置",
@@ -333,12 +363,12 @@ window.__ModuleLoader__.load({
 			"mode.official.body": "官方 DeepSeek Harness 界面，保持原样。",
 			"mode.dcode": "工作台",
 			"mode.dcode.body": "紧凑的桌面布局，带 Git 工具、目标与进度面板。",
-			"mode.crew": "任务指挥台",
-			"mode.crew.body": "以任务看板为中心的协作工作区：共享看板、队友花名册与资料档案。"
+			"unavailable": "当前构建不包含此界面。",
+			"unavailable.selected": "所选界面不属于当前构建，本窗口正在显示官方版界面。"
 		};
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\packages\ui-mode\src\client\InterfaceSettingsSection.module.css.mjs
-		const css = ".p1jxaq_root{border-bottom:1px solid var(--dsw-alias-border-l2);flex-direction:column;gap:8px;padding:16px 0;display:flex}.p1jxaq_title{color:var(--dsw-alias-label-primary);margin:0;font-size:14px;font-weight:400;line-height:22px}.p1jxaq_lead{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:400;line-height:18px}.p1jxaq_choice{flex-wrap:wrap;align-items:stretch;gap:8px;display:flex}.p1jxaq_option{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);min-height:84px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border-radius:16px;flex-direction:column;flex:180px;justify-content:center;align-items:center;gap:4px;padding:16px 24px;font-size:14px;line-height:22px;transition:background .12s,border-color .12s;display:flex}.p1jxaq_option:hover:not(.p1jxaq_optionActive){background:var(--dsw-alias-interactive-bg-hover)}.p1jxaq_optionActive{background:var(--dsw-alias-bg-module-platform);border-color:var(--dsw-static-neutral-bluish-400)}.p1jxaq_optionTitle{color:var(--dsw-alias-label-primary);text-align:center;font-size:14px;font-weight:400;line-height:22px}.p1jxaq_optionBody{width:100%;max-width:280px;color:var(--dsw-alias-label-tertiary);text-align:center;font-size:12px;line-height:18px}";
+		const css = ".p1jxaq_root{border-bottom:1px solid var(--dsw-alias-border-l2);flex-direction:column;gap:8px;padding:16px 0;display:flex}.p1jxaq_title{color:var(--dsw-alias-label-primary);margin:0;font-size:14px;font-weight:400;line-height:22px}.p1jxaq_lead{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:400;line-height:18px}.p1jxaq_choice{flex-wrap:wrap;align-items:stretch;gap:8px;display:flex}.p1jxaq_option{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);min-height:84px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border-radius:16px;flex-direction:column;flex:180px;justify-content:center;align-items:center;gap:4px;padding:16px 24px;font-size:14px;line-height:22px;transition:background .12s,border-color .12s;display:flex}.p1jxaq_option:hover:not(.p1jxaq_optionActive){background:var(--dsw-alias-interactive-bg-hover)}.p1jxaq_optionActive{background:var(--dsw-alias-bg-module-platform);border-color:var(--dsw-static-neutral-bluish-400)}.p1jxaq_optionTitle{color:var(--dsw-alias-label-primary);text-align:center;font-size:14px;font-weight:400;line-height:22px}.p1jxaq_optionBody{width:100%;max-width:280px;color:var(--dsw-alias-label-tertiary);text-align:center;font-size:12px;line-height:18px}.p1jxaq_optionDisabled{cursor:default;opacity:.5}.p1jxaq_optionDisabled:hover{background:0 0}.p1jxaq_notice{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;line-height:18px}";
 		const tagId = "@dsh-portable/ui-mode/InterfaceSettingsSection.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -350,9 +380,11 @@ window.__ModuleLoader__.load({
 		var InterfaceSettingsSection_module_css_default = {
 			"choice": "p1jxaq_choice",
 			"lead": "p1jxaq_lead",
+			"notice": "p1jxaq_notice",
 			"option": "p1jxaq_option",
 			"optionActive": "p1jxaq_optionActive",
 			"optionBody": "p1jxaq_optionBody",
+			"optionDisabled": "p1jxaq_optionDisabled",
 			"optionTitle": "p1jxaq_optionTitle",
 			"root": "p1jxaq_root",
 			"title": "p1jxaq_title"
@@ -381,6 +413,7 @@ window.__ModuleLoader__.load({
 		function InterfaceSettingsSection({ mode, t }) {
 			const active = (0, react.useSyncExternalStore)(mode.subscribe, mode.get, mode.get);
 			const copy = (key) => t?.(key) ?? en[key];
+			const canRender = (id) => mode.available?.(id) ?? true;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: InterfaceSettingsSection_module_css_default.root,
 				children: [
@@ -396,22 +429,31 @@ window.__ModuleLoader__.load({
 						className: InterfaceSettingsSection_module_css_default.choice,
 						role: "radiogroup",
 						"aria-label": copy("interface"),
-						children: UI_MODES.map((id) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-							type: "button",
-							role: "radio",
-							className: `${InterfaceSettingsSection_module_css_default.option} ${active === id ? InterfaceSettingsSection_module_css_default.optionActive : ""}`,
-							"aria-checked": active === id,
-							onClick: () => {
-								mode.set(id);
-							},
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: InterfaceSettingsSection_module_css_default.optionTitle,
-								children: copy(MODE_COPY[id].title)
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: InterfaceSettingsSection_module_css_default.optionBody,
-								children: copy(MODE_COPY[id].body)
-							})]
-						}, id))
+						children: UI_MODES.map((id) => {
+							const usable = canRender(id);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								type: "button",
+								role: "radio",
+								className: `${InterfaceSettingsSection_module_css_default.option} ${active === id ? InterfaceSettingsSection_module_css_default.optionActive : ""} ${usable ? "" : InterfaceSettingsSection_module_css_default.optionDisabled}`,
+								"aria-checked": active === id,
+								disabled: !usable,
+								onClick: () => {
+									mode.set(id);
+								},
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: InterfaceSettingsSection_module_css_default.optionTitle,
+									children: copy(MODE_COPY[id].title)
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: InterfaceSettingsSection_module_css_default.optionBody,
+									children: usable ? copy(MODE_COPY[id].body) : copy("unavailable")
+								})]
+							}, id);
+						})
+					}),
+					canRender(active) ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: InterfaceSettingsSection_module_css_default.notice,
+						role: "status",
+						children: copy("unavailable.selected")
 					})
 				]
 			});

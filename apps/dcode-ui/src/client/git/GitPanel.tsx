@@ -322,7 +322,6 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
   const fileGroup = (
     label: string,
     files: readonly GitFileChange[],
-    allFiles: readonly GitFileChange[],
     staged: boolean,
   ) => files.length === 0
     ? null
@@ -333,8 +332,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
           <button
             type="button"
             className={css.groupAction}
-            disabled={committing || git.mutation !== undefined || allFiles.every(file => file.status === 'conflicted')}
-            onClick={() => { toggleStage(allFiles, staged) }}
+            disabled={committing || git.mutation !== undefined || files.every(file => file.status === 'conflicted')}
+            onClick={() => { toggleStage(files, staged) }}
           >
             {git.mutation?.kind === (staged ? 'unstage' : 'stage') && git.mutation.paths.length > 1
               ? t(staged ? 'git.unstaging' : 'git.staging')
@@ -454,8 +453,8 @@ export function GitPanel({ cwd, sessionId, selected, onOpenDiff }: GitPanelProps
         ? <EmptyState>{t('git.clean')}</EmptyState>
         : (
           <div className={css.fileGroups}>
-            {fileGroup(t('git.staged'), visibleStagedFiles, stagedFiles, true)}
-            {fileGroup(t('git.unstaged'), visibleUnstagedFiles, unstagedFiles, false)}
+            {fileGroup(t('git.staged'), visibleStagedFiles, true)}
+            {fileGroup(t('git.unstaged'), visibleUnstagedFiles, false)}
             {visibleFiles.length === 0 ? <EmptyState>{t('git.noMatchingFiles')}</EmptyState> : null}
           </div>
         )}

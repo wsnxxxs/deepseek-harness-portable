@@ -17,7 +17,7 @@ import { type LayoutSize } from './layout.ts';
 export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings';
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details';
-/** The three surfaces that occupy the compact frame as overlays. */
+/** The two frontend views that occupy the compact frame as overlays. */
 export type CompactOverlay = 'rail' | 'aside' | 'summary';
 /** Stable visual and keyboard order of the preview-panel tabs. */
 export declare const ASIDE_TABS: readonly AsideTab[];

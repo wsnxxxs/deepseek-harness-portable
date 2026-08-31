@@ -17,7 +17,11 @@ import z from '@deepseek-ai/schemastery';
 import { DCODE_CHANNEL, handleDcodeEndpoint, isDcodeEndpoint } from "./host/rpc.js";
 export { DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint, } from "./host/rpc.js";
 export { GitCommandError, containedRelativePath, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, undoPaths, workTreeRoot, } from "./host/git.js";
-export { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, otherUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, } from "./ui-mode.js";
+// Re-exported, not owned: the vocabulary moved to `@dsh-portable/ui-mode` when
+// a third surface arrived, because the Electron shell and each surface must
+// agree on mode names without any of them depending on one particular front
+// end. These aliases keep existing importers of this package working.
+export { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, } from '@dsh-portable/ui-mode';
 /** Stable Cordis plugin name. */
 export const name = 'dcode-ui';
 /**

@@ -1,4 +1,4 @@
-type UiMode = 'official' | 'dcode' | 'crew'
+type UiMode = 'official' | 'dcode'
 
 declare const contract: {
   readonly UI_MODES: readonly UiMode[]

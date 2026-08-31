@@ -16,7 +16,7 @@
 import { useSyncExternalStore } from 'react'
 import type { ComponentType } from 'react'
 import {
-  IconGoalOutline16, IconSettingsOutline16, IconSparkle16,
+  IconSettingsOutline16, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { MODE_COPY, UI_MODES, type UiMode } from '@dsh-portable/ui-mode/client'
 import { useRuntime } from '../state/runtime.ts'
@@ -31,7 +31,6 @@ import css from './ThemeSwitch.module.css'
 const MODE_GLYPH: Readonly<Record<UiMode, ComponentType>> = {
   official: IconSettingsOutline16,
   dcode: IconSparkle16,
-  crew: IconGoalOutline16,
 }
 
 /** The segmented interface control, one segment per registered surface. */

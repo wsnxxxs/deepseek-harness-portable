@@ -212,9 +212,18 @@ export function useGitStatus(cwd: string | undefined, sessionId: SessionId | und
   // the operator comes back to the window.
   useEffect(() => {
     if (cwd === undefined) return undefined
-    const onFocus = (): void => { refresh() }
+    // Window refocus triggers every workspace's reader at once; a short
+    // debounce collapses burst refocus events into one read per workspace.
+    let timer: number | undefined
+    const onFocus = (): void => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => { refresh() }, 150)
+    }
     globalThis.addEventListener?.('focus', onFocus)
-    return () => { globalThis.removeEventListener?.('focus', onFocus) }
+    return () => {
+      globalThis.removeEventListener?.('focus', onFocus)
+      window.clearTimeout(timer)
+    }
   }, [cwd, refresh])
 
   return useMemo(

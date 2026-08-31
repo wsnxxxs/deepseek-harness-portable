@@ -12,8 +12,9 @@
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
-  IconCheckOutline14, IconCheckOutline16, IconCopyOutline16, writeClipboard,
+  IconCheckOutline14, IconCheckOutline16, IconCopyOutline16, Modal, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useModalFocus } from './use-modal-focus.ts'
 import css from './ui.module.css'
 
 /** Class names other modules compose against (they own their own layout). */
@@ -22,6 +23,37 @@ export const ui = css
 /** The shared material-glint class for live Tool and Thinking surfaces. */
 export function shimmerActive(active = true): string {
   return active ? css.shimmerActive : ''
+}
+
+/** The workbench modal face with focus containment and restoration. */
+export function FocusingModal(props: {
+  open: boolean
+  onClose: () => void
+  title: string
+  closeLabel: string
+  description?: string
+  children?: ReactNode
+  footer?: ReactNode
+  className?: string
+  contentClassName?: string
+}) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  useModalFocus(props.open, panelRef, { onClose: props.onClose })
+  const { open, onClose, title, closeLabel, description, children, footer, className, contentClassName } = props
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={title}
+      closeLabel={closeLabel}
+      description={description}
+      className={className}
+      contentClassName={contentClassName}
+      footer={footer}
+    >
+      <div ref={panelRef} tabIndex={-1}>{children}</div>
+    </Modal>
+  )
 }
 
 /** A square control that carries an icon and an accessible name. */

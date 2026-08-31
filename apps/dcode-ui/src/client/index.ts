@@ -100,14 +100,15 @@ export const inject = [
   'remote.subagents',
   'remote.agentPresets',
   'remote.fileReferences',
+  'remote.goals',
 ]
 
 /**
  * Shadow priority of the workbench's `root` registration.
  *
  * Lowest renders. The official AppFrame registers at the default 0, so any
- * negative value wins. Mission Control claims -2000; the gap between them is
- * deliberate, so a further surface can sit between without renumbering either.
+ * negative value wins. The gap below -1000 leaves room for another surface
+ * without changing the official registration.
  *
  * Priorities do not decide WHICH surface shows — the mode store does, and each
  * surface registers only while it is selected — so the ordering matters only in
@@ -182,6 +183,12 @@ function bindRootRegistration(ctx: ClientContext, mode: UiModeController): () =>
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(DCODE_NS, { zh, en }), 'dcode-ui: dictionaries')
+
+  // Announced from the plugin body, so this is evidence rather than a claim:
+  // an assembly that trimmed this bundle, or a load failure that kept this
+  // body from running, leaves the workbench marked unavailable in every switch
+  // rather than offering a choice that silently renders the official UI.
+  ctx.effect(() => ctx.uiMode.announce('dcode'), 'dcode-ui: surface announcement')
 
   ctx.effect(() => bindRootRegistration(ctx, ctx.uiMode), 'dcode-ui: root surface')
 

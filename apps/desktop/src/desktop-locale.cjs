@@ -26,7 +26,6 @@ const MESSAGES = {
       interfaceMode: {
         official: 'Official',
         dcode: 'Workbench',
-        crew: 'Mission Control',
       },
       maintenance: 'Advanced Settings',
       quit: 'Quit',
@@ -186,7 +185,6 @@ const MESSAGES = {
       interfaceMode: {
         official: '官方版',
         dcode: '工作台',
-        crew: '任务指挥台',
       },
       maintenance: '高级设置',
       quit: '退出',

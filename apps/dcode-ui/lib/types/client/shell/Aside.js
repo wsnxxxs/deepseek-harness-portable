@@ -9,18 +9,19 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * the window and reopen it in the classic UI and the same facts are there.
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16, IconGoalOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useAsync, useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16, IconGoalOutline16, IconSearchOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useAsync, useChatSnapshot, useProjectionValue, useSessionList, useTrajectorySnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { adjacentAsideTab, orderedAsideTabs, useNavigation, } from "../state/navigation.js";
 import { useRuntime } from "../state/runtime.js";
 import { GitPanel } from "../git/GitPanel.js";
 import { DiffViewer } from "../git/DiffViewer.js";
-import { CopyButton, EmptyState, Pill, Spinner, ui } from "./ui.js";
+import { Button, CopyButton, EmptyState, Pill, Spinner, ui } from "./ui.js";
 import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, toolDurationMs } from "../chat/tools.js";
 import { AnsiOutput, OutputToolbar } from "../chat/AnsiOutput.js";
 import { stripAnsi } from "../chat/ansi.js";
+import { ChangedFilesOverview, SubagentDetailPanel, SubagentsPanel } from "./AgentInspector.js";
 import css from './Aside.module.css';
 /** Walk a tool block and its children depth-first. */
 function* walkCalls(block) {
@@ -37,6 +38,7 @@ function* walkCalls(block) {
  */
 /** Goal and Progress. */
 function GoalPanel({ sessionId }) {
+    const runtime = useRuntime();
     const t = useT();
     const goal = useProjectionValue(sessionId, 'goal');
     const projectedTodos = useProjectionValue(sessionId, 'todos');
@@ -44,13 +46,67 @@ function GoalPanel({ sessionId }) {
     const fallbackTodos = useMemo(() => latestTodos(chat?.legacy.nodes ?? []), [chat]);
     const todos = projectedTodos === undefined ? fallbackTodos : projectedTodos ?? [];
     const done = todos.filter(todo => todo.status === 'completed').length;
+    const [editingGoal, setEditingGoal] = useState(false);
+    const [goalDraft, setGoalDraft] = useState('');
+    const [goalBusy, setGoalBusy] = useState(false);
+    const [goalError, setGoalError] = useState();
+    useEffect(() => {
+        if (editingGoal && goal?.goal.objective !== undefined)
+            setGoalDraft(goal.goal.objective);
+    }, [editingGoal, goal?.goal.objective]);
+    const goals = runtime.goals;
+    const goalRef = goal == null ? undefined : { id: goal.goal.id, revision: goal.goal.revision };
+    const goalActionDisabled = goalBusy || sessionId === undefined || goals === undefined || goalRef === undefined;
+    const runGoal = useCallback(async (action) => {
+        if (goalBusy)
+            return;
+        setGoalBusy(true);
+        setGoalError(undefined);
+        try {
+            const result = await action();
+            if (!result.ok)
+                setGoalError(result.error?.message ?? t('common.error'));
+            else
+                setEditingGoal(false);
+        }
+        catch (cause) {
+            setGoalError(cause instanceof Error ? cause.message : String(cause));
+        }
+        finally {
+            setGoalBusy(false);
+        }
+    }, [goalBusy, t]);
     return (_jsxs(_Fragment, { children: [_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx(IconGoalOutline16, {}), _jsx("span", { className: ui.grow, children: t('goal.title') }), goal == null
                                 ? null
                                 : (_jsx(Pill, { children: goal.goal.phase === 'completed'
                                         ? t('goal.complete')
                                         : goal.goal.phase === 'paused' ? t('goal.paused') : t('goal.active') }))] }), goal == null
                         ? _jsx(EmptyState, { children: t('goal.none') })
-                        : (_jsx("div", { className: css.goal, children: _jsxs("div", { className: css.goalText, children: [goal.goal.objective, _jsxs("div", { className: css.goalMeta, children: [done, "/", todos.length || '—', " \u00B7 ", t('goal.rounds', { count: goal.roundsStarted })] })] }) }))] }), _jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx(IconChecklistOutline14, {}), _jsx("span", { className: ui.grow, children: t('progress.title') }), todos.length === 0 ? null : _jsxs(Pill, { children: [done, "/", todos.length] })] }), todos.length === 0
+                        : (_jsxs("div", { className: css.goal, children: [editingGoal
+                                    ? (_jsxs(_Fragment, { children: [_jsx("textarea", { className: css.goalInput, rows: 3, value: goalDraft, disabled: goalBusy, "aria-label": t('goal.edit'), onChange: event => { setGoalDraft(event.target.value); setGoalError(undefined); }, onKeyDown: event => {
+                                                    if (event.key === 'Escape') {
+                                                        event.preventDefault();
+                                                        setEditingGoal(false);
+                                                    }
+                                                } }), _jsxs("div", { className: css.goalActions, children: [_jsx(Button, { disabled: goalActionDisabled || goalDraft.trim() === '', onClick: () => {
+                                                            const ref = goalRef;
+                                                            if (ref === undefined || goals === undefined || sessionId === undefined)
+                                                                return;
+                                                            void runGoal(() => goals.edit(sessionId, ref, { objective: goalDraft.trim() }));
+                                                        }, children: t('common.save') }), _jsx(Button, { disabled: goalBusy, onClick: () => { setEditingGoal(false); setGoalError(undefined); }, children: t('common.cancel') })] })] }))
+                                    : (_jsxs("div", { className: css.goalText, children: [goal.goal.objective, _jsxs("div", { className: css.goalMeta, children: [done, "/", todos.length || '—', " \u00B7 ", t('goal.rounds', { count: goal.roundsStarted })] })] })), editingGoal ? null : (_jsxs("div", { className: css.goalActions, children: [goal.goal.phase === 'completed'
+                                            ? null
+                                            : (_jsx(Button, { disabled: goalActionDisabled, onClick: () => {
+                                                    if (goalRef === undefined || goals === undefined || sessionId === undefined)
+                                                        return;
+                                                    void runGoal(() => (goal.goal.phase === 'paused'
+                                                        ? goals.resume(sessionId, goalRef)
+                                                        : goals.pause(sessionId, goalRef)));
+                                                }, children: goal.goal.phase === 'paused' ? t('goal.resume') : t('goal.pause') })), _jsx(Button, { disabled: goalActionDisabled, onClick: () => { setEditingGoal(true); }, children: t('goal.edit') }), _jsx(Button, { disabled: goalActionDisabled, onClick: () => {
+                                                if (goalRef === undefined || goals === undefined || sessionId === undefined)
+                                                    return;
+                                                void runGoal(() => goals.clear(sessionId, goalRef));
+                                            }, children: t('goal.clear') })] })), goalError === undefined ? null : _jsx("div", { className: css.goalError, role: "alert", children: goalError })] }))] }), _jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx(IconChecklistOutline14, {}), _jsx("span", { className: ui.grow, children: t('progress.title') }), todos.length === 0 ? null : _jsxs(Pill, { children: [done, "/", todos.length] })] }), todos.length === 0
                         ? _jsx(EmptyState, { children: t('progress.none') })
                         : todos.map((todo, index) => (_jsxs("div", { className: `${css.step} ${todo.status === 'completed' ? css.stepDone : ''} ${todo.status === 'in_progress' ? css.stepActive : ''}`, children: [_jsx("span", { className: `${css.stepMark} ${todo.status === 'completed' ? css.stepMarkDone : ''}`, "aria-hidden": true, children: todo.status === 'completed'
                                         ? _jsx(IconCheckOutline14, {})
@@ -125,7 +181,15 @@ function DetailsPanel({ sessionId, callId, cwd, diff, }) {
     const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
     const summary = summarizeTool(name, argsRaw);
     const output = settled ? resultText(block.content) : '';
-    return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: name }), _jsx(Pill, { children: summary.kind })] }), _jsxs("div", { className: css.detailBlock, children: [_jsx("span", { className: css.detailLabel, children: t('details.arguments') }), _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw ?? '—' })] }), settled
+    const locate = () => {
+        const target = [...document.querySelectorAll('[data-tool-call-id]')]
+            .find(element => element.dataset.toolCallId === callId);
+        if (target === undefined)
+            return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.querySelector('[data-tool-call-id] button, [data-tool-call-id] .headMain')?.focus({ preventScroll: true });
+    };
+    return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: name }), _jsx(Pill, { children: summary.kind }), _jsx("button", { type: "button", className: css.locateButton, "aria-label": t('details.locate'), title: t('details.locate'), onClick: locate, children: _jsx(IconSearchOutline16, {}) })] }), _jsxs("div", { className: css.detailBlock, children: [_jsx("span", { className: css.detailLabel, children: t('details.arguments') }), _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw ?? '—' })] }), settled
                 ? (_jsxs("div", { className: css.detailBlock, children: [_jsxs("span", { className: css.detailRow, children: [_jsx("span", { className: css.detailLabel, children: t('details.output') }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
                             ? _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
                             : _jsx(AnsiOutput, { text: output, wrap: wrap })] }))
@@ -180,7 +244,7 @@ function CommandOutputEntry({ block, onLocated }) {
     useEffect(() => {
         if (settled)
             return undefined;
-        const timer = window.setInterval(() => { setNow(Date.now()); }, 100);
+        const timer = window.setInterval(() => { setNow(Date.now()); }, 1000);
         return () => { window.clearInterval(timer); };
     }, [settled]);
     useEffect(() => {
@@ -252,12 +316,15 @@ function CommandOutputPanel({ sessionId, onLocated }) {
 export function Aside({ navigation, sessionId, cwd, context }) {
     const t = useT();
     const state = useNavigation(navigation);
+    const list = useSessionList();
+    const [selectedSubagent, setSelectedSubagent] = useState();
     const tabPrefix = useId();
     const tabRefs = useRef({ changes: null, terminal: null, goal: null, details: null });
+    useEffect(() => { setSelectedSubagent(undefined); }, [sessionId]);
     const labels = {
         changes: t('git.changes'),
         terminal: t('aside.commandOutput'),
-        goal: t('goal.title'),
+        goal: t('aside.inspector'),
         details: t('details.title'),
     };
     const tabOrder = orderedAsideTabs(context);
@@ -283,8 +350,12 @@ export function Aside({ navigation, sessionId, cwd, context }) {
                                     : (_jsx(DiffViewer, { cwd: cwd, path: state.diff.path, staged: state.diff.staged, onClose: () => { navigation.closeDiff(); } }))] }))
                         : null, state.aside === 'terminal'
                         ? _jsx(CommandOutputPanel, { sessionId: sessionId, onLocated: () => { navigation.closeCompactOverlay(); } })
-                        : null, state.aside === 'goal' ? _jsx(GoalPanel, { sessionId: sessionId }) : null, state.aside === 'details'
-                        ? _jsx(DetailsPanel, { sessionId: sessionId, callId: state.inspectedCallId, cwd: cwd, diff: state.diff })
+                        : null, state.aside === 'goal'
+                        ? selectedSubagent === undefined || sessionId === undefined
+                            ? (_jsxs(_Fragment, { children: [_jsx(ChangedFilesOverview, { cwd: cwd, sessionId: sessionId, onOpenDiff: (path, staged) => { navigation.openDiff(path, staged); } }), _jsx(GoalPanel, { sessionId: sessionId }), _jsx(SubagentsPanel, { sessionId: sessionId, onSelect: setSelectedSubagent })] }))
+                            : (_jsx(SubagentDetailPanel, { parentSessionId: sessionId, entry: selectedSubagent, navigation: navigation, onBack: () => { setSelectedSubagent(undefined); } }))
+                        : null, state.aside === 'details'
+                        ? (_jsx(DetailsPanel, { sessionId: selectedSubagent?.id ?? sessionId, callId: state.inspectedCallId, cwd: selectedSubagent === undefined ? cwd : list.byId[selectedSubagent.id]?.cwd ?? cwd, diff: state.diff }))
                         : null] })] }));
 }
 //# sourceMappingURL=Aside.js.map

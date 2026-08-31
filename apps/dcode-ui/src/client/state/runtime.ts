@@ -86,6 +86,24 @@ export interface DcodePendingInteraction extends SessionPendingInteractionBase {
   cancel(): Promise<void>
 }
 
+/** Goal mutation verbs exposed by the generated goals Remote namespace. */
+export interface DcodeGoalsRemote {
+  edit(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }, payload: { readonly objective: string }): Promise<{ ok: boolean; error?: { message: string } }>
+  pause(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
+  resume(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
+  clear(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
+}
+
+/** The small domain face the dcode composer needs from a pending approval. */
+export interface DcodePendingApproval extends SessionPendingInteractionBase {
+  readonly kind: 'approval'
+  readonly key: string
+  readonly toolName: string
+  readonly callId?: string
+  readonly reason?: string
+  answer(outcome: 'allowed-once' | 'rejected'): Promise<void>
+}
+
 /** The minimal observable shape every DSH client store exposes. */
 export interface Observable<T> {
   getSnapshot(): T
@@ -186,6 +204,8 @@ export interface DcodeRuntime {
   readonly locale: LocaleStore
   /** Session-scoped pending interactions, when the UI session adapter is present. */
   readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined
+  /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
+  readonly goals: DcodeGoalsRemote | undefined
   /** Session-log export controller, when the export client plugin is present. */
   readonly sessionLogDownload: SessionLogDownloadFace | undefined
   /** Git, diff, undo and file reads over the `/dcode` channel. */
@@ -301,6 +321,9 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): 
       return inject?.(sessionId)
     },
   }
+  const goals = (ctx.remote as ClientRemote & {
+    readonly goals?: DcodeGoalsRemote
+  }).goals
 
   // One cache per session id: the Chat target face is identity-stable for a
   // binding, and `useSyncExternalStore` needs a stable subscribe reference.
@@ -344,6 +367,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): 
       set: id => { locale?.setLocale(id) },
     },
     pendingInteractions: uiSession?.pendingInteractions,
+    goals,
     sessionLogDownload,
     git: createDcodeApi(carrier),
     learningCall: createLearningCall(carrier),

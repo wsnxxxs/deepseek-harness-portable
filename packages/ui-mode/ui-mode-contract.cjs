@@ -11,7 +11,7 @@
  * always present: the extension surfaces shadow it, and any of them failing to
  * load leaves it rendering. `DEFAULT_UI_MODE` is a separate decision.
  */
-const UI_MODES = Object.freeze(['official', 'dcode', 'crew'])
+const UI_MODES = Object.freeze(['official', 'dcode'])
 
 function normalizeUiMode(value) {
   return UI_MODES.includes(value) ? value : undefined

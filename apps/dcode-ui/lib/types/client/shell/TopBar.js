@@ -18,6 +18,7 @@ import { useGitStatus } from "../git/useGit.js";
 import { IconButton, Popover, ui } from "./ui.js";
 import css from './TopBar.module.css';
 import { TopBarDownloadIcon, TopBarListIcon } from "./TopBarIcons.js";
+import { AgentIdentity } from "./AgentIdentity.js";
 const EMPTY_SESSION_LOG_STATE = { bySession: {} };
 const EMPTY_SUBSCRIBE = (_listener) => () => { };
 const EMPTY_SNAPSHOT = () => EMPTY_SESSION_LOG_STATE;
@@ -42,11 +43,11 @@ export function TopBar({ navigation, sessionId, cwd, context }) {
             : contextTab === 'goal' ? t('top.contextGoal') : undefined;
     // While the first read is outstanding the chip shows nothing rather than
     // asserting "not a repository" about a directory it has not looked at yet.
-    const branchLabel = git.pending
+    // A non-repository workspace reports itself inside the Changes panel; the
+    // top bar only claims a branch when one actually exists.
+    const branchLabel = git.pending || git.status?.repository !== true
         ? undefined
-        : git.status?.repository === true
-            ? (git.status.branch ?? (git.status.detached ? 'HEAD' : t('top.branch')))
-            : t('top.noRepository');
+        : (git.status.branch ?? (git.status.detached ? 'HEAD' : t('top.branch')));
     const shareEntry = sessionId === undefined
         ? undefined
         : sessionLogState.bySession[String(sessionId)];
@@ -69,7 +70,7 @@ export function TopBar({ navigation, sessionId, cwd, context }) {
     const shareClass = shareStatus === 'success'
         ? css.shareSuccess
         : shareStatus === 'error' ? css.shareError : '';
-    return (_jsxs("header", { className: css.bar, children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, dataFocusTarget: "rail", onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), workspace === undefined
+    return (_jsxs("header", { className: css.bar, children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, dataFocusTarget: "rail", onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), _jsx(AgentIdentity, { navigation: navigation, sessionId: sessionId }), workspace === undefined
                 ? null
                 : (_jsx(Popover, { label: t('top.workspaceMenu'), placement: "down", triggerClassName: css.workspaceTrigger, trigger: (_jsxs(_Fragment, { children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { className: css.chipLabel, children: workspace.title }), _jsx(IconChevronDownOutline14, {})] })), rows: groups.map(group => ({
                         id: String(group.workspaceId),

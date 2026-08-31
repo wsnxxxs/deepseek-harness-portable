@@ -16,7 +16,7 @@ var __copyProps = (to, from, except, desc) => {
 	}
 	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
 	value: mod,
 	enumerable: true
 }) : target, mod));
@@ -36,11 +36,7 @@ var import_ui_mode_contract = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJ
 	* always present: the extension surfaces shadow it, and any of them failing to
 	* load leaves it rendering. `DEFAULT_UI_MODE` is a separate decision.
 	*/
-	const UI_MODES = Object.freeze([
-		"official",
-		"dcode",
-		"crew"
-	]);
+	const UI_MODES = Object.freeze(["official", "dcode"]);
 	function normalizeUiMode(value) {
 		return UI_MODES.includes(value) ? value : void 0;
 	}

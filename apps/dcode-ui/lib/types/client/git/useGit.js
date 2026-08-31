@@ -168,9 +168,18 @@ export function useGitStatus(cwd, sessionId) {
     useEffect(() => {
         if (cwd === undefined)
             return undefined;
-        const onFocus = () => { refresh(); };
+        // Window refocus triggers every workspace's reader at once; a short
+        // debounce collapses burst refocus events into one read per workspace.
+        let timer;
+        const onFocus = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => { refresh(); }, 150);
+        };
         globalThis.addEventListener?.('focus', onFocus);
-        return () => { globalThis.removeEventListener?.('focus', onFocus); };
+        return () => {
+            globalThis.removeEventListener?.('focus', onFocus);
+            window.clearTimeout(timer);
+        };
     }, [cwd, refresh]);
     return useMemo(() => ({ ...snapshot, unavailable: !runtime.git.available, refresh, mutation, stage, unstage }), [snapshot, runtime, refresh, mutation, stage, unstage]);
 }

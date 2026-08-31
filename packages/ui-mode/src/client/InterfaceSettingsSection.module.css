@@ -87,3 +87,21 @@
   line-height: 18px;
   text-align: center;
 }
+
+/* An absent surface is dimmed and inert rather than hidden, so the roster
+   still reads as the complete list of surfaces this distribution defines. */
+.optionDisabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.optionDisabled:hover {
+  background: none;
+}
+
+.notice {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}

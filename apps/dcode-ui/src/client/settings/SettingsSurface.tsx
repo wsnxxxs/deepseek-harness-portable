@@ -41,9 +41,10 @@ import {
 } from './provider-readiness.ts'
 import css from './SettingsSurface.module.css'
 import type {
-  CredentialInfo, JsonValue, LlmConfigurableProvider, LlmProviderInfo,
+  CredentialInfo, LlmConfigurableProvider, LlmProviderInfo,
   ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
 } from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { DcodeRuntime } from '../state/runtime.ts'
 
 /** Props of the settings surface. */
@@ -1233,21 +1234,23 @@ function SubagentsSection({ sessionId }: { sessionId: SessionId | undefined }) {
   if (catalog.loading) return <EmptyState><Spinner /></EmptyState>
   if (catalog.error !== undefined) return <EmptyState>{catalog.error}</EmptyState>
   if (catalog.value?.ok === false) return <EmptyState>{catalog.value.error.message}</EmptyState>
-  const members = catalog.value?.ok === true
-    ? (catalog.value.value as { members?: readonly { childSessionId: string; name?: string; status?: string }[] }).members ?? []
+  const entries = catalog.value?.ok === true
+    ? catalog.value.value.entries
     : []
 
   return (
-    <Section title={t('settings.subagents')} body={t('settings.count', { count: members.length })}>
-      {members.length === 0
+    <Section title={t('settings.subagents')} body={t('settings.count', { count: entries.length })}>
+      {entries.length === 0
         ? <EmptyState>{t('settings.subagentsEmpty')}</EmptyState>
         : (
           <div className={css.card}>
-            {members.map(member => (
+            {entries.map(entry => (
               <Row
-                key={member.childSessionId}
-                title={member.name ?? member.childSessionId}
-                body={member.status}
+                key={entry.id}
+                title={entry.kind === 'child' ? entry.label ?? entry.id : entry.id}
+                body={entry.kind === 'child'
+                  ? `${entry.activity} · ${entry.mode}`
+                  : entry.reason}
               />
             ))}
           </div>
@@ -1328,16 +1331,6 @@ function UsageSection() {
       <Section title={t('settings.usage')} body={t('settings.usageBody')}>
         <div className={css.card}>
           <div className={css.usageStatus} role="status">{t('settings.usageLoading')}</div>
-        </div>
-      </Section>
-    )
-  }
-
-  if (list.state === 'error') {
-    return (
-      <Section title={t('settings.usage')} body={t('settings.usageBody')}>
-        <div className={css.card} role="alert">
-          <div className={css.usageStatus}>{list.error?.message ?? t('settings.usageError')}</div>
         </div>
       </Section>
     )

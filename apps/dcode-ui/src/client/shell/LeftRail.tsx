@@ -15,7 +15,7 @@ import {
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconFolderOpen16, IconNewChatOutline16,
   IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16,
-  Modal, relativeTime,
+  relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { commandShortcut } from '../platform.ts'
@@ -24,7 +24,7 @@ import { useSessionList, useWorkspaceGroups, type WorkspaceGroup } from '../stat
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
-import { EmptyState, IconButton, Popover, ui } from './ui.tsx'
+import { EmptyState, FocusingModal, IconButton, Popover, ui } from './ui.tsx'
 import css from './LeftRail.module.css'
 
 /** Props of the left rail. */
@@ -47,18 +47,27 @@ function useAge(): (updatedAt: number) => string {
   }, [])
 }
 
+function pathLeaf(path: string | undefined): string | undefined {
+  if (path === undefined || path.trim() === '') return undefined
+  const normalized = path.replace(/[\\/]+$/, '')
+  const leaf = normalized.slice(Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/')) + 1)
+  return leaf === '' ? undefined : leaf
+}
+
 /** One session row. */
 function SessionRow(props: {
   session: SessionSummary
   current: boolean
   onOpen: () => void
   onArchive: () => void
-  onDelete: () => void
   onRename: () => void
   age: string
 }) {
   const { session, current } = props
   const t = useT()
+  const stateLabel = session.running
+    ? t('nav.running')
+    : session.completed === true ? t('nav.completed') : t('nav.idle')
   return (
     <div className={css.rowShell}>
       <button
@@ -67,13 +76,17 @@ function SessionRow(props: {
         onClick={props.onOpen}
         title={session.displayTitle}
         data-session-id={session.id}
+        aria-current={current ? 'true' : undefined}
       >
-        {session.running
-          ? <span className={`${css.dot} ${css.dotRunning}`} aria-hidden />
-          : session.completed === true
-            ? <span className={`${css.dot} ${css.dotDone}`} aria-hidden />
-            : <span className={css.dot} aria-hidden />}
-        <span className={css.rowTitle}>{session.displayTitle}</span>
+        <span className={css.rowAvatar} aria-hidden>
+          <IconSparkle16 />
+          <span className={`${css.rowPresence} ${session.running ? css.dotRunning : session.completed === true ? css.dotDone : ''}`} />
+        </span>
+        <span className={ui.visuallyHidden}>{stateLabel}</span>
+        <span className={css.rowCopy}>
+          <span className={css.rowTitle}>{session.displayTitle}</span>
+          <span className={css.rowSubtitle}>{pathLeaf(session.cwd) ?? stateLabel}</span>
+        </span>
         <span className={css.rowTime}>{props.age}</span>
       </button>
       <Popover
@@ -94,13 +107,6 @@ function SessionRow(props: {
             label: t('session.archive'),
             icon: <IconArchiveOutline20 size={16} />,
             onSelect: props.onArchive,
-          },
-          {
-            id: 'delete',
-            label: t('session.delete'),
-            icon: <IconTrashOutline16 />,
-            danger: true,
-            onSelect: props.onDelete,
           },
         ]}
       />
@@ -190,9 +196,16 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   const searchRef = useRef<HTMLInputElement | null>(null)
   const treeRef = useRef<HTMLDivElement | null>(null)
   const [query, setQuery] = useState('')
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
-  const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
-  const [deleting, setDeleting] = useState(false)
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = localStorage.getItem('dcode.rail.collapsed')
+      if (raw === null) return new Set()
+      const parsed: unknown = JSON.parse(raw)
+      return new Set(Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [])
+    } catch {
+      return new Set()
+    }
+  })
   const [sessionRenameTarget, setSessionRenameTarget] = useState<SessionSummary | undefined>()
   const [sessionRenameDraft, setSessionRenameDraft] = useState('')
   const [sessionRenaming, setSessionRenaming] = useState(false)
@@ -212,6 +225,14 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
       return next
     })
   }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dcode.rail.collapsed', JSON.stringify([...collapsed]))
+    } catch {
+      // Storage unavailable: the collapse state simply does not survive a reload.
+    }
+  }, [collapsed])
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const filteredGroups = useMemo(() => groups.map((group) => {
@@ -353,6 +374,13 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           so a long task list can reclaim the rail's whole height instead of
           squeezing itself under a growing block of chrome. */}
       <div className={css.top}>
+        <div className={css.brand}>
+          <span className={css.brandMark} aria-hidden><IconSparkle16 /></span>
+          <span className={css.brandCopy}>
+            <strong>DCode</strong>
+            <span>{t('nav.agentWorkspace')}</span>
+          </span>
+        </div>
         <label className={css.searchField}>
           <IconSearchOutline16 />
           <input
@@ -410,6 +438,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
             <span className={ui.grow}>{t('nav.learning')}</span>
           </button>
         </div>
+        {hasRows ? <div className={css.sectionLabel}>{t('nav.conversations')}</div> : null}
         {hasRows ? <div className={css.treeDivider} aria-hidden /> : null}
         {hasRows
           ? (
@@ -435,7 +464,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
                         onOpen={() => { openSession(session) }}
                         onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.navigation?.archiveSession(session.id) }}
-                        onDelete={() => { setDeleteTarget(session) }}
                       />
                     ))}
                 </div>
@@ -456,7 +484,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
                         onOpen={() => { openSession(session) }}
                         onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.navigation?.archiveSession(session.id) }}
-                        onDelete={() => { setDeleteTarget(session) }}
                       />
                     ))}
                   </div>
@@ -476,7 +503,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           <span>{t('nav.settings')}</span>
         </button>
       </div>
-      <Modal
+      <FocusingModal
         open={sessionRenameTarget !== undefined}
         onClose={() => { if (!sessionRenaming) setSessionRenameTarget(undefined) }}
         title={t('common.edit')}
@@ -510,43 +537,8 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           }}
         />
         {sessionRenameError === undefined ? null : <div className={css.workspaceError} role="alert">{sessionRenameError}</div>}
-      </Modal>
-      <Modal
-        open={deleteTarget !== undefined}
-        onClose={() => { if (!deleting) setDeleteTarget(undefined) }}
-        title={t('session.deleteTitle')}
-        closeLabel={t('common.close')}
-        description={t('session.deleteBody')}
-        footer={(
-          <>
-            <PrimitiveButton
-              variant="outline"
-              autoFocus
-              disabled={deleting}
-              onClick={() => { if (!deleting) setDeleteTarget(undefined) }}
-            >
-              {t('common.cancel')}
-            </PrimitiveButton>
-            <PrimitiveButton
-              variant="outline"
-              className={css.deleteConfirm}
-              disabled={deleting}
-              onClick={() => {
-                const target = deleteTarget
-                if (target === undefined || deleting) return
-                setDeleting(true)
-                void runtime.sessions.delete(target.id)
-                  .then(() => { setDeleteTarget(undefined) })
-                  .catch(() => {})
-                  .finally(() => { setDeleting(false) })
-              }}
-            >
-              {t('session.delete')}
-            </PrimitiveButton>
-          </>
-        )}
-      />
-      <Modal
+      </FocusingModal>
+      <FocusingModal
         open={renameTarget !== undefined}
         onClose={closeRename}
         title={t('workspace.renameTitle')}
@@ -580,8 +572,8 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           }}
         />
         {renameError === undefined ? null : <div className={css.workspaceError} role="alert">{renameError}</div>}
-      </Modal>
-      <Modal
+      </FocusingModal>
+      <FocusingModal
         open={removeTarget !== undefined}
         onClose={closeRemove}
         title={t('workspace.removeTitle')}
@@ -605,7 +597,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
       >
         {removing ? <div className={css.workspaceStatus} role="status">{t('workspace.removePending')}</div> : null}
         {removeError === undefined ? null : <div className={css.workspaceError} role="alert">{removeError}</div>}
-      </Modal>
+      </FocusingModal>
     </nav>
   )
 }

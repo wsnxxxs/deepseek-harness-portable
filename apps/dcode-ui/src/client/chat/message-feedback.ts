@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type {
+  MessageFeedbackActionResult,
   MessageFeedbackInjected,
   MessageFeedbackView,
 } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
@@ -27,6 +28,10 @@ export interface MessageFeedbackState {
   readonly error: string | undefined
   ensure(): void
   toggle(messageId: MessageId, rating: MessageFeedbackRating): Promise<string | undefined>
+  /** Create or replace the message's note, keeping the existing rating. */
+  saveNote(messageId: MessageId, rating: MessageFeedbackRating, note: string): Promise<string | undefined>
+  /** Drop the note while keeping the rating. */
+  clearNote(messageId: MessageId): Promise<string | undefined>
 }
 
 interface PendingOwner {
@@ -82,6 +87,36 @@ export function useMessageFeedback(
     return result.ok ? undefined : result.error.message
   }, [sessionEntry])
 
+  const mutate = useCallback(async (
+    messageId: MessageId,
+    run: (entry: MessageFeedbackInjected) => Promise<MessageFeedbackActionResult>,
+  ): Promise<string | undefined> => {
+    if (sessionEntry === undefined) return undefined
+    const owner = ownerRef.current
+    if (owner.entry !== sessionEntry || owner.items.has(messageId)) return undefined
+    owner.items.add(messageId)
+    redrawPending(value => value + 1)
+    const result = await run(sessionEntry)
+    if (ownerRef.current !== owner) return undefined
+    owner.items.delete(messageId)
+    redrawPending(value => value + 1)
+    return result.ok ? undefined : result.error.message
+  }, [sessionEntry])
+
+  const saveNote = useCallback(async (
+    messageId: MessageId,
+    rating: MessageFeedbackRating,
+    note: string,
+  ): Promise<string | undefined> => {
+    return await mutate(messageId, current => current.rate(messageId, rating, note))
+  }, [mutate])
+
+  const clearNote = useCallback(async (
+    messageId: MessageId,
+  ): Promise<string | undefined> => {
+    return await mutate(messageId, current => current.clearNote(messageId))
+  }, [mutate])
+
   return {
     enabled: sessionEntry !== undefined,
     items: sessionEntry === undefined ? EMPTY_ITEMS : view.items,
@@ -89,5 +124,7 @@ export function useMessageFeedback(
     error: view.error ?? undefined,
     ensure,
     toggle,
+    saveNote,
+    clearNote,
   }
 }

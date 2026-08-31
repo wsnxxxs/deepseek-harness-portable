@@ -12,6 +12,16 @@ export class UiModeService extends Service implements UiModeController {
   /** Read the active surface. */
   readonly get = (): UiMode => this.store.get()
 
+  /** Whether a surface for one mode is present in this build. */
+  readonly available = (mode: UiMode): boolean => this.store.available(mode)
+
+  /**
+   * Declare that this page can render one mode.
+   * @param mode - the mode the caller renders.
+   * @returns a disposer withdrawing the announcement.
+   */
+  readonly announce = (mode: UiMode): (() => void) => this.store.announce(mode)
+
   /** Switch to one surface. */
   readonly set = (mode: UiMode, origin: 'page' | 'desktop' = 'page'): void => {
     this.store.set(mode, origin)

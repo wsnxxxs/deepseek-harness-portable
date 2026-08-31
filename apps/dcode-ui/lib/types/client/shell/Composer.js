@@ -13,7 +13,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14, IconPaperclipOutline16, IconPlusOutline16, IconSendOutline16, IconStopFill16, RiskConfirmation, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
-import { useAsync, useObservable, useProjectionValue, useSessionInput, useSessionSnapshot, } from "../state/hooks.js";
+import { useAsync, useObservable, useProjectionValue, useSessionInput, useSessionList, useSessionSnapshot, } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { Popover } from "./ui.js";
 import { ModelSelect } from "./ModelSelect.js";
@@ -54,6 +54,17 @@ function slashQuery(value) {
     const match = /^\/([^\s]*)$/.exec(value);
     return match?.[1]?.toLocaleLowerCase();
 }
+/** Canonical `@[label](dsh-session:<id>)` mention the host session-reference resolver accepts. */
+function sessionMention(label, id) {
+    const escaped = label.replace(/[\\\]]/g, match => `\\${match}`);
+    const payload = JSON.stringify(id);
+    const bytes = new TextEncoder().encode(payload);
+    let binary = '';
+    for (const byte of bytes)
+        binary += String.fromCharCode(byte);
+    const base64 = window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `@[${escaped}](dsh-session:${base64})`;
+}
 function fileSize(bytes) {
     if (bytes < 1_024)
         return `${String(bytes)} B`;
@@ -90,13 +101,14 @@ function AttachmentRail(props) {
                     : (_jsxs("span", { className: css.attachmentFile, title: attachment.file.name, children: [_jsx(FileGlyph, { name: attachment.file.name }), _jsx("span", { children: attachment.file.name || props.t('composer.attachmentFile') })] })), _jsx("span", { className: css.attachmentMeta, children: fileSize(attachment.file.size) }), _jsx("button", { type: "button", className: css.attachmentRemove, "aria-label": `${props.t('composer.removeAttachment')}: ${attachment.file.name || props.t('composer.attachmentFile')}`, disabled: props.disabled, onClick: () => { props.onRemove(attachment.id); }, children: _jsx(IconCloseFill14, {}) })] }, attachment.id))) }));
 }
 /** Prompt entry and the session controls. */
-export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, onReferenceQueryChange }) {
+export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, modelSelectRef, onReferenceQueryChange }) {
     const runtime = useRuntime();
     const t = useT();
     const session = useSessionSnapshot(sessionId);
     const { input, state: inputState } = useSessionInput(sessionId);
     const permissions = useProjectionValue(sessionId, 'permissions');
     const agentPreset = useProjectionValue(sessionId, 'agentPreset');
+    const plan = useProjectionValue(sessionId, 'plan');
     const busyEnter = useObservable(runtime.busyEnter, 'queue');
     const [fallbackDraft, setFallbackDraft] = useState('');
     const [focused, setFocused] = useState(false);
@@ -114,12 +126,13 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const [queueBusy, setQueueBusy] = useState(false);
     const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
     const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false);
+    const [planBusy, setPlanBusy] = useState(false);
     const inputRef = useRef(null);
     const shellRef = useRef(null);
     const attachmentInputRef = useRef(null);
     const conversation = runtime.conversation;
     const draft = input === undefined ? fallbackDraft : inputState.draft;
-    const attachments = useMemo(() => conversation?.draftAttachmentsFor(inputState.imageIds) ?? [], [conversation, inputState.imageIds]);
+    const attachments = useMemo(() => conversation?.draftImages(inputState.imageIds) ?? [], [conversation, inputState.imageIds]);
     // Restore this session's draft on a task switch, and persist the outgoing one.
     const previousSession = useRef(undefined);
     const fallbackDraftRef = useRef(fallbackDraft);
@@ -177,6 +190,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const commandCatalog = useAsync(async () => (sessionId === undefined ? undefined : await runtime.remote.commands.list(sessionId)), [runtime, sessionId]);
     const skillCatalog = useAsync(async () => (sessionId === undefined ? undefined : await runtime.remote.skills.list({ sessionId }, new AbortController().signal)), [runtime, sessionId]);
     const running = session?.running === true;
+    const planTarget = plan === undefined ? undefined : plan.pending ? !plan.active : plan.active;
     const roster = presets.value?.ok === true ? presets.value.value.presets : [];
     const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id;
     const blankSession = (blank ?? session?.blank ?? false) && !running;
@@ -208,10 +222,24 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         }).catch(() => { setReferenceFiles([]); });
         return () => { controller.abort(); };
     }, [activeReferenceQuery, runtime, sessionId]);
+    const sessionList = useSessionList();
     const referenceItems = useMemo(() => {
         if (activeReferenceQuery === undefined)
             return [];
         const query = activeReferenceQuery.toLocaleLowerCase();
+        const sessionItems = sessionList.ids
+            .filter(id => id !== sessionId)
+            .map(id => sessionList.byId[id])
+            .filter((row) => row !== undefined)
+            .filter(row => row.displayTitle.toLocaleLowerCase().includes(query))
+            .slice(0, 6)
+            .map(row => ({
+            id: `session:${row.id}`,
+            kind: 'session',
+            label: row.displayTitle,
+            detail: t('composer.referenceSession'),
+            value: sessionMention(row.displayTitle, row.id),
+        }));
         const files = referenceFiles.slice(0, 12).map(file => {
             const path = file.kind === 'directory' ? `${file.path.replace(/\/$/, '')}/` : file.path;
             const mention = /\s/.test(path) ? `@"${path}"` : `@${path}`;
@@ -232,8 +260,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             .filter(command => command.name.toLocaleLowerCase().includes(query))
             .slice(0, 8)
             .map(command => ({ id: `command:${command.name}`, kind: 'command', label: command.name, detail: command.description, value: `/${command.name}` }));
-        return [...files, ...skillItems, ...commandItems];
-    }, [activeReferenceQuery, commands, referenceFiles, skillCatalog.value, t]);
+        return [...sessionItems, ...files, ...skillItems, ...commandItems];
+    }, [activeReferenceQuery, commands, referenceFiles, sessionId, sessionList, skillCatalog.value, t]);
     const referenceMenuOpen = focused && activeReferenceQuery !== undefined && referenceItems.length > 0;
     useEffect(() => {
         setCommandIndex(0);
@@ -249,6 +277,22 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         })
             .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); });
     }, [runtime, sessionId]);
+    const selectPlanMode = useCallback((active) => {
+        if (sessionId === undefined || plan === undefined || planBusy)
+            return;
+        const target = plan.pending ? !plan.active : plan.active;
+        if (target === active)
+            return;
+        setPlanBusy(true);
+        setError(undefined);
+        void runtime.remote.commands.execute(sessionId, active ? '/plan' : '/plan off', [])
+            .then((result) => {
+            if (!result.ok)
+                setError(result.error.message);
+        })
+            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
+            .finally(() => { setPlanBusy(false); });
+    }, [plan, planBusy, runtime, sessionId]);
     const selectPreset = useCallback((id) => {
         if (sessionId === undefined || !blankSession)
             return;
@@ -317,10 +361,10 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             return;
         }
         try {
-            const created = conversation.createDraftAttachments(files);
+            const created = conversation.createDraftImages(files);
             const accepted = input.addImages(created.map(attachment => attachment.id));
             if (!accepted) {
-                conversation.releaseDraftAttachments(created);
+                conversation.releaseDraftImages(created);
                 setError(t('composer.attachmentsBusy'));
                 return;
             }
@@ -527,7 +571,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         : currentPermission?.value === 'workspace-write'
             ? css.permissionWrite
             : css.permissionRead;
-    const queued = session?.queue ?? [];
+    const queued = useMemo(() => (session?.queue ?? []).filter(item => item.placement === 'queued'), [session?.queue]);
     const firstQueued = queued[0];
     const updateQueued = (action) => {
         if (sessionId === undefined || firstQueued === undefined || queueBusy)
@@ -577,13 +621,13 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                                                 const previous = referenceItems[index - 1];
                                                 return (_jsxs("div", { className: css.referenceRow, children: [previous?.kind === item.kind
                                                             ? null
-                                                            : _jsx("div", { className: css.referenceGroup, children: item.kind === 'file' ? t('composer.workspaceFiles') : item.kind === 'skill' ? t('composer.skills') : t('composer.commands') }), _jsxs("button", { type: "button", id: `composer-reference-${String(index)}`, className: `${css.referenceOption} ${index === referenceIndex ? css.referenceOptionActive : ''}`, role: "option", "aria-selected": index === referenceIndex, onMouseEnter: () => { setReferenceIndex(index); }, onMouseDown: event => { event.preventDefault(); }, onClick: () => { chooseReference(item); }, children: [_jsx("span", { className: css.referenceKind, "aria-hidden": true, children: item.kind === 'file' ? '▧' : item.kind === 'skill' ? '✦' : '/' }), _jsx("span", { className: css.referenceLabel, children: item.label }), item.detail === undefined ? null : _jsx("span", { className: css.referenceDetail, children: item.detail })] })] }, item.id));
+                                                            : _jsx("div", { className: css.referenceGroup, children: item.kind === 'file' ? t('composer.workspaceFiles') : item.kind === 'session' ? t('composer.referenceSessions') : item.kind === 'skill' ? t('composer.skills') : t('composer.commands') }), _jsxs("button", { type: "button", id: `composer-reference-${String(index)}`, className: `${css.referenceOption} ${index === referenceIndex ? css.referenceOptionActive : ''}`, role: "option", "aria-selected": index === referenceIndex, onMouseEnter: () => { setReferenceIndex(index); }, onMouseDown: event => { event.preventDefault(); }, onClick: () => { chooseReference(item); }, children: [_jsx("span", { className: css.referenceKind, "aria-hidden": true, children: item.kind === 'file' ? '▧' : item.kind === 'session' ? '◎' : item.kind === 'skill' ? '✦' : '/' }), _jsx("span", { className: css.referenceLabel, children: item.label }), item.detail === undefined ? null : _jsx("span", { className: css.referenceDetail, children: item.detail })] })] }, item.id));
                                             }) }))
                                         : null, commandMenuOpen
                                         ? (_jsxs("div", { id: "composer-command-list", className: css.commandMenu, role: "listbox", "aria-label": t('composer.commands'), children: [_jsx("div", { className: css.commandMenuTitle, children: t('composer.commands') }), commandMatches.map((command, index) => (_jsxs("button", { type: "button", id: `composer-command-${command.name}`, className: `${css.commandOption} ${index === commandIndex ? css.commandOptionActive : ''}`, role: "option", "aria-selected": index === commandIndex, onMouseEnter: () => { setCommandIndex(index); }, onMouseDown: event => { event.preventDefault(); }, onClick: () => { completeCommand(command); }, children: [_jsxs("span", { className: css.commandName, children: ["/", command.name] }), _jsx("span", { className: css.commandDescription, children: command.description }), command.input === undefined ? null : _jsx("span", { className: css.commandHint, children: command.input.hint })] }, command.name)))] }))
                                         : null, contextPills.length === 0
                                         ? null
-                                        : (_jsx("div", { className: css.contextPills, "aria-label": t('composer.selectedContext'), children: contextPills.map(pill => (_jsxs("span", { className: css.contextPill, children: [_jsx("span", { "aria-hidden": true, children: pill.kind === 'file' ? '▧' : pill.kind === 'skill' ? '✦' : '/' }), _jsx("span", { children: pill.label }), _jsx("button", { type: "button", "aria-label": t('composer.removeContext', { name: pill.label }), onClick: () => { removeContextPill(pill); }, children: _jsx(IconCloseFill14, {}) })] }, pill.id))) })), _jsx("textarea", { ref: inputRef, className: css.input, rows: 1, value: draft, disabled: disabled, placeholder: disabled
+                                        : (_jsx("div", { className: css.contextPills, "aria-label": t('composer.selectedContext'), children: contextPills.map(pill => (_jsxs("span", { className: css.contextPill, children: [_jsx("span", { "aria-hidden": true, children: pill.kind === 'file' ? '▧' : pill.kind === 'session' ? '◎' : pill.kind === 'skill' ? '✦' : '/' }), _jsx("span", { children: pill.label }), _jsx("button", { type: "button", "aria-label": t('composer.removeContext', { name: pill.label }), onClick: () => { removeContextPill(pill); }, children: _jsx(IconCloseFill14, {}) })] }, pill.id))) })), _jsx("textarea", { ref: inputRef, className: css.input, rows: 1, value: draft, disabled: disabled, placeholder: disabled
                                             ? t('composer.needsSession')
                                             : t('composer.placeholder'), onChange: event => {
                                             updateDraft(event.target.value);
@@ -595,7 +639,9 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                                     event.currentTarget.value = '';
                                 } }), readinessIssue === undefined
                                 ? null
-                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx("button", { type: "button", className: css.attachButton, "aria-label": t('composer.addAttachment'), title: t('composer.addAttachment'), disabled: disabled || input === undefined, onClick: () => { attachmentInputRef.current?.click(); }, children: _jsx(IconPlusOutline16, {}) }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { sessionId: sessionId, disabled: disabled }), running
+                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [plan === undefined
+                                                ? null
+                                                : (_jsxs("div", { className: css.modeSwitch, role: "radiogroup", "aria-label": t('composer.mode'), "aria-busy": planBusy, children: [_jsxs("button", { type: "button", role: "radio", className: `${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === true ? css.modeOptionPlan : ''}`, "aria-checked": planTarget === true, title: t('composer.mode.planDescription'), disabled: disabled || planBusy, onClick: () => { selectPlanMode(true); }, children: [_jsx("span", { className: css.modeIcon, "aria-hidden": true, children: _jsx("svg", { viewBox: "0 0 16 16", children: _jsx("path", { d: "M3 3.25h10M3 6.5h10M3 9.75h6M3 13h5" }) }) }), _jsx("span", { children: t('composer.mode.plan') })] }), _jsxs("button", { type: "button", role: "radio", className: `${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === false ? css.modeOptionBuild : ''}`, "aria-checked": planTarget === false, title: t('composer.mode.buildDescription'), disabled: disabled || planBusy, onClick: () => { selectPlanMode(false); }, children: [_jsx("span", { className: css.modeIcon, "aria-hidden": true, children: _jsx("svg", { viewBox: "0 0 16 16", children: _jsx("path", { d: "m5.5 4-3 4 3 4M10.5 4l3 4-3 4M9 2.75 7 13.25" }) }) }), _jsx("span", { children: t('composer.mode.build') })] })] })), _jsx("button", { type: "button", className: css.attachButton, "aria-label": t('composer.addAttachment'), title: t('composer.addAttachment'), disabled: disabled || input === undefined, onClick: () => { attachmentInputRef.current?.click(); }, children: _jsx(IconPlusOutline16, {}) }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), running
                                                 ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
                                                 : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
                     setAcknowledgedFullAccess(false);

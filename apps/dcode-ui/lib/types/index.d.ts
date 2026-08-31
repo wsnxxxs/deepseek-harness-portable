@@ -17,7 +17,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 export { DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint, type DcodeEndpoint, type DcodeErrorCode, type DcodeResult, } from './host/rpc.ts';
 export { GitCommandError, containedRelativePath, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, undoPaths, workTreeRoot, type GitBranch, type GitCommitResult, type GitDiff, type GitFileChange, type GitRestoreOutcome, type GitStatus, } from './host/git.ts';
-export { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, otherUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, type UiMode, } from './ui-mode.ts';
+export { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, type UiMode, } from '@dsh-portable/ui-mode';
 /** Stable Cordis plugin name. */
 export declare const name = "dcode-ui";
 /**

@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import {
   IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14,
   IconPaperclipOutline16, IconPlusOutline16,
@@ -20,15 +20,16 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerAttachment, DraftAttachmentId } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type BusyEnterBehavior } from '../state/runtime.ts'
 import {
-  useAsync, useObservable, useProjectionValue, useSessionInput, useSessionSnapshot,
+  useAsync, useObservable, useProjectionValue, useSessionInput, useSessionList, useSessionSnapshot,
 } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
 import { Popover, type MenuRow } from './ui.tsx'
-import { ModelSelect, type ModelSelectionView } from './ModelSelect.tsx'
+import { ModelSelect, type ModelSelectHandle, type ModelSelectionView } from './ModelSelect.tsx'
 import type { ModelReadiness } from '../settings/readiness.ts'
 import css from './Composer.module.css'
 
@@ -41,6 +42,8 @@ export interface ComposerProps {
   readonly readiness?: ModelReadiness
   readonly onSelectModel?: () => void
   readonly onConfigureProvider?: () => void
+  /** Opens the model picker from outside the composer (readiness card actions). */
+  readonly modelSelectRef?: RefObject<ModelSelectHandle>
   /** Active `@query` at the caret; reserved for the file/symbol reference picker. */
   readonly onReferenceQueryChange?: (query: string | undefined) => void
 }
@@ -51,9 +54,15 @@ interface PermissionSelectView {
   readonly options: readonly { readonly value: string; readonly name: string; readonly description?: string }[]
 }
 
+/** Host-computed plan-mode projection used by the Metis Plan/Build switch. */
+interface PlanProjectionView {
+  readonly active: boolean
+  readonly pending: boolean
+}
+
 interface ContextReferenceItem {
   readonly id: string
-  readonly kind: 'file' | 'skill' | 'command'
+  readonly kind: 'file' | 'skill' | 'command' | 'session'
   readonly label: string
   readonly detail?: string
   readonly value: string
@@ -109,6 +118,17 @@ const drafts = new Map<string, string>()
 function slashQuery(value: string): string | undefined {
   const match = /^\/([^\s]*)$/.exec(value)
   return match?.[1]?.toLocaleLowerCase()
+}
+
+/** Canonical `@[label](dsh-session:<id>)` mention the host session-reference resolver accepts. */
+function sessionMention(label: string, id: string): string {
+  const escaped = label.replace(/[\\\]]/g, match => `\\${match}`)
+  const payload = JSON.stringify(id)
+  const bytes = new TextEncoder().encode(payload)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  const base64 = window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return `@[${escaped}](dsh-session:${base64})`
 }
 
 function fileSize(bytes: number): string {
@@ -185,13 +205,14 @@ function AttachmentRail(props: {
 }
 
 /** Prompt entry and the session controls. */
-export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, onReferenceQueryChange }: ComposerProps) {
+export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, onSelectModel, onConfigureProvider, modelSelectRef, onReferenceQueryChange }: ComposerProps) {
   const runtime = useRuntime()
   const t = useT()
   const session = useSessionSnapshot(sessionId)
   const { input, state: inputState } = useSessionInput(sessionId)
   const permissions = useProjectionValue<PermissionSelectView>(sessionId, 'permissions')
   const agentPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
+  const plan = useProjectionValue<PlanProjectionView>(sessionId, 'plan')
   const busyEnter = useObservable(runtime.busyEnter, 'queue')
   const [fallbackDraft, setFallbackDraft] = useState('')
   const [focused, setFocused] = useState(false)
@@ -209,13 +230,14 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const [queueBusy, setQueueBusy] = useState(false)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
+  const [planBusy, setPlanBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const shellRef = useRef<HTMLDivElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const conversation = runtime.conversation
   const draft = input === undefined ? fallbackDraft : inputState.draft
   const attachments = useMemo(
-    () => conversation?.draftAttachmentsFor(inputState.imageIds) ?? [],
+    () => conversation?.draftImages(inputState.imageIds) ?? [],
     [conversation, inputState.imageIds],
   )
 
@@ -284,6 +306,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   )
 
   const running = session?.running === true
+  const planTarget = plan === undefined ? undefined : plan.pending ? !plan.active : plan.active
   const roster = presets.value?.ok === true ? presets.value.value.presets : []
   const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id
   const blankSession = (blank ?? session?.blank ?? false) && !running
@@ -314,9 +337,23 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     return () => { controller.abort() }
   }, [activeReferenceQuery, runtime, sessionId])
 
+  const sessionList = useSessionList()
   const referenceItems = useMemo<readonly ContextReferenceItem[]>(() => {
     if (activeReferenceQuery === undefined) return []
     const query = activeReferenceQuery.toLocaleLowerCase()
+    const sessionItems: ContextReferenceItem[] = sessionList.ids
+      .filter(id => id !== sessionId)
+      .map(id => sessionList.byId[id])
+      .filter((row): row is SessionSummary => row !== undefined)
+      .filter(row => row.displayTitle.toLocaleLowerCase().includes(query))
+      .slice(0, 6)
+      .map(row => ({
+        id: `session:${row.id}`,
+        kind: 'session' as const,
+        label: row.displayTitle,
+        detail: t('composer.referenceSession'),
+        value: sessionMention(row.displayTitle, row.id),
+      }))
     const files: ContextReferenceItem[] = referenceFiles.slice(0, 12).map(file => {
       const path = file.kind === 'directory' ? `${file.path.replace(/\/$/, '')}/` : file.path
       const mention = /\s/.test(path) ? `@"${path}"` : `@${path}`
@@ -337,8 +374,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       .filter(command => command.name.toLocaleLowerCase().includes(query))
       .slice(0, 8)
       .map(command => ({ id: `command:${command.name}`, kind: 'command', label: command.name, detail: command.description, value: `/${command.name}` }))
-    return [...files, ...skillItems, ...commandItems]
-  }, [activeReferenceQuery, commands, referenceFiles, skillCatalog.value, t])
+    return [...sessionItems, ...files, ...skillItems, ...commandItems]
+  }, [activeReferenceQuery, commands, referenceFiles, sessionId, sessionList, skillCatalog.value, t])
   const referenceMenuOpen = focused && activeReferenceQuery !== undefined && referenceItems.length > 0
 
   useEffect(() => {
@@ -355,6 +392,20 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       })
       .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
   }, [runtime, sessionId])
+
+  const selectPlanMode = useCallback((active: boolean) => {
+    if (sessionId === undefined || plan === undefined || planBusy) return
+    const target = plan.pending ? !plan.active : plan.active
+    if (target === active) return
+    setPlanBusy(true)
+    setError(undefined)
+    void runtime.remote.commands.execute(sessionId, active ? '/plan' : '/plan off', [])
+      .then((result) => {
+        if (!result.ok) setError(result.error.message)
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setPlanBusy(false) })
+  }, [plan, planBusy, runtime, sessionId])
 
   const selectPreset = useCallback((id: string) => {
     if (sessionId === undefined || !blankSession) return
@@ -422,10 +473,10 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       return
     }
     try {
-      const created = conversation.createDraftAttachments(files)
+      const created = conversation.createDraftImages(files)
       const accepted = input.addImages(created.map(attachment => attachment.id))
       if (!accepted) {
-        conversation.releaseDraftAttachments(created)
+        conversation.releaseDraftImages(created)
         setError(t('composer.attachmentsBusy'))
         return
       }
@@ -620,7 +671,10 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     : currentPermission?.value === 'workspace-write'
       ? css.permissionWrite
       : css.permissionRead
-  const queued = session?.queue ?? []
+  const queued = useMemo(
+    () => (session?.queue ?? []).filter(item => item.placement === 'queued'),
+    [session?.queue],
+  )
   const firstQueued = queued[0]
 
   const updateQueued = (action: { readonly kind: 'remove' | 'steer' } | { readonly kind: 'edit'; readonly content: readonly { readonly type: 'text'; readonly text: string }[] }): void => {
@@ -742,7 +796,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                     <div className={css.referenceRow} key={item.id}>
                       {previous?.kind === item.kind
                         ? null
-                        : <div className={css.referenceGroup}>{item.kind === 'file' ? t('composer.workspaceFiles') : item.kind === 'skill' ? t('composer.skills') : t('composer.commands')}</div>}
+                        : <div className={css.referenceGroup}>{item.kind === 'file' ? t('composer.workspaceFiles') : item.kind === 'session' ? t('composer.referenceSessions') : item.kind === 'skill' ? t('composer.skills') : t('composer.commands')}</div>}
                       <button
                         type="button"
                         id={`composer-reference-${String(index)}`}
@@ -753,7 +807,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                         onMouseDown={event => { event.preventDefault() }}
                         onClick={() => { chooseReference(item) }}
                       >
-                        <span className={css.referenceKind} aria-hidden>{item.kind === 'file' ? '▧' : item.kind === 'skill' ? '✦' : '/'}</span>
+                        <span className={css.referenceKind} aria-hidden>{item.kind === 'file' ? '▧' : item.kind === 'session' ? '◎' : item.kind === 'skill' ? '✦' : '/'}</span>
                         <span className={css.referenceLabel}>{item.label}</span>
                         {item.detail === undefined ? null : <span className={css.referenceDetail}>{item.detail}</span>}
                       </button>
@@ -793,7 +847,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               <div className={css.contextPills} aria-label={t('composer.selectedContext')}>
                 {contextPills.map(pill => (
                   <span className={css.contextPill} key={pill.id}>
-                    <span aria-hidden>{pill.kind === 'file' ? '▧' : pill.kind === 'skill' ? '✦' : '/'}</span>
+                    <span aria-hidden>{pill.kind === 'file' ? '▧' : pill.kind === 'session' ? '◎' : pill.kind === 'skill' ? '✦' : '/'}</span>
                     <span>{pill.label}</span>
                     <button type="button" aria-label={t('composer.removeContext', { name: pill.label })} onClick={() => { removeContextPill(pill) }}><IconCloseFill14 /></button>
                   </span>
@@ -859,6 +913,36 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         {error === undefined ? null : <div className={css.error} role="alert">{error}</div>}
         <div className={css.controls}>
           <div className={css.leadingControls}>
+            {plan === undefined
+              ? null
+              : (
+                <div className={css.modeSwitch} role="radiogroup" aria-label={t('composer.mode')} aria-busy={planBusy}>
+                  <button
+                    type="button"
+                    role="radio"
+                    className={`${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === true ? css.modeOptionPlan : ''}`}
+                    aria-checked={planTarget === true}
+                    title={t('composer.mode.planDescription')}
+                    disabled={disabled || planBusy}
+                    onClick={() => { selectPlanMode(true) }}
+                  >
+                    <span className={css.modeIcon} aria-hidden><svg viewBox="0 0 16 16"><path d="M3 3.25h10M3 6.5h10M3 9.75h6M3 13h5" /></svg></span>
+                    <span>{t('composer.mode.plan')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    className={`${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === false ? css.modeOptionBuild : ''}`}
+                    aria-checked={planTarget === false}
+                    title={t('composer.mode.buildDescription')}
+                    disabled={disabled || planBusy}
+                    onClick={() => { selectPlanMode(false) }}
+                  >
+                    <span className={css.modeIcon} aria-hidden><svg viewBox="0 0 16 16"><path d="m5.5 4-3 4 3 4M10.5 4l3 4-3 4M9 2.75 7 13.25" /></svg></span>
+                    <span>{t('composer.mode.build')}</span>
+                  </button>
+                </div>
+              )}
             <button
               type="button"
               className={css.attachButton}
@@ -885,7 +969,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             />
           </div>
           <div className={css.trailingControls} data-dcode-model-select="">
-            <ModelSelect sessionId={sessionId} disabled={disabled} />
+            <ModelSelect ref={modelSelectRef} sessionId={sessionId} disabled={disabled} />
             {running
               ? (
                 <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>

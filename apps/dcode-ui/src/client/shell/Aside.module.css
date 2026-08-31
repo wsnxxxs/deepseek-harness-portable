@@ -293,6 +293,38 @@
   display: flex;
   flex-direction: column;
   gap: var(--zx-space-2);
+  padding: var(--zx-space-3);
+  border: 1px solid color-mix(in srgb, var(--zx-border-soft) 86%, transparent);
+  border-radius: var(--zx-radius-lg);
+  background: color-mix(in srgb, var(--zx-bg-card) 62%, transparent);
+  box-shadow: var(--zx-shadow-inset-top);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
+.locateButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--zx-label-muted);
+  cursor: pointer;
+  border-radius: var(--zx-radius-sm, 4px);
+}
+
+.locateButton:hover {
+  color: var(--zx-label);
+  background: var(--zx-bg-hover);
+}
+
+.locateButton:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
 }
 
 .sectionHead {
@@ -433,6 +465,32 @@
   line-height: var(--zx-leading-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.goalInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--zx-space-2) var(--zx-space-3);
+  border: 1px solid var(--zx-border-strong, var(--zx-border));
+  border-radius: var(--zx-radius-sm, 6px);
+  background: var(--zx-surface-1, var(--zx-bg));
+  color: var(--zx-label);
+  font-family: inherit;
+  font-size: var(--zx-text-sm);
+  resize: vertical;
+}
+
+.goalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2);
+  margin-top: var(--zx-space-2);
+}
+
+.goalError {
+  margin-top: var(--zx-space-2);
+  color: var(--zx-error);
+  font-size: var(--zx-text-micro);
 }
 
 @media (prefers-reduced-motion: reduce) {

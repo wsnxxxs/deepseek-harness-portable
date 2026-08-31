@@ -12,7 +12,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FishLogo, IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16, IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconLikeOutline16, IconPaperclipOutline16, IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FishLogo, IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16, IconDislikeOutline16, IconEditOutline16, IconLikeOutline16, IconSearchOutline16, IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useChatSnapshot, useSessionSnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -46,6 +46,7 @@ function compactTokens(count) {
 }
 /** Running reasoning stays visible; completed reasoning folds into a one-line row. */
 function Reasoning(props) {
+    const t = useT();
     const [open, setOpen] = useState(props.streaming);
     const panelId = useId();
     const startedAt = useRef(Date.now());
@@ -64,14 +65,17 @@ function Reasoning(props) {
     }, [props.streaming]);
     const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1000));
     const title = props.streaming
-        ? `Thinking (${seconds}s)…`
-        : `Thought for ${seconds}s${props.tokenCount === undefined ? '' : ` · ${compactTokens(props.tokenCount)} tokens`}`;
+        ? t('chat.thinkingProgress', { seconds })
+        : props.tokenCount === undefined
+            ? t('chat.thoughtFor', { seconds })
+            : `${t('chat.thoughtFor', { seconds })} · ${t('chat.tokens', { count: compactTokens(props.tokenCount) })}`;
     return (_jsxs("div", { className: `${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''} ${shimmerActive(props.streaming)}`, children: [_jsxs("button", { type: "button", className: css.reasoningHead, "aria-expanded": open, "aria-controls": panelId, disabled: props.streaming, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsx("span", { className: css.reasoningTitle, children: title }), props.streaming
                         ? null
                         : _jsx(IconChevronRightOutline14, { className: `${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}` })] }), _jsx("div", { className: `${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`, children: _jsx("div", { className: css.reasoningBody, id: panelId, role: "region", children: _jsx(MarkdownText, { text: props.text, streaming: props.streaming, labels: props.labels }) }) })] }));
 }
 /** Lightweight waiting row before the first assistant delta arrives. */
 function ThinkingStatus() {
+    const t = useT();
     const startedAt = useRef(Date.now());
     const [seconds, setSeconds] = useState(0);
     useEffect(() => {
@@ -80,7 +84,7 @@ function ThinkingStatus() {
         }, 1000);
         return () => { window.clearInterval(timer); };
     }, []);
-    return (_jsx("div", { className: `${css.reasoning} ${css.reasoningStreaming} ${shimmerActive()}`, role: "status", "aria-live": "polite", children: _jsxs("div", { className: css.reasoningHead, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsxs("span", { className: css.reasoningTitle, children: ["Thinking (", seconds, "s)\u2026"] })] }) }));
+    return (_jsx("div", { className: `${css.reasoning} ${css.reasoningStreaming} ${shimmerActive()}`, role: "status", "aria-live": "polite", children: _jsxs("div", { className: css.reasoningHead, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsx("span", { className: css.reasoningTitle, children: t('chat.thinkingProgress', { seconds }) })] }) }));
 }
 /** A compact disclosure for a consecutive run of successful read/search calls. */
 function ToolActivityGroup(props) {
@@ -88,10 +92,13 @@ function ToolActivityGroup(props) {
     const [open, setOpen] = useState(false);
     const contentId = useId();
     const summary = [
+        props.group.memoryCount === 0 ? undefined : t(props.group.memoryCount === 1 ? 'chat.toolActivity.memoryOne' : 'chat.toolActivity.memoryMany', { count: props.group.memoryCount }),
         props.group.readCount === 0 ? undefined : t(props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany', { count: props.group.readCount }),
         props.group.searchCount === 0 ? undefined : t(props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany', { count: props.group.searchCount }),
     ].filter((part) => part !== undefined).join(' · ');
-    return (_jsxs("div", { className: css.toolActivity, children: [_jsxs("button", { type: "button", className: css.toolActivityHead, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.toolActivityIcon, "aria-hidden": true, children: _jsx(IconSearchOutline16, {}) }), _jsx("span", { className: css.toolActivitySummary, children: summary }), props.group.durationMs === undefined
+    return (_jsxs("div", { className: css.toolActivity, children: [_jsxs("button", { type: "button", className: css.toolActivityHead, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.toolActivityIcon, "aria-hidden": true, children: props.group.memoryCount > 0 && props.group.readCount === 0 && props.group.searchCount === 0
+                            ? _jsx(IconSparkle16, {})
+                            : _jsx(IconSearchOutline16, {}) }), _jsx("span", { className: css.toolActivitySummary, children: summary }), props.group.durationMs === undefined
                         ? null
                         : _jsxs("span", { className: css.toolActivityDuration, children: ["\u00B7 ", formatToolDuration(props.group.durationMs)] }), _jsx(IconChevronRightOutline14, { className: `${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}` })] }), _jsx("div", { className: `${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.toolActivityClip, children: _jsx("div", { className: css.toolActivityItems, id: contentId, children: props.group.blocks.map(block => (_jsx(ToolCard, { block: block, onInspect: props.onInspect }, block.callId))) }) }) })] }));
 }
@@ -117,30 +124,20 @@ function DurableImage(props) {
         ? _jsx("span", { className: css.attachmentPlaceholder, children: props.attachment.name ?? 'image' })
         : _jsx(ImageLightbox, { src: src, alt: props.attachment.name ?? 'image' });
 }
-/** One durable file reference which can be downloaded from the same session. */
-function DurableFile(props) {
-    const runtime = useRuntime();
-    const label = props.attachment.name ?? 'attachment';
-    return (_jsxs("button", { type: "button", className: css.fileAttachment, title: label, onClick: () => { void runtime.media?.downloadFile(props.sessionId, props.attachment); }, disabled: runtime.media === undefined, children: [_jsx(IconPaperclipOutline16, {}), _jsx("span", { children: label }), _jsx(IconDownloadOutline16, {})] }));
-}
-/** Render message attachments without changing the DCode message layout. */
+/** Render official alpha.2 image attachments without changing the DCode layout. */
 function MessageAttachments(props) {
     const images = [...(props.images ?? [])];
-    const files = [];
     for (const block of props.content ?? []) {
         const candidate = block;
         if (candidate.type === 'image' && candidate.attachment !== undefined) {
             images.push(candidate.attachment);
         }
-        else if (candidate.type === 'file' && candidate.attachment !== undefined) {
-            files.push(candidate.attachment);
-        }
     }
-    if (images.length === 0 && files.length === 0 && (props.previews?.length ?? 0) === 0)
+    if (images.length === 0 && (props.previews?.length ?? 0) === 0)
         return null;
-    return (_jsxs("div", { className: css.messageAttachments, children: [props.previews?.map((image, index) => (_jsx(ImageLightbox, { src: image.previewUrl, alt: image.name ?? 'image' }, `${image.previewUrl}:${String(index)}`))), images.map((attachment, index) => (_jsx(DurableImage, { sessionId: props.sessionId, attachment: attachment }, `${attachment.attachmentId}:${String(index)}`))), files.map((attachment, index) => (_jsx(DurableFile, { sessionId: props.sessionId, attachment: attachment }, `${attachment.attachmentId}:${String(index)}`)))] }));
+    return (_jsxs("div", { className: css.messageAttachments, children: [props.previews?.map((image, index) => (_jsx(ImageLightbox, { src: image.previewUrl, alt: image.name ?? 'image' }, `${image.previewUrl}:${String(index)}`))), images.map((attachment, index) => (_jsx(DurableImage, { sessionId: props.sessionId, attachment: attachment }, `${attachment.attachmentId}:${String(index)}`)))] }));
 }
-/** A user bubble can carry text, images, files, or an image-only prompt. */
+/** A user bubble can carry text, images, or an image-only prompt. */
 function UserBubble(props) {
     const text = messageText(props.content);
     return (_jsxs("div", { className: `${css.user} ${props.className ?? ''}`, children: [text === '' ? null : _jsx("div", { children: text }), _jsx(MessageAttachments, { sessionId: props.sessionId, content: props.content })] }));
@@ -190,10 +187,48 @@ function AssistantActions(props) {
     const [branching, setBranching] = useState(false);
     const [branchError, setBranchError] = useState(undefined);
     const [feedbackError, setFeedbackError] = useState(undefined);
+    const [noteOpen, setNoteOpen] = useState(false);
+    const [noteDraft, setNoteDraft] = useState('');
+    const [noteBusy, setNoteBusy] = useState(false);
+    const [noteError, setNoteError] = useState(undefined);
     const text = assistantText(props.node.blocks);
     const messageId = props.node.messageId;
     const item = messageId === undefined ? undefined : props.feedback.items.get(messageId);
     const pending = messageId === undefined ? false : props.feedback.pending.has(messageId);
+    useEffect(() => {
+        if (noteOpen) {
+            setNoteDraft(item?.note ?? '');
+            setNoteError(undefined);
+        }
+    }, [noteOpen, item?.note]);
+    const saveNote = useCallback(() => {
+        if (messageId === undefined || item?.rating === undefined)
+            return;
+        setNoteBusy(true);
+        setNoteError(undefined);
+        void props.feedback.saveNote(messageId, item.rating, noteDraft).then((failure) => {
+            if (failure !== undefined)
+                setNoteError(failure);
+            else {
+                setNoteOpen(false);
+                setNoteDraft('');
+            }
+        }).finally(() => { setNoteBusy(false); });
+    }, [item?.rating, messageId, noteDraft, props.feedback]);
+    const clearSavedNote = useCallback(() => {
+        if (messageId === undefined)
+            return;
+        setNoteBusy(true);
+        setNoteError(undefined);
+        void props.feedback.clearNote(messageId).then((failure) => {
+            if (failure !== undefined)
+                setNoteError(failure);
+            else {
+                setNoteOpen(false);
+                setNoteDraft('');
+            }
+        }).finally(() => { setNoteBusy(false); });
+    }, [messageId, props.feedback]);
     const branch = useCallback(async () => {
         if (branching)
             return;
@@ -225,8 +260,17 @@ function AssistantActions(props) {
         });
     }, [messageId, props.feedback]);
     return (_jsxs("div", { className: css.messageActions, children: [_jsxs("span", { className: css.messageActionGroup, children: [text === '' ? null : (_jsx(CopyButton, { text: text, label: t('chat.message.copy'), copiedLabel: t('chat.message.copied'), className: css.messageAction })), props.feedback.enabled && messageId !== undefined
-                        ? (_jsxs("span", { style: { display: 'contents' }, onPointerEnter: props.feedback.ensure, onFocusCapture: props.feedback.ensure, children: [_jsx(IconButton, { label: t('chat.feedback.positive'), className: css.messageAction, active: item?.rating === 'positive', disabled: pending, onClick: () => { rate('positive'); }, children: _jsx(IconLikeOutline16, {}) }), _jsx(IconButton, { label: t('chat.feedback.negative'), className: css.messageAction, active: item?.rating === 'negative', disabled: pending, onClick: () => { rate('negative'); }, children: _jsx(IconDislikeOutline16, {}) })] }))
-                        : null] }), _jsx("span", { className: `${css.messageActionGroup} ${css.branchActionGroup}`, children: _jsx(IconButton, { label: branching ? t('chat.message.branching') : t('chat.message.branch'), className: css.messageAction, disabled: branching, onClick: () => { void branch(); }, children: branching ? _jsx(Spinner, { size: "sm" }) : _jsx(IconBranchOutline16, {}) }) }), branchError === undefined ? null : _jsx("span", { className: css.actionError, role: "alert", children: t('chat.message.branchFailed', { error: branchError }) }), feedbackError === undefined ? null : _jsx("span", { className: css.actionError, role: "alert", children: t('chat.feedback.failed', { error: feedbackError }) })] }));
+                        ? (_jsxs("span", { style: { display: 'contents' }, onPointerEnter: props.feedback.ensure, onFocusCapture: props.feedback.ensure, children: [_jsx(IconButton, { label: t('chat.feedback.positive'), className: css.messageAction, active: item?.rating === 'positive', disabled: pending, onClick: () => { rate('positive'); }, children: _jsx(IconLikeOutline16, {}) }), _jsx(IconButton, { label: t('chat.feedback.negative'), className: css.messageAction, active: item?.rating === 'negative', disabled: pending, onClick: () => { rate('negative'); }, children: _jsx(IconDislikeOutline16, {}) }), _jsx(IconButton, { label: item?.note === undefined || item.note === '' ? t('chat.feedback.note') : t('chat.feedback.noteEdit'), className: css.messageAction, active: noteOpen, disabled: pending || item?.rating === undefined, onClick: () => { setNoteOpen(value => !value); }, children: _jsx(IconEditOutline16, {}) })] }))
+                        : null] }), noteOpen && messageId !== undefined ? (_jsxs("span", { className: css.noteEditor, children: [_jsx("textarea", { className: css.noteInput, rows: 2, value: noteDraft, disabled: noteBusy, placeholder: t('chat.feedback.notePlaceholder'), "aria-label": t('chat.feedback.note'), onChange: event => { setNoteDraft(event.target.value); setNoteError(undefined); }, onKeyDown: event => {
+                            if (event.key === 'Escape') {
+                                event.preventDefault();
+                                setNoteOpen(false);
+                            }
+                            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                                event.preventDefault();
+                                saveNote();
+                            }
+                        } }), _jsxs("span", { className: css.noteActions, children: [item?.note === undefined || item.note === '' ? null : (_jsx(Button, { disabled: noteBusy, onClick: clearSavedNote, children: t('chat.feedback.noteRemove') })), _jsx(Button, { disabled: noteBusy, onClick: () => { setNoteOpen(false); setNoteError(undefined); }, children: t('chat.feedback.noteCancel') }), _jsx(Button, { primary: true, disabled: noteBusy, onClick: saveNote, children: noteBusy ? t('common.saving') : t('chat.feedback.noteSave') })] }), noteError === undefined ? null : _jsx("span", { className: css.actionError, role: "alert", children: t('chat.feedback.failed', { error: noteError }) })] })) : null, _jsx("span", { className: `${css.messageActionGroup} ${css.branchActionGroup}`, children: _jsx(IconButton, { label: branching ? t('chat.message.branching') : t('chat.message.branch'), className: css.messageAction, disabled: branching, onClick: () => { void branch(); }, children: branching ? _jsx(Spinner, { size: "sm" }) : _jsx(IconBranchOutline16, {}) }) }), branchError === undefined ? null : _jsx("span", { className: css.actionError, role: "alert", children: t('chat.message.branchFailed', { error: branchError }) }), feedbackError === undefined ? null : _jsx("span", { className: css.actionError, role: "alert", children: t('chat.feedback.failed', { error: feedbackError }) })] }));
 }
 /** Render one conversation node. */
 function Node(props) {
@@ -356,6 +400,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     const partial = chat?.legacy.partial ?? null;
     const runningCalls = chat?.legacy.runningCalls ?? [];
     const turns = useMemo(() => splitTurns(nodes), [nodes]);
+    const queued = useMemo(() => (session?.queue ?? []).filter(item => item.placement !== 'context'), [session?.queue]);
     const navigateToTurn = useCallback((index) => {
         // Opt out of bottom pinning before smooth scrolling begins, otherwise a
         // streaming layout update can pull the selected turn back out of view.
@@ -443,9 +488,9 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
                                     ? null
                                     : (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: sessionId, blocks: partial.blocks, streaming: true, labels: labels }), _jsx("span", { className: css.streamingDot, role: "status", "aria-label": t('chat.thinking') })] })), session?.running === true && partial === null && runningCalls.length === 0
                                     ? _jsx(ThinkingStatus, {})
-                                    : null, session?.pendingSubmissions.map(submission => (_jsx(PendingSubmissionBubble, { sessionId: sessionId, submission: submission }, submission.requestId))), session?.queue.length === 0
+                                    : null, session?.pendingSubmissions.map(submission => (_jsx(PendingSubmissionBubble, { sessionId: sessionId, submission: submission }, submission.requestId))), queued.length === 0
                                     ? null
-                                    : session?.queue.map(item => (_jsx(QueuedMessageRow, { sessionId: sessionId, item: item, running: session.running }, item.id))), session?.lastAgentError === null || session?.lastAgentError === undefined
+                                    : queued.map(item => (_jsx(QueuedMessageRow, { sessionId: sessionId, item: item, running: session?.running === true }, item.id))), session?.lastAgentError === null || session?.lastAgentError === undefined
                                     ? null
                                     : (_jsxs("div", { className: `${css.notice} ${css.noticeError}`, role: "alert", children: [_jsx(IconWarningOutline16, {}), session.lastAgentError] }))] }), showScrollLatest
                             ? (_jsxs("button", { type: "button", className: css.scrollLatest, onClick: scrollToLatest, children: [_jsx(IconChevronRightOutline14, { className: css.scrollLatestIcon }), t('chat.scrollLatest')] }))

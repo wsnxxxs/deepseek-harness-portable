@@ -15,6 +15,7 @@
  * @module @dsh-portable/dcode-ui/client/state/runtime
  */
 import { createContext, useContext } from 'react';
+import { UI_MODE_NS } from '@dsh-portable/ui-mode/client';
 import { createLearningCall, createDcodeApi } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
 const EMPTY_LIST = [];
@@ -70,7 +71,15 @@ export function createDcodeRuntime(ctx, mode) {
     // Cordis contextualizes a nested service with a fresh traceable Proxy on
     // every property read. Capture this namespace once so React sees one
     // identity for the owning Runtime's whole lifetime.
-    const messageFeedback = ctx.remote.messageFeedback;
+    const messageFeedback = {
+        for: sessionId => {
+            const entry = ctx.slots.entries('conversation.chat.assistant-actions')
+                .find(candidate => candidate.options.id === 'feedback');
+            const inject = entry?.inject;
+            return inject?.(sessionId);
+        },
+    };
+    const goals = ctx.remote.goals;
     // One cache per session id: the Chat target face is identity-stable for a
     // binding, and `useSyncExternalStore` needs a stable subscribe reference.
     const feeds = new Map();
@@ -98,7 +107,6 @@ export function createDcodeRuntime(ctx, mode) {
             : {
                 imageUrl: (sessionId, attachment) => uiConversation.imageUrl(sessionId, attachment),
                 peekImageUrl: (sessionId, attachment) => uiConversation.peekImageUrl(sessionId, attachment),
-                downloadFile: (sessionId, attachment) => uiConversation.downloadFile(sessionId, attachment),
             },
         theme,
         appearance: createAppearanceStore(ctx, theme),
@@ -114,12 +122,14 @@ export function createDcodeRuntime(ctx, mode) {
             set: id => { locale?.setLocale(id); },
         },
         pendingInteractions: uiSession?.pendingInteractions,
+        goals,
         sessionLogDownload,
         git: createDcodeApi(carrier),
         learningCall: createLearningCall(carrier),
         // The pack registers this namespace itself; an assembly without it falls
         // back to the raw key, which is still readable and never throws.
         learningT: locale?.bind('interactive-learning') ?? (key => key),
+        uiModeT: locale?.bind(UI_MODE_NS) ?? (key => key),
         mode,
         binding: sessionId => sessions.binding(sessionId),
         scope: sessionId => sessions.scope(sessionId),

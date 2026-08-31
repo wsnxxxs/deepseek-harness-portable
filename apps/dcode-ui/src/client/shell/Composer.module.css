@@ -479,6 +479,79 @@
   flex: 1 1 auto;
 }
 
+/* Metis's Plan/Build mode rail, backed by the host plan projection and the
+   existing /plan command. It stays a compact glass segment in the DCode
+   composer rather than introducing another mode store. */
+.modeSwitch {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 15%, var(--zx-border-soft));
+  border-radius: var(--zx-radius-pill);
+  background: color-mix(in srgb, var(--zx-bg-raised) 76%, transparent);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
+}
+
+.modeOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-tertiary);
+  font: inherit;
+  font-size: var(--zx-text-micro);
+  font-weight: var(--zx-weight-medium);
+  cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast);
+}
+
+.modeOption:hover:not(:disabled) {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label-secondary);
+}
+
+.modeOption[aria-checked='true'] {
+  background: color-mix(in srgb, var(--zx-accent) 16%, var(--zx-bg-card));
+  color: var(--zx-accent);
+  box-shadow: var(--zx-shadow-inset-top);
+}
+
+.modeOption[aria-checked='true']:last-child {
+  background: color-mix(in srgb, var(--zx-label) 10%, var(--zx-bg-card));
+  color: var(--zx-label);
+}
+
+.modeOptionPending {
+  opacity: .72;
+}
+
+.modeOption:disabled {
+  cursor: default;
+}
+
+.modeIcon {
+  display: grid;
+  place-items: center;
+}
+
+.modeIcon svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
 .trailingControls {
   flex: 0 1 auto;
   justify-content: flex-end;

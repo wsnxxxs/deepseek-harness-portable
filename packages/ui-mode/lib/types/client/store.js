@@ -21,7 +21,7 @@
  * stores and disagree inside one page.
  * @module @dsh-portable/ui-mode/client/store
  */
-import { DEFAULT_UI_MODE, UI_MODE_BRIDGE_GLOBAL, UI_MODE_EVENT, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, } from "../ui-mode.js";
+import { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_EVENT, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, } from "../ui-mode.js";
 /** Read the preload-installed bridge, if this page runs inside the desktop shell. */
 export function readBridge() {
     const bridge = globalThis[UI_MODE_BRIDGE_GLOBAL];
@@ -79,6 +79,19 @@ export function createUiModeStore() {
     let current = resolveUiMode(uiModeFromSearch(globalThis.location?.search ?? ''), readStored(), bridge?.configured);
     const listeners = new Set();
     const disposers = [];
+    // Counted rather than a flag set: a surface may be re-registered across a
+    // renderer epoch, and a withdrawal from the old registration must not take
+    // the mode away from the new one.
+    const announced = new Map();
+    const notify = () => {
+        for (const listener of [...listeners])
+            listener(current);
+    };
+    const isAvailable = (mode) => mode === 'official' || (announced.get(mode) ?? 0) > 0;
+    /** Push the available set to the desktop shell, in presentation order. */
+    const reportAvailability = () => {
+        bridge?.setAvailable?.(UI_MODES.filter(isAvailable));
+    };
     // The URL is normalized once at boot so the first paint and a reload agree,
     // even when the mode came from storage or the desktop config.
     writeLocation(current);
@@ -90,8 +103,7 @@ export function createUiModeStore() {
         writeLocation(next);
         if (origin === 'page')
             bridge?.setMode?.(next);
-        for (const listener of [...listeners])
-            listener(next);
+        notify();
     };
     if (typeof bridge?.onMode === 'function') {
         disposers.push(bridge.onMode(mode => { apply(resolveUiMode(mode), 'desktop'); }));
@@ -119,6 +131,31 @@ export function createUiModeStore() {
     disposers.push(() => { globalThis.removeEventListener?.('storage', onStorage); });
     return {
         get: () => current,
+        // The official shell is upstream's own and is what renders when no
+        // extension surface holds `root`, so it needs no announcement to be true.
+        available: isAvailable,
+        announce: (mode) => {
+            const before = announced.get(mode) ?? 0;
+            announced.set(mode, before + 1);
+            if (before === 0) {
+                notify();
+                reportAvailability();
+            }
+            let withdrawn = false;
+            return () => {
+                if (withdrawn)
+                    return;
+                withdrawn = true;
+                const count = (announced.get(mode) ?? 1) - 1;
+                if (count > 0)
+                    announced.set(mode, count);
+                else {
+                    announced.delete(mode);
+                    notify();
+                    reportAvailability();
+                }
+            };
+        },
         set: (mode, origin = 'page') => { apply(mode, origin); },
         cycle: (direction = 1) => { apply(cycleUiMode(current, direction), 'page'); },
         subscribe: (listener) => {

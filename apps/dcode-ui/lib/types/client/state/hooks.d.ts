@@ -14,7 +14,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { InputState, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
-import { type DcodePendingInteraction, type Observable } from './runtime.ts';
+import { type DcodePendingApproval, type DcodePendingInteraction, type Observable } from './runtime.ts';
 /**
  * Subscribe to one DSH observable.
  * @param source - the observable, or undefined while none is resolvable.
@@ -45,6 +45,8 @@ export declare function useSessionList(): SessionListState;
 export declare function useCurrentSessionId(): SessionId | undefined;
 /** The current session's pending ask-user-question or plan-review request. */
 export declare function usePendingQuestion(sessionId: SessionId | undefined): DcodePendingInteraction | undefined;
+/** The current session's pending host permission request. */
+export declare function usePendingApproval(sessionId: SessionId | undefined): DcodePendingApproval | undefined;
 /** The durable workspace registry. */
 export declare function useWorkspaces(): WorkspaceSnapshot;
 /**
@@ -67,8 +69,8 @@ export declare function useChatSnapshot(sessionId: SessionId | undefined): ChatS
  */
 export declare function useTrajectorySnapshot(sessionId: SessionId | undefined): TrajectorySnapshot | undefined;
 /**
- * Whether the conversation has nothing in it yet — no settled node, no
- * streaming partial, no call in flight.
+ * Whether the conversation has nothing in it yet — no settled conversation node,
+ * no streaming partial, no call in flight.
  *
  * This is the layout's phase gate: a blank conversation centres the greeting
  * and the composer the way the official surface does, and the first arriving

@@ -3,9 +3,10 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
-  CredentialInfo, JsonValue, ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
+  CredentialInfo, ModelCatalog, SettingsNamespaceView, SettingsPathOpView,
   PluginInventorySnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { DcodeRuntime } from '../state/runtime.ts'
 import { useAsync } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'

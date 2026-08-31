@@ -21,16 +21,16 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client';
-import type { MessageFeedbackRemote } from '@deepseek-ai/dsh-client-ui-message-feedback/client';
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
-import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions';
 import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client';
 import type { SettingsDescribeFace, SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/client';
-import type { UiModeStore } from '../mode.ts';
+import { type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client';
 import { type DcodeApi } from '../rpc.ts';
 import { type AppearanceStore, type ThemeFace } from '../theme.ts';
+import type { MessageFeedbackProvider } from '../chat/message-feedback.ts';
 export type { SessionListState, SessionSummary, WorkspaceSnapshot };
 export type { SessionLogDownloadState };
 /** Stable empty Chat value used while the Conversation target is starting. */
@@ -46,6 +46,56 @@ export interface DcodePendingInteraction extends SessionPendingInteractionBase {
     readonly questions: readonly DcodeQuestionItem[];
     answer(answer: DcodeQuestionAnswer): Promise<void>;
     cancel(): Promise<void>;
+}
+/** Goal mutation verbs exposed by the generated goals Remote namespace. */
+export interface DcodeGoalsRemote {
+    edit(sessionId: SessionId, ref: {
+        readonly id: string;
+        readonly revision: number;
+    }, payload: {
+        readonly objective: string;
+    }): Promise<{
+        ok: boolean;
+        error?: {
+            message: string;
+        };
+    }>;
+    pause(sessionId: SessionId, ref: {
+        readonly id: string;
+        readonly revision: number;
+    }): Promise<{
+        ok: boolean;
+        error?: {
+            message: string;
+        };
+    }>;
+    resume(sessionId: SessionId, ref: {
+        readonly id: string;
+        readonly revision: number;
+    }): Promise<{
+        ok: boolean;
+        error?: {
+            message: string;
+        };
+    }>;
+    clear(sessionId: SessionId, ref: {
+        readonly id: string;
+        readonly revision: number;
+    }): Promise<{
+        ok: boolean;
+        error?: {
+            message: string;
+        };
+    }>;
+}
+/** The small domain face the dcode composer needs from a pending approval. */
+export interface DcodePendingApproval extends SessionPendingInteractionBase {
+    readonly kind: 'approval';
+    readonly key: string;
+    readonly toolName: string;
+    readonly callId?: string;
+    readonly reason?: string;
+    answer(outcome: 'allowed-once' | 'rejected'): Promise<void>;
 }
 /** The minimal observable shape every DSH client store exposes. */
 export interface Observable<T> {
@@ -97,7 +147,6 @@ export interface DcodeConversationFace {
 export interface ConversationMediaFace {
     imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>;
     peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined;
-    downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>;
 }
 /** The navigation face of `ctx.uiWorkspace`, used for New Task and Open Workspace. */
 export interface WorkspaceNavigation {
@@ -120,8 +169,8 @@ export interface DcodeRuntime {
     readonly navigation: WorkspaceNavigation | undefined;
     /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
     readonly remote: ClientRemote;
-    /** Stable feedback namespace captured once for this Runtime's lifetime. */
-    readonly messageFeedback: MessageFeedbackRemote | undefined;
+    /** Official feedback slot face resolved per Session. */
+    readonly messageFeedback: MessageFeedbackProvider | undefined;
     /** Official settings scope/schema/mirror services used by settings sections. */
     readonly settings: DcodeSettingsServices;
     /** Shared Conversation service: draft attachments and the per-session input machine. */
@@ -140,6 +189,8 @@ export interface DcodeRuntime {
     readonly locale: LocaleStore;
     /** Session-scoped pending interactions, when the UI session adapter is present. */
     readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined;
+    /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
+    readonly goals: DcodeGoalsRemote | undefined;
     /** Session-log export controller, when the export client plugin is present. */
     readonly sessionLogDownload: SessionLogDownloadFace | undefined;
     /** Git, diff, undo and file reads over the `/dcode` channel. */
@@ -152,8 +203,15 @@ export interface DcodeRuntime {
      * instead of a second translation of the same words.
      */
     readonly learningT: (key: string, params?: Record<string, unknown>) => string;
+    /**
+     * The interface switch's own bound translate function, for the same reason
+     * as {@link learningT}: the roster of surfaces and their names belong to
+     * `@dsh-portable/ui-mode`, so every switch renders one set of words rather
+     * than each surface translating the other surfaces' names itself.
+     */
+    readonly uiModeT: (key: UiModeKey) => string;
     /** The active-mode store shared with every switch entry point. */
-    readonly mode: UiModeStore;
+    readonly mode: UiModeController;
     /**
      * Resolve the Chat transcript feed of one session.
      * @param sessionId - session to observe.
@@ -202,7 +260,7 @@ interface SettingsScopeBinderFace {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeStore): DcodeRuntime;
+export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): DcodeRuntime;
 /** Provider for the runtime; mounted once at the workbench root. */
 export declare const DcodeRuntimeProvider: import("react").Provider<DcodeRuntime | undefined>;
 /**

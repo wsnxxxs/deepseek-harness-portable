@@ -1,7 +1,7 @@
 /**
  * The roster guard exists because `includeShippedRoot: false` removes the
  * backfill that used to hide an empty compiled catalog. These tests pin the
- * three outcomes that decision creates.
+ * the outcomes that decision creates.
  */
 
 import { test } from 'node:test'
@@ -119,7 +119,7 @@ test('selectable modes are ordered by support level, then by id', () => {
   assert.deepEqual(ordered.map(item => item.modeId), ['alfa', 'zulu', 'bravo', 'alpha'])
 })
 
-test('the Host Team service follows Crew availability', () => {
+test('the Crew host dependency follows Crew preset availability', () => {
   const available: PatchOptions[] = []
   assert.equal(reconcileCrewRuntime(available, catalog(mode('crew', 'native'))), 'enabled')
   assert.deepEqual(available, [])
@@ -127,7 +127,15 @@ test('the Host Team service follows Crew availability', () => {
   const unavailable: PatchOptions[] = []
   const noCrew = catalog(mode('crew', 'unavailable', false), mode('standard', 'native'))
   assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
-  assert.deepEqual(unavailable, [{ id: 'agent-team', disabled: true }])
+  // The Agent Teams host service is the only Crew-specific runtime row. The
+  // user-facing Agent workbench lives in dcode-ui.
+  assert.deepEqual(unavailable, [
+    { id: 'agent-team', disabled: true },
+  ])
+
+  // Idempotent: reconciling twice must not stack duplicate patches.
   assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
-  assert.deepEqual(unavailable, [{ id: 'agent-team', disabled: true }])
+  assert.deepEqual(unavailable, [
+    { id: 'agent-team', disabled: true },
+  ])
 })

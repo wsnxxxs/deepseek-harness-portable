@@ -48,18 +48,29 @@ function splitPath(path: string): { dir: string; name: string } {
     : { dir: normalized.slice(0, index + 1), name: normalized.slice(index + 1) }
 }
 
-/** Normalize a turn path to the repository-relative form used by git status. */
-function relativePath(path: string, cwd: string | undefined): string {
+/**
+ * Normalize a turn path to the repository-relative form git status reports.
+ *
+ * Git status rows and every `/dcode` path are root-relative, while a tool's
+ * recorded path is absolute or relative to the session cwd; when the workspace
+ * is a repository subdirectory the naive string-crop of the cwd prefix
+ * produces the wrong file and zero line counts.
+ */
+function repoRelative(path: string, cwd: string | undefined, root: string | undefined): string {
   const normalized = path.split('\\').join('/').replace(/^\.\//, '')
+  const r = root === undefined ? undefined : root.split('\\').join('/').replace(/\/$/, '')
+  if (r !== undefined && normalized.startsWith(r + '/')) return normalized.slice(r.length + 1)
   if (cwd === undefined) return normalized
-  const root = cwd.split('\\').join('/').replace(/\/$/, '')
-  return normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : normalized
+  const c = cwd.split('\\').join('/').replace(/\/$/, '')
+  const absolute = normalized.startsWith(c + '/') ? normalized : `${c}/${normalized}`
+  return r !== undefined && absolute.startsWith(r + '/')
+    ? absolute.slice(r.length + 1)
+    : absolute.startsWith(c + '/') ? absolute.slice(c.length + 1) : normalized
 }
 
-/** Exact-match a turn path against a repository-relative status row. */
-function countsFor(status: GitStatus | undefined, path: string, cwd: string | undefined): { insertions: number; deletions: number } {
-  const normalized = relativePath(path, cwd)
-  const row = status?.files.find(file => file.path.split('\\').join('/') === normalized)
+/** Exact-match a normalized path against a repository-relative status row. */
+function countsFor(status: GitStatus | undefined, path: string): { insertions: number; deletions: number } {
+  const row = status?.files.find(file => file.path.split('\\').join('/') === path)
   return { insertions: row?.insertions ?? 0, deletions: row?.deletions ?? 0 }
 }
 
@@ -72,19 +83,25 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
   const [confirmingUndo, setConfirmingUndo] = useState(false)
   const [acknowledgedUndo, setAcknowledgedUndo] = useState(false)
 
+  const gitPath = useCallback(
+    (path: string) => repoRelative(path, cwd, status?.root),
+    [cwd, status?.root],
+  )
+
   const totals = useMemo(() => paths.reduce(
     (sum, path) => {
-      const counts = countsFor(status, path, cwd)
+      const counts = countsFor(status, gitPath(path))
       return { insertions: sum.insertions + counts.insertions, deletions: sum.deletions + counts.deletions }
     },
     { insertions: 0, deletions: 0 },
-  ), [paths, status, cwd])
+  ), [paths, status, gitPath])
 
   const undo = useCallback(() => {
     if (cwd === undefined) return
     setUndoing(true)
     setNote(undefined)
-    void runtime.git.undo(cwd, paths).then((result) => {
+    const targets = paths.map(path => gitPath(path))
+    void runtime.git.undo(cwd, targets).then((result) => {
       if (!result.ok) {
         setNote({ text: result.error.message, kind: 'error' })
         return
@@ -101,7 +118,7 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
     }).catch((cause: unknown) => {
       setNote({ text: cause instanceof Error ? cause.message : String(cause), kind: 'error' })
     }).finally(() => { setUndoing(false) })
-  }, [runtime, cwd, paths, onChanged, t])
+  }, [runtime, cwd, gitPath, onChanged, t])
 
   if (paths.length === 0) return null
 
@@ -126,13 +143,14 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
       </header>
       {paths.map((path) => {
         const { dir, name } = splitPath(path)
-        const counts = countsFor(status, path, cwd)
+        const target = gitPath(path)
+        const counts = countsFor(status, target)
         return (
           <button
             key={path}
             type="button"
             className={css.row}
-            onClick={() => { onOpenDiff(path) }}
+            onClick={() => { onOpenDiff(target) }}
             title={path}
           >
             <IconEditOutline16 />

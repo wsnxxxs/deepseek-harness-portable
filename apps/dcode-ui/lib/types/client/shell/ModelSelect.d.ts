@@ -27,5 +27,9 @@ export interface ModelSelectProps {
     readonly sessionId: SessionId | undefined;
     readonly disabled?: boolean;
 }
-export declare function ModelSelect({ sessionId, disabled }: ModelSelectProps): import("react").JSX.Element;
+/** Imperative face for opening the picker from outside the composer. */
+export interface ModelSelectHandle {
+    open(): void;
+}
+export declare const ModelSelect: import("react").ForwardRefExoticComponent<ModelSelectProps & import("react").RefAttributes<ModelSelectHandle>>;
 //# sourceMappingURL=ModelSelect.d.ts.map

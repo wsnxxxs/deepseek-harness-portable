@@ -11,7 +11,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dcodeScope } from "../tokens.js";
 import { compactOverlayOf, useNavigation, } from "../state/navigation.js";
-import { useConversationBlank, useCurrentSessionId, usePendingQuestion, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups, } from "../state/hooks.js";
+import { useConversationBlank, useCurrentSessionId, usePendingApproval, usePendingQuestion, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups, } from "../state/hooks.js";
 import { useRuntime } from "../state/runtime.js";
 import { useLayoutSize } from "../state/layout.js";
 import { clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth, } from "../state/rail-width.js";
@@ -26,6 +26,7 @@ import { SummaryCard } from "./SummaryCard.js";
 import { Composer } from "./Composer.js";
 import { PlanCard } from "./PlanCard.js";
 import { QuestionComposer } from "./QuestionComposer.js";
+import { ApprovalCard } from "./ApprovalCard.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 import { Button, EmptyState } from "./ui.js";
@@ -143,6 +144,7 @@ export function Workbench({ navigation }) {
     const compactOverlay = compactOverlayOf(state);
     const sessionId = useCurrentSessionId();
     const pendingQuestion = usePendingQuestion(sessionId);
+    const pendingApproval = usePendingApproval(sessionId);
     const cwd = useCurrentCwd(sessionId);
     const blank = useConversationBlank(sessionId);
     const git = useGitStatus(cwd, sessionId);
@@ -158,6 +160,7 @@ export function Workbench({ navigation }) {
     const [asideWidth, setAsideWidth] = useState(readAsideWidth);
     const [asideResizing, setAsideResizing] = useState(false);
     const asideDrag = useRef();
+    const modelSelectRef = useRef(null);
     const taskContext = useMemo(() => {
         const failure = latestFailure(trajectory?.eventNodes ?? []);
         return {
@@ -410,8 +413,8 @@ export function Workbench({ navigation }) {
             .catch(() => { setBrowsing(true); });
     }, [runtime, adoptWorkspace]);
     const selectModel = useCallback(() => {
-        frame?.querySelector('[data-dcode-model-select] button[aria-haspopup]')?.click();
-    }, [frame]);
+        modelSelectRef.current?.open();
+    }, []);
     const configureProvider = useCallback(() => {
         if (modelReadiness.provider !== undefined)
             navigation.openProviderSettings(modelReadiness.provider);
@@ -420,6 +423,10 @@ export function Workbench({ navigation }) {
     // focus is inside the composer, and scoped to this surface's lifetime.
     useEffect(() => {
         const onKeyDown = (event) => {
+            // A modal owns the keyboard while it is open: its own Escape closes it,
+            // and the global shortcuts must not fire a workspace action behind it.
+            if (document.querySelector('[role="dialog"]') !== null)
+                return;
             const meta = event.metaKey || event.ctrlKey;
             if (meta && event.key.toLowerCase() === 'k') {
                 event.preventDefault();
@@ -489,9 +496,11 @@ export function Workbench({ navigation }) {
                                     ? (_jsx("div", { className: css.railResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": RAIL_WIDTH.min, "aria-valuemax": RAIL_WIDTH.max, "aria-valuenow": railWidth, tabIndex: 0, onPointerDown: startRailResize, onPointerMove: moveRailResize, onPointerUp: finishRailResize, onPointerCancel: finishRailResize, onKeyDown: resizeRailWithKeyboard, onDoubleClick: () => { resizeRail(RAIL_WIDTH.default, true); } }))
                                     : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), _jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank, compact: state.layout === 'compact' }), _jsxs("div", { className: css.composerSeat, children: [_jsx(PlanCard, { sessionId: sessionId }, sessionId), blank
                                             ? (_jsx(ReadinessCard, { hasWorkspace: groups.length > 0, hasSession: sessionId !== undefined, model: modelReadiness, onOpenWorkspace: openWorkspace, onNewTask: () => { newTask(groups[0]?.workspaceId); }, onSelectModel: selectModel, onConfigureProvider: configureProvider, t: t }))
-                                            : null, pendingQuestion === undefined
-                                            ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace, readiness: modelReadiness, onSelectModel: selectModel, onConfigureProvider: configureProvider }))
-                                            : _jsx(QuestionComposer, { pending: pendingQuestion })] }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsxs("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: [state.asideOpen && state.layout !== 'compact'
+                                            : null, pendingApproval !== undefined
+                                            ? _jsx(ApprovalCard, { pending: pendingApproval })
+                                            : pendingQuestion === undefined
+                                                ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace, readiness: modelReadiness, onSelectModel: selectModel, onConfigureProvider: configureProvider, modelSelectRef: modelSelectRef }))
+                                                : _jsx(QuestionComposer, { pending: pendingQuestion })] }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsxs("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: [state.asideOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.asideResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": ASIDE_WIDTH.min, "aria-valuemax": ASIDE_WIDTH.max, "aria-valuenow": asideWidth, tabIndex: 0, onPointerDown: startAsideResize, onPointerMove: moveAsideResize, onPointerUp: finishAsideResize, onPointerCancel: finishAsideResize, onKeyDown: resizeAsideWithKeyboard, onDoubleClick: () => { resizeAside(ASIDE_WIDTH.default, true); } }))
                                     : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext })] })] })), state.paletteOpen
                 ? (_jsx(CommandPalette, { navigation: navigation, onNewTask: newTask, onOpenWorkspace: openWorkspace }))

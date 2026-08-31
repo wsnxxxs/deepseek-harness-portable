@@ -23,7 +23,7 @@
  */
 
 import {
-  DEFAULT_UI_MODE, UI_MODE_BRIDGE_GLOBAL, UI_MODE_EVENT, UI_MODE_STORAGE_KEY,
+  DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_EVENT, UI_MODE_STORAGE_KEY,
   asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam, type UiMode,
 } from '../ui-mode.ts'
 
@@ -40,6 +40,16 @@ export interface UiModeBridge {
   setMode?: (mode: UiMode) => void
   /** Subscribe to desktop-initiated switches; returns an unsubscribe. */
   onMode?: (listener: (mode: UiMode) => void) => () => void
+  /**
+   * Report which surfaces this page can actually render.
+   *
+   * Only the page knows: availability is a property of which client plugins
+   * loaded, which the Electron main process never sees. Without this report the
+   * application and tray menus would keep offering a surface the in-page switch
+   * has already greyed out, and the more prominent of the two pickers would be
+   * the one telling the operator the wrong thing.
+   */
+  setAvailable?: (modes: readonly UiMode[]) => void
 }
 
 /** Read the preload-installed bridge, if this page runs inside the desktop shell. */
@@ -91,6 +101,31 @@ export interface UiModeController {
   /** Current mode. */
   get(): UiMode
   /**
+   * Whether a surface capable of rendering this mode is present in this build.
+   *
+   * `official` is always available: it is upstream's own shell, and it is what
+   * renders whenever no extension surface has claimed `root`. Every other mode
+   * is available only once its surface has announced itself, so a build that
+   * ships without a surface — or one whose runtime row the Host disabled
+   * because a capability it needs is missing — reports the mode as
+   * unavailable rather than offering a choice that lands on the official UI
+   * with no explanation.
+   * @param mode - the mode to test.
+   * @returns true when selecting it would actually show that surface.
+   */
+  available(mode: UiMode): boolean
+  /**
+   * Declare that this page can render one mode.
+   *
+   * Called by a surface's plugin body, which runs only when every service that
+   * surface injects resolved. Announcing is therefore evidence rather than a
+   * claim: a surface that could not load never announces, and the switch says
+   * so instead of silently doing nothing.
+   * @param mode - the mode this caller renders.
+   * @returns a disposer withdrawing the announcement.
+   */
+  announce(mode: UiMode): () => void
+  /**
    * Switch surfaces. Idempotent: selecting the active mode is a no-op, so a
    * menu retick or an echoed desktop message cannot cause a remount.
    * @param mode - mode to activate.
@@ -104,7 +139,10 @@ export interface UiModeController {
   cycle(direction?: 1 | -1): void
   /**
    * Observe changes.
-   * @param listener - called after the mode changed.
+   *
+   * Fires for an availability change as well as a mode change, so a switch
+   * rendered before its surfaces finished loading repaints when they arrive.
+   * @param listener - called after the mode or the available set changed.
    * @returns unsubscribe.
    */
   subscribe(listener: (mode: UiMode) => void): () => void
@@ -132,6 +170,21 @@ export function createUiModeStore(): UiModeStore {
   )
   const listeners = new Set<(mode: UiMode) => void>()
   const disposers: Array<() => void> = []
+  // Counted rather than a flag set: a surface may be re-registered across a
+  // renderer epoch, and a withdrawal from the old registration must not take
+  // the mode away from the new one.
+  const announced = new Map<UiMode, number>()
+
+  const notify = (): void => {
+    for (const listener of [...listeners]) listener(current)
+  }
+
+  const isAvailable = (mode: UiMode): boolean => mode === 'official' || (announced.get(mode) ?? 0) > 0
+
+  /** Push the available set to the desktop shell, in presentation order. */
+  const reportAvailability = (): void => {
+    bridge?.setAvailable?.(UI_MODES.filter(isAvailable))
+  }
 
   // The URL is normalized once at boot so the first paint and a reload agree,
   // even when the mode came from storage or the desktop config.
@@ -143,7 +196,7 @@ export function createUiModeStore(): UiModeStore {
     writeStored(next)
     writeLocation(next)
     if (origin === 'page') bridge?.setMode?.(next)
-    for (const listener of [...listeners]) listener(next)
+    notify()
   }
 
   if (typeof bridge?.onMode === 'function') {
@@ -172,6 +225,29 @@ export function createUiModeStore(): UiModeStore {
 
   return {
     get: () => current,
+    // The official shell is upstream's own and is what renders when no
+    // extension surface holds `root`, so it needs no announcement to be true.
+    available: isAvailable,
+    announce: (mode) => {
+      const before = announced.get(mode) ?? 0
+      announced.set(mode, before + 1)
+      if (before === 0) {
+        notify()
+        reportAvailability()
+      }
+      let withdrawn = false
+      return () => {
+        if (withdrawn) return
+        withdrawn = true
+        const count = (announced.get(mode) ?? 1) - 1
+        if (count > 0) announced.set(mode, count)
+        else {
+          announced.delete(mode)
+          notify()
+          reportAvailability()
+        }
+      }
+    },
     set: (mode, origin = 'page') => { apply(mode, origin) },
     cycle: (direction = 1) => { apply(cycleUiMode(current, direction), 'page') },
     subscribe: (listener) => {

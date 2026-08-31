@@ -21,7 +21,7 @@ import {
   type TaskContext,
 } from '../state/navigation.ts'
 import {
-  useConversationBlank, useCurrentSessionId, usePendingQuestion, useProjectionValue,
+  useConversationBlank, useCurrentSessionId, usePendingApproval, usePendingQuestion, useProjectionValue,
   useTrajectorySnapshot, useWorkspaceGroups,
 } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
@@ -41,8 +41,10 @@ import { LeftRail } from './LeftRail.tsx'
 import { Aside } from './Aside.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Composer } from './Composer.tsx'
+import type { ModelSelectHandle } from './ModelSelect.tsx'
 import { PlanCard } from './PlanCard.tsx'
 import { QuestionComposer } from './QuestionComposer.tsx'
+import { ApprovalCard } from './ApprovalCard.tsx'
 import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
 import { Button, EmptyState } from './ui.tsx'
@@ -215,6 +217,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const compactOverlay = compactOverlayOf(state)
   const sessionId = useCurrentSessionId()
   const pendingQuestion = usePendingQuestion(sessionId)
+  const pendingApproval = usePendingApproval(sessionId)
   const cwd = useCurrentCwd(sessionId)
   const blank = useConversationBlank(sessionId)
   const git = useGitStatus(cwd, sessionId)
@@ -231,6 +234,8 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const [asideWidth, setAsideWidth] = useState(readAsideWidth)
   const [asideResizing, setAsideResizing] = useState(false)
   const asideDrag = useRef<{ pointerId: number, startX: number, startWidth: number, width: number }>()
+
+  const modelSelectRef = useRef<ModelSelectHandle>(null)
 
   const taskContext = useMemo<TaskContext>(() => {
     const failure = latestFailure(trajectory?.eventNodes ?? [])
@@ -481,8 +486,8 @@ export function Workbench({ navigation }: WorkbenchProps) {
   }, [runtime, adoptWorkspace])
 
   const selectModel = useCallback(() => {
-    frame?.querySelector<HTMLButtonElement>('[data-dcode-model-select] button[aria-haspopup]')?.click()
-  }, [frame])
+    modelSelectRef.current?.open()
+  }, [])
 
   const configureProvider = useCallback(() => {
     if (modelReadiness.provider !== undefined) navigation.openProviderSettings(modelReadiness.provider)
@@ -492,6 +497,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
   // focus is inside the composer, and scoped to this surface's lifetime.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      // A modal owns the keyboard while it is open: its own Escape closes it,
+      // and the global shortcuts must not fire a workspace action behind it.
+      if (document.querySelector('[role="dialog"]') !== null) return
       const meta = event.metaKey || event.ctrlKey
       if (meta && event.key.toLowerCase() === 'k') {
         event.preventDefault()
@@ -652,7 +660,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
                     />
                   )
                   : null}
-                {pendingQuestion === undefined
+                {pendingApproval !== undefined
+                  ? <ApprovalCard pending={pendingApproval} />
+                  : pendingQuestion === undefined
                   ? (
                     <Composer
                       sessionId={sessionId}
@@ -662,6 +672,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
                       readiness={modelReadiness}
                       onSelectModel={selectModel}
                       onConfigureProvider={configureProvider}
+                      modelSelectRef={modelSelectRef}
                     />
                   )
                   : <QuestionComposer pending={pendingQuestion} />}
