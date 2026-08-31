@@ -30,6 +30,9 @@ const { patchDshProfileStaleLinkRecovery } = require('../../patches/dsh-profile-
 const { patchSessionPortableEventMetadata } = require('../../patches/dsh-session-portable-event-metadata.js') as {
   patchSessionPortableEventMetadata(source: string): string
 }
+const { patchAgentTeamToolScope } = require('../../patches/dsh-experimental-tool-agent-team-scope.js') as {
+  patchAgentTeamToolScope(source: string): string
+}
 const { patchDirectoryPickerAuto } = require('../../patches/dsh-host-directory-picker-auto-index.js') as {
   patchDirectoryPickerAuto(source: string): string
 }
@@ -56,6 +59,7 @@ export {
   patchMarketplaceTransparencyClient,
   patchDirectoryPickerAuto,
   patchFrontendStaticCacheHeaders,
+  patchAgentTeamToolScope,
   patchSessionPortableEventMetadata,
 }
 
@@ -184,6 +188,7 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
   const appBoot = definitionById(definitions, 'app-boot-profile-runtime-fallback')
   const dshProfileRecovery = definitionById(definitions, 'dsh-profile-stale-link-recovery')
   const portableSession = definitionById(definitions, 'portable-session-event-metadata')
+  const agentTeamToolScope = definitionById(definitions, 'agent-team-tool-scope-isolation')
   const marketplace = definitionById(definitions, 'marketplace-self-update-fallback')
   const marketplaceTransparency = definitionById(definitions, 'marketplace-install-transparency')
   const directoryIndex = await readFile(resolve(options.root, 'patches/dsh-host-directory-picker-native-index.js'), 'utf8')
@@ -207,6 +212,9 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
     }),
     applyDefinition(options, portableSession, {
       'node_modules/@deepseek-ai/dsh-session/lib/index.js': patchSessionPortableEventMetadata,
+    }),
+    applyDefinition(options, agentTeamToolScope, {
+      'node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js': patchAgentTeamToolScope,
     }),
     applyDefinition(options, marketplace, {
       'node_modules/dsh-plugin-marketplace/lib/index.js': patchMarketplaceSelfUpdate,

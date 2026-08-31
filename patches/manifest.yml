@@ -50,6 +50,14 @@ patches:
           - KNOWN_SESSION_EVENT_TYPES
           - append(type, data, ...opts)
           - snapshotJsonValue
+  - id: agent-team-tool-scope-isolation
+    targets: ['*']
+    files:
+      - path: node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js
+        guards:
+          - function apply(ctx, config = {})
+          - for (const agent of ctx.agents.list()) maybeInstall(agent);
+          - ctx.agentTeams.tryMembership(agent)
   - id: marketplace-self-update-fallback
     targets: ['*']
     files:

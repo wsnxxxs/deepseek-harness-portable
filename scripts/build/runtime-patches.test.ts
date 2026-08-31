@@ -9,11 +9,22 @@ import {
   patchDirectoryPickerAuto,
   patchDirectoryPickerWorker,
   patchDshProfileStaleLinkRecovery,
+  patchAgentTeamToolScope,
   patchFrontendStaticCacheHeaders,
   patchMarketplaceLifecycleHost,
   patchMarketplaceTransparencyClient,
   patchSessionPortableEventMetadata,
 } from './runtime-patches.js'
+
+test('Agent Team tool patch limits eager installation to the owning preset scope', async () => {
+  const source = await readFile(resolve(
+    'apps/runtime/node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js',
+  ), 'utf8')
+  const output = patchAgentTeamToolScope(source)
+  assert.match(output, /scopeChainOf\(scopeOf\(agent\.ctx\)\)\.includes\(ownerScope\)/)
+  assert.match(output, /installed\.has\(agent\) \|\| !ownsToolScope\(agent\)/)
+  assert.equal(patchAgentTeamToolScope(output), output)
+})
 
 test('directory-picker worker patch adds a non-interactive versioned IPC probe', () => {
   const source = [
@@ -164,6 +175,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
     'node_modules/@deepseek-ai/dsh/lib/bin.js',
     'node_modules/@deepseek-ai/dsh-session/lib/index.js',
+    'node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js',
     'node_modules/dsh-plugin-marketplace/lib/index.js',
     'node_modules/dsh-plugin-marketplace/lib/client.js',
   ]
@@ -197,6 +209,7 @@ test('runtime patch layer composes both marketplace host patches in one staging 
       'app-boot-profile-runtime-fallback',
       'dsh-profile-stale-link-recovery',
       'portable-session-event-metadata',
+      'agent-team-tool-scope-isolation',
       'marketplace-self-update-fallback',
       'marketplace-install-transparency',
     ])
