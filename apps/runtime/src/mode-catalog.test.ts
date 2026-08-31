@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, mkdir, rm, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -52,9 +52,13 @@ test('an unavailable mode loses both discovery files and retains API diagnostics
   try {
     const catalog = await compileModeCatalog(root, report, 'b'.repeat(40))
     assert.equal(catalog.modes.fixture?.selectable, false)
+    await assert.rejects(stat(directory), /ENOENT/)
     await assert.rejects(readFile(join(directory, 'preset.yml')), /ENOENT/)
     await assert.rejects(readFile(join(directory, 'agent.cordis.yml')), /ENOENT/)
-    const diagnostic = JSON.parse(await readFile(join(directory, 'mode-resolution.json'), 'utf8'))
+    const diagnostic = JSON.parse(await readFile(
+      join(root, '.mode-resolutions', 'fixture', 'mode-resolution.json'),
+      'utf8',
+    ))
     assert.equal(diagnostic.reason, 'no fixture runtime variant satisfies all required capabilities')
     assert.deepEqual(diagnostic.remediation, ['install it'])
   } finally {

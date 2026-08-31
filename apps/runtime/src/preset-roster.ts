@@ -101,7 +101,7 @@ export function reconcileCrewRuntime(
 /**
  * Render one outcome as an operator-facing diagnostic.
  * @param outcome - result of {@link reconcilePresetRoster}.
- * @param presetRoot - materialization directory, named so the operator can read each mode-resolution.json.
+ * @param presetRoot - materialization directory containing the hidden mode-resolution diagnostics tree.
  * @returns the severity and message, or undefined when there is nothing to report.
  */
 export function describePresetRosterOutcome(
@@ -115,13 +115,13 @@ export function describePresetRosterOutcome(
       message: 'no shipped agent mode satisfies the measured capabilities of this target; '
         + 'falling back to the upstream preset roster for this launch. '
         + 'The modes that roster offers are not the ones this distribution measured. '
-        + `Read mode-resolution.json under ${presetRoot} for the missing capability of each mode.`,
+        + `Read .mode-resolutions under ${presetRoot} for the missing capability of each mode.`,
     }
   }
   return {
     severity: 'warning',
     message: `the configured default agent mode ${JSON.stringify(outcome.configured)} is not available on this target; `
       + `defaulting to ${JSON.stringify(outcome.selected.modeId)} (${outcome.selected.supportLevel}). `
-      + `Read mode-resolution.json under ${presetRoot} for why.`,
+      + `Read .mode-resolutions under ${presetRoot} for why.`,
   }
 }

@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { resolveVariant, } from './mode-resolver.js';
 const require = createRequire(import.meta.url);
 const yaml = require('js-yaml');
+const UNAVAILABLE_MODE_DIAGNOSTICS = '.mode-resolutions';
 /** One-time compatibility mapping for sessions persisted by the old portable catalog. */
 export function canonicalModeId(modeId) {
     return modeId === 'code' ? 'ptc' : modeId;
@@ -203,10 +204,6 @@ export async function compileModeCatalog(root, report, upstreamCommit) {
             throw new Error(`${definitionPath}: mode id ${definition.id} must match directory ${child.name}`);
         const resolved = resolveVariant(definition, report);
         if (resolved.supportLevel === 'unavailable') {
-            await Promise.all([
-                rm(join(directory, 'agent.cordis.yml'), { force: true }),
-                rm(join(directory, 'preset.yml'), { force: true }),
-            ]);
             const resolution = {
                 modeId: definition.id,
                 supportLevel: 'unavailable',
@@ -216,7 +213,14 @@ export async function compileModeCatalog(root, report, upstreamCommit) {
                 missing: resolved.missing,
             };
             modes[definition.id] = resolution;
-            await writeResolution(directory, resolution);
+            const diagnosticDirectory = join(root, UNAVAILABLE_MODE_DIAGNOSTICS, definition.id);
+            await rm(diagnosticDirectory, { recursive: true, force: true });
+            await mkdir(diagnosticDirectory, { recursive: true });
+            await writeResolution(diagnosticDirectory, resolution);
+            // Discovery treats every usable directory name as a roster row even
+            // when both preset files are absent. Remove the whole mode directory;
+            // the hidden diagnostic tree remains outside that namespace.
+            await rm(directory, { recursive: true, force: true });
             continue;
         }
         const variant = definition.variants.find(item => item.id === resolved.variantId);

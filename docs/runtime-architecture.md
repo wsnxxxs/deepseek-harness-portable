@@ -31,7 +31,7 @@ Standard, Code, Cordis, and Minimal each declare a `mode.yml` contract. Stable b
 
 Final composition validation enforces required rows, forbidden rows, the exact enabled tool rows, and exactly one provider for the variant slot. Preset YAML contains no `process.platform` branches. A degraded capability satisfies a requirement only where the selected variant explicitly accepts that degradation.
 
-If no variant satisfies the measured report, the compiler removes `preset.yml` and `agent.cordis.yml`; upstream discovery therefore cannot present the mode as selectable. It retains `mode-resolution.json` with `reason`, `remediation`, and missing capability details for UI/API use.
+If no variant satisfies the measured report, the compiler removes that mode directory from the scanned preset root, so discovery cannot retain it as a broken selector row. It keeps `.mode-resolutions/<mode>/mode-resolution.json` with `reason`, `remediation`, and missing capability details for operators and exposes the same result through the runtime capability API.
 
 Each selectable mode records:
 

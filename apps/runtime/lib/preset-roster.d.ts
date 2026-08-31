@@ -56,7 +56,7 @@ export declare function reconcileCrewRuntime(overlays: PatchOptions[], catalog: 
 /**
  * Render one outcome as an operator-facing diagnostic.
  * @param outcome - result of {@link reconcilePresetRoster}.
- * @param presetRoot - materialization directory, named so the operator can read each mode-resolution.json.
+ * @param presetRoot - materialization directory containing the hidden mode-resolution diagnostics tree.
  * @returns the severity and message, or undefined when there is nothing to report.
  */
 export declare function describePresetRosterOutcome(outcome: PresetRosterOutcome, presetRoot: string): {
