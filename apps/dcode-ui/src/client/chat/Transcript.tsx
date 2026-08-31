@@ -15,8 +15,8 @@ import { createPortal } from 'react-dom'
 import {
   FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
-  IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconLikeOutline16,
-  IconPaperclipOutline16, IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
+  IconDislikeOutline16, IconEditOutline16, IconLikeOutline16,
+  IconSearchOutline16, IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -26,7 +26,7 @@ import type {
 import type {
   PendingSubmission, SessionFace, SessionSnapshot,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
@@ -261,28 +261,9 @@ function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachment
     : <ImageLightbox src={src} alt={props.attachment.name ?? 'image'} />
 }
 
-/** One durable file reference which can be downloaded from the same session. */
-function DurableFile(props: { sessionId: SessionId; attachment: FileAttachmentRef }) {
-  const runtime = useRuntime()
-  const label = props.attachment.name ?? 'attachment'
-  return (
-    <button
-      type="button"
-      className={css.fileAttachment}
-      title={label}
-      onClick={() => { void runtime.media?.downloadFile(props.sessionId, props.attachment) }}
-      disabled={runtime.media === undefined}
-    >
-      <IconPaperclipOutline16 />
-      <span>{label}</span>
-      <IconDownloadOutline16 />
-    </button>
-  )
-}
-
 type PreviewImage = PendingSubmission['images'][number]
 
-/** Render message attachments without changing the DCode message layout. */
+/** Render official alpha.2 image attachments without changing the DCode layout. */
 function MessageAttachments(props: {
   sessionId: SessionId
   content?: readonly unknown[]
@@ -290,16 +271,13 @@ function MessageAttachments(props: {
   previews?: readonly PreviewImage[]
 }) {
   const images = [...(props.images ?? [])]
-  const files: FileAttachmentRef[] = []
   for (const block of props.content ?? []) {
     const candidate = block as { type?: unknown; attachment?: unknown }
     if (candidate.type === 'image' && candidate.attachment !== undefined) {
       images.push(candidate.attachment as ImageAttachmentRef)
-    } else if (candidate.type === 'file' && candidate.attachment !== undefined) {
-      files.push(candidate.attachment as FileAttachmentRef)
     }
   }
-  if (images.length === 0 && files.length === 0 && (props.previews?.length ?? 0) === 0) return null
+  if (images.length === 0 && (props.previews?.length ?? 0) === 0) return null
   return (
     <div className={css.messageAttachments}>
       {props.previews?.map((image, index) => (
@@ -316,18 +294,11 @@ function MessageAttachments(props: {
           attachment={attachment}
         />
       ))}
-      {files.map((attachment, index) => (
-        <DurableFile
-          key={`${attachment.attachmentId}:${String(index)}`}
-          sessionId={props.sessionId}
-          attachment={attachment}
-        />
-      ))}
     </div>
   )
 }
 
-/** A user bubble can carry text, images, files, or an image-only prompt. */
+/** A user bubble can carry text, images, or an image-only prompt. */
 function UserBubble(props: { sessionId: SessionId; content: readonly ContentBlock[]; className?: string }) {
   const text = messageText(props.content)
   return (

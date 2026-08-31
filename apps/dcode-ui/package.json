@@ -44,7 +44,6 @@
         "@dsh-portable/ui-mode"
       ],
       "external": [
-        "@deepseek-ai/dsh-client-ui-message-feedback/client",
         "@dsh-portable/interactive-learning/client",
         "@dsh-portable/ui-mode/client"
       ],

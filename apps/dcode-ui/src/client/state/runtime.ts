@@ -25,12 +25,12 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
-import type { MessageFeedbackRemote } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { MessageFeedbackInjected } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type {
   ComposerAttachment, ConversationController, ConversationTimelineSnapshot, DraftAttachmentId, SessionInput,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
 import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client'
 import type {
@@ -40,6 +40,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { UI_MODE_NS, type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client'
 import { createLearningCall, createDcodeApi, type RpcCarrier, type DcodeApi } from '../rpc.ts'
 import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../theme.ts'
+import type { MessageFeedbackProvider } from '../chat/message-feedback.ts'
 
 export type { SessionListState, SessionSummary, WorkspaceSnapshot }
 export type { SessionLogDownloadState }
@@ -140,7 +141,6 @@ export interface DcodeConversationFace {
 export interface ConversationMediaFace {
   imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>
   peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined
-  downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>
 }
 
 /** The navigation face of `ctx.uiWorkspace`, used for New Task and Open Workspace. */
@@ -166,8 +166,8 @@ export interface DcodeRuntime {
   readonly navigation: WorkspaceNavigation | undefined
   /** Generated Host Remote namespaces (settings, models, skills, commands, plugins, subagents). */
   readonly remote: ClientRemote
-  /** Stable feedback namespace captured once for this Runtime's lifetime. */
-  readonly messageFeedback: MessageFeedbackRemote | undefined
+  /** Official feedback slot face resolved per Session. */
+  readonly messageFeedback: MessageFeedbackProvider | undefined
   /** Official settings scope/schema/mirror services used by settings sections. */
   readonly settings: DcodeSettingsServices
   /** Shared Conversation service: draft attachments and the per-session input machine. */
@@ -258,7 +258,6 @@ interface UiConversationFace {
   }
   imageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): Promise<string>
   peekImageUrl(sessionId: SessionId, attachment: ImageAttachmentRef): string | undefined
-  downloadFile(sessionId: SessionId, attachment: FileAttachmentRef): Promise<void>
 }
 
 /** The one ui-session face read by the workbench runtime. */
@@ -294,9 +293,14 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): 
   // Cordis contextualizes a nested service with a fresh traceable Proxy on
   // every property read. Capture this namespace once so React sees one
   // identity for the owning Runtime's whole lifetime.
-  const messageFeedback = (ctx.remote as ClientRemote & {
-    readonly messageFeedback?: MessageFeedbackRemote
-  }).messageFeedback
+  const messageFeedback: MessageFeedbackProvider = {
+    for: sessionId => {
+      const entry = ctx.slots.entries('conversation.chat.assistant-actions')
+        .find(candidate => candidate.options.id === 'feedback')
+      const inject = entry?.inject as ((id: SessionId) => MessageFeedbackInjected) | undefined
+      return inject?.(sessionId)
+    },
+  }
 
   // One cache per session id: the Chat target face is identity-stable for a
   // binding, and `useSyncExternalStore` needs a stable subscribe reference.
@@ -325,7 +329,6 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): 
       : {
         imageUrl: (sessionId, attachment) => uiConversation.imageUrl(sessionId, attachment),
         peekImageUrl: (sessionId, attachment) => uiConversation.peekImageUrl(sessionId, attachment),
-        downloadFile: (sessionId, attachment) => uiConversation.downloadFile(sessionId, attachment),
       },
     theme,
     appearance: createAppearanceStore(ctx as unknown as { on(name: 'theme/change', listener: () => void): () => void }, theme),

@@ -3,9 +3,9 @@
 import { StrictMode, act, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MessageFeedbackRemote } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
+import type { MessageFeedbackInjected, MessageFeedbackView } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { useMessageFeedback } from '../src/client/chat/message-feedback.ts'
+import { useMessageFeedback, type MessageFeedbackProvider } from '../src/client/chat/message-feedback.ts'
 
 const SESSION = 'empty-session' as SessionId
 let root: ReturnType<typeof createRoot> | undefined
@@ -16,20 +16,27 @@ afterEach(() => {
 })
 
 describe('DCode message feedback', () => {
-  it('mounts an empty Session without a render loop and lists at most once', async () => {
-    const list = vi.fn(async () => ({
-      ok: true as const,
-      value: { ok: true as const, value: { items: [] } },
-    }))
-    const remote = {
-      list,
-      put: vi.fn(),
-      delete: vi.fn(),
-    } as unknown as MessageFeedbackRemote
+  it('mounts an empty Session without a render loop and delegates to the official slot face', async () => {
+    const view: MessageFeedbackView = { status: 'cold', items: new Map(), error: null }
+    const ensure = vi.fn(async () => ({ ok: true as const }))
+    const entry = {
+      hooks: {
+        feedback: {
+          getSnapshot: () => view,
+          subscribe: () => () => {},
+        },
+      },
+      ensure,
+      rate: vi.fn(),
+      toggle: vi.fn(),
+      clearNote: vi.fn(),
+      clear: vi.fn(),
+    } as unknown as MessageFeedbackInjected
+    const provider: MessageFeedbackProvider = { for: () => entry }
     let renders = 0
 
     function EmptySession(): null {
-      const feedback = useMessageFeedback(remote, SESSION)
+      const feedback = useMessageFeedback(provider, SESSION)
       renders += 1
       // Mirrors the first hover/focus. StrictMode deliberately runs this
       // effect twice, which must still collapse onto one controller read.
@@ -44,7 +51,7 @@ describe('DCode message feedback', () => {
       await Promise.resolve()
     })
 
-    expect(list).toHaveBeenCalledTimes(1)
+    expect(ensure).toHaveBeenCalled()
     expect(renders).toBeLessThan(10)
   })
 })

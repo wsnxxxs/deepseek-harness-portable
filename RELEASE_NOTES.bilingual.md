@@ -15,7 +15,7 @@ Windows x64 桌面版 · 2026-08-30
 
 - 分发：1.6.0
 - 桌面外壳：0.1.0-shell.2
-- 运行时内核：0.1.2-alpha.1（`dsh-v0.1.2-alpha.1`）
+- 运行时内核：0.1.2-alpha.2（`dsh-v0.1.2-alpha.2`）
 
 ---
 
@@ -36,7 +36,7 @@ Windows x64 desktop release · 2026-08-30
 
 - Distribution: 1.6.0
 - Desktop shell: 0.1.0-shell.2
-- Runtime kernel: 0.1.2-alpha.1 (`dsh-v0.1.2-alpha.1`)
+- Runtime kernel: 0.1.2-alpha.2 (`dsh-v0.1.2-alpha.2`)
 
 ---
 

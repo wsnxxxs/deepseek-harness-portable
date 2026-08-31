@@ -87,7 +87,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 | 发布 | DeepSeek Harness Desktop **v1.6.0**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.0)) |
 | 分发版本 | 1.6.0 |
 | 桌面外壳 | 0.1.0-shell.2 |
-| 内核 | 0.1.2-alpha.1（`dsh-v0.1.2-alpha.1`） |
+| 内核 | 0.1.2-alpha.2（`dsh-v0.1.2-alpha.2`） |
 
 请阅读[中文发布说明](RELEASE_NOTES.zh.md)，或在桌面端托盘菜单中打开“更新日志”。
 

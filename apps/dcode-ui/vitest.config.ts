@@ -10,9 +10,6 @@ export default defineConfig({
     // runtime, served by the client module system. Under test there is no
     // module system, so each is aliased to its own TypeScript source.
     alias: {
-      '@deepseek-ai/dsh-client-ui-message-feedback/client': at(
-        '../../vendor/deepseek-harness/packages/client/ui-message-feedback/src/client/index.ts',
-      ),
       '@dsh-portable/ui-mode/client': at('../../packages/ui-mode/src/client/index.ts'),
       // The vocabulary reaches its constants through a dependency-free CommonJS
       // file, so that the Electron main process — which has no build step —
