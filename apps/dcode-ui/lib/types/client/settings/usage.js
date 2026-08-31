@@ -58,7 +58,7 @@ export function summarizeUsage(totals) {
         cacheHit: promptTokens === 0 ? null : totals.cacheReadTokens / promptTokens,
     };
 }
-export const USAGE_RANGES = ['all', '30d', '7d'];
+export const USAGE_RANGES = ['today', '7d', '30d'];
 export const DAY_MS = 24 * 60 * 60 * 1_000;
 /** Days the activity heatmap spans; a whole number of weeks keeps it square. */
 export const ACTIVITY_WEEKS = 26;
@@ -180,15 +180,13 @@ export function collectUsageRows(list) {
     }
     return rows;
 }
-/** The inclusive lower bound of a range, or 0 for the whole corpus. */
+/** The inclusive lower bound of the selected range. */
 export function rangeStart(range, now) {
-    if (range === 'all')
-        return 0;
+    if (range === 'today')
+        return startOfDay(new Date(now)).getTime();
     return now - (range === '7d' ? 7 : 30) * DAY_MS;
 }
 export function filterByRange(rows, range, now) {
-    if (range === 'all')
-        return [...rows];
     const cutoff = rangeStart(range, now);
     return rows.filter(row => row.updatedAt >= cutoff);
 }

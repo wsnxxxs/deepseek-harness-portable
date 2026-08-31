@@ -100,9 +100,9 @@ export function summarizeUsage(totals: UsageTotals): UsageSummary {
 // --- statistics cards ---------------------------------------------------
 
 /** Selectable window over the session corpus. */
-export type UsageRange = 'all' | '30d' | '7d'
+export type UsageRange = 'today' | '7d' | '30d'
 
-export const USAGE_RANGES: readonly UsageRange[] = ['all', '30d', '7d']
+export const USAGE_RANGES: readonly UsageRange[] = ['today', '7d', '30d']
 
 /** The four disjoint provider-reported buckets, all present. */
 export interface UsageBuckets {
@@ -306,9 +306,9 @@ export function collectUsageRows(list: SessionListState): SessionUsageRow[] {
   return rows
 }
 
-/** The inclusive lower bound of a range, or 0 for the whole corpus. */
+/** The inclusive lower bound of the selected range. */
 export function rangeStart(range: UsageRange, now: number): number {
-  if (range === 'all') return 0
+  if (range === 'today') return startOfDay(new Date(now)).getTime()
   return now - (range === '7d' ? 7 : 30) * DAY_MS
 }
 
@@ -317,7 +317,6 @@ export function filterByRange(
   range: UsageRange,
   now: number,
 ): SessionUsageRow[] {
-  if (range === 'all') return [...rows]
   const cutoff = rangeStart(range, now)
   return rows.filter(row => row.updatedAt >= cutoff)
 }

@@ -129,14 +129,15 @@ test('aggregateUsage counts every session and only the ones carrying tokens as u
 // --- ranges -------------------------------------------------------------
 
 test('a range keeps only sessions last active inside it', () => {
-  const now = Date.UTC(2026, 7, 29, 12)
+  const now = new Date(2026, 7, 29, 12).getTime()
   const rows = collectUsageRows(listOf(
+    ['today', new Date(2026, 7, 29, 9).getTime(), { tokenUsage: scalar(1, 1) }],
     ['recent', now - 2 * DAY_MS, { tokenUsage: scalar(1, 1) }],
     ['old', now - 40 * DAY_MS, { tokenUsage: scalar(1, 1) }],
   ))
-  assert.deepEqual(filterByRange(rows, '7d', now).map(row => row.id), ['recent'])
-  assert.deepEqual(filterByRange(rows, '30d', now).map(row => row.id), ['recent'])
-  assert.deepEqual(filterByRange(rows, 'all', now).map(row => row.id), ['recent', 'old'])
+  assert.deepEqual(filterByRange(rows, 'today', now).map(row => row.id), ['today'])
+  assert.deepEqual(filterByRange(rows, '7d', now).map(row => row.id), ['today', 'recent'])
+  assert.deepEqual(filterByRange(rows, '30d', now).map(row => row.id), ['today', 'recent'])
 })
 
 // --- model table --------------------------------------------------------
@@ -266,7 +267,7 @@ test('the card model folds one range into every figure the card shows', () => {
       tokenUsage: scalar(1, 1),
       modelSelection: { lastUsed: { provider: 'p', model: 'pro' } },
     }],
-  ), 'all', now, ACTIVITY_DAYS, 7)
+  ), '30d', now, ACTIVITY_DAYS, 7)
 
   assert.equal(model.sessions, 2)
   assert.equal(model.messages, 8)
@@ -282,7 +283,7 @@ test('the card model folds one range into every figure the card shows', () => {
 })
 
 test('an empty corpus yields a card model with nothing to show', () => {
-  const model = buildUsageModel(listOf(), 'all', Date.now())
+  const model = buildUsageModel(listOf(), 'today', Date.now())
   assert.deepEqual(model.models, [])
   assert.equal(model.totalTokens, 0)
   assert.equal(model.favorite, null)

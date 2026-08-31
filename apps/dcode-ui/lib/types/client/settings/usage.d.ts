@@ -33,7 +33,7 @@ export declare function formatPercent(value: number): string;
 export declare function aggregateUsage(list: SessionListState): UsageTotals;
 export declare function summarizeUsage(totals: UsageTotals): UsageSummary;
 /** Selectable window over the session corpus. */
-export type UsageRange = 'all' | '30d' | '7d';
+export type UsageRange = 'today' | '7d' | '30d';
 export declare const USAGE_RANGES: readonly UsageRange[];
 /** The four disjoint provider-reported buckets, all present. */
 export interface UsageBuckets {
@@ -105,7 +105,7 @@ export declare function modelKeyOf(provider: string, model: string): string;
  *   to `modelSelection.lastUsed` and flagged `attributed: false`.
  */
 export declare function collectUsageRows(list: SessionListState): SessionUsageRow[];
-/** The inclusive lower bound of a range, or 0 for the whole corpus. */
+/** The inclusive lower bound of the selected range. */
 export declare function rangeStart(range: UsageRange, now: number): number;
 export declare function filterByRange(rows: readonly SessionUsageRow[], range: UsageRange, now: number): SessionUsageRow[];
 /** Merge every session's routes into one corpus-wide table, biggest first. */

@@ -1624,9 +1624,9 @@ window.__ModuleLoader__.load({
 			"usageCard.tabOverview": "Overview",
 			"usageCard.tabModels": "Models",
 			"usageCard.rangeLabel": "Time range",
-			"usageCard.rangeAll": "All",
-			"usageCard.range30d": "30d",
+			"usageCard.rangeToday": "Today",
 			"usageCard.range7d": "7d",
+			"usageCard.range30d": "30d",
 			"usageCard.sessions": "Sessions",
 			"usageCard.messages": "Messages",
 			"usageCard.totalTokens": "Total tokens",
@@ -2372,9 +2372,9 @@ window.__ModuleLoader__.load({
 			"usageCard.tabOverview": "总览",
 			"usageCard.tabModels": "模型",
 			"usageCard.rangeLabel": "时间范围",
-			"usageCard.rangeAll": "全部",
-			"usageCard.range30d": "30 天",
+			"usageCard.rangeToday": "今日",
 			"usageCard.range7d": "7 天",
+			"usageCard.range30d": "30 天",
 			"usageCard.sessions": "任务数",
 			"usageCard.messages": "消息数",
 			"usageCard.totalTokens": "累计 Token",
@@ -15450,9 +15450,9 @@ window.__ModuleLoader__.load({
 			};
 		}
 		const USAGE_RANGES = [
-			"all",
-			"30d",
-			"7d"
+			"today",
+			"7d",
+			"30d"
 		];
 		const DAY_MS = 864e5;
 		const ZERO_BUCKETS = {
@@ -15567,13 +15567,12 @@ window.__ModuleLoader__.load({
 			}
 			return rows;
 		}
-		/** The inclusive lower bound of a range, or 0 for the whole corpus. */
+		/** The inclusive lower bound of the selected range. */
 		function rangeStart(range, now) {
-			if (range === "all") return 0;
+			if (range === "today") return startOfDay(new Date(now)).getTime();
 			return now - (range === "7d" ? 7 : 30) * DAY_MS;
 		}
 		function filterByRange(rows, range, now) {
-			if (range === "all") return [...rows];
 			const cutoff = rangeStart(range, now);
 			return rows.filter((row) => row.updatedAt >= cutoff);
 		}
@@ -15820,11 +15819,11 @@ window.__ModuleLoader__.load({
 			.25,
 			0
 		];
-		/** Days the stacked chart shows per range; `all` reuses the heatmap window. */
+		/** Days the stacked chart shows per range. */
 		const RANGE_DAYS = {
-			all: 182,
-			"30d": 30,
-			"7d": 7
+			today: 1,
+			"7d": 7,
+			"30d": 30
 		};
 		/** Roughly six evenly spaced date labels, whatever the column count. */
 		const AXIS_LABEL_COUNT = 6;
@@ -15834,9 +15833,9 @@ window.__ModuleLoader__.load({
 			models: "usageCard.tabModels"
 		};
 		const RANGE_LABELS = {
-			all: "usageCard.rangeAll",
-			"30d": "usageCard.range30d",
-			"7d": "usageCard.range7d"
+			today: "usageCard.rangeToday",
+			"7d": "usageCard.range7d",
+			"30d": "usageCard.range30d"
 		};
 		const COMPARISON_LABELS = {
 			mobyDick: "usageCard.compareMobyDick",
@@ -15867,7 +15866,7 @@ window.__ModuleLoader__.load({
 		/** The two-tab usage card, shared by both settings surfaces. */
 		function UsageCards({ list, t, styles }) {
 			const [tab, setTab] = (0, react.useState)("overview");
-			const [range, setRange] = (0, react.useState)("all");
+			const [range, setRange] = (0, react.useState)("today");
 			const panelId = (0, react.useId)();
 			const tabPrefix = (0, react.useId)();
 			const [now] = (0, react.useState)(() => Date.now());

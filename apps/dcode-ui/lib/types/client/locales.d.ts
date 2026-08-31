@@ -575,9 +575,9 @@ export declare const en: {
     readonly 'usageCard.tabOverview': "Overview";
     readonly 'usageCard.tabModels': "Models";
     readonly 'usageCard.rangeLabel': "Time range";
-    readonly 'usageCard.rangeAll': "All";
-    readonly 'usageCard.range30d': "30d";
+    readonly 'usageCard.rangeToday': "Today";
     readonly 'usageCard.range7d': "7d";
+    readonly 'usageCard.range30d': "30d";
     readonly 'usageCard.sessions': "Sessions";
     readonly 'usageCard.messages': "Messages";
     readonly 'usageCard.totalTokens': "Total tokens";

@@ -90,8 +90,8 @@ const SERIES_COLORS = [
 /** Y-axis gridlines, as fractions of the tallest column. */
 const AXIS_FRACTIONS = [1, 0.75, 0.5, 0.25, 0] as const
 
-/** Days the stacked chart shows per range; `all` reuses the heatmap window. */
-const RANGE_DAYS: Record<UsageRange, number> = { all: ACTIVITY_DAYS, '30d': 30, '7d': 7 }
+/** Days the stacked chart shows per range. */
+const RANGE_DAYS: Record<UsageRange, number> = { today: 1, '7d': 7, '30d': 30 }
 
 /** Roughly six evenly spaced date labels, whatever the column count. */
 const AXIS_LABEL_COUNT = 6
@@ -106,9 +106,9 @@ const TAB_LABELS: Record<UsageTab, DcodeKey> = {
 }
 
 const RANGE_LABELS: Record<UsageRange, DcodeKey> = {
-  all: 'usageCard.rangeAll',
-  '30d': 'usageCard.range30d',
+  today: 'usageCard.rangeToday',
   '7d': 'usageCard.range7d',
+  '30d': 'usageCard.range30d',
 }
 
 const COMPARISON_LABELS: Record<string, DcodeKey> = {
@@ -148,7 +148,7 @@ export interface UsageCardsProps {
 /** The two-tab usage card, shared by both settings surfaces. */
 export function UsageCards({ list, t, styles }: UsageCardsProps): ReactNode {
   const [tab, setTab] = useState<UsageTab>('overview')
-  const [range, setRange] = useState<UsageRange>('all')
+  const [range, setRange] = useState<UsageRange>('today')
   const panelId = useId()
   const tabPrefix = useId()
 
