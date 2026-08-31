@@ -49,7 +49,7 @@ import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
 import { Button, EmptyState } from './ui.tsx'
 import { Transcript } from '../chat/Transcript.tsx'
-import { LearningHome } from '../learning/LearningHome.tsx'
+import { ResourceLibraryHome } from '../library/ResourceLibraryHome.tsx'
 import { PluginsHome } from '../plugins/PluginsHome.tsx'
 import { SettingsSurface } from '../settings/SettingsSurface.tsx'
 import { useModelReadiness, type ModelReadiness } from '../settings/readiness.ts'
@@ -570,8 +570,8 @@ export function Workbench({ navigation }: WorkbenchProps) {
       {fullSurface
         ? (
           <div className={css.surface}>
-            {state.view === 'learning'
-              ? <LearningHome navigation={navigation} cwd={cwd} sessionId={sessionId} />
+            {state.view === 'library' || state.view === 'learning'
+              ? <ResourceLibraryHome navigation={navigation} cwd={cwd} sessionId={sessionId} onOpenWorkspace={openWorkspace} />
               : state.view === 'plugins'
                 ? <PluginsHome navigation={navigation} />
                 : (

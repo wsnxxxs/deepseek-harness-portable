@@ -20,7 +20,7 @@ import {
 } from './layout.ts'
 
 /** The top-level surfaces the left rail selects between. */
-export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings'
+export type WorkbenchView = 'session' | 'library' | 'learning' | 'plugins' | 'settings'
 
 /** Tabs of the right-hand details column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details'

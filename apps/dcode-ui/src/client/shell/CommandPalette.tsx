@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16,
+  IconBrowseOutline16, IconCordisPluginOutline14, IconFolderOpenOutline16, IconNewChatOutline16,
   IconListPenOutline16, IconPanelLeftOutline16, IconSearchOutline16, IconSettingsOutline16, IconSparkle16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
@@ -181,12 +181,12 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       run: () => { navigation.openAside('goal') },
     },
     {
-      id: 'learning',
+      id: 'library',
       kind: 'action',
       group: t('palette.configuration'),
-      label: t('nav.learning'),
-      icon: <IconSparkle16 />,
-      run: () => { navigation.show('learning') },
+      label: t('nav.library'),
+      icon: <IconBrowseOutline16 />,
+      run: () => { navigation.show('library') },
     },
     {
       id: 'plugins',

@@ -13,7 +13,7 @@ import {
   Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
-  IconFolderOpen16, IconNewChatOutline16,
+  IconBrowseOutline16, IconFolderOpen16, IconNewChatOutline16,
   IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16,
   relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -431,11 +431,11 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           </button>
           <button
             type="button"
-            className={`${css.action} ${state.view === 'learning' ? css.actionActive : ''}`}
-            onClick={() => { navigation.show('learning') }}
+            className={`${css.action} ${state.view === 'library' || state.view === 'learning' ? css.actionActive : ''}`}
+            onClick={() => { navigation.show('library') }}
           >
-            <IconSparkle16 />
-            <span className={ui.grow}>{t('nav.learning')}</span>
+            <IconBrowseOutline16 />
+            <span className={ui.grow}>{t('nav.library')}</span>
           </button>
         </div>
         {hasRows ? <div className={css.sectionLabel}>{t('nav.conversations')}</div> : null}
