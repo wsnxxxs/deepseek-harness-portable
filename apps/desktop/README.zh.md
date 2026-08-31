@@ -16,6 +16,7 @@
 - 原生侧边栏 Logo 融合桌面菜单：展开态左键打开菜单，收起态左键展开侧边栏、右键打开菜单。
 - Windows 11 下使用 Mica/标题栏覆盖与系统主题同步，并记忆窗口位置、尺寸和最大化状态。
 - Windows 极简模式通过 WSL Bash 运行；Linux/macOS 极简模式通过 POSIX PTY 使用原生 `/bin/bash`。Linux 沙箱模式保留上游 bwrap/Landlock 失败关闭链路。
+- 如果 Agent Teams runtime 存在，则携带可选的集群（`crew`）预设；DCode Agent 工作台读取宿主保存的队友、任务看板和资料档案状态。
 - 每个 Web profile 首次使用时预装固定版本的 `dsh-plugin-marketplace`；用户关闭或卸载后，分发版不会在重启时恢复它。
 - 通过 Electron 的 Node 模式内置 DSH 插件 CLI 与 pnpm，市场操作无需系统 Node.js 工具链。
 
@@ -37,6 +38,13 @@
     pnpm run desktop:package:win
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
+
+如需生成一次性的 Windows x64 1.6.0 测试包，请使用独立输出目录：
+
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+
+ZIP 与 Setup 安装包写入
+`dist-desktop/electron-v1.6.0-test/windows-artifacts/`。
 
 每条打包命令都必须在对应的原生主机执行：带可用 WSL 发行版的 Windows x64、Apple Silicon macOS 或 Linux x64。命令会下载 Electron、执行能力探测与打包后冒烟测试，并把不可变的已验证 bundle 写入 `dist-desktop/electron/verified/<target>/`。
 

@@ -5,9 +5,9 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import {
   BlockAssembler,
   createUserMessage,
-  deepFreeze,
 } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import {
   LEARNING_INTENT_ROUTING_GUIDANCE,
   type LearnIntent,

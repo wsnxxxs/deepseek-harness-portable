@@ -31,6 +31,9 @@ DeepSeek Harness for Win v1.6.0
 7. uninstall.cmd 或 uninstall.ps1
    删除便携应用、快捷方式和 PATH 项。除非明确确认，否则会保留用户数据。
 
+集群模式（英文界面为 Cluster mode，运行时 id 为 crew）在 Agent Teams runtime
+可用时出现在 DCode Agent 工作台中，提供具名队友、共享任务看板和资料档案检索。
+
 插件市场会在每个 Web profile 中预装一次，可在“设置 → 插件 → 已安装”中
 关闭或卸载；之后重启不会自动恢复。市场插件来自第三方，安装前请审查来源和权限。
 

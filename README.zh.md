@@ -33,7 +33,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 | --- | --- |
 | 开箱即用的桌面分发 | 安装包自带 Electron/Node.js runtime。普通用户无需准备 Node.js、pnpm 或容器环境，Windows 可选择 Setup 或便携 ZIP，Linux/macOS 也有原生安装产物。 |
 | 专门的编码工作台 | DCode 把会话和工作区放进同一个响应式界面，环境摘要和终端，以及文件变更与预览也集中于此，紧凑窗口和宽屏都能使用。 |
-| 能力可以按需扩展 | 插件市场支持安装前审核、启停和更新，也能卸载；Vision Bridge 与 Learning 作为独立模块接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
+| 能力可以按需扩展 | 插件市场支持安装前审核、启停和更新，也能卸载；Vision Bridge、Learning 与可选的集群模式作为独立能力接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
 | 复用已有模型配置 | Vision Bridge 复用内核的附件、模型目录与调用链。文本模型需要看图时可以转交已配置的视觉模型，无需再维护一套端点和 API 密钥。 |
 | 数据与更新边界明确 | 会话与凭据，以及设置和附件都保存在应用目录之外；Web 服务只绑定回环地址，桌面外壳只提示新版本，不会自行替换或回滚应用文件。 |
 | 发布过程可检查 | 打包流程会探测目标平台的真实能力，对最终应用执行冒烟检查并记录文件清单与哈希；发布步骤只复制已经验证的产物。 |
@@ -69,7 +69,8 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 ### Agent 与运行环境
 
-- Standard、Code、Cordis、Minimal 和 Learning 模式各自保持清晰边界。Learning 只在用户主动选择后启用，不改变其他模式的默认工具与行为。
+- Standard、Code、Cordis、Minimal、Cluster（运行时 id 为 `crew`）和 Learning 模式各自保持清晰边界。Learning 只在用户主动选择后启用，不改变其他模式的默认工具与行为。
+- 集群模式通过具名队友、共享任务看板、依赖关系、写入范围和历史会话检索来协调任务。DCode 的 Agent 工作台展示同一份宿主状态，操作者附加的资料档案则为任务提供可核对的材料依据。
 - Minimal 模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY。Linux 沙箱模式沿用上游 bwrap/Landlock 的失败关闭策略。
 - 插件市场可移除，支持 GitHub 分页搜索、安装前审核、安装进度、更新管理、启用、停用和卸载，也向 Agent 提供市场工具。
 
@@ -179,6 +180,8 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 | [项目概览](overview.md) | 新用户与评估者 | 项目定位、主要优势、适用场景和当前边界 |
 | [桌面外壳说明](apps/desktop/README.zh.md) | 桌面端贡献者 | Electron 行为、原生产物目录、测试和发布身份 |
 | [运行时架构与发布门禁](docs/runtime-architecture.md) | Runtime 与发布维护者 | 能力探测、模式契约、Manifest、CI 和签名门禁 |
+| [界面与前端切换](docs/surfaces.md) | 前端贡献者 | 官方版/工作台、可用性上报和共享界面模式状态 |
+| [集群模式与资料档案](docs/crew.md) | Runtime 与产品维护者 | 团队运行时、任务看板、DCode 集成和资料档案行为 |
 | [交互式学习包](apps/interactive-learning/README.zh.md) | 功能贡献者 | 协议边界、开发流程、启用方式和兼容性 |
 | [学习模式产品说明](docs/product/learning-mode.md) | 产品与功能维护者 | 当前学习流程、学习库边界和后续范围 |
 | [Vision Bridge](apps/vision-bridge/README.zh.md) | 用户与功能贡献者 | 图片模型路由、配置、失败行为和开发验证 |
@@ -209,6 +212,14 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
     pnpm run test:platform
 
     pnpm run desktop:package:win
+
+如需使用当前 1.6.0 产品版本身份生成一次性的 Windows x64 测试包，建议写入独立目录：
+
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+
+测试 ZIP 与 Setup 安装包位于
+`dist-desktop/electron-v1.6.0-test/windows-artifacts/`；未压缩应用和已验证 bundle
+也在同一输出目录下。
 
 Windows 已验证 bundle 位于 `dist-desktop/electron/verified/win32-x64/`。发布是独立的只复制操作，必须显式传入该目录：
 

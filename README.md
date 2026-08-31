@@ -33,7 +33,7 @@ This is a community distribution. It is not Microsoft-signed, Apple-notarized, o
 | --- | --- |
 | Ready-to-run desktop packages | Packages include the Electron/Node.js runtime. Regular users do not need to prepare Node.js, pnpm, or a container environment. Windows offers Setup and portable ZIP packages, with native artifacts for Linux and macOS. |
 | A dedicated coding workbench | DCode brings sessions, workspaces, environment summaries, terminals, file changes, and previews into one responsive interface that works in compact and wide windows. |
-| Optional, removable extensions | The plugin marketplace provides review, enable/disable, update, and uninstall controls. Vision Bridge and Learning integrate as separate modules without rewriting the default behavior of Standard, Code, Minimal, or Cordis. |
+| Optional, removable extensions | The plugin marketplace provides review, enable/disable, update, and uninstall controls. Vision Bridge, Learning, and the optional Cluster mode integrate as separate capabilities without rewriting the default behavior of Standard, Code, Minimal, or Cordis. |
 | Reuse of existing model settings | Vision Bridge uses the kernel's attachments, model catalog, and invocation path. A text model can hand image work to an already configured vision model without another endpoint or API key. |
 | Explicit data and update boundaries | Sessions, credentials, settings, and attachments stay outside the application directory. The Web service binds only to loopback, and the desktop shell reports updates without replacing or rolling back application files. |
 | Inspectable release artifacts | Packaging probes real target capabilities, smoke-tests the final application, and records file inventories and hashes. Publishing only copies artifacts that have already passed verification. |
@@ -69,7 +69,8 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 ### Agents and runtime
 
-- Standard, Code, Cordis, Minimal, and Learning keep separate responsibilities. Learning activates only when selected and does not change the default tools or behavior of the other modes.
+- Standard, Code, Cordis, Minimal, Cluster (`crew`), and Learning keep separate responsibilities. Learning activates only when selected and does not change the default tools or behavior of the other modes.
+- Cluster mode coordinates named teammates through a shared task board, dependencies, write scopes, and prior-session search. DCode's Agent workspace shows the same host-owned team state, while operator-attached dossier sources provide grounded material for the mission.
 - Minimal mode uses WSL Bash on Windows and a native `/bin/bash` POSIX PTY on Linux/macOS. Linux sandboxed modes retain the upstream fail-closed bwrap/Landlock policy.
 - The removable plugin marketplace supports paginated GitHub search, pre-install review, progress, updates, enable, disable, and uninstall controls, plus agent-facing marketplace tools.
 
@@ -179,6 +180,8 @@ Minimal mode runs the requested shell command unchanged. Recursive `grep` over t
 | [Project overview (Chinese)](overview.md) | New users and evaluators | Positioning, advantages, use cases, and current boundaries |
 | [Desktop shell guide](apps/desktop/README.md) | Desktop contributors | Electron behavior, native output layout, tests, and release identity |
 | [Runtime architecture and release gates](docs/runtime-architecture.md) | Runtime and release maintainers | Capability probes, mode contracts, manifests, CI, and signing gates |
+| [Surfaces and interface switching](docs/surfaces.md) | Frontend contributors | Official/Workbench surfaces, availability reporting, and shared UI mode state |
+| [Cluster mode and dossier](docs/crew.md) | Runtime and product contributors | Team runtime, task board, DCode integration, and grounded dossier behavior |
 | [Interactive Learning pack](apps/interactive-learning/README.md) | Feature contributors | Protocol boundaries, development workflow, activation, and compatibility |
 | [Learning mode product notes (Chinese)](docs/product/learning-mode.md) | Product and feature maintainers | Current learning flow, library boundaries, and future scope |
 | [Vision Bridge](apps/vision-bridge/README.md) | Users and feature contributors | Image-model routing, configuration, failure behavior, and development checks |
@@ -215,6 +218,15 @@ launcher and updater checks are in the platform suite:
     pnpm run test:platform
 
     pnpm run desktop:package:win
+
+For a disposable Windows x64 test build using the current 1.6.0 product identity,
+write the output to a separate directory:
+
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+
+The test ZIP and Setup installer will be under
+`dist-desktop/electron-v1.6.0-test/windows-artifacts/`; the unpacked app and its
+verified bundle are in the same output root.
 
 The verified Windows bundle is written to `dist-desktop/electron/verified/win32-x64/`. Publishing is a separate copy-only operation and requires that directory explicitly:
 

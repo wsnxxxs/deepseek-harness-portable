@@ -1,5 +1,5 @@
 # Language-pair consistency record: README.md is English and README.zh.md is Simplified Chinese.
 # Keep both views synchronized when the documentation changes.
 # Verify with: pnpm run readme:check  (refresh values with git hash-object after editing).
-README.md: 1461a6112fa213a7d5cc0fff8ee5b19b2d2e58b0
-README.zh.md: c5c0221079f3bbe1dbe5633555eaf834d3d0ccda
+README.md: 7e324f6862aa5245787d211190550a901ef3910a
+README.zh.md: bf8fb5af6d1279783f95b78f40e3ca0c3c4107bb

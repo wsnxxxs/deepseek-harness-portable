@@ -16,6 +16,7 @@ This workspace package builds the native Electron desktop shell for DeepSeek Har
 - Fuses the native sidebar logo with the desktop menu: expanded left click opens the menu, while collapsed left click expands the sidebar and right click opens the menu.
 - Uses a Windows 11 Mica title-bar overlay where supported, native macOS title/menu behavior, system theme synchronization, startup splash, and persisted multi-monitor-safe window bounds.
 - Runs Minimal mode through WSL Bash on Windows and native `/bin/bash` through a POSIX PTY on Linux/macOS; Linux sandbox-capable modes retain the upstream bwrap/Landlock fail-closed chain.
+- Carries the optional Cluster (`crew`) preset when the Agent Teams runtime is present; DCode's Agent workspace reads its host-owned teammates, task board, and dossier state.
 - Preinstalls the pinned `dsh-plugin-marketplace` once per Web profile; users can disable or remove it without the distribution restoring it on restart.
 - Bundles the DSH plugin CLI and pnpm behind Electron's Node mode, so marketplace operations do not require a system Node.js toolchain.
 
@@ -38,6 +39,13 @@ That faster mode does not cover a from-scratch kernel build or release package.
     pnpm run desktop:package:win
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
+
+For a disposable Windows x64 1.6.0 test build, use a separate output root:
+
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+
+The ZIP and Setup outputs are written to
+`dist-desktop/electron-v1.6.0-test/windows-artifacts/`.
 
 Run each packaging command on its matching native host: Windows x64 with a working WSL distribution, Apple Silicon macOS, or Linux x64. The commands download Electron, run capability probes and packaged smoke tests, and write immutable verified bundles under `dist-desktop/electron/verified/<target>/`.
 

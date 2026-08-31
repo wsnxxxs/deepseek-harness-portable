@@ -53,6 +53,7 @@ export const INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILES = [
   'lib/types/learner-memory.d.ts',
   'lib/types/learner-state.d.ts',
   'lib/types/learner-locale.d.ts',
+  'lib/types/learning-reanchor.d.ts',
   'lib/types/material-anchor.d.ts',
   'lib/types/material-intake.d.ts',
   'lib/types/material-reanchor.d.ts',

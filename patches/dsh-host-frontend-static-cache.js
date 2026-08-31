@@ -7,8 +7,11 @@ const DYNAMIC_MARKER = 'const DYNAMIC_HTML_CACHE = "no-store";'
 function patchFrontendStaticCacheHeaders(source) {
   if (source.includes(IMMUTABLE_MARKER) && source.includes(DYNAMIC_MARKER)) return source
 
-  const marker = 'const STATIC_MISS_CODES = new Set(['
-  if (!source.includes(marker)) throw new Error('frontend-static source no longer exposes its miss-code table')
+  const marker = [
+    'const STATIC_MISS_CODES = /* @__PURE__ */ new Set([',
+    'const STATIC_MISS_CODES = new Set([',
+  ].find(candidate => source.includes(candidate))
+  if (marker === undefined) throw new Error('frontend-static source no longer exposes its miss-code table')
   let output = source.replace(
     marker,
     `${IMMUTABLE_MARKER}

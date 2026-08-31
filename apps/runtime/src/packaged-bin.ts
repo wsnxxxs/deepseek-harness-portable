@@ -122,7 +122,8 @@ const BOOT_STARTED_AT = Date.now()
 
 /** Browser graph service surface required by the packaged startup barrier. */
 interface ClientModuleBootHost {
-  reconcileLoadedEntries(): void
+  /** Available in newer client-module runtimes; older runtimes scan on construction. */
+  reconcileLoadedEntries?: () => void
   graph(): {
     entries: Array<{ id: string }>
     batches: Array<{ phase: string; entries: string[] }>
@@ -934,7 +935,7 @@ async function main(): Promise<void> {
     // graph without the client-modules bootstrap while the next process works.
     const clientModules = ctx.get('clientModules') as ClientModuleBootHost | undefined
     if (clientModules === undefined) throw new Error(`${NAME}: client module host is missing after Loader activation`)
-    clientModules.reconcileLoadedEntries()
+    clientModules.reconcileLoadedEntries?.()
     const clientGraph = clientModules.graph()
     const hasClientModulesBootstrap = clientGraph.entries.some(entry => entry.id === '@deepseek-ai/dsh-client-modules')
       && clientGraph.batches.some(batch => batch.phase === 'bootstrap'

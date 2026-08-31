@@ -13,7 +13,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { ViewImageArgs, ViewImageResult, VisionConfig } from './types.ts'
 import { installHybridVisionRouting, type HybridHostContext } from './hybrid-host.ts'
 import { executeViewImage, renderViewImageContent, type VisionRuntime } from './view-image.ts'
@@ -34,7 +34,7 @@ export const Config: z<VisionConfig> = z.object({
   model: z.string().default(''),
 })
 
-export const VISION_SETTINGS_NAMESPACE = settingsNamespace('vision')
+export const VISION_SETTINGS_NAMESPACE = 'vision' as SettingsNamespace
 
 /**
  * Register the vision bridge on a host context.
@@ -48,18 +48,20 @@ export function apply(ctx: Context, config: Config = {}): void {
   // The api-proxy already publishes every registered namespace to web clients
   // and accepts writes for any of them, so registration is the whole wiring.
   let currentConfig = (): Required<VisionConfig> => resolved
-  installSettingsSection<Required<VisionConfig>>(
-    ctx,
-    VISION_SETTINGS_NAMESPACE,
-    Config as unknown as z<Required<VisionConfig>>,
-    resolved,
-    {
-      setSource: thunk => {
-        currentConfig = thunk
+  ctx.inject(['settings'], settingsCtx => {
+    settingsCtx.settings.installSection(
+      ctx,
+      VISION_SETTINGS_NAMESPACE,
+      Config as unknown as z<Required<VisionConfig>>,
+      resolved,
+      {
+        setSource: thunk => {
+          currentConfig = thunk
+        },
+        onChange: () => {},
       },
-      onChange: () => {},
-    },
-  )
+    )
+  })
 
   // Services are read per call rather than captured: a provider reconfigured
   // mid-session must be visible to the next invocation.
