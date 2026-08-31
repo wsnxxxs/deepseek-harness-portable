@@ -84,6 +84,20 @@ export function reconcilePresetRoster(
   return { kind: 'default-replaced', configured, selected }
 }
 
+/** Disable the Host Team service whenever the compiled Crew preset is unavailable. */
+export function reconcileCrewRuntime(
+  overlays: PatchOptions[],
+  catalog: RuntimeModeCatalog,
+): 'enabled' | 'disabled' {
+  if (catalog.modes.crew?.selectable === true) return 'enabled'
+  const alreadyDisabled = overlays.some(entry => {
+    const patch = entry as { id?: unknown; disabled?: unknown }
+    return patch.id === 'agent-team' && patch.disabled === true
+  })
+  if (!alreadyDisabled) overlays.push({ id: 'agent-team', disabled: true })
+  return 'disabled'
+}
+
 /**
  * Render one outcome as an operator-facing diagnostic.
  * @param outcome - result of {@link reconcilePresetRoster}.

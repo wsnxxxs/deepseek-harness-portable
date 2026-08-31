@@ -1,4 +1,4 @@
-import type { CapabilityReport } from './mode-resolver.js';
+import type { CapabilityReport, CapabilityResult } from './mode-resolver.js';
 export interface ProbeOutcome {
     readonly ok: boolean;
     readonly provider?: string;
@@ -29,6 +29,8 @@ export interface CapabilityReportOptions {
         readonly maxAgeMs?: number;
     };
 }
+/** Measure the complete experimental package pair needed by the Crew mode. */
+export declare function crewAgentTeamCapability(resolvePackage?: (specifier: string) => boolean): CapabilityResult;
 export declare function capabilitySnapshotHash(report: Pick<CapabilityReport, 'target' | 'capabilities'>): string;
 /** Run bounded, effect-based runtime capability probes. No platform receives support by declaration alone. */
 export declare function collectCapabilityReport(options?: CapabilityReportOptions): Promise<CapabilityReport>;

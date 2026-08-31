@@ -18,6 +18,10 @@ import {
 /** This package's manifest anchors optional dependencies in installed and packaged runtimes. */
 const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.meta.url))
 const installationRequire = createRequire(INSTALL_ANCHOR)
+const CREW_RUNTIME_PACKAGES = [
+  '@deepseek-ai/dsh-experimental-agent-team',
+  '@deepseek-ai/dsh-experimental-tool-agent-team',
+] as const
 // node-pty is owned by the local subprocess implementation. Resolve it from
 // that package so the capability probe uses the same dependency path as the
 // shell providers, including the portable runtime's nested dependency layout.
@@ -90,7 +94,14 @@ function runtimeUpstreamVersion(): string {
 }
 
 function probeImplementationHash(): string {
-  return createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex')
+  const crewClosure = CREW_RUNTIME_PACKAGES
+    .map(specifier => `${specifier}:${resolvable(specifier) ? 'present' : 'missing'}`)
+    .join('\n')
+  return createHash('sha256')
+    .update(readFileSync(fileURLToPath(import.meta.url)))
+    .update('\0')
+    .update(crewClosure)
+    .digest('hex')
 }
 
 function available(outcome: ProbeOutcome, fallbackProvider: string): CapabilityResult {
@@ -141,6 +152,20 @@ function resolvable(specifier: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Measure the complete experimental package pair needed by the Crew mode. */
+export function crewAgentTeamCapability(
+  resolvePackage: (specifier: string) => boolean = resolvable,
+): CapabilityResult {
+  const missing = CREW_RUNTIME_PACKAGES.filter(specifier => !resolvePackage(specifier))
+  if (missing.length === 0) {
+    return { state: 'available', provider: CREW_RUNTIME_PACKAGES.join(' + ') }
+  }
+  return unavailable(
+    `the Agent Teams runtime is incomplete; missing ${missing.join(', ')}`,
+    'Rebuild against an upstream revision that ships the experimental Agent Teams packages, or select another mode.',
+  )
 }
 
 async function loadNodePty(): Promise<NodePty> {
@@ -623,12 +648,7 @@ export async function collectCapabilityReport(options: CapabilityReportOptions =
   // Build-shaped rather than platform-shaped, so it sits outside the branch.
   // `crew` requires it; if an upstream bump removes the package, that mode
   // loses both discovery files and every other mode still compiles.
-  capabilities['crew.agent-team'] = resolvable('@deepseek-ai/dsh-experimental-agent-team')
-    ? { state: 'available', provider: '@deepseek-ai/dsh-experimental-agent-team' }
-    : unavailable(
-      'the Agent Teams runtime is not present in this build',
-      'Rebuild against an upstream revision that ships the experimental Agent Teams packages, or select another mode.',
-    )
+  capabilities['crew.agent-team'] = crewAgentTeamCapability()
   options.trace?.('probes-complete')
 
   const base = {

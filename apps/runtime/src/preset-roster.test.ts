@@ -8,7 +8,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { RuntimeModeCatalog, RuntimeModeResolution } from './mode-catalog.js'
-import { describePresetRosterOutcome, reconcilePresetRoster, selectableModes } from './preset-roster.js'
+import {
+  describePresetRosterOutcome,
+  reconcileCrewRuntime,
+  reconcilePresetRoster,
+  selectableModes,
+} from './preset-roster.js'
 
 function mode(
   modeId: string,
@@ -112,4 +117,17 @@ test('selectable modes are ordered by support level, then by id', () => {
   ))
 
   assert.deepEqual(ordered.map(item => item.modeId), ['alfa', 'zulu', 'bravo', 'alpha'])
+})
+
+test('the Host Team service follows Crew availability', () => {
+  const available: PatchOptions[] = []
+  assert.equal(reconcileCrewRuntime(available, catalog(mode('crew', 'native'))), 'enabled')
+  assert.deepEqual(available, [])
+
+  const unavailable: PatchOptions[] = []
+  const noCrew = catalog(mode('crew', 'unavailable', false), mode('standard', 'native'))
+  assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
+  assert.deepEqual(unavailable, [{ id: 'agent-team', disabled: true }])
+  assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
+  assert.deepEqual(unavailable, [{ id: 'agent-team', disabled: true }])
 })

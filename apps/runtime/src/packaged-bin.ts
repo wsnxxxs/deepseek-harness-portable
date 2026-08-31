@@ -58,7 +58,7 @@ import {
   type RuntimeModeTrace,
 } from './mode-catalog.js'
 import { openBrowser } from './open-browser.js'
-import { describePresetRosterOutcome, reconcilePresetRoster } from './preset-roster.js'
+import { describePresetRosterOutcome, reconcileCrewRuntime, reconcilePresetRoster } from './preset-roster.js'
 import {
   ensureMarketplacePreinstalled,
   materializeMarketplaceSeed,
@@ -505,11 +505,13 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
   // The `crew` preset therefore contributes only the model-facing Team tools,
   // which resolve this instance up the scope chain.
   //
-  // Mounting it unconditionally rather than with the mode keeps
-  // `agentTeams.view(sessionId)` answerable for ANY session: a surface asking
-  // about a non-crew session gets a roster of one and an empty board instead
-  // of an error. Sessions that never mount the Team tools emit no team events,
-  // so the service costs them nothing.
+  // While Crew is available, keeping it on the Host rather than inside the
+  // mode makes `agentTeams.view(sessionId)` answerable for any session: a
+  // surface asking about a non-Crew session gets a roster of one and an empty
+  // board instead of an error. `reconcileCrewRuntime` disables this staged row
+  // before Loader activation when the complete experimental package pair did
+  // not pass capability measurement, so a removed alpha package hides Crew
+  // instead of failing the whole application at startup.
   //
   // The limits are upstream's own defaults, from
   // `packages/experimental/agent-team-profile/cordis.patch.yml`.
@@ -824,6 +826,7 @@ async function main(): Promise<void> {
     reconcilePresetRoster(composed.overlays, presetState.modeCatalog),
     presetState.root,
   )
+  reconcileCrewRuntime(composed.overlays, presetState.modeCatalog)
   if (rosterDiagnostic !== undefined) {
     if (shellProtocol) {
       console.log(encodeRuntimeEvent({

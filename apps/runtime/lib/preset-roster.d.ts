@@ -51,6 +51,8 @@ export declare function selectableModes(catalog: RuntimeModeCatalog): RuntimeMod
  * @returns what was done, for diagnostics.
  */
 export declare function reconcilePresetRoster(overlays: readonly PatchOptions[], catalog: RuntimeModeCatalog): PresetRosterOutcome;
+/** Disable the Host Team service whenever the compiled Crew preset is unavailable. */
+export declare function reconcileCrewRuntime(overlays: PatchOptions[], catalog: RuntimeModeCatalog): 'enabled' | 'disabled';
 /**
  * Render one outcome as an operator-facing diagnostic.
  * @param outcome - result of {@link reconcilePresetRoster}.

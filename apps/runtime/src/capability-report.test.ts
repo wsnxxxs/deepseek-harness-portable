@@ -3,7 +3,12 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { capabilitySnapshotHash, collectCapabilityReport, type ProbeOutcome } from './capability-report.js'
+import {
+  capabilitySnapshotHash,
+  collectCapabilityReport,
+  crewAgentTeamCapability,
+  type ProbeOutcome,
+} from './capability-report.js'
 
 const ok = (provider = 'fake'): Promise<ProbeOutcome> => Promise.resolve({ ok: true, provider })
 const no = (reason = 'not installed'): Promise<ProbeOutcome> => Promise.resolve({
@@ -81,6 +86,13 @@ test('capability snapshot identity excludes diagnostic generation time', () => {
   }
   const second = { ...first, generatedAt: '2026-08-17T00:00:01.000Z' }
   assert.equal(capabilitySnapshotHash(first), capabilitySnapshotHash(second))
+})
+
+test('Crew capability requires both experimental runtime packages', () => {
+  assert.equal(crewAgentTeamCapability(() => true).state, 'available')
+  const missingTool = crewAgentTeamCapability(specifier => !specifier.endsWith('tool-agent-team'))
+  assert.equal(missingTool.state, 'unavailable')
+  assert.match(missingTool.reason ?? '', /dsh-experimental-tool-agent-team/)
 })
 
 test('capability report reuses a matching persistent cache without rerunning probes', async () => {
