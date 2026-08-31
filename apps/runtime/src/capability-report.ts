@@ -146,8 +146,15 @@ function unavailable(
  * @returns true when the package resolves.
  */
 function resolvable(specifier: string): boolean {
+  const installedManifest = join(
+    dirname(INSTALL_ANCHOR),
+    'node_modules',
+    ...specifier.split('/'),
+    'package.json',
+  )
+  if (!existsSync(installedManifest)) return false
   try {
-    installationRequire.resolve(`${specifier}/package.json`)
+    installationRequire.resolve(installedManifest)
     return true
   } catch {
     return false
