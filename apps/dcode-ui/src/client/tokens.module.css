@@ -77,16 +77,16 @@
   /* Material ramp. Surface 0 is the opaque canvas; every higher surface is
      a label-tinted wash, so it can be layered over either a theme ground or a
      native Windows material without changing its hue. Keep the legacy names
-     as semantic aliases while downstream modules migrate. The alpha scale is
-     shared by both colour schemes so changing theme does not change glass
-     strength. */
+     as semantic aliases while downstream modules migrate. Acrylic alpha is
+     tuned per colour scheme below so the perceived glass strength stays
+     aligned when the material colour changes. */
   --zx-surface-1-alpha: 4.5%;
   --zx-surface-2-alpha: 7.5%;
   --zx-surface-elevated-alpha: 11%;
-  --zx-acrylic-surface-0-alpha: 72%;
-  --zx-acrylic-surface-1-alpha: 78%;
-  --zx-acrylic-surface-2-alpha: 84%;
-  --zx-acrylic-surface-elevated-alpha: 90%;
+  --zx-acrylic-surface-0-alpha: 76%;
+  --zx-acrylic-surface-1-alpha: 82%;
+  --zx-acrylic-surface-2-alpha: 88%;
+  --zx-acrylic-surface-elevated-alpha: 94%;
   --zx-bg-surface-0: var(--dsw-alias-bg-base, #0d0d0f);
   --zx-bg-surface-1: color-mix(in srgb, var(--zx-label) var(--zx-surface-1-alpha), transparent);
   --zx-bg-surface-2: color-mix(in srgb, var(--zx-label) var(--zx-surface-2-alpha), transparent);
@@ -219,12 +219,17 @@
  */
 [data-dcode-scope][data-dcode-scheme='light'] {
   /* Crisp, refined light palette: soft neutral-tinted off-white canvas and
-     white-tinted elevated surfaces with soft depth shadows. Keep the same
-     alpha ramp as dark mode so the theme switch does not change transparency. */
+     white-tinted elevated surfaces with soft depth shadows. */
   --zx-bg-surface-0: var(--dsw-alias-bg-base, #f8f9fb);
   --zx-bg-surface-1: color-mix(in srgb, #ffffff var(--zx-surface-1-alpha), transparent);
   --zx-bg-surface-2: color-mix(in srgb, #ffffff var(--zx-surface-2-alpha), transparent);
   --zx-bg-surface-elevated: color-mix(in srgb, #ffffff var(--zx-surface-elevated-alpha), transparent);
+  /* The white material needs a touch less paint to read as translucent as
+     the dark material at the same hierarchy level. */
+  --zx-acrylic-surface-0-alpha: 68%;
+  --zx-acrylic-surface-1-alpha: 74%;
+  --zx-acrylic-surface-2-alpha: 80%;
+  --zx-acrylic-surface-elevated-alpha: 86%;
   --zx-bg-raised: color-mix(in srgb, var(--zx-label) 4%, transparent);
   --zx-bg-hover: color-mix(in srgb, var(--zx-label) 5.5%, transparent);
   --zx-bg-active: color-mix(in srgb, var(--zx-label) 9.5%, transparent);
@@ -308,8 +313,7 @@ html[data-dcode-acrylic] [data-reactroot] {
 
 /* Opacity climbs with the surface: the app ground is the most transparent,
    popovers the least, because a menu over a busy wallpaper has to stay
-   readable at a glance. Keep the alpha ramp identical across schemes; only
-   the material colour changes. */
+   readable at a glance. Each scheme keeps the same stepped hierarchy. */
 [data-dcode-scope][data-dcode-acrylic] {
   --zx-bg-surface-0: color-mix(in srgb, var(--dsw-alias-bg-base, #0d0d0f) var(--zx-acrylic-surface-0-alpha), transparent);
   --zx-bg-surface-1: color-mix(in srgb, var(--dsw-alias-bg-base, #141418) var(--zx-acrylic-surface-1-alpha), transparent);
