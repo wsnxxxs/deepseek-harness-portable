@@ -1,14 +1,13 @@
 /**
  * Win32 ProcessInspector stub for local PTY terminals (e.g. running wsl.exe).
  *
- * Upstream `dsh-subprocess-local` throws on win32 because POSIX process inspection
- * (/proc/pid/stat or ps -axo) is not supported natively on Windows.
- * This stub provides safe fallbacks:
- * - `processTree(rootPid)` returns `[]`: a fabricated root identity would make
- *   `LocalTerminalHandle.forceStopShell` take its (no-op) signal branch and skip
- *   the node-pty kill fallback during host exit.
+ * Upstream `dsh-subprocess-local` cannot inspect the Linux process table from
+ * Windows. This stub provides safe fallbacks:
+ * - `snapshot()` returns empty tree/session observations: a fabricated root
+ *   identity would make `LocalTerminalHandle.forceStopShell` take its (no-op)
+ *   signal branch and skip the node-pty kill fallback during host exit.
  * - `foregroundPgid(shellPid)` returns `shellPid` so that `signalForeground` does not throw and destroy the session.
- * - `isStdinWaiting()` returns `false` (terminal readiness safely falls back to prompt-marker and silence detection).
+ * - `isStdinWaiting(pgid, shellPid)` returns `false` (terminal readiness safely falls back to prompt-marker and silence detection).
  * - `signalGroup` and `signalProcess` are safe no-ops.
  *
  * It also wraps `spawnTerminal` on win32 to:
@@ -17,8 +16,8 @@
  * - catch WSL launch failures (spawn throws, or wsl.exe exiting before the
  *   shell reaches readiness — e.g. no distribution installed) and provide
  *   actionable instructions for the user;
- * - deliver `SIGINT` to the WSL foreground group as a Ctrl+C byte, since the
- *   stub cannot signal Linux process groups from Windows.
+ * - forward terminal signals to the local PTY handle; its Win32 path delivers
+ *   `SIGINT` as a Ctrl+C byte because the stub cannot signal Linux groups.
  *
  * @module @dsh-portable/runtime/win32-terminal-inspector
  */
@@ -37,11 +36,16 @@ export interface ProcessIdentity {
   started: string
 }
 
+export interface ProcessSnapshot {
+  tree(rootPid: number): ProcessIdentity[]
+  session(sessionId: number): ProcessIdentity[]
+  alive(identity: ProcessIdentity): boolean
+}
+
 export interface ProcessInspector {
   foregroundPgid(shellPid: number): number | undefined
-  isStdinWaiting(pgid: number): boolean
-  processTree(rootPid: number): ProcessIdentity[]
-  processSession(sessionId: number): ProcessIdentity[]
+  isStdinWaiting(pgid: number, shellPid: number): boolean
+  snapshot(): ProcessSnapshot
   isAlive(identity: ProcessIdentity): boolean
   signalGroup(pgid: number, signal: SubprocessTerminalSignal): void
   signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void
@@ -53,21 +57,21 @@ export class Win32TerminalProcessInspector implements ProcessInspector {
     return shellPid
   }
 
-  isStdinWaiting(_pgid: number): boolean {
+  isStdinWaiting(_pgid: number, _shellPid: number): boolean {
     // Settle path relies on prompt-marker and silence/timeout readiness detection.
     return false
   }
 
-  processTree(_rootPid: number): ProcessIdentity[] {
+  snapshot(): ProcessSnapshot {
     // No Windows process table and no visibility into the WSL VM: report no
     // members. A fabricated root identity would make
     // LocalTerminalHandle.forceStopShell take its (no-op) signal branch and
     // skip the node-pty kill fallback during host exit.
-    return []
-  }
-
-  processSession(_sessionId: number): ProcessIdentity[] {
-    return []
+    return {
+      tree: (_rootPid: number) => [],
+      session: (_sessionId: number) => [],
+      alive: (_identity: ProcessIdentity) => false,
+    }
   }
 
   isAlive(_identity: ProcessIdentity): boolean {
@@ -235,13 +239,8 @@ class Win32WslTerminalHandle implements SubprocessTerminalHandle {
   }
 
   async signalForeground(signal: SubprocessTerminalSignal): Promise<number> {
-    if (signal === 'SIGINT') {
-      try {
-        await this.inner.write('\x03')
-      } catch {
-        // A concurrent close can end the session between inspection and write.
-      }
-    }
+    // LocalTerminalHandle owns the Win32 Ctrl+C path; forwarding once avoids
+    // sending two interrupt bytes to the WSL PTY.
     return this.inner.signalForeground(signal)
   }
 

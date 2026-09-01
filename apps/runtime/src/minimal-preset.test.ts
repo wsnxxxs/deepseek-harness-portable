@@ -132,16 +132,18 @@ test('win32 terminal inspector stub satisfies ProcessInspector contracts safely'
   assert.equal(inspector.foregroundPgid(9999), 9999)
 
   // isStdinWaiting must return false so readiness falls back to prompt/silence
-  assert.equal(inspector.isStdinWaiting(9999), false)
+  assert.equal(inspector.isStdinWaiting(9999, 9999), false)
 
-  // processTree must report no members so LocalTerminalHandle.forceStopShell
+  // snapshot must report no members so LocalTerminalHandle.forceStopShell
   // falls back to node-pty's own kill during host exit instead of routing
   // through the (no-op) signal branch of a fabricated root identity
-  const tree = inspector.processTree(9999)
-  assert.deepEqual(tree, [])
+  const snapshot = inspector.snapshot()
+  assert.deepEqual(snapshot.tree(9999), [])
 
-  // processSession and isAlive
-  assert.deepEqual(inspector.processSession(9999), [])
+  // process sessions are not visible through the WSL VM, and liveness is
+  // unavailable for the same reason.
+  assert.deepEqual(snapshot.session(9999), [])
+  assert.equal(snapshot.alive({ pid: 9999, started: 'wsl-root' }), false)
   assert.equal(inspector.isAlive({ pid: 9999, started: 'wsl-root' }), false)
 
   // Signals must be safe no-ops
@@ -160,7 +162,11 @@ function fakeWslTerminal({ earlyExit } = {}) {
       : Promise.resolve(earlyExit),
     write: async (data) => { calls.writes.push(data) },
     inspectForeground: async () => ({ processGroupId: 4242, inputWaiting: false }),
-    signalForeground: async (signal) => { calls.signals.push(signal); return 4242 },
+    signalForeground: async (signal) => {
+      calls.signals.push(signal)
+      if (signal === 'SIGINT') calls.writes.push('\x03')
+      return 4242
+    },
     terminate: async () => { calls.terminates += 1 },
   }
   return {
