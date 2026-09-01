@@ -208,7 +208,7 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       kind: 'action',
       group: t('palette.configuration'),
       label: t('settings.usage'),
-      run: () => { navigation.openSettings('usage') },
+      run: () => { navigation.openSettings('models') },
     },
     {
       id: 'agent-presets',

@@ -53,7 +53,7 @@ export interface SettingsSurfaceProps {
   readonly sessionId: SessionId | undefined
 }
 
-/** Official DSH sections plus DCode's usage page. */
+/** Official DSH sections shown in the settings rail. */
 type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data'
 
 const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
@@ -62,7 +62,6 @@ const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   { id: 'models', label: 'settings.modelsNav' },
   { id: 'plugins', label: 'settings.pluginsNav' },
   { id: 'agentPresets', label: 'settings.agentPresets' },
-  { id: 'data', label: 'settings.dataAndAbout' },
 ]
 
 /** A titled block with an explanatory line. */
@@ -751,74 +750,77 @@ function ModelsSection(props: { focusedProvider?: string; onFocusedProviderSaved
     : [focused, ...configured.filter(row => row.id !== focused.id)]
 
   return (
-    <section className={`${css.section} ${css.modelsSection}`}>
-      <div className={css.modelsHeader}>
-        <div>
-          <h2 className={css.modelsTitle}>{t('settings.models')}</h2>
-          <p className={css.sectionBody}>{t('settings.modelsBody')}</p>
-        </div>
-        {value.hasDocument
-          ? <Button onClick={() => { void runtime.remote.settings.openSettingsDocument() }}>{t('settings.openOfficialSettings')}</Button>
-          : null}
-      </div>
-      {value.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.models.credentialWarning')}: ${value.credentialError}`}</div>}
-      <div className={css.providerList}>
-        {visible.map(row => (
-          <ModelProviderCard
-            key={row.id}
-            row={row}
-            writable={value.writable}
-            initiallyOpen={row.id === props.focusedProvider}
-            onReload={models.reload}
-            onSaved={row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined}
-          />
-        ))}
-        {visible.length === 0 ? <div className={css.modelsEmpty}>{t('settings.models.empty')}</div> : null}
-      </div>
-      {draft === undefined ? null : (
-        <ModelProviderCard
-          key={`add-${draft.id}`}
-          row={draft}
-          writable={value.writable}
-          initiallyOpen
-          onReload={models.reload}
-          onClose={() => { setAddingProvider(undefined) }}
-        />
-      )}
-      {addingCustom
-        ? <CustomProviderForm
-          rows={value.providers}
-          writable={value.writable}
-          onCancel={() => { setAddingCustom(false) }}
-          onCreated={() => { setAddingCustom(false); models.reload() }}
-        />
-        : null}
-      {draft === undefined && !addingCustom
-        ? (
-          <div className={css.addActions}>
-            <div className={css.addSelect}>
-              <SelectMenu
-                value=""
-                ariaLabel={t('settings.models.addProvider')}
-                placeholder={<><IconPlusOutline16 />{t('settings.models.addProvider')}</>}
-                disabled={!value.writable || addable.length === 0}
-                options={addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id }))}
-                onChange={(provider) => { setAddingProvider(provider); setAddingCustom(false) }}
-              />
-            </div>
-            <button type="button" className={css.addButton} disabled={!value.writable} onClick={() => { setAddingCustom(true); setAddingProvider(undefined) }}>
-              <IconPlusOutline16 />{t('settings.models.addCustomProvider')}
-            </button>
+    <>
+      <section className={`${css.section} ${css.modelsSection}`}>
+        <div className={css.modelsHeader}>
+          <div>
+            <h2 className={css.modelsTitle}>{t('settings.models')}</h2>
+            <p className={css.sectionBody}>{t('settings.modelsBody')}</p>
           </div>
-        )
-        : null}
-      {value.catalog.failures.length === 0 ? null : (
-        <details className={css.modelFailures}>
-          <summary>{t('settings.models.failures')} ({value.catalog.failures.length})</summary>
-          {value.catalog.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}
-        </details>
-      )}
-    </section>
+          {value.hasDocument
+            ? <Button onClick={() => { void runtime.remote.settings.openSettingsDocument() }}>{t('settings.openOfficialSettings')}</Button>
+            : null}
+        </div>
+        {value.credentialError === undefined ? null : <div className={css.notice}>{`${t('settings.models.credentialWarning')}: ${value.credentialError}`}</div>}
+        <div className={css.providerList}>
+          {visible.map(row => (
+            <ModelProviderCard
+              key={row.id}
+              row={row}
+              writable={value.writable}
+              initiallyOpen={row.id === props.focusedProvider}
+              onReload={models.reload}
+              onSaved={row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined}
+            />
+          ))}
+          {visible.length === 0 ? <div className={css.modelsEmpty}>{t('settings.models.empty')}</div> : null}
+        </div>
+        {draft === undefined ? null : (
+          <ModelProviderCard
+            key={`add-${draft.id}`}
+            row={draft}
+            writable={value.writable}
+            initiallyOpen
+            onReload={models.reload}
+            onClose={() => { setAddingProvider(undefined) }}
+          />
+        )}
+        {addingCustom
+          ? <CustomProviderForm
+            rows={value.providers}
+            writable={value.writable}
+            onCancel={() => { setAddingCustom(false) }}
+            onCreated={() => { setAddingCustom(false); models.reload() }}
+          />
+          : null}
+        {draft === undefined && !addingCustom
+          ? (
+            <div className={css.addActions}>
+              <div className={css.addSelect}>
+                <SelectMenu
+                  value=""
+                  ariaLabel={t('settings.models.addProvider')}
+                  placeholder={<><IconPlusOutline16 />{t('settings.models.addProvider')}</>}
+                  disabled={!value.writable || addable.length === 0}
+                  options={addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id }))}
+                  onChange={(provider) => { setAddingProvider(provider); setAddingCustom(false) }}
+                />
+              </div>
+              <button type="button" className={css.addButton} disabled={!value.writable} onClick={() => { setAddingCustom(true); setAddingProvider(undefined) }}>
+                <IconPlusOutline16 />{t('settings.models.addCustomProvider')}
+              </button>
+            </div>
+          )
+          : null}
+        {value.catalog.failures.length === 0 ? null : (
+          <details className={css.modelFailures}>
+            <summary>{t('settings.models.failures')} ({value.catalog.failures.length})</summary>
+            {value.catalog.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}
+          </details>
+        )}
+      </section>
+      <UsageSection />
+    </>
   )
 }
 
