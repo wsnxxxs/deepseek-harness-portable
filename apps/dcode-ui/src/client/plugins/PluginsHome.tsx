@@ -1,5 +1,5 @@
 /**
- * Plugins as a first-class surface.
+ * Plugins as a first-class modal surface.
  *
  * The sidebar's plugin entry lands here rather than in a settings tab,
  * because installing and managing plugins is a task with its own catalogue,
@@ -18,16 +18,16 @@
  * @module @dsh-portable/dcode-ui/client/plugins/PluginsHome
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconChevronLeftOutline14, IconCordisPluginOutline14, IconDownloadOutline16,
-  IconSettingsOutline16,
+  IconCloseOutline16, IconCordisPluginOutline14, IconDownloadOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { Button, EmptyState, ui } from '../shell/ui.tsx'
+import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { PluginSettingsSection } from '../settings/PluginSettingsSection.tsx'
 import type { DcodeKey } from '../locales.ts'
 import type { AuditLocale } from './audits.ts'
@@ -173,8 +173,12 @@ export function PluginsHome({ navigation }: PluginsHomeProps): ReactNode {
   const runtime = useRuntime()
   const t = useT()
   const [section, setSection] = useState<PluginsSection>('market')
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
   const client = useMemo(() => createMarketClient(), [])
   const inventory = useInventory(client)
+  const close = useCallback(() => { navigation.show('session') }, [navigation])
+  useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose: close })
 
   const locale = useSyncExternalStore(
     runtime.locale.subscribe,
@@ -189,78 +193,97 @@ export function PluginsHome({ navigation }: PluginsHomeProps): ReactNode {
   const marketplaceMissing = inventory.unavailable
 
   return (
-    <div className={css.surface}>
-      <nav className={css.rail} aria-label={t('plugins.title')}>
-        <button type="button" className={css.back} onClick={() => { navigation.show('session') }}>
-          <IconChevronLeftOutline14 />
-          {t('nav.backToWorkspace')}
-        </button>
-        {RAIL.map(entry => (
-          <div key={entry.id}>
-            {entry.group === undefined ? null : <div className={css.railGroup}>{t(entry.group)}</div>}
-            <button
-              type="button"
-              className={`${css.railItem} ${section === entry.id ? css.railItemActive : ''}`}
-              aria-current={section === entry.id ? 'page' : undefined}
-              onClick={() => { setSection(entry.id) }}
-            >
-              {entry.icon}
-              <span className={ui.grow}>{t(entry.label)}</span>
-              {entry.id === 'installed' && installedCount !== undefined && installedCount > 0
-                ? <span className={css.railCount}>{installedCount}</span>
-                : null}
-            </button>
-          </div>
-        ))}
-      </nav>
+    <div className={css.overlay} role="presentation">
+      <div className={css.mask} aria-hidden="true" onClick={close} />
+      <div
+        ref={panelRef}
+        className={css.panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dcode-plugins-dialog-title"
+        tabIndex={-1}
+      >
+        <div className={css.surface}>
+          <nav className={css.rail} aria-label={t('plugins.title')}>
+            <h1 className={css.railTitle} id="dcode-plugins-dialog-title">{t('plugins.title')}</h1>
+            <div className={css.navList}>
+              {RAIL.map(entry => (
+                <div key={entry.id}>
+                  {entry.group === undefined ? null : <div className={css.railGroup}>{t(entry.group)}</div>}
+                  <button
+                    type="button"
+                    className={`${css.railItem} ${section === entry.id ? css.railItemActive : ''}`}
+                    aria-current={section === entry.id ? 'page' : undefined}
+                    onClick={() => { setSection(entry.id) }}
+                  >
+                    {entry.icon}
+                    <span className={ui.grow}>{t(entry.label)}</span>
+                    {entry.id === 'installed' && installedCount !== undefined && installedCount > 0
+                      ? <span className={css.railCount}>{installedCount}</span>
+                      : null}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </nav>
 
-      <div className={css.body}>
-        <div className={css.inner}>
-          {section === 'settings'
-            ? <PluginSettingsSection />
-            : marketplaceMissing
-              ? (
-                <>
-                  <div>
-                    <div className={css.title}>{t('plugins.title')}</div>
-                    <p className={css.subtitle}>{t('plugins.subtitle')}</p>
-                  </div>
-                  <EmptyState>
-                    {t('plugins.unavailable')}
-                    <span className={css.note}>{t('plugins.unavailableBody')}</span>
-                    <Button onClick={() => { setSection('settings') }}>
-                      {t('plugins.section.settings')}
-                    </Button>
-                  </EmptyState>
-                </>
-              )
-              : (
-                <>
-                  <SelfUpdateBanner
-                    client={client}
-                    inventory={inventory}
-                    onReload={inventory.reload}
-                  />
-                  {section === 'market'
+          <main className={css.content}>
+            <header className={css.header}>
+              <h2 className={css.headerTitle}>{t('plugins.title')}</h2>
+              <button ref={closeRef} type="button" className={css.close} onClick={close} aria-label={t('common.close')}>
+                <IconCloseOutline16 size={14} />
+              </button>
+            </header>
+            <div className={css.body}>
+              <div className={css.inner}>
+                {section === 'settings'
+                  ? <PluginSettingsSection />
+                  : marketplaceMissing
                     ? (
-                      <MarketSection
-                        client={client}
-                        locale={auditLocale}
-                        onInstalled={inventory.reload}
-                      />
+                      <>
+                        <div>
+                          <div className={css.title}>{t('plugins.title')}</div>
+                          <p className={css.subtitle}>{t('plugins.subtitle')}</p>
+                        </div>
+                        <EmptyState>
+                          {t('plugins.unavailable')}
+                          <span className={css.note}>{t('plugins.unavailableBody')}</span>
+                          <Button onClick={() => { setSection('settings') }}>
+                            {t('plugins.section.settings')}
+                          </Button>
+                        </EmptyState>
+                      </>
                     )
                     : (
-                      <InstalledSection
-                        client={client}
-                        snapshot={inventory.snapshot}
-                        loading={inventory.loading}
-                        error={inventory.error}
-                        onReload={inventory.reload}
-                        onBrowse={() => { setSection('market') }}
-                      />
+                      <>
+                        <SelfUpdateBanner
+                          client={client}
+                          inventory={inventory}
+                          onReload={inventory.reload}
+                        />
+                        {section === 'market'
+                          ? (
+                            <MarketSection
+                              client={client}
+                              locale={auditLocale}
+                              onInstalled={inventory.reload}
+                            />
+                          )
+                          : (
+                            <InstalledSection
+                              client={client}
+                              snapshot={inventory.snapshot}
+                              loading={inventory.loading}
+                              error={inventory.error}
+                              onReload={inventory.reload}
+                              onBrowse={() => { setSection('market') }}
+                            />
+                          )}
+                      </>
                     )}
-                </>
-              )}
+              </div>
+            </div>
+          </main>
         </div>
       </div>
     </div>
