@@ -35,6 +35,7 @@ import usageCardClasses from './UsageCards.module.css'
 
 import { SelectMenu } from './SelectMenu.tsx'
 import { PluginSettingsSection } from './PluginSettingsSection.tsx'
+import { AgentWorkflowSection } from './AgentWorkflowSection.tsx'
 import {
   providerReadiness, providerRemovable, visibleProviderRows,
   type ProviderReadiness, type ProviderReadinessFacts,
@@ -57,7 +58,7 @@ export interface SettingsSurfaceProps {
 const RAIL: readonly { id: SettingsSection; label: DcodeKey }[] = [
   { id: 'general', label: 'settings.general' },
   { id: 'models', label: 'settings.models' },
-  { id: 'agentPresets', label: 'settings.agentPresets' },
+  { id: 'agentWorkflow', label: 'settings.agentWorkflow' },
   { id: 'plugins', label: 'settings.plugins' },
   { id: 'commands', label: 'settings.commands' },
   { id: 'usage', label: 'settings.usage' },
@@ -87,7 +88,7 @@ function Row(props: { title: string; body?: string; control?: React.ReactNode })
   )
 }
 
-/** Language, appearance, busy Enter, and the front-end switch. */
+/** Language, appearance, and the front-end switch. */
 function GeneralSection() {
   const runtime = useRuntime()
   const t = useT()
@@ -96,11 +97,6 @@ function GeneralSection() {
     runtime.locale.subscribe,
     runtime.locale.getSnapshot,
     runtime.locale.getSnapshot,
-  )
-  const busyEnter = useSyncExternalStore(
-    runtime.busyEnter.subscribe,
-    runtime.busyEnter.getSnapshot,
-    runtime.busyEnter.getSnapshot,
   )
   const theme = runtime.theme
   // ThemeRuntime emits one revision for both palette and font-size writes.
@@ -199,25 +195,6 @@ function GeneralSection() {
                   >+</button>
                 </span>
               )}
-          />
-        </div>
-      </Section>
-      <Section title={t('settings.busyEnter')} body={t('settings.busyEnterBody')}>
-        <div className={css.card}>
-          <Row
-            title={t('settings.busyEnter')}
-            control={(
-              <SelectMenu
-                value={busyEnter}
-                ariaLabel={t('settings.busyEnter')}
-                options={[
-                  { id: 'queue', label: t('settings.busyEnter.queue') },
-                  { id: 'steer', label: t('settings.busyEnter.steer') },
-                ]}
-                disabled={!runtime.busyEnter.writable}
-                onChange={(value) => { runtime.busyEnter.set(value as 'queue' | 'steer') }}
-              />
-            )}
           />
         </div>
       </Section>
@@ -1406,6 +1383,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     subagents: <IconUserOutline16 />,
     plugins: <IconCordisPluginOutline14 size={16} />,
     mcp: <IconApiOutline14 size={16} />,
+    agentWorkflow: <IconSparkle16 />,
     agentPresets: <IconSparkle16 />,
     skills: <IconSkillOutline16 />,
     commands: <IconListPenOutline16 />,
@@ -1429,7 +1407,13 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'commands': return <CommandsSection sessionId={sessionId} />
       case 'plugins': return <PluginSettingsSection />
       case 'mcp': return <PluginSettingsSection mcpOnly />
-      case 'agentPresets': return <AgentPresetsSection />
+      case 'agentWorkflow':
+      case 'agentPresets': return (
+        <>
+          <AgentWorkflowSection sessionId={sessionId} />
+          <AgentPresetsSection />
+        </>
+      )
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'memory':

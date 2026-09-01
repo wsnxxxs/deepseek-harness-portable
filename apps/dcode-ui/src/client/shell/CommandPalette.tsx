@@ -214,9 +214,9 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       id: 'agent-presets',
       kind: 'action',
       group: t('palette.configuration'),
-      label: t('settings.agentPresets'),
+      label: t('settings.agentWorkflow'),
       icon: <IconSparkle16 />,
-      run: () => { navigation.openSettings('agentPresets') },
+      run: () => { navigation.openSettings('agentWorkflow') },
     },
     {
       id: 'official-ui',

@@ -72,6 +72,8 @@ export type SettingsSection =
   | 'memory'
   | 'subagents'
   | 'plugins'
+  | 'agentWorkflow'
+  /** @deprecated Use the unified Agent and workflow page. */
   | 'agentPresets'
   | 'mcp'
   | 'skills'

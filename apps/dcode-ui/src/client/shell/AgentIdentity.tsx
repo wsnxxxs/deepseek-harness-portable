@@ -48,7 +48,7 @@ export function AgentIdentity({ navigation, sessionId }: { navigation: Navigatio
       className={css.trigger}
       title={t('top.agentSettings')}
       aria-label={`${t('top.agent')}: ${label}`}
-      onClick={() => { navigation.openSettings('agentPresets') }}
+      onClick={() => { navigation.openSettings('agentWorkflow') }}
     >
       <span className={css.avatar} aria-hidden><IconAgentPresetOutline16 /></span>
       <span className={css.copy}>
