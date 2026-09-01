@@ -92,7 +92,7 @@
 }
 
 .body {
-  flex: 0 1 auto;
+  flex: 1;
   min-height: 0;
   overflow: hidden auto;
   padding: var(--zx-space-4) var(--zx-space-3) var(--zx-space-6);
