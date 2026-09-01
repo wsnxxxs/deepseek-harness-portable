@@ -13,6 +13,7 @@ contract:
       - '/dsh-tool-'
       - '/dsh-agent-tool-'
       - '/dsh-experimental-tool-'
+      - '@dsh-portable/crew-dossier'
     requiredRows:
       - tool-fs
       - tool-fs-search
@@ -20,6 +21,7 @@ contract:
       - tool-skill
       - tool-goal
       - tool-session-query
+      - crew-dossier
       - tool-agent-team
       - tool-subagent
       - tool-subagent-fork

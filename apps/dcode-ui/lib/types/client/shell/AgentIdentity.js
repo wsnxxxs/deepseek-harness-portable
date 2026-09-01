@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 /**
- * The Metis-style agent identity seat in the chat header.
+ * The DCode-native agent identity seat in the chat header.
  *
  * The label is resolved from the same agent-preset projection and roster used
  * by the composer. It is a navigation affordance, not a second preset store:
@@ -13,7 +13,7 @@ import { useAsync, useProjectionValue } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useRuntime } from "../state/runtime.js";
 import css from './AgentIdentity.module.css';
-/** Current agent identity, patterned after Metis's ChatHeader agent pill. */
+/** Current agent identity, presented as a compact DCode agent pill. */
 export function AgentIdentity({ navigation, sessionId }) {
     const runtime = useRuntime();
     const t = useT();
@@ -25,6 +25,6 @@ export function AgentIdentity({ navigation, sessionId }) {
     const current = useMemo(() => selected ?? presets.find(preset => preset.isDefault)?.id ?? presets[0]?.id, [presets, selected]);
     const row = presets.find(preset => preset.id === current);
     const label = row?.name ?? current ?? t('top.agent');
-    return (_jsxs("button", { type: "button", className: css.trigger, title: t('top.agentSettings'), "aria-label": `${t('top.agent')}: ${label}`, onClick: () => { navigation.openSettings('agentPresets'); }, children: [_jsx("span", { className: css.avatar, "aria-hidden": true, children: _jsx(IconAgentPresetOutline16, {}) }), _jsxs("span", { className: css.copy, children: [_jsx("span", { className: css.kicker, children: t('top.agent') }), _jsx("span", { className: css.name, children: label })] })] }));
+    return (_jsxs("button", { type: "button", className: css.trigger, title: t('top.agentSettings'), "aria-label": `${t('top.agent')}: ${label}`, onClick: () => { navigation.openSettings('agentWorkflow'); }, children: [_jsx("span", { className: css.avatar, "aria-hidden": true, children: _jsx(IconAgentPresetOutline16, {}) }), _jsxs("span", { className: css.copy, children: [_jsx("span", { className: css.kicker, children: t('top.agent') }), _jsx("span", { className: css.name, children: label })] })] }));
 }
 //# sourceMappingURL=AgentIdentity.js.map

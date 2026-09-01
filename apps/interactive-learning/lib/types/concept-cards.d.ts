@@ -1,5 +1,5 @@
 /** User-approved concept cards and their small review schedule. */
-import { type ReanchorOutcome } from './material-reanchor.ts';
+import { type ReanchorOutcome } from '@dsh-portable/space-kernel';
 import { type LearnerConceptRecord, type LearnerMemory } from './learner-memory.ts';
 import { type SourceStructure } from './ingest/types.ts';
 import type { LearnerEvidence, LearnerMastery, LearnerMasteryBasis, LearnerState } from './learner-state.ts';

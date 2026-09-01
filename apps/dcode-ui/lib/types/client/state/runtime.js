@@ -16,7 +16,7 @@
  */
 import { createContext, useContext } from 'react';
 import { UI_MODE_NS } from '@dsh-portable/ui-mode/client';
-import { createLearningCall, createDcodeApi } from "../rpc.js";
+import { createLearningCall, createDcodeApi, createDcodeMemoryApi, } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
 const EMPTY_LIST = [];
 /** Stable empty Chat value used while the Conversation target is starting. */
@@ -53,7 +53,7 @@ export const EMPTY_TRAJECTORY_SNAPSHOT = {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export function createDcodeRuntime(ctx, mode) {
+export function createDcodeRuntime(ctx, mode, cluster) {
     const sessions = ctx.get('sessions');
     const workspaces = ctx.get('workspaces');
     const uiConversation = ctx.get('uiConversation');
@@ -123,8 +123,10 @@ export function createDcodeRuntime(ctx, mode) {
         },
         pendingInteractions: uiSession?.pendingInteractions,
         goals,
+        cluster,
         sessionLogDownload,
         git: createDcodeApi(carrier),
+        memory: createDcodeMemoryApi(carrier),
         learningCall: createLearningCall(carrier),
         // The pack registers this namespace itself; an assembly without it falls
         // back to the raw key, which is still readable and never throws.

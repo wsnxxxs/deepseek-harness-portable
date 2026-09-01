@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /**
- * The floating right card: Git changes, Goal and Progress, and the details of
- * whatever the operator last clicked.
+ * The floating right card: Git changes, Goal and Progress, command output, and
+ * selected subagent details.
  *
  * Goal is the host-computed `goal` projection — the same value the official
  * goal bar renders — and Progress is the session's own todo list, folded from
@@ -10,8 +10,8 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/shell/Aside
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16, IconGoalOutline16, IconSearchOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useAsync, useChatSnapshot, useProjectionValue, useSessionList, useTrajectorySnapshot } from "../state/hooks.js";
+import { IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16, IconGoalOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { adjacentAsideTab, orderedAsideTabs, useNavigation, } from "../state/navigation.js";
 import { useRuntime } from "../state/runtime.js";
@@ -21,7 +21,8 @@ import { Button, CopyButton, EmptyState, Pill, Spinner, ui } from "./ui.js";
 import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, toolDurationMs } from "../chat/tools.js";
 import { AnsiOutput, OutputToolbar } from "../chat/AnsiOutput.js";
 import { stripAnsi } from "../chat/ansi.js";
-import { ChangedFilesOverview, SubagentDetailPanel, SubagentsPanel } from "./AgentInspector.js";
+import { SubagentDetailPanel, SubagentsPanel } from "./AgentInspector.js";
+import { ClusterPanel } from "./ClusterPanel.js";
 import css from './Aside.module.css';
 /** Walk a tool block and its children depth-first. */
 function* walkCalls(block) {
@@ -113,87 +114,6 @@ function GoalPanel({ sessionId }) {
                                         : todo.status === 'in_progress'
                                             ? _jsx("span", { className: css.stepProgress, "aria-hidden": true })
                                             : _jsx("span", { className: css.stepPending, "aria-hidden": true }) }), _jsx("span", { children: todo.content })] }, `${String(index)}:${todo.content}`)))] })] }));
-}
-/** Arguments and output of the tool call the operator last opened. */
-function DetailsPanel({ sessionId, callId, cwd, diff, }) {
-    const runtime = useRuntime();
-    const t = useT();
-    const chat = useChatSnapshot(sessionId);
-    const trajectory = useTrajectorySnapshot(sessionId);
-    const [wrap, setWrap] = useState(true);
-    const block = useMemo(() => {
-        if (callId === undefined)
-            return undefined;
-        const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
-            ? chat?.legacy.nodes ?? []
-            : trajectory.eventNodes;
-        for (const node of nodes) {
-            if (node.kind !== 'tool-result')
-                continue;
-            for (const candidate of walkCalls(node)) {
-                if (candidate.callId === callId)
-                    return candidate;
-            }
-        }
-        const runningCalls = trajectory === undefined || trajectory.runningCalls.length === 0
-            ? chat?.legacy.runningCalls ?? []
-            : trajectory.runningCalls;
-        for (const running of runningCalls) {
-            for (const candidate of walkCalls(running)) {
-                if (candidate.callId === callId)
-                    return candidate;
-            }
-        }
-        return undefined;
-    }, [chat, trajectory, callId]);
-    const filePath = block === undefined ? diff?.path : undefined;
-    const fileRead = useAsync(async () => {
-        if (cwd === undefined || filePath === undefined)
-            return undefined;
-        return {
-            cwd,
-            path: filePath,
-            result: await runtime.git.readFile(cwd, filePath),
-        };
-    }, [runtime, cwd, filePath]);
-    // Keep a previous file from appearing while a changed target is loading.
-    const loadedFile = fileRead.value;
-    const currentFile = loadedFile !== undefined && loadedFile.cwd === cwd && loadedFile.path === filePath
-        ? loadedFile.result
-        : undefined;
-    if (block === undefined) {
-        if (diff === undefined)
-            return _jsx(EmptyState, { children: t('details.none') });
-        if (fileRead.loading)
-            return _jsx(EmptyState, { children: _jsx(Spinner, {}) });
-        if (fileRead.error !== undefined)
-            return _jsx(EmptyState, { children: fileRead.error });
-        if (currentFile === undefined)
-            return _jsx(EmptyState, { children: t('common.error') });
-        if (currentFile.ok === false)
-            return _jsx(EmptyState, { children: currentFile.error.message || t('common.error') });
-        return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: t('details.file') }), _jsxs("span", { className: css.fileMeta, children: [currentFile.value.size, " B"] })] }), _jsx("div", { className: css.filePath, title: currentFile.value.path, children: _jsx("bdi", { children: currentFile.value.path }) }), _jsxs("div", { className: css.fileMeta, children: [currentFile.value.binary ? _jsx(Pill, { children: t('git.binary') }) : null, currentFile.value.truncated ? _jsx(Pill, { children: t('git.truncated') }) : null] }), currentFile.value.binary
-                    ? _jsx(EmptyState, { children: t('git.binary') })
-                    : _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.file'), children: currentFile.value.text })] }));
-    }
-    const settled = 'isError' in block;
-    const name = settled ? block.call?.name ?? 'tool' : block.name;
-    const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
-    const summary = summarizeTool(name, argsRaw);
-    const output = settled ? resultText(block.content) : '';
-    const locate = () => {
-        const target = [...document.querySelectorAll('[data-tool-call-id]')]
-            .find(element => element.dataset.toolCallId === callId);
-        if (target === undefined)
-            return;
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        target.querySelector('[data-tool-call-id] button, [data-tool-call-id] .headMain')?.focus({ preventScroll: true });
-    };
-    return (_jsxs("section", { className: css.section, children: [_jsxs("header", { className: css.sectionHead, children: [_jsx("span", { className: ui.grow, children: name }), _jsx(Pill, { children: summary.kind }), _jsx("button", { type: "button", className: css.locateButton, "aria-label": t('details.locate'), title: t('details.locate'), onClick: locate, children: _jsx(IconSearchOutline16, {}) })] }), _jsxs("div", { className: css.detailBlock, children: [_jsx("span", { className: css.detailLabel, children: t('details.arguments') }), _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.arguments'), children: argsRaw ?? '—' })] }), settled
-                ? (_jsxs("div", { className: css.detailBlock, children: [_jsxs("span", { className: css.detailRow, children: [_jsx("span", { className: css.detailLabel, children: t('details.output') }), output === '' ? null : _jsx(OutputToolbar, { text: output, wrap: wrap, onWrap: setWrap })] }), output === ''
-                            ? _jsx("pre", { className: css.pre, tabIndex: 0, role: "region", "aria-label": t('details.output'), children: "\u2014" })
-                            : _jsx(AnsiOutput, { text: output, wrap: wrap })] }))
-                : null] }));
 }
 /** Recover the exit marker emitted by the shipped bash/pwsh tools. */
 function commandExit(text, isError, defaultZero, background, t) {
@@ -314,18 +234,18 @@ function CommandOutputPanel({ sessionId, onLocated }) {
 }
 /** The docked preview sidebar with its content views. */
 export function Aside({ navigation, sessionId, cwd, context }) {
+    const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
-    const list = useSessionList();
+    const selectedPreset = useProjectionValue(sessionId, 'agentPreset');
     const [selectedSubagent, setSelectedSubagent] = useState();
     const tabPrefix = useId();
-    const tabRefs = useRef({ changes: null, terminal: null, goal: null, details: null });
+    const tabRefs = useRef({ changes: null, terminal: null, goal: null });
     useEffect(() => { setSelectedSubagent(undefined); }, [sessionId]);
     const labels = {
         changes: t('git.changes'),
         terminal: t('aside.commandOutput'),
         goal: t('aside.inspector'),
-        details: t('details.title'),
     };
     const tabOrder = orderedAsideTabs(context);
     const tabs = tabOrder.map(id => ({ id, label: labels[id] }));
@@ -344,7 +264,7 @@ export function Aside({ navigation, sessionId, cwd, context }) {
         navigation.openAside(next);
         tabRefs.current[next]?.focus();
     };
-    return (_jsxs("aside", { className: css.aside, "aria-label": t('details.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.headerTitle, children: t('aside.title') }), _jsx("button", { type: "button", className: css.headerClose, "aria-label": t('aside.close'), onClick: () => { navigation.toggleAside(); }, children: _jsx(IconCloseOutline16, {}) })] }), _jsxs("div", { className: css.tabs, role: "tablist", "aria-label": t('aside.title'), children: [tabs.map((tab, index) => (_jsx("button", { ref: element => { tabRefs.current[tab.id] = element; }, type: "button", role: "tab", id: `${tabPrefix}-${tab.id}`, "aria-selected": state.aside === tab.id, "aria-controls": panelId, tabIndex: state.aside === tab.id ? 0 : -1, className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, onKeyDown: event => { moveTab(event, index); }, children: tab.label }, tab.id))), _jsx("span", { className: css.tabIndicator, style: { transform: `translateX(${String(tabOrder.indexOf(state.aside) * 100)}%)` }, "aria-hidden": true })] }), _jsxs("div", { id: panelId, className: css.body, role: "tabpanel", tabIndex: 0, "aria-labelledby": `${tabPrefix}-${state.aside}`, "aria-label": tabs.find(tab => tab.id === state.aside)?.label, children: [state.aside === 'changes'
+    return (_jsxs("aside", { className: css.aside, "aria-label": t('aside.title'), children: [_jsxs("header", { className: `${css.header} ${ui.cardHeader}`, children: [_jsx("span", { className: css.headerTitle, children: t('aside.title') }), _jsx("button", { type: "button", className: css.headerClose, "aria-label": t('aside.close'), onClick: () => { navigation.toggleAside(); }, children: _jsx(IconCloseOutline16, {}) })] }), _jsxs("div", { className: css.tabs, role: "tablist", "aria-label": t('aside.title'), children: [tabs.map((tab, index) => (_jsx("button", { ref: element => { tabRefs.current[tab.id] = element; }, type: "button", role: "tab", id: `${tabPrefix}-${tab.id}`, "aria-selected": state.aside === tab.id, "aria-controls": panelId, tabIndex: state.aside === tab.id ? 0 : -1, className: `${css.tab} ${state.aside === tab.id ? css.tabActive : ''}`, onClick: () => { navigation.openAside(tab.id); }, onKeyDown: event => { moveTab(event, index); }, children: tab.label }, tab.id))), _jsx("span", { className: css.tabIndicator, style: { transform: `translateX(${String(tabOrder.indexOf(state.aside) * 100)}%)` }, "aria-hidden": true })] }), _jsxs("div", { id: panelId, className: css.body, role: "tabpanel", tabIndex: 0, "aria-labelledby": `${tabPrefix}-${state.aside}`, "aria-label": tabs.find(tab => tab.id === state.aside)?.label, children: [state.aside === 'changes'
                         ? (_jsxs("div", { className: css.reviewLayout, children: [_jsx(GitPanel, { cwd: cwd, sessionId: sessionId, selected: state.diff, onOpenDiff: (path, staged) => { navigation.openDiff(path, staged); } }), state.diff === undefined || cwd === undefined
                                     ? null
                                     : (_jsx(DiffViewer, { cwd: cwd, path: state.diff.path, staged: state.diff.staged, onClose: () => { navigation.closeDiff(); } }))] }))
@@ -352,10 +272,10 @@ export function Aside({ navigation, sessionId, cwd, context }) {
                         ? _jsx(CommandOutputPanel, { sessionId: sessionId, onLocated: () => { navigation.closeCompactOverlay(); } })
                         : null, state.aside === 'goal'
                         ? selectedSubagent === undefined || sessionId === undefined
-                            ? (_jsxs(_Fragment, { children: [_jsx(ChangedFilesOverview, { cwd: cwd, sessionId: sessionId, onOpenDiff: (path, staged) => { navigation.openDiff(path, staged); } }), _jsx(GoalPanel, { sessionId: sessionId }), _jsx(SubagentsPanel, { sessionId: sessionId, onSelect: setSelectedSubagent })] }))
+                            ? (_jsxs(_Fragment, { children: [selectedPreset === 'crew' && runtime.cluster !== undefined
+                                        ? _jsx(ClusterPanel, { sessionId: sessionId })
+                                        : null, _jsx(GoalPanel, { sessionId: sessionId }), _jsx(SubagentsPanel, { sessionId: sessionId, onSelect: setSelectedSubagent })] }))
                             : (_jsx(SubagentDetailPanel, { parentSessionId: sessionId, entry: selectedSubagent, navigation: navigation, onBack: () => { setSelectedSubagent(undefined); } }))
-                        : null, state.aside === 'details'
-                        ? (_jsx(DetailsPanel, { sessionId: selectedSubagent?.id ?? sessionId, callId: state.inspectedCallId, cwd: selectedSubagent === undefined ? cwd : list.byId[selectedSubagent.id]?.cwd ?? cwd, diff: state.diff }))
                         : null] })] }));
 }
 //# sourceMappingURL=Aside.js.map

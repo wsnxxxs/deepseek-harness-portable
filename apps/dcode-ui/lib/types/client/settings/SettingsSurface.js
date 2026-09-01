@@ -13,7 +13,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14, IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16, IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16, IconPlusOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16, IconPersonalizationOutline16, IconPlusOutline16, IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useAsync, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -27,16 +27,16 @@ import { UsageCards, usageCardStyles } from "./UsageCards.js";
 import usageCardClasses from './UsageCards.module.css';
 import { SelectMenu } from "./SelectMenu.js";
 import { PluginSettingsSection } from "./PluginSettingsSection.js";
+import { AgentWorkflowSection } from "./AgentWorkflowSection.js";
 import { providerReadiness, providerRemovable, visibleProviderRows, } from "./provider-readiness.js";
 import css from './SettingsSurface.module.css';
-/** Rail layout: the settings pages visible in the workbench. */
 const RAIL = [
+    // Keep this order and wording aligned with the official DSH SettingsRoot.
     { id: 'general', label: 'settings.general' },
-    { id: 'models', label: 'settings.models' },
+    { id: 'models', label: 'settings.modelsNav' },
+    { id: 'plugins', label: 'settings.pluginsNav' },
     { id: 'agentPresets', label: 'settings.agentPresets' },
-    { id: 'plugins', label: 'settings.plugins' },
-    { id: 'commands', label: 'settings.commands' },
-    { id: 'usage', label: 'settings.usage' },
+    { id: 'about', label: 'settings.about' },
 ];
 /** A titled block with an explanatory line. */
 function Section(props) {
@@ -46,13 +46,28 @@ function Section(props) {
 function Row(props) {
     return (_jsxs("div", { className: css.row, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: props.title }), props.body === undefined ? null : _jsx("div", { className: css.rowBody, children: props.body })] }), props.control] }));
 }
-/** Language, appearance, busy Enter, and the front-end switch. */
+/** Read the same public build metadata used by the shared DSH client shell. */
+function clientBuildInfo() {
+    const version = process.env.DSH_CLIENT_VERSION?.trim() || undefined;
+    const commit = process.env.DSH_CLIENT_COMMIT_HASH?.trim() || undefined;
+    return {
+        version,
+        commit,
+        dirty: process.env.DSH_CLIENT_GIT_DIRTY === 'true',
+    };
+}
+/** Product identity and build metadata for the DCode settings rail. */
+function AboutSection() {
+    const t = useT();
+    const build = clientBuildInfo();
+    return (_jsxs(Section, { title: t('settings.about'), body: t('settings.aboutBody'), children: [_jsxs("div", { className: css.aboutHero, children: [_jsx("div", { className: css.aboutIcon, "aria-hidden": "true", children: _jsx(IconQuestionOutline14, { size: 18 }) }), _jsxs("div", { className: css.aboutCopy, children: [_jsx("h3", { className: css.aboutName, children: t('settings.aboutProduct') }), _jsx("p", { className: css.aboutDescription, children: t('settings.aboutDescription') })] })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.aboutVersion'), body: t('settings.aboutVersionBody'), control: _jsx("span", { className: css.rowMono, children: build.version === undefined ? t('settings.aboutVersionDevelopment') : `v${build.version}` }) }), build.commit === undefined ? null : (_jsx(Row, { title: t('settings.aboutCommit'), control: _jsx("span", { className: css.rowMono, children: build.commit }) })), build.commit === undefined ? null : (_jsx(Row, { title: t('settings.aboutBuild'), control: (_jsx("span", { className: `${css.badge} ${build.dirty ? css.aboutStatusDirty : css.aboutStatusClean}`, children: build.dirty ? t('settings.aboutBuildDirty') : t('settings.aboutBuildClean') })) }))] })] }));
+}
+/** Language, appearance, and the front-end switch. */
 function GeneralSection() {
     const runtime = useRuntime();
     const t = useT();
     const uiModeT = runtime.uiModeT;
     const locale = useSyncExternalStore(runtime.locale.subscribe, runtime.locale.getSnapshot, runtime.locale.getSnapshot);
-    const busyEnter = useSyncExternalStore(runtime.busyEnter.subscribe, runtime.busyEnter.getSnapshot, runtime.busyEnter.getSnapshot);
     const theme = runtime.theme;
     // ThemeRuntime emits one revision for both palette and font-size writes.
     // The appearance store carries that notification while remaining optional.
@@ -80,10 +95,7 @@ function GeneralSection() {
                                         ...(snapshot?.themes ?? []).map(entry => ({ id: entry.id, label: entry.id })),
                                     ], onChange: (value) => { theme?.setTheme?.(value); } })) })), _jsx(Row, { title: uiModeT('interface'), body: uiModeT('interface.body'), control: _jsx(UiModeSwitch, {}) }), _jsx(Row, { title: t('settings.fontSize'), control: !canSetFontSize
                                 ? _jsx("span", { className: css.badge, children: fontSize })
-                                : (_jsxs("span", { className: css.stepper, children: [_jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} −`, disabled: fontSize <= 11, onClick: () => { setFontSize(Math.max(11, fontSize - 1)); }, children: "\u2212" }), _jsx("span", { className: css.stepperValue, children: fontSize }), _jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} +`, disabled: fontSize >= 22, onClick: () => { setFontSize(Math.min(22, fontSize + 1)); }, children: "+" })] })) })] }) }), _jsx(Section, { title: t('settings.busyEnter'), body: t('settings.busyEnterBody'), children: _jsx("div", { className: css.card, children: _jsx(Row, { title: t('settings.busyEnter'), control: (_jsx(SelectMenu, { value: busyEnter, ariaLabel: t('settings.busyEnter'), options: [
-                                { id: 'queue', label: t('settings.busyEnter.queue') },
-                                { id: 'steer', label: t('settings.busyEnter.steer') },
-                            ], disabled: !runtime.busyEnter.writable, onChange: (value) => { runtime.busyEnter.set(value); } })) }) }) })] }));
+                                : (_jsxs("span", { className: css.stepper, children: [_jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} −`, disabled: fontSize <= 11, onClick: () => { setFontSize(Math.max(11, fontSize - 1)); }, children: "\u2212" }), _jsx("span", { className: css.stepperValue, children: fontSize }), _jsx("button", { type: "button", className: css.stepperButton, "aria-label": `${t('settings.fontSize')} +`, disabled: fontSize >= 22, onClick: () => { setFontSize(Math.min(22, fontSize + 1)); }, children: "+" })] })) })] }) })] }));
 }
 function objectAt(source, path) {
     let current = source;
@@ -473,13 +485,13 @@ function ModelsSection(props) {
     const visible = focused === undefined
         ? configured
         : [focused, ...configured.filter(row => row.id !== focused.id)];
-    return (_jsxs("section", { className: `${css.section} ${css.modelsSection}`, children: [_jsxs("div", { className: css.modelsHeader, children: [_jsxs("div", { children: [_jsx("h2", { className: css.modelsTitle, children: t('settings.models') }), _jsx("p", { className: css.sectionBody, children: t('settings.modelsBody') })] }), value.hasDocument
-                        ? _jsx(Button, { onClick: () => { void runtime.remote.settings.openSettingsDocument(); }, children: t('settings.openOfficialSettings') })
-                        : null] }), value.credentialError === undefined ? null : _jsx("div", { className: css.notice, children: `${t('settings.models.credentialWarning')}: ${value.credentialError}` }), _jsxs("div", { className: css.providerList, children: [visible.map(row => (_jsx(ModelProviderCard, { row: row, writable: value.writable, initiallyOpen: row.id === props.focusedProvider, onReload: models.reload, onSaved: row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined }, row.id))), visible.length === 0 ? _jsx("div", { className: css.modelsEmpty, children: t('settings.models.empty') }) : null] }), draft === undefined ? null : (_jsx(ModelProviderCard, { row: draft, writable: value.writable, initiallyOpen: true, onReload: models.reload, onClose: () => { setAddingProvider(undefined); } }, `add-${draft.id}`)), addingCustom
-                ? _jsx(CustomProviderForm, { rows: value.providers, writable: value.writable, onCancel: () => { setAddingCustom(false); }, onCreated: () => { setAddingCustom(false); models.reload(); } })
-                : null, draft === undefined && !addingCustom
-                ? (_jsxs("div", { className: css.addActions, children: [_jsx("div", { className: css.addSelect, children: _jsx(SelectMenu, { value: "", ariaLabel: t('settings.models.addProvider'), placeholder: _jsxs(_Fragment, { children: [_jsx(IconPlusOutline16, {}), t('settings.models.addProvider')] }), disabled: !value.writable || addable.length === 0, options: addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id })), onChange: (provider) => { setAddingProvider(provider); setAddingCustom(false); } }) }), _jsxs("button", { type: "button", className: css.addButton, disabled: !value.writable, onClick: () => { setAddingCustom(true); setAddingProvider(undefined); }, children: [_jsx(IconPlusOutline16, {}), t('settings.models.addCustomProvider')] })] }))
-                : null, value.catalog.failures.length === 0 ? null : (_jsxs("details", { className: css.modelFailures, children: [_jsxs("summary", { children: [t('settings.models.failures'), " (", value.catalog.failures.length, ")"] }), value.catalog.failures.map(failure => _jsxs("p", { children: [failure.name, ": ", failure.message] }, failure.id))] }))] }));
+    return (_jsxs(_Fragment, { children: [_jsxs("section", { className: `${css.section} ${css.modelsSection}`, children: [_jsxs("div", { className: css.modelsHeader, children: [_jsxs("div", { children: [_jsx("h2", { className: css.modelsTitle, children: t('settings.models') }), _jsx("p", { className: css.sectionBody, children: t('settings.modelsBody') })] }), value.hasDocument
+                                ? _jsx(Button, { onClick: () => { void runtime.remote.settings.openSettingsDocument(); }, children: t('settings.openOfficialSettings') })
+                                : null] }), value.credentialError === undefined ? null : _jsx("div", { className: css.notice, children: `${t('settings.models.credentialWarning')}: ${value.credentialError}` }), _jsxs("div", { className: css.providerList, children: [visible.map(row => (_jsx(ModelProviderCard, { row: row, writable: value.writable, initiallyOpen: row.id === props.focusedProvider, onReload: models.reload, onSaved: row.id === props.focusedProvider ? props.onFocusedProviderSaved : undefined }, row.id))), visible.length === 0 ? _jsx("div", { className: css.modelsEmpty, children: t('settings.models.empty') }) : null] }), draft === undefined ? null : (_jsx(ModelProviderCard, { row: draft, writable: value.writable, initiallyOpen: true, onReload: models.reload, onClose: () => { setAddingProvider(undefined); } }, `add-${draft.id}`)), addingCustom
+                        ? _jsx(CustomProviderForm, { rows: value.providers, writable: value.writable, onCancel: () => { setAddingCustom(false); }, onCreated: () => { setAddingCustom(false); models.reload(); } })
+                        : null, draft === undefined && !addingCustom
+                        ? (_jsxs("div", { className: css.addActions, children: [_jsx("div", { className: css.addSelect, children: _jsx(SelectMenu, { value: "", ariaLabel: t('settings.models.addProvider'), placeholder: _jsxs(_Fragment, { children: [_jsx(IconPlusOutline16, {}), t('settings.models.addProvider')] }), disabled: !value.writable || addable.length === 0, options: addable.map(row => ({ id: row.id, label: providerOptionLabel(row), detail: row.id })), onChange: (provider) => { setAddingProvider(provider); setAddingCustom(false); } }) }), _jsxs("button", { type: "button", className: css.addButton, disabled: !value.writable, onClick: () => { setAddingCustom(true); setAddingProvider(undefined); }, children: [_jsx(IconPlusOutline16, {}), t('settings.models.addCustomProvider')] })] }))
+                        : null, value.catalog.failures.length === 0 ? null : (_jsxs("details", { className: css.modelFailures, children: [_jsxs("summary", { children: [t('settings.models.failures'), " (", value.catalog.failures.length, ")"] }), value.catalog.failures.map(failure => _jsxs("p", { children: [failure.name, ": ", failure.message] }, failure.id))] }))] }), _jsx(UsageSection, {})] }));
 }
 /** Human-invocable skills visible to the current session. */
 function SkillsSection({ sessionId }) {
@@ -773,25 +785,73 @@ function UsageSection() {
                             usageSessions: formatTokenCount(totals.usageSessions),
                         }) })] }), _jsx(UsageCards, { list: list, t: t, styles: usageCardCss }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
 }
+/** Map direct actions to the official-first navigation groups shown by the modal. */
+function settingsNavSection(section) {
+    switch (section) {
+        case 'models': return 'models';
+        case 'plugins':
+        case 'mcp': return 'plugins';
+        case 'agentWorkflow':
+        case 'agentPresets':
+        case 'memory':
+        case 'subagents': return 'agentPresets';
+        case 'data':
+        case 'skills':
+        case 'commands':
+        case 'usage': return 'data';
+        case 'about': return 'about';
+        case 'general':
+        case 'appearance': return 'general';
+    }
+}
+/** The title shown in the modal content header for a selected page. */
+function settingsTitleKey(section) {
+    switch (section) {
+        case 'models': return 'settings.modelsNav';
+        case 'plugins':
+        case 'mcp': return 'settings.pluginsNav';
+        case 'agentWorkflow':
+        case 'agentPresets':
+        case 'memory':
+        case 'subagents': return 'settings.agentPresets';
+        case 'data':
+        case 'skills':
+        case 'commands':
+        case 'usage': return 'settings.dataAndAbout';
+        case 'about': return 'settings.about';
+        case 'general':
+        case 'appearance': return 'settings.general';
+    }
+}
+/** Skills, commands, and usage records grouped under one DCode-only data page. */
+function DataSection({ sessionId }) {
+    return (_jsxs(_Fragment, { children: [_jsx(SkillsSection, { sessionId: sessionId }), _jsx(CommandsSection, { sessionId: sessionId }), _jsx(UsageSection, {})] }));
+}
 /** The settings rail and the selected section. */
 export function SettingsSurface({ navigation, sessionId }) {
     const t = useT();
     const state = useNavigation(navigation);
+    const panelRef = useRef(null);
+    const closeRef = useRef(null);
+    const [query, setQuery] = useState('');
     useEffect(() => () => { navigation.patch({ settingsProvider: undefined }); }, [navigation]);
+    const close = useCallback(() => { navigation.show('session'); }, [navigation]);
+    useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose: close });
     const icons = {
         general: _jsx(IconSettingsOutline16, {}),
-        models: _jsx(IconApiOutline14, { size: 16 }),
-        browser: _jsx(IconBrowseOutline16, {}),
-        computer: _jsx(IconCodeOutline16, {}),
-        memory: _jsx(IconDataOutline16, {}),
-        subagents: _jsx(IconUserOutline16, {}),
-        plugins: _jsx(IconCordisPluginOutline14, { size: 16 }),
-        mcp: _jsx(IconApiOutline14, { size: 16 }),
-        agentPresets: _jsx(IconSparkle16, {}),
-        skills: _jsx(IconSkillOutline16, {}),
-        commands: _jsx(IconListPenOutline16, {}),
-        usage: _jsx(IconDataOutline16, {}),
+        models: _jsx(IconDataOutline16, {}),
+        plugins: _jsx(IconPersonalizationOutline16, {}),
+        agentPresets: _jsx(IconAgentPresetOutline16, {}),
+        data: _jsx(IconDatabaseOutline16, {}),
+        about: _jsx(IconQuestionOutline14, {}),
     };
+    const activeNav = settingsNavSection(state.settingsSection);
+    const visibleRail = useMemo(() => {
+        const needle = query.trim().toLocaleLowerCase();
+        if (needle === '')
+            return RAIL;
+        return RAIL.filter(item => t(item.label).toLocaleLowerCase().includes(needle));
+    }, [query, t]);
     // `settings.section` is declared by the official settings shell, and a slot
     // has exactly one declarer, so the workbench cannot own a renderSlot for it.
     // Every page below is therefore DCode's own implementation.
@@ -804,24 +864,18 @@ export function SettingsSurface({ navigation, sessionId }) {
             case 'commands': return _jsx(CommandsSection, { sessionId: sessionId });
             case 'plugins': return _jsx(PluginSettingsSection, {});
             case 'mcp': return _jsx(PluginSettingsSection, { mcpOnly: true });
-            case 'agentPresets': return _jsx(AgentPresetsSection, {});
+            case 'data': return _jsx(DataSection, { sessionId: sessionId });
+            case 'agentPresets': return (_jsxs(_Fragment, { children: [_jsx(AgentWorkflowSection, { sessionId: sessionId }), _jsx(AgentPresetsSection, {}), _jsx(SubagentsSection, { sessionId: sessionId })] }));
+            case 'agentWorkflow': return _jsx(AgentWorkflowSection, { sessionId: sessionId });
             case 'subagents': return _jsx(SubagentsSection, { sessionId: sessionId });
             case 'usage': return _jsx(UsageSection, {});
+            case 'about': return _jsx(AboutSection, {});
             case 'memory':
                 return _jsx(NamespaceSection, { title: t('settings.memory'), body: t('settings.memoryBody'), match: /memor|context|compaction/i });
-            case 'browser':
-                return _jsx(NamespaceSection, { title: t('settings.browser'), body: t('settings.browserBody'), match: /browser|web|vision/i });
-            case 'computer':
-                return _jsx(NamespaceSection, { title: t('settings.computer'), body: t('settings.computerBody'), match: /shell|terminal|sandbox|permission/i });
             default:
                 return _jsx(GeneralSection, {});
         }
     };
-    return (_jsxs("div", { className: css.surface, onKeyDown: (event) => {
-            if (event.key !== 'Escape' || event.defaultPrevented)
-                return;
-            event.preventDefault();
-            navigation.show('session');
-        }, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), RAIL.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`, "aria-current": state.settingsSection === item.id ? 'page' : undefined, onClick: () => { navigation.openSettings(item.id); }, children: [icons[item.id] ?? _jsx(IconFollowsystemOutline16, {}), t(item.label)] }, item.id)))] }), _jsx("div", { className: css.body, children: _jsxs("div", { className: css.inner, children: [_jsx("h1", { className: css.title, children: t('settings.title') }), body()] }) })] }));
+    return (_jsxs("div", { className: css.overlay, role: "presentation", children: [_jsx("div", { className: css.mask, "aria-hidden": "true", onClick: close }), _jsxs("div", { ref: panelRef, className: css.panel, role: "dialog", "aria-modal": "true", "aria-labelledby": "dcode-settings-dialog-title", tabIndex: -1, children: [_jsxs("nav", { className: css.rail, "aria-label": t('settings.title'), children: [_jsx("h1", { className: css.railTitle, id: "dcode-settings-dialog-title", children: t('settings.title') }), _jsxs("label", { className: css.searchShell, children: [_jsx(IconSearchOutline16, { className: css.searchIcon }), _jsx("input", { className: css.search, type: "search", value: query, placeholder: t('settings.search'), "aria-label": t('settings.search'), onChange: event => { setQuery(event.target.value); } })] }), _jsx("div", { className: css.navList, children: visibleRail.map(item => (_jsxs("button", { type: "button", className: `${css.item} ${activeNav === item.id ? css.itemActive : ''}`, "aria-current": activeNav === item.id ? 'page' : undefined, onClick: () => { setQuery(''); navigation.openSettings(item.id); }, children: [icons[item.id], t(item.label)] }, item.id))) }), visibleRail.length === 0 ? _jsx("p", { className: css.searchEmpty, children: t('settings.searchEmpty') }) : null] }), _jsxs("main", { className: css.content, children: [_jsxs("header", { className: css.header, children: [_jsx("h2", { className: css.title, children: t(settingsTitleKey(state.settingsSection)) }), _jsx("button", { ref: closeRef, type: "button", className: css.close, onClick: close, "aria-label": t('common.close'), children: _jsx(IconCloseOutline16, { size: 14 }) })] }), _jsx("div", { className: css.body, children: _jsx("div", { className: css.inner, children: body() }) })] })] })] }));
 }
 //# sourceMappingURL=SettingsSurface.js.map

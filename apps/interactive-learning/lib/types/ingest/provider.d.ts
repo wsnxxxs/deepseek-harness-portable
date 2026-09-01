@@ -1,31 +1,11 @@
-/** Source-provider seam for the directory-backed ingest pipeline. */
-import type { ParsedSource } from './types.ts';
-import type { Space } from '../space/index.ts';
-/** References accepted by the first provider; more kinds can join without changing ingest. */
-export interface FileSourceRef {
-    kind: 'file';
-    path: string;
-    sourceId?: string;
-    fileName?: string;
-}
-export type SourceRef = FileSourceRef;
-export interface AcquiredBytes {
-    bytes: Uint8Array;
-    fileName: string;
-    sourceId?: string;
-    originPath?: string;
-}
-export interface SourceProvider {
-    readonly id: string;
-    canHandle(ref: SourceRef): boolean;
-    acquire(ref: SourceRef, space: Space): Promise<AcquiredBytes>;
-    parse(acquired: AcquiredBytes): Promise<ParsedSource>;
-}
 /**
- * Adapter around the existing byte parser. The public `ingestSource` function
- * remains the write-and-reanchor entry point; this provider only standardizes
- * acquisition and parsing for future URL/text providers.
+ * Moved to `@dsh-portable/space-kernel`.
+ *
+ * The ingest, citation and index machinery is not specific to teaching: a
+ * mission dossier grounds an agent in attached documents the same way a lesson
+ * grounds a learner. It now lives in its own package, and this file re-exports
+ * its counterpart so every caller in this pack keeps its existing import.
+ * @module @dsh-portable/interactive-learning/ingest/provider
  */
-export declare const fileProvider: SourceProvider;
-export declare const SOURCE_PROVIDERS: readonly SourceProvider[];
+export * from '@dsh-portable/space-kernel/ingest/provider';
 //# sourceMappingURL=provider.d.ts.map

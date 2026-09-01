@@ -27,6 +27,7 @@ function modeLabel(id, fallback, t) {
         case 'ptc': return t('composer.mode.ptc');
         case 'minimal': return t('composer.mode.minimal');
         case 'cordis': return t('composer.mode.cordis');
+        case 'crew': return t('composer.mode.crew');
         default: return fallback;
     }
 }
@@ -77,6 +78,21 @@ function referenceQuery(value, caret) {
     const match = /(?:^|\s)@([^\s@]*)$/.exec(value.slice(0, caret));
     return match?.[1];
 }
+/** Resolve a selected or dropped local path through the desktop bridge. */
+function filePathInfo(file) {
+    const desktop = globalThis.deepSeekDesktop;
+    const resolved = desktop?.getPathInfoForFile?.(file);
+    if (resolved?.path !== undefined && resolved.path !== '')
+        return resolved;
+    const relativePath = file.webkitRelativePath;
+    return relativePath === undefined || relativePath === ''
+        ? undefined
+        : { path: relativePath, isDirectory: false };
+}
+function fileMention(info) {
+    const path = info.isDirectory && !/[\\/]$/.test(info.path) ? `${info.path}/` : info.path;
+    return /\s/.test(path) ? `@"${path}"` : `@${path}`;
+}
 function fileKind(name) {
     const extension = name.split('.').pop()?.toLocaleLowerCase();
     if (extension !== undefined && ['zip', 'rar', '7z', 'tar', 'gz'].includes(extension))
@@ -108,7 +124,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const { input, state: inputState } = useSessionInput(sessionId);
     const permissions = useProjectionValue(sessionId, 'permissions');
     const agentPreset = useProjectionValue(sessionId, 'agentPreset');
-    const plan = useProjectionValue(sessionId, 'plan');
     const busyEnter = useObservable(runtime.busyEnter, 'queue');
     const [fallbackDraft, setFallbackDraft] = useState('');
     const [focused, setFocused] = useState(false);
@@ -126,7 +141,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const [queueBusy, setQueueBusy] = useState(false);
     const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
     const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false);
-    const [planBusy, setPlanBusy] = useState(false);
     const inputRef = useRef(null);
     const shellRef = useRef(null);
     const attachmentInputRef = useRef(null);
@@ -190,7 +204,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const commandCatalog = useAsync(async () => (sessionId === undefined ? undefined : await runtime.remote.commands.list(sessionId)), [runtime, sessionId]);
     const skillCatalog = useAsync(async () => (sessionId === undefined ? undefined : await runtime.remote.skills.list({ sessionId }, new AbortController().signal)), [runtime, sessionId]);
     const running = session?.running === true;
-    const planTarget = plan === undefined ? undefined : plan.pending ? !plan.active : plan.active;
     const roster = presets.value?.ok === true ? presets.value.value.presets : [];
     const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id;
     const blankSession = (blank ?? session?.blank ?? false) && !running;
@@ -277,22 +290,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         })
             .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); });
     }, [runtime, sessionId]);
-    const selectPlanMode = useCallback((active) => {
-        if (sessionId === undefined || plan === undefined || planBusy)
-            return;
-        const target = plan.pending ? !plan.active : plan.active;
-        if (target === active)
-            return;
-        setPlanBusy(true);
-        setError(undefined);
-        void runtime.remote.commands.execute(sessionId, active ? '/plan' : '/plan off', [])
-            .then((result) => {
-            if (!result.ok)
-                setError(result.error.message);
-        })
-            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
-            .finally(() => { setPlanBusy(false); });
-    }, [plan, planBusy, runtime, sessionId]);
     const selectPreset = useCallback((id) => {
         if (sessionId === undefined || !blankSession)
             return;
@@ -353,6 +350,21 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         });
     }, [updateDraft]);
+    const addRows = useMemo(() => [
+        {
+            id: 'files-and-folders',
+            group: t('composer.add'),
+            label: t('composer.filesAndFolders'),
+            icon: _jsx(IconPaperclipOutline16, {}),
+            onSelect: () => { attachmentInputRef.current?.click(); },
+        },
+        ...commands.map(command => ({
+            id: `command:${command.name}`,
+            group: t('composer.commandList'),
+            label: (_jsxs("span", { className: css.addCommandLabel, children: [_jsx("span", { className: css.addCommandName, children: command.name }), _jsx("span", { className: css.addCommandDescription, children: command.description })] })),
+            onSelect: () => { completeCommand(command); },
+        })),
+    ], [commands, completeCommand, t]);
     const addAttachments = useCallback((files) => {
         if (files.length === 0)
             return;
@@ -374,6 +386,71 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             setError(cause instanceof Error ? cause.message : String(cause));
         }
     }, [conversation, input, t]);
+    const addSelectedFiles = useCallback((files) => {
+        if (files.length === 0)
+            return;
+        const entries = files.map(file => ({ file, info: filePathInfo(file) }));
+        const pathEntries = entries.filter((entry) => entry.info !== undefined);
+        const imageFallbacks = entries
+            .filter(entry => entry.info === undefined && entry.file.type.startsWith('image/'))
+            .map(entry => entry.file);
+        const unresolvedFiles = entries.filter(entry => entry.info === undefined && !entry.file.type.startsWith('image/'));
+        if (imageFallbacks.length > 0)
+            addAttachments(imageFallbacks);
+        if (pathEntries.length === 0) {
+            if (unresolvedFiles.length > 0)
+                setError(t('composer.filePathUnavailable'));
+            return;
+        }
+        const existing = new Set(contextPills.map(pill => pill.value));
+        const selected = pathEntries
+            .map(entry => {
+            const value = fileMention(entry.info);
+            return {
+                id: `selected-file:${entry.info.path}`,
+                kind: 'file',
+                label: entry.info.path,
+                detail: t(entry.info.isDirectory ? 'composer.referenceDirectory' : 'composer.referenceFile'),
+                value,
+            };
+        })
+            .filter(item => {
+            if (existing.has(item.value))
+                return false;
+            existing.add(item.value);
+            return true;
+        });
+        if (selected.length === 0) {
+            if (unresolvedFiles.length > 0)
+                setError(t('composer.filePathUnavailable'));
+            return;
+        }
+        const textarea = inputRef.current;
+        const caret = textarea?.selectionStart ?? draft.length;
+        const before = draft.slice(0, caret);
+        const after = draft.slice(caret);
+        const prefix = before.length > 0 && !/\s$/.test(before) ? ' ' : '';
+        const inserted = selected.map(item => item.value).join(' ');
+        const suffix = after.length === 0 || !/^\s/.test(after) ? ' ' : '';
+        updateDraft(`${before}${prefix}${inserted}${suffix}${after}`);
+        setContextPills(current => [
+            ...current,
+            ...selected.filter(item => !current.some(pill => pill.value === item.value)),
+        ]);
+        setActiveReferenceQuery(undefined);
+        if (unresolvedFiles.length > 0)
+            setError(t('composer.filePathUnavailable'));
+        else
+            setError(undefined);
+        requestAnimationFrame(() => {
+            const target = inputRef.current;
+            if (target === null)
+                return;
+            const nextCaret = caret + prefix.length + inserted.length + suffix.length;
+            target.focus();
+            target.setSelectionRange(nextCaret, nextCaret);
+        });
+    }, [addAttachments, contextPills, draft, t, updateDraft]);
     const onPaste = useCallback((event) => {
         const files = [];
         for (const item of Array.from(event.clipboardData.items)) {
@@ -391,8 +468,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const onDrop = useCallback((event) => {
         event.preventDefault();
         setDragActive(false);
-        addAttachments(Array.from(event.dataTransfer.files));
-    }, [addAttachments]);
+        addSelectedFiles(Array.from(event.dataTransfer.files));
+    }, [addSelectedFiles]);
     const removeAttachment = useCallback((id) => {
         if (input === undefined || conversation === undefined)
             return;
@@ -591,9 +668,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     return (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dock, children: [blank && sessionId !== undefined
                         ? (_jsxs("div", { className: css.headerRow, children: [cwd === undefined
                                     ? (_jsx("button", { type: "button", className: css.projectChip, onClick: onOpenWorkspace, children: _jsx("span", { children: t('nav.openWorkspace') }) }))
-                                    : null, _jsx(Popover, { label: t('composer.mode'), disabled: modeRows.length === 0, triggerClassName: css.headerChip, trigger: (_jsxs("span", { className: css.headerChipContent, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { children: currentPresetLabel }), _jsx(IconChevronDownOutline14, {})] })), rows: modeRows }), cwd === undefined
-                                    ? null
-                                    : (_jsx("div", { className: css.starterActions, "aria-label": t('composer.starters'), children: ['explain', 'changes', 'tests'].map(action => (_jsx("button", { type: "button", className: css.starterAction, onClick: () => { updateDraft(t(`composer.starter.${action}.prompt`)); }, children: t(`composer.starter.${action}`) }, action))) }))] }))
+                                    : null, _jsx(Popover, { label: t('composer.mode'), disabled: modeRows.length === 0, triggerClassName: css.headerChip, trigger: (_jsxs("span", { className: css.headerChipContent, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { children: currentPresetLabel }), _jsx(IconChevronDownOutline14, {})] })), rows: modeRows })] }))
                         : null, running && queued.length > 0
                         ? (_jsxs("div", { className: css.queueBanner, role: "status", children: [_jsxs("span", { className: css.queueCount, children: [t('chat.queued'), ": ", queued.length] }), queueEditing
                                     ? (_jsx("input", { className: css.queueEdit, value: queueDraft, autoFocus: true, "aria-label": t('chat.editQueued'), onChange: event => { setQueueDraft(event.target.value); }, onKeyDown: event => {
@@ -635,13 +710,11 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                                         }, onSelect: event => { captureReference(event.currentTarget.value, event.currentTarget.selectionStart); }, onKeyDown: onKeyDown, onPaste: onPaste, "aria-label": t('composer.placeholder'), "aria-autocomplete": "list", "aria-expanded": referenceMenuOpen || commandMenuOpen, "aria-controls": referenceMenuOpen ? 'composer-reference-list' : commandMenuOpen ? 'composer-command-list' : undefined, "aria-activedescendant": referenceMenuOpen
                                             ? `composer-reference-${String(referenceIndex)}`
                                             : commandMenuOpen ? `composer-command-${commandMatches[commandIndex]?.name ?? ''}` : undefined, onFocus: () => { setFocused(true); }, onBlur: () => { setFocused(false); } }), _jsx(AttachmentRail, { attachments: attachments, disabled: disabled || inputState.phase !== 'plain', onRemove: removeAttachment, t: t })] }), _jsx("input", { ref: attachmentInputRef, className: css.fileInput, type: "file", multiple: true, "aria-hidden": "true", tabIndex: -1, onChange: event => {
-                                    addAttachments(Array.from(event.currentTarget.files ?? []));
+                                    addSelectedFiles(Array.from(event.currentTarget.files ?? []));
                                     event.currentTarget.value = '';
                                 } }), readinessIssue === undefined
                                 ? null
-                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [plan === undefined
-                                                ? null
-                                                : (_jsxs("div", { className: css.modeSwitch, role: "radiogroup", "aria-label": t('composer.mode'), "aria-busy": planBusy, children: [_jsxs("button", { type: "button", role: "radio", className: `${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === true ? css.modeOptionPlan : ''}`, "aria-checked": planTarget === true, title: t('composer.mode.planDescription'), disabled: disabled || planBusy, onClick: () => { selectPlanMode(true); }, children: [_jsx("span", { className: css.modeIcon, "aria-hidden": true, children: _jsx("svg", { viewBox: "0 0 16 16", children: _jsx("path", { d: "M3 3.25h10M3 6.5h10M3 9.75h6M3 13h5" }) }) }), _jsx("span", { children: t('composer.mode.plan') })] }), _jsxs("button", { type: "button", role: "radio", className: `${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === false ? css.modeOptionBuild : ''}`, "aria-checked": planTarget === false, title: t('composer.mode.buildDescription'), disabled: disabled || planBusy, onClick: () => { selectPlanMode(false); }, children: [_jsx("span", { className: css.modeIcon, "aria-hidden": true, children: _jsx("svg", { viewBox: "0 0 16 16", children: _jsx("path", { d: "m5.5 4-3 4 3 4M10.5 4l3 4-3 4M9 2.75 7 13.25" }) }) }), _jsx("span", { children: t('composer.mode.build') })] })] })), _jsx("button", { type: "button", className: css.attachButton, "aria-label": t('composer.addAttachment'), title: t('composer.addAttachment'), disabled: disabled || input === undefined, onClick: () => { attachmentInputRef.current?.click(); }, children: _jsx(IconPlusOutline16, {}) }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), running
+                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx(Popover, { label: t('composer.add'), disabled: disabled, triggerClassName: css.addButton, popoverClassName: css.addMenu, trigger: _jsx(IconPlusOutline16, {}), rows: addRows }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), running
                                                 ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
                                                 : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
                     setAcknowledgedFullAccess(false);

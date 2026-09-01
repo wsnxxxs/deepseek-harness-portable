@@ -1,7 +1,11 @@
 import z from "@deepseek-ai/schemastery";
 import { readFile, stat } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_UI_MODE, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, asUiMode, cycleUiMode, resolveUiMode, uiModeFromSearch, withUiModeParam } from "@dsh-portable/ui-mode";
 //#region lib/types/host/git.js
 /**
@@ -696,7 +700,14 @@ const DCODE_ENDPOINTS = [
 	"git/unstage",
 	"git/commit",
 	"git/undo",
-	"file/read"
+	"file/read",
+	"memory/state",
+	"memory/search",
+	"memory/run",
+	"memory/abort",
+	"memory/reset",
+	"memory/set-enabled",
+	"memory/forget"
 ];
 /** RPC channel this plugin answers on. */
 const DCODE_CHANNEL = "/dcode";
@@ -726,6 +737,11 @@ function requireCwd(payload) {
 	if (!isAbsolute(cwd)) throw new Error("cwd must be absolute");
 	return resolve(cwd);
 }
+/** Read an optional absolute workspace directory out of a wire payload. */
+function optionalCwd(payload) {
+	if (payload.cwd === void 0) return void 0;
+	return requireCwd(payload);
+}
 /** Read a required string field out of an untrusted payload. */
 function requireString(payload, field, maxLength) {
 	const value = payload[field];
@@ -754,7 +770,7 @@ function optionalPaths(payload, field, limit = 500) {
 * @param payload - untrusted wire payload.
 * @returns the endpoint's envelope.
 */
-async function handleDcodeEndpoint(endpoint, payload) {
+async function handleDcodeEndpoint(endpoint, payload, memory) {
 	if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return failure("bad-request", "payload must be an object");
 	const body = payload;
 	try {
@@ -819,15 +835,392 @@ async function handleDcodeEndpoint(endpoint, payload) {
 					}
 				};
 			}
+			case "memory/state":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: memory.getState(optionalCwd(body))
+				};
+			case "memory/search":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: memory.search(requireString(body, "query", 4e3), optionalCwd(body))
+				};
+			case "memory/run":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: await memory.run(optionalCwd(body))
+				};
+			case "memory/abort":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: memory.abort()
+				};
+			case "memory/reset":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: memory.reset()
+				};
+			case "memory/set-enabled":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				if (typeof body.enabled !== "boolean") return failure("bad-request", "enabled must be a boolean");
+				return {
+					ok: true,
+					value: memory.setEnabled(body.enabled)
+				};
+			case "memory/forget":
+				if (memory === void 0) return failure("unavailable", "memory service is unavailable");
+				return {
+					ok: true,
+					value: memory.forget(requireString(body, "id", 200))
+				};
 			default: return failure("bad-request", `unknown /dcode endpoint`, { endpoint });
 		}
 	} catch (cause) {
 		const message = cause instanceof Error ? cause.message : String(cause);
 		if (message === "not a git work tree") return failure("not-a-repository", message);
-		if (/^(cwd|path|patch|message|paths)\b/.test(message) || message.startsWith("payload")) return failure("bad-request", message);
+		if (/^(cwd|path|patch|message|paths|query|enabled|id)\b/.test(message) || message.startsWith("payload")) return failure("bad-request", message);
 		if (cause?.code === "ENOENT") return failure("bad-request", message);
-		return failure("git-failed", message);
+		return failure(endpoint.startsWith("memory/") ? "memory-failed" : "git-failed", message);
 	}
+}
+//#endregion
+//#region lib/types/host/memory.js
+/** Durable memory adapter for the DCode Agent and workflow settings page. */
+const SECRET = /(?:\b(?:sk|rk|pk)_[A-Za-z0-9_-]{16,}\b|\b(?:api[_-]?key|authorization|password|token)\s*[:=]\s*[^\s,;]+)/giu;
+const MAX_SESSIONS_PER_RUN = 500;
+const MAX_CANDIDATES_PER_SESSION = 12;
+const MAX_RECORD_LENGTH = 800;
+function hash(value) {
+	return createHash("sha256").update(value).digest("hex").slice(0, 20);
+}
+function now() {
+	return (/* @__PURE__ */ new Date()).toISOString();
+}
+function redact(value) {
+	return value.replace(SECRET, "[redacted]").replace(/\0/g, "").trim();
+}
+function objectValue(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function textValue(value) {
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) return value.map(textValue).filter(Boolean).join("\n");
+	const record = objectValue(value);
+	if (record === void 0) return "";
+	if (record.type === "reasoning") return "";
+	if (typeof record.text === "string") return record.text;
+	if (record.type === "text" && typeof record.value === "string") return record.value;
+	if (record.content !== void 0) return textValue(record.content);
+	if (record.message !== void 0) return textValue(record.message);
+	return "";
+}
+function eventText(event) {
+	const record = objectValue(event);
+	if (record === void 0 || typeof record.type !== "string") return void 0;
+	const data = objectValue(record.data);
+	if (data === void 0) return void 0;
+	if (record.type === "user/message") return {
+		role: "user",
+		text: textValue(data.content)
+	};
+	if (record.type === "assistant/message") return {
+		role: "assistant",
+		text: textValue(data.message)
+	};
+	if (record.type === "tool/result") {
+		const message = textValue(data.message);
+		const error = objectValue(data.error);
+		return {
+			role: "tool",
+			text: [message, error === void 0 ? "" : textValue(error.message) || textValue(error.name)].filter(Boolean).join("\n")
+		};
+	}
+}
+function durableCandidate(role, source) {
+	const content = redact(source).replace(/\s+/gu, " ").trim().slice(0, MAX_RECORD_LENGTH);
+	if (content.length < 10) return void 0;
+	if (role === "user") {
+		if (!/(?:必须|不要|不应|请使用|请保持|偏好|习惯|默认|始终|always|never|prefer|must|should|do not|don't)/iu.test(content)) return;
+		const preference = /(?:偏好|习惯|prefer|always|never|don't|不要)/iu.test(content);
+		return {
+			kind: preference ? "preference" : "procedure",
+			category: preference ? "user_preferences" : "project_conventions",
+			content
+		};
+	}
+	if (role === "assistant" && /(?:已修复|修复了|解决|回归|fixed|resolved|workaround|error|failed|失败|报错)/iu.test(content)) return {
+		kind: "failure",
+		category: "known_failures_and_fixes",
+		content
+	};
+	if (role === "tool" && /(?:error|failed|failure|失败|报错)/iu.test(content)) return {
+		kind: "failure",
+		category: "known_failures_and_fixes",
+		content
+	};
+}
+function projectRoot(cwd) {
+	if (cwd === void 0 || cwd.trim() === "") return void 0;
+	let current = resolve(cwd);
+	while (true) {
+		if (existsSync(join(current, ".git"))) return current;
+		const parent = resolve(current, "..");
+		if (parent === current) return current;
+		current = parent;
+	}
+}
+function projectKey(cwd) {
+	const root = projectRoot(cwd);
+	return root === void 0 ? null : hash(`project:${root.toLowerCase()}`);
+}
+function parseSourceIds(value) {
+	if (typeof value !== "string") return [];
+	try {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+	} catch {
+		return [];
+	}
+}
+function metaNumber(meta, key) {
+	const value = Number(meta.get(key));
+	return Number.isFinite(value) ? value : void 0;
+}
+/**
+* Small durable coordinator built on the same session corpus as the rest of
+* DSH. It keeps memory as advisory data: only explicit durable-looking
+* instructions and verified failures are promoted, and secrets are redacted.
+*/
+var DcodeMemoryStore = class {
+	db;
+	source;
+	running = false;
+	runController;
+	timer;
+	extracting;
+	constructor(options) {
+		this.source = options.source;
+		mkdirSync(options.root, { recursive: true });
+		this.db = new DatabaseSync(join(options.root, "state.sqlite"));
+		this.db.exec(`
+      PRAGMA busy_timeout=5000;
+      PRAGMA journal_mode=WAL;
+      CREATE TABLE IF NOT EXISTS memory_records (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        project_key TEXT,
+        category TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_session_ids TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS memory_jobs (
+        session_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS memory_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(id UNINDEXED, content);
+    `);
+	}
+	getState(cwd) {
+		const meta = this.readMeta();
+		const enabled = meta.get("enabled") !== "false";
+		const key = projectKey(cwd);
+		const total = this.db.prepare("SELECT count(*) AS count FROM memory_records").get();
+		const project = key === null ? { count: 0 } : this.db.prepare("SELECT count(*) AS count FROM memory_records WHERE project_key = ?").get(key);
+		const pending = this.db.prepare("SELECT count(*) AS count FROM memory_jobs WHERE status = 'pending'").get();
+		return {
+			enabled,
+			phase: !enabled ? "disabled" : this.running ? "extracting" : meta.get("error") === void 0 ? "idle" : "error",
+			globalCount: Number(total.count ?? 0) - Number(project.count ?? 0),
+			projectCount: Number(project.count ?? 0),
+			pendingJobs: Number(pending.count ?? 0),
+			...meta.get("lastRunAt") === void 0 ? {} : { lastRunAt: meta.get("lastRunAt") },
+			...metaNumber(meta, "lastRunProcessed") === void 0 ? {} : { lastRunProcessed: metaNumber(meta, "lastRunProcessed") },
+			...metaNumber(meta, "lastRunAdded") === void 0 ? {} : { lastRunAdded: metaNumber(meta, "lastRunAdded") },
+			...metaNumber(meta, "lastRunSkipped") === void 0 ? {} : { lastRunSkipped: metaNumber(meta, "lastRunSkipped") },
+			lastExtractionMethod: meta.get("lastExtractionMethod") === "heuristic" ? "heuristic" : "none",
+			...meta.get("error") === void 0 ? {} : { error: meta.get("error") },
+			...this.extracting === void 0 ? {} : {
+				extractingTotal: this.extracting.total,
+				extractingProcessed: this.extracting.processed,
+				extractingAdded: this.extracting.added,
+				extractingSkipped: this.extracting.skipped
+			}
+		};
+	}
+	setEnabled(enabled) {
+		this.writeMeta("enabled", String(enabled));
+		if (!enabled) this.abort();
+		return this.getState();
+	}
+	search(query, cwd, limit = 50) {
+		const state = this.getState(cwd);
+		if (!state.enabled) return {
+			items: [],
+			state
+		};
+		const needle = query.trim().toLocaleLowerCase();
+		if (needle === "") return {
+			items: [],
+			state
+		};
+		const key = projectKey(cwd);
+		return {
+			items: (key === null ? this.db.prepare("SELECT * FROM memory_records ORDER BY updated_at DESC LIMIT 500").all() : this.db.prepare("SELECT * FROM memory_records WHERE project_key = ? OR scope = 'global' ORDER BY updated_at DESC LIMIT 500").all(key)).filter((row) => typeof row.content === "string" && row.content.toLocaleLowerCase().includes(needle)).slice(0, Math.max(1, Math.min(100, limit))).map((row) => this.recordFromRow(row)).map((record) => ({
+				...record,
+				snippet: record.content.slice(0, 240)
+			})),
+			state: this.getState(cwd)
+		};
+	}
+	async run(cwd, signal) {
+		const state = this.getState(cwd);
+		if (!state.enabled || this.running) return state;
+		const source = this.source();
+		if (source === void 0) throw new Error("memory session source is unavailable");
+		const controller = new AbortController();
+		const abort = () => {
+			controller.abort();
+		};
+		signal?.addEventListener("abort", abort, { once: true });
+		this.running = true;
+		this.runController = controller;
+		this.extracting = {
+			total: 0,
+			processed: 0,
+			added: 0,
+			skipped: 0
+		};
+		this.writeMeta("error", "");
+		try {
+			const sessions = (await source.listSessions(controller.signal)).slice(0, MAX_SESSIONS_PER_RUN);
+			this.extracting.total = sessions.length;
+			for (const session of sessions) {
+				controller.signal.throwIfAborted();
+				let added = 0;
+				try {
+					const log = await source.readSession(session.header.id);
+					const candidates = this.extractLog(log);
+					for (const candidate of candidates) added += this.upsert(candidate, log.session.id, log.session.cwd ?? session.header.cwd);
+					this.db.prepare("DELETE FROM memory_jobs WHERE session_id = ?").run(session.header.id);
+				} catch (cause) {
+					if (controller.signal.aborted) throw cause;
+					this.extracting.skipped += 1;
+				}
+				this.extracting.processed += 1;
+				this.extracting.added += added;
+			}
+			this.writeMeta("lastRunAt", now());
+			this.writeMeta("lastRunProcessed", String(this.extracting.processed));
+			this.writeMeta("lastRunAdded", String(this.extracting.added));
+			this.writeMeta("lastRunSkipped", String(this.extracting.skipped));
+			this.writeMeta("lastExtractionMethod", this.extracting.processed === 0 ? "none" : "heuristic");
+			this.db.prepare("DELETE FROM memory_meta WHERE key = 'error'").run();
+			return this.getState(cwd);
+		} catch (cause) {
+			if (!controller.signal.aborted) this.writeMeta("error", cause instanceof Error ? cause.message : String(cause));
+			throw cause;
+		} finally {
+			signal?.removeEventListener("abort", abort);
+			this.running = false;
+			this.runController = void 0;
+			this.extracting = void 0;
+		}
+	}
+	abort() {
+		this.runController?.abort();
+		return this.getState();
+	}
+	reset() {
+		this.abort();
+		this.db.exec("DELETE FROM memory_records; DELETE FROM memory_fts; DELETE FROM memory_jobs;");
+		this.db.exec("DELETE FROM memory_meta WHERE key <> 'enabled'");
+		return this.getState();
+	}
+	forget(id) {
+		this.db.prepare("DELETE FROM memory_records WHERE id = ?").run(id);
+		this.db.prepare("DELETE FROM memory_fts WHERE id = ?").run(id);
+		return this.getState();
+	}
+	markPending(sessionId) {
+		if (!this.getState().enabled || sessionId.trim() === "") return;
+		this.db.prepare("INSERT INTO memory_jobs(session_id, status, updated_at) VALUES (?, 'pending', ?) ON CONFLICT(session_id) DO UPDATE SET status = 'pending', updated_at = excluded.updated_at").run(sessionId, now());
+		if (this.timer !== void 0) return;
+		this.timer = setTimeout(() => {
+			this.timer = void 0;
+			this.run().catch(() => {});
+		}, 4e3);
+	}
+	dispose() {
+		if (this.timer !== void 0) clearTimeout(this.timer);
+		this.timer = void 0;
+		this.abort();
+		this.db.close();
+	}
+	readMeta() {
+		const rows = this.db.prepare("SELECT key, value FROM memory_meta").all();
+		return new Map(rows.map((row) => [row.key, row.value]));
+	}
+	writeMeta(key, value) {
+		this.db.prepare("INSERT OR REPLACE INTO memory_meta(key, value) VALUES (?, ?)").run(key, value);
+	}
+	extractLog(log) {
+		const candidates = [];
+		const seen = /* @__PURE__ */ new Set();
+		for (const event of log.events) {
+			const extracted = eventText(event);
+			if (extracted === void 0) continue;
+			const candidate = durableCandidate(extracted.role, extracted.text);
+			if (candidate === void 0 || seen.has(candidate.content)) continue;
+			seen.add(candidate.content);
+			candidates.push(candidate);
+			if (candidates.length >= MAX_CANDIDATES_PER_SESSION) break;
+		}
+		return candidates;
+	}
+	upsert(candidate, sessionId, cwd) {
+		const key = projectKey(cwd);
+		const existing = this.db.prepare("SELECT id, source_session_ids FROM memory_records WHERE project_key IS ? AND content = ?").get(key, candidate.content);
+		const sourceIds = new Set(existing === void 0 ? [] : parseSourceIds(existing.source_session_ids));
+		sourceIds.add(sessionId);
+		const timestamp = now();
+		if (existing?.id !== void 0) {
+			this.db.prepare("UPDATE memory_records SET category = ?, kind = ?, source_session_ids = ?, updated_at = ? WHERE id = ?").run(candidate.category, candidate.kind, JSON.stringify([...sourceIds]), timestamp, existing.id);
+			return 0;
+		}
+		const id = hash(`${key ?? "global"}:${candidate.content}`);
+		this.db.prepare("INSERT INTO memory_records(id, scope, project_key, category, kind, content, source_session_ids, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, key === null ? "global" : "project", key, candidate.category, candidate.kind, candidate.content, JSON.stringify([...sourceIds]), timestamp, timestamp);
+		this.db.prepare("INSERT INTO memory_fts(id, content) VALUES (?, ?)").run(id, candidate.content);
+		return 1;
+	}
+	recordFromRow(row) {
+		const scope = row.scope === "global" ? "global" : "project";
+		const category = typeof row.category === "string" ? row.category : "project_conventions";
+		const kind = typeof row.kind === "string" ? row.kind : "fact";
+		return {
+			id: typeof row.id === "string" ? row.id : hash(String(row.content ?? "")),
+			scope,
+			category,
+			kind,
+			content: typeof row.content === "string" ? row.content : "",
+			sourceSessionIds: parseSourceIds(row.source_session_ids),
+			updatedAt: typeof row.updated_at === "string" ? row.updated_at : now()
+		};
+	}
+};
+/** Resolve the same portable DSH data root used by the packaged runtime. */
+function defaultDcodeMemoryRoot() {
+	const configured = process.env.DSH_HOME?.trim();
+	return join(resolve(configured === void 0 || configured === "" ? join(homedir(), ".dsh") : configured), "dcode-memory");
 }
 //#endregion
 //#region lib/types/index.js
@@ -850,8 +1243,8 @@ async function handleDcodeEndpoint(endpoint, payload) {
 const name = "dcode-ui";
 /**
 * Connection is the only hard requirement: without the RPC carrier there is
-* no channel to claim, and the browser half degrades to a workbench without a
-* Git panel rather than failing to boot.
+* no channel to claim, and the browser half degrades to a workbench without
+* Git and durable-memory tooling rather than failing to boot.
 */
 const inject = ["connection"];
 const Config = z.object({ git: z.boolean().default(true) });
@@ -865,18 +1258,32 @@ function apply(ctx, config = {}) {
 	ctx.inject(["connection"], (connectionCtx) => {
 		const connection = connectionCtx.get("connection");
 		if (connection === void 0) return;
-		connectionCtx.effect(() => connection.rpc.handle(DCODE_CHANNEL, async (endpoint, payload) => {
-			if (!isDcodeEndpoint(endpoint)) return {
-				ok: false,
-				error: {
-					code: "bad-request",
-					message: "unknown /dcode RPC endpoint",
-					details: { endpoint }
-				}
+		const memory = new DcodeMemoryStore({
+			root: defaultDcodeMemoryRoot(),
+			source: () => connectionCtx.get("sessionQuery")
+		});
+		connectionCtx.effect(() => {
+			const disposeRpc = connection.rpc.handle(DCODE_CHANNEL, async (endpoint, payload) => {
+				if (!isDcodeEndpoint(endpoint)) return {
+					ok: false,
+					error: {
+						code: "bad-request",
+						message: "unknown /dcode RPC endpoint",
+						details: { endpoint }
+					}
+				};
+				return await handleDcodeEndpoint(endpoint, payload, memory);
+			}, { authority: "trusted-host" });
+			const disposeEvents = connectionCtx.on("session/event", (session) => {
+				memory.markPending(String(session.id));
+			});
+			return () => {
+				disposeEvents();
+				disposeRpc();
+				memory.dispose();
 			};
-			return await handleDcodeEndpoint(endpoint, payload);
-		}, { authority: "trusted-host" }), "dcode-ui: git rpc channel");
+		}, "dcode-ui: git and memory rpc channel");
 	});
 }
 //#endregion
-export { Config, DCODE_CHANNEL, DCODE_ENDPOINTS, DEFAULT_UI_MODE, GitCommandError, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, apply, asUiMode, containedRelativePath, cycleUiMode, handleDcodeEndpoint, inject, isDcodeEndpoint, name, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, resolveUiMode, uiModeFromSearch, undoPaths, withUiModeParam, workTreeRoot };
+export { Config, DCODE_CHANNEL, DCODE_ENDPOINTS, DEFAULT_UI_MODE, DcodeMemoryStore, GitCommandError, UI_MODES, UI_MODE_BRIDGE_GLOBAL, UI_MODE_CONFIG_FIELD, UI_MODE_EVENT, UI_MODE_QUERY_PARAM, UI_MODE_STORAGE_KEY, apply, asUiMode, containedRelativePath, cycleUiMode, defaultDcodeMemoryRoot, handleDcodeEndpoint, inject, isDcodeEndpoint, name, parseBranchHeader, parseNumstat, parsePorcelain, readBranches, readDiff, readStatus, resolveUiMode, uiModeFromSearch, undoPaths, withUiModeParam, workTreeRoot };

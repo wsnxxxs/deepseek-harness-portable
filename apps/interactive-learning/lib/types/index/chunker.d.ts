@@ -1,25 +1,11 @@
-/** Chunk the parsed section bodies into bounded, citeable retrieval units. */
-import type { SourceStructure } from '../ingest/types.ts';
-export declare const DEFAULT_CHUNK_TARGET_CHARS = 1000;
-export declare const DEFAULT_CHUNK_OVERLAP = 0.15;
-export interface SourceChunk {
-    chunkId: string;
-    sourceId: string;
-    sectionId: string;
-    ord: number;
-    anchor: string;
-    quoteHash: string;
-    page?: number;
-    text: string;
-}
-export interface ChunkOptions {
-    targetChars?: number;
-    overlap?: number;
-}
 /**
- * Build chunks without crossing section boundaries. The input is the extracted
- * markdown split into physical lines, so anchors continue to resolve against
- * the existing structure file.
+ * Moved to `@dsh-portable/space-kernel`.
+ *
+ * The ingest, citation and index machinery is not specific to teaching: a
+ * mission dossier grounds an agent in attached documents the same way a lesson
+ * grounds a learner. It now lives in its own package, and this file re-exports
+ * its counterpart so every caller in this pack keeps its existing import.
+ * @module @dsh-portable/interactive-learning/index/chunker
  */
-export declare function chunkSource(structure: SourceStructure, lines: readonly string[], options?: ChunkOptions): readonly SourceChunk[];
+export * from '@dsh-portable/space-kernel/search/chunker';
 //# sourceMappingURL=chunker.d.ts.map

@@ -19,6 +19,7 @@ import {
 } from '../src/concept-cards.ts'
 import { createInitialLearnerState, type LearnerEvidence, type LearnerState } from '../src/learner-state.ts'
 import { renderLearnerMemory } from '../src/learner-memory.ts'
+import { reanchorVaultMemory } from '../src/learning-reanchor.ts'
 import { formatSectionAnchor } from '../src/material-anchor.ts'
 import { quoteHashOf } from '../src/ingest/types.ts'
 import { ensureVaultLayout, type TopicVault } from '../src/topic-vault.ts'
@@ -173,5 +174,32 @@ describe('concept cards', () => {
     selected = '保存概念卡'
     await propose.execute({ relatedConcepts: ['变量提升'] }, exec)
     expect(await readConceptCard(vault, '闭包')).toMatchObject({ label: '闭包' })
+  })
+})
+
+describe('re-anchor hooks on a foreign space', () => {
+  // The pack registers its hooks at module scope, so they run for EVERY
+  // re-import in the process, including one into a space this pack does not
+  // own (a crew dossier). What keeps that safe is that each hook reads only
+  // its own records out of the space it is handed. Pinned here because the
+  // module-scope registration is deliberate and this is the property that
+  // justifies it.
+  it('reports nothing and writes nothing for a space holding none of its records', async () => {
+    const foreign = await ensureVaultLayout(await mkdtemp(join(tmpdir(), 'dossier-')))
+    const structure: SourceStructure = {
+      protocol: SOURCE_STRUCTURE_PROTOCOL,
+      sourceId: 'spec',
+      title: 'spec',
+      sections: [],
+      degradations: [],
+    }
+
+    const cards = await reanchorConceptCards(foreign, undefined, structure)
+    const memory = await reanchorVaultMemory(foreign, undefined, structure)
+
+    const empty = { moved: 0, unchanged: 0, stale: 0, recovered: 0 }
+    expect(cards).toEqual(empty)
+    expect(memory).toEqual(empty)
+    await rm(foreign.root, { recursive: true, force: true })
   })
 })

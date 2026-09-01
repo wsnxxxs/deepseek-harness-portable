@@ -22,6 +22,7 @@ import { useModalFocus } from "../shell/use-modal-focus.js";
 import { MessageNavRail } from "../shell/MessageNavRail.js";
 import { ToolCard } from "./ToolCard.js";
 import { FileChanges } from "./FileChanges.js";
+import { extractProposedPlan, PlanPreviewCard } from "./PlanPreview.js";
 import { useMessageFeedback } from "./message-feedback.js";
 import { aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns, } from "./tools.js";
 import css from './Transcript.module.css';
@@ -100,7 +101,7 @@ function ToolActivityGroup(props) {
                             ? _jsx(IconSparkle16, {})
                             : _jsx(IconSearchOutline16, {}) }), _jsx("span", { className: css.toolActivitySummary, children: summary }), props.group.durationMs === undefined
                         ? null
-                        : _jsxs("span", { className: css.toolActivityDuration, children: ["\u00B7 ", formatToolDuration(props.group.durationMs)] }), _jsx(IconChevronRightOutline14, { className: `${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}` })] }), _jsx("div", { className: `${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.toolActivityClip, children: _jsx("div", { className: css.toolActivityItems, id: contentId, children: props.group.blocks.map(block => (_jsx(ToolCard, { block: block, onInspect: props.onInspect }, block.callId))) }) }) })] }));
+                        : _jsxs("span", { className: css.toolActivityDuration, children: ["\u00B7 ", formatToolDuration(props.group.durationMs)] }), _jsx(IconChevronRightOutline14, { className: `${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}` })] }), _jsx("div", { className: `${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.toolActivityClip, children: _jsx("div", { className: css.toolActivityItems, id: contentId, children: props.group.blocks.map(block => (_jsx(ToolCard, { block: block }, block.callId))) }) }) })] }));
 }
 /** Session-authorized image display; the Conversation assembly owns its URL cache. */
 function DurableImage(props) {
@@ -146,6 +147,14 @@ function UserBubble(props) {
 function AssistantBlocks(props) {
     return (_jsx("div", { className: css.blockGap, children: props.blocks.map((block, index) => {
             if (block.kind === 'text') {
+                const proposedPlan = extractProposedPlan(block.text, props.streaming);
+                if (proposedPlan !== undefined) {
+                    return (_jsxs("div", { className: css.proposalBlock, children: [proposedPlan.before === ''
+                                ? null
+                                : _jsx("div", { className: css.assistant, children: _jsx(MarkdownText, { text: proposedPlan.before, streaming: props.streaming, labels: props.labels }) }), _jsx(PlanPreviewCard, { sessionId: props.sessionId, markdown: proposedPlan.plan, partial: proposedPlan.partial, labels: props.labels, showStatus: true }), proposedPlan.after === ''
+                                ? null
+                                : _jsx("div", { className: css.assistant, children: _jsx(MarkdownText, { text: proposedPlan.after, streaming: props.streaming, labels: props.labels }) })] }, index));
+                }
                 return (_jsx("div", { className: css.assistant, children: _jsx(MarkdownText, { text: block.text, streaming: props.streaming, labels: props.labels }) }, index));
             }
             if (block.kind === 'reasoning') {
@@ -284,7 +293,7 @@ function Node(props) {
         case 'assistant':
             return (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: props.sessionId, blocks: node.blocks, streaming: false, labels: props.labels, durationMs: assistantDurationMs(node), tokenCount: assistantTokenCount(node) }), _jsx(AssistantActions, { sessionId: props.sessionId, node: node, feedback: props.feedback, onBranched: props.onBranched }), _jsx(Stats, { node: node })] }));
         case 'tool-result':
-            return _jsx(ToolCard, { block: node, onInspect: props.onInspect });
+            return _jsx(ToolCard, { block: node });
         case 'command':
             return (_jsxs("div", { className: css.notice, children: [_jsx("span", { children: t('chat.command') }), _jsxs("code", { children: ["/", node.name ?? '…', node.args === null || node.args === undefined ? '' : ` ${node.args}`] })] }));
         case 'context':
@@ -478,13 +487,13 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
                                     const firstUserIndex = items.findIndex(item => item.kind === 'user' || item.kind === 'steering');
                                     return (_jsxs("div", { className: css.turn, "data-turn-index": turnIndex, children: [items.map((item, itemIndex) => {
                                                 if (item.kind === 'tool-activity') {
-                                                    return (_jsx(ToolActivityGroup, { group: item, onInspect: callId => { navigation.inspect(callId); } }, `tool-activity:${item.blocks[0]?.callId ?? 'empty'}`));
+                                                    return (_jsx(ToolActivityGroup, { group: item }, `tool-activity:${item.blocks[0]?.callId ?? 'empty'}`));
                                                 }
-                                                return (_jsx(Node, { sessionId: sessionId, node: item, labels: labels, onInspect: callId => { navigation.inspect(callId); }, feedback: feedback, highlighted: highlightedTurn === turnIndex && itemIndex === firstUserIndex, onBranched: () => { setBranchCreated(true); } }, `${item.kind}:${String(item.seq)}`));
+                                                return (_jsx(Node, { sessionId: sessionId, node: item, labels: labels, feedback: feedback, highlighted: highlightedTurn === turnIndex && itemIndex === firstUserIndex, onBranched: () => { setBranchCreated(true); } }, `${item.kind}:${String(item.seq)}`));
                                             }), paths.length > 0 && (!last || session?.running !== true)
                                                 ? (_jsx(FileChanges, { paths: paths, cwd: cwd, status: git.status, onOpenDiff: path => { navigation.openDiff(path); }, onChanged: git.refresh }))
                                                 : null] }, turn[0]?.seq ?? turnIndex));
-                                }), runningCalls.map(call => (_jsx(ToolCard, { block: call, onInspect: callId => { navigation.inspect(callId); } }, call.callId))), partial === null
+                                }), runningCalls.map(call => (_jsx(ToolCard, { block: call }, call.callId))), partial === null
                                     ? null
                                     : (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: sessionId, blocks: partial.blocks, streaming: true, labels: labels }), _jsx("span", { className: css.streamingDot, role: "status", "aria-label": t('chat.thinking') })] })), session?.running === true && partial === null && runningCalls.length === 0
                                     ? _jsx(ThinkingStatus, {})

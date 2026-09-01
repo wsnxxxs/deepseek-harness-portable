@@ -8,14 +8,15 @@
  * distinguish a business refusal from a transport failure by exception type.
  * @module @dsh-portable/dcode-ui/host/rpc
  */
+import type { DcodeMemoryService } from './memory.ts';
 /** Every endpoint this channel answers. */
-export declare const DCODE_ENDPOINTS: readonly ["git/status", "git/diff", "git/branches", "git/stage", "git/unstage", "git/commit", "git/undo", "file/read"];
+export declare const DCODE_ENDPOINTS: readonly ["git/status", "git/diff", "git/branches", "git/stage", "git/unstage", "git/commit", "git/undo", "file/read", "memory/state", "memory/search", "memory/run", "memory/abort", "memory/reset", "memory/set-enabled", "memory/forget"];
 /** One endpoint name. */
 export type DcodeEndpoint = (typeof DCODE_ENDPOINTS)[number];
 /** RPC channel this plugin answers on. */
 export declare const DCODE_CHANNEL = "/dcode";
 /** Stable business failure codes. */
-export type DcodeErrorCode = 'bad-request' | 'not-a-repository' | 'git-failed' | 'too-large' | 'unavailable';
+export type DcodeErrorCode = 'bad-request' | 'not-a-repository' | 'git-failed' | 'memory-failed' | 'too-large' | 'unavailable';
 /** Success or refusal, mirroring the Connection RPC envelope. */
 export type DcodeResult<T> = {
     readonly ok: true;
@@ -43,5 +44,5 @@ export declare function isDcodeEndpoint(value: unknown): value is DcodeEndpoint;
  * @param payload - untrusted wire payload.
  * @returns the endpoint's envelope.
  */
-export declare function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unknown): Promise<DcodeResult<unknown>>;
+export declare function handleDcodeEndpoint(endpoint: DcodeEndpoint, payload: unknown, memory?: DcodeMemoryService): Promise<DcodeResult<unknown>>;
 //# sourceMappingURL=rpc.d.ts.map

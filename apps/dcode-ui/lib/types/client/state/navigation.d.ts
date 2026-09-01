@@ -14,9 +14,9 @@
  */
 import { type LayoutSize } from './layout.ts';
 /** The top-level surfaces the left rail selects between. */
-export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings';
-/** Tabs of the right-hand details column. */
-export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details';
+export type WorkbenchView = 'session' | 'library' | 'learning' | 'plugins' | 'settings';
+/** Tabs of the right-hand preview column. */
+export type AsideTab = 'changes' | 'terminal' | 'goal';
 /** The two frontend views that occupy the compact frame as overlays. */
 export type CompactOverlay = 'rail' | 'aside' | 'summary';
 /** Stable visual and keyboard order of the preview-panel tabs. */
@@ -24,18 +24,18 @@ export declare const ASIDE_TABS: readonly AsideTab[];
 /** Facts that decide which context deserves the shortest path. */
 export interface TaskContext {
     readonly hasChanges: boolean;
-    readonly hasError: boolean;
     readonly goalActive: boolean;
-    readonly failedCallId?: string;
 }
 /** Highest-priority automatic context signal, if the task has one. */
 export declare function primaryAsideTab(context: TaskContext): AsideTab | undefined;
-/** Put the most actionable context first while retaining every existing tab. */
-export declare function orderedAsideTabs(context: TaskContext): readonly AsideTab[];
+/** Keep the inspector as the stable first tab; context signals use direct actions. */
+export declare function orderedAsideTabs(_context: TaskContext): readonly AsideTab[];
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
 export declare function adjacentAsideTab(tab: AsideTab, direction: -1 | 1, tabs?: readonly AsideTab[]): AsideTab;
 /** Settings sections, mirroring the official settings surface's own groups. */
-export type SettingsSection = 'general' | 'appearance' | 'models' | 'browser' | 'computer' | 'memory' | 'subagents' | 'plugins' | 'agentPresets' | 'mcp' | 'skills' | 'commands' | 'usage';
+export type SettingsSection = 'general' | 'appearance' | 'models' | 'data' | 'memory' | 'subagents' | 'plugins' | 'agentWorkflow'
+/** @deprecated Use the unified Agent and workflow page. */
+ | 'agentPresets' | 'mcp' | 'skills' | 'commands' | 'usage' | 'about';
 /** A file the diff viewer is showing. */
 export interface DiffTarget {
     readonly path: string;
@@ -71,8 +71,6 @@ export interface NavigationState {
     /** Provider editor requested from an in-task readiness action. */
     readonly settingsProvider: string | undefined;
     readonly diff: DiffTarget | undefined;
-    /** Tool call whose full output the details tab is showing. */
-    readonly inspectedCallId: string | undefined;
 }
 /** Mutations the workbench performs on its view state. */
 export interface NavigationStore {
@@ -94,8 +92,6 @@ export interface NavigationStore {
     openDiff(path: string, staged?: boolean): void;
     /** Close the diff viewer. */
     closeDiff(): void;
-    /** Inspect one tool call in the details tab. */
-    inspect(callId: string | undefined): void;
     togglePalette(open?: boolean): void;
     toggleRail(): void;
     toggleAside(): void;

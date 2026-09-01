@@ -6,6 +6,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts';
 export { VaultLibrary, VaultView, type VaultViewInjected } from './VaultView.tsx';
+export { VaultLibraryDialog, type VaultLibraryDialogProps, type VaultLibraryTopic, } from './VaultLibraryDialog.tsx';
 export { VaultKeepAction, messageText, titleFrom, type VaultKeepInjected } from './VaultKeep.tsx';
 export { notifyVaultRosterRefresh, VaultRosterAction, candidateFolders, type VaultRosterInjected, } from './VaultRoster.tsx';
 export { startVaultGate, wantsVaultTabByPreset, LEARNING_PRESET_ID, type GateSessions, type GateSessionRow, type VaultGateOptions, } from './vault-gate.ts';

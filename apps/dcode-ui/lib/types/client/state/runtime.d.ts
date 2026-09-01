@@ -21,6 +21,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client';
+import type { CreateTeamTaskRequest, TeamTaskMutationResult, TeamView, UpdateTeamTaskRequest } from '@deepseek-ai/dsh-experimental-agent-team/client';
+import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client';
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
@@ -28,7 +30,7 @@ import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/ds
 import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client';
 import type { SettingsDescribeFace, SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/client';
 import { type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client';
-import { type DcodeApi } from '../rpc.ts';
+import { type DcodeApi, type DcodeMemoryApi } from '../rpc.ts';
 import { type AppearanceStore, type ThemeFace } from '../theme.ts';
 import type { MessageFeedbackProvider } from '../chat/message-feedback.ts';
 export type { SessionListState, SessionSummary, WorkspaceSnapshot };
@@ -87,6 +89,12 @@ export interface DcodeGoalsRemote {
             message: string;
         };
     }>;
+}
+/** Browser-safe Team surface used only by the DCode Cluster inspector. */
+export interface DcodeClusterRemote {
+    view(sessionId: SessionId): Promise<RemoteResult<TeamView>>;
+    createTask(sessionId: SessionId, request: CreateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>;
+    updateTask(sessionId: SessionId, request: UpdateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>;
 }
 /** The small domain face the dcode composer needs from a pending approval. */
 export interface DcodePendingApproval extends SessionPendingInteractionBase {
@@ -191,10 +199,14 @@ export interface DcodeRuntime {
     readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined;
     /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
     readonly goals: DcodeGoalsRemote | undefined;
+    /** Generated Team Remote namespace, mounted for DCode's Cluster mode only. */
+    readonly cluster: DcodeClusterRemote | undefined;
     /** Session-log export controller, when the export client plugin is present. */
     readonly sessionLogDownload: SessionLogDownloadFace | undefined;
     /** Git, diff, undo and file reads over the `/dcode` channel. */
     readonly git: DcodeApi;
+    /** Durable memory controls over the `/dcode` channel. */
+    readonly memory: DcodeMemoryApi;
     /** The Interactive Learning channel caller, shared with the official UI's learning views. */
     readonly learningCall: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>;
     /**
@@ -260,7 +272,7 @@ interface SettingsScopeBinderFace {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): DcodeRuntime;
+export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeController, cluster?: DcodeClusterRemote): DcodeRuntime;
 /** Provider for the runtime; mounted once at the workbench root. */
 export declare const DcodeRuntimeProvider: import("react").Provider<DcodeRuntime | undefined>;
 /**

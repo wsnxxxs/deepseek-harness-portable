@@ -1,18 +1,17 @@
-import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 /**
- * Metis-inspired Inspector content for the DCode workbench.
+ * DCode-native Inspector content for the DCode workbench.
  *
- * The component hierarchy follows Metis's Files Changed / Plan / Subagents
- * stack, but each row is backed by an existing DSH source: Git status,
- * projections, Session Controller catalogs, and the child conversation feed.
+ * The component hierarchy follows the DCode Plan / Subagents stack, but each
+ * row is backed by an existing DSH source: projections, Session Controller
+ * catalogs, and the child conversation feed.
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconCodeOutline16, IconRefreshOutline14, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconRefreshOutline14, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useChatSnapshot, useConversationBlank, useProjectionValue, useSessionList, useSessionSnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useRuntime } from "../state/runtime.js";
-import { useGitStatus } from "../git/useGit.js";
 import { formatToolDuration, messageText, resultText } from "../chat/tools.js";
 import { Transcript } from "../chat/Transcript.js";
 import { Button, CopyButton, EmptyState, IconButton, Pill, Spinner, ui } from "./ui.js";
@@ -26,35 +25,6 @@ function elapsedMs(timing, activity, now) {
 }
 function entryLabel(entry) {
     return entry.label?.trim() || String(entry.id);
-}
-function fileStatusMark(file) {
-    switch (file.status) {
-        case 'added': return 'A';
-        case 'deleted': return 'D';
-        case 'renamed': return 'R';
-        case 'untracked': return 'U';
-        case 'conflicted': return '!';
-        default: return 'M';
-    }
-}
-/** Metis's compact Files Changed section, using the DCode Git host channel. */
-export function ChangedFilesOverview({ cwd, sessionId, onOpenDiff, }) {
-    const t = useT();
-    const git = useGitStatus(cwd, sessionId);
-    const [open, setOpen] = useState(true);
-    const files = git.status?.files ?? [];
-    const totals = git.status === undefined ? undefined : `${git.status.insertions}+ / ${git.status.deletions}-`;
-    return (_jsxs("section", { className: css.section, children: [_jsxs("button", { type: "button", className: css.sectionToggle, "aria-expanded": open, onClick: () => { setOpen(value => !value); }, children: [_jsx(IconChevronRightOutline14, { className: open ? css.chevronOpen : undefined }), _jsx(IconCodeOutline16, {}), _jsx("span", { className: ui.grow, children: t('git.changes') }), totals === undefined ? null : _jsx("span", { className: css.sectionMeta, children: totals }), _jsx(Pill, { children: files.length })] }), open
-                ? (_jsxs("div", { className: css.fileList, children: [git.pending
-                            ? _jsx(EmptyState, { children: _jsx(Spinner, { size: "sm" }) })
-                            : git.error !== undefined
-                                ? _jsx(EmptyState, { children: git.error })
-                                : files.length === 0
-                                    ? _jsx(EmptyState, { children: t('git.clean') })
-                                    : files.map(file => (_jsxs("button", { type: "button", className: css.fileRow, title: file.path, onClick: () => { onOpenDiff(file.path, file.staged); }, children: [_jsx("span", { className: `${css.fileMark} ${file.status === 'deleted' ? css.fileMarkRemoved : file.status === 'added' || file.status === 'untracked' ? css.fileMarkAdded : ''}`, "aria-hidden": true, children: fileStatusMark(file) }), _jsxs("span", { className: css.fileCopy, children: [_jsx("span", { className: css.fileName, children: file.path.split('/').pop() ?? file.path }), _jsx("span", { className: css.filePath, children: file.path })] }), file.insertions === 0 && file.deletions === 0
-                                                ? null
-                                                : _jsxs("span", { className: css.fileStats, children: [_jsxs("span", { children: ["+", file.insertions] }), _jsxs("span", { children: ["\u2212", file.deletions] })] })] }, `${String(file.staged)}:${file.path}`))), git.status?.truncated === true ? _jsx("div", { className: css.truncated, children: t('git.truncated') }) : null] }))
-                : null] }));
 }
 function SubagentRow({ entry, selected, onSelect, }) {
     const t = useT();
@@ -71,7 +41,7 @@ function SubagentRow({ entry, selected, onSelect, }) {
     }, [running, timing?.active]);
     return (_jsxs("button", { type: "button", className: `${css.agentRow} ${selected ? css.agentRowActive : ''}`, onClick: onSelect, title: t('agents.open'), children: [_jsx("span", { className: `${css.agentStatus} ${running ? css.agentStatusRunning : css.agentStatusIdle}`, "aria-hidden": true, children: running ? _jsx(Spinner, { size: "sm" }) : session?.lastAgentError ? _jsx(IconWarningOutline16, {}) : _jsx(IconCheckOutline14, {}) }), _jsxs("span", { className: css.agentCopy, children: [_jsx("span", { className: css.agentName, children: entryLabel(entry) }), _jsxs("span", { className: css.agentMeta, children: [running ? t('agents.running') : session?.lastAgentError ? t('agents.executionError') : t('agents.inactive'), _jsx("span", { "aria-hidden": true, children: "\u00B7" }), entry.mode === 'continuable' ? t('agents.continuable') : t('agents.oneShot'), entry.hasChildren ? _jsxs(_Fragment, { children: [_jsx("span", { "aria-hidden": true, children: "\u00B7" }), t('agents.children', { count: 1 })] }) : null] })] }), duration === undefined ? null : _jsx("span", { className: css.agentDuration, children: formatToolDuration(duration) }), _jsx(IconChevronRightOutline14, { className: css.rowChevron })] }));
 }
-/** Metis's Subagents section over Session Controller's live direct-child catalog. */
+/** DCode's Subagents section over Session Controller's live direct-child catalog. */
 export function SubagentsPanel({ sessionId, selectedId, onSelect, }) {
     const runtime = useRuntime();
     const t = useT();
@@ -132,7 +102,7 @@ function childTask(nodes, fallback) {
     }
     return fallback;
 }
-/** Detailed child view, following Metis's back / copy-log / transcript pattern. */
+/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
 export function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, }) {
     const runtime = useRuntime();
     const t = useT();

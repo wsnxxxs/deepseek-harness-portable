@@ -91,7 +91,7 @@ export function summarizeTool(name, argsRaw) {
     const path = firstString(args, PATH_FIELDS);
     const files = path === undefined ? [] : [path];
     const base = { files, mutating: MUTATING.has(name) };
-    // Memory is an orchestration primitive in Metis: it is visible as a work
+    // Memory is an orchestration primitive in DCode: it is visible as a work
     // phase alongside reads, searches and agent delegation instead of falling
     // into the generic tool bucket. Keep the name check broad so packaged and
     // user-authored memory tools share the same presentation.

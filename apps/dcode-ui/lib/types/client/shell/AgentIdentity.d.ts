@@ -1,5 +1,5 @@
 /**
- * The Metis-style agent identity seat in the chat header.
+ * The DCode-native agent identity seat in the chat header.
  *
  * The label is resolved from the same agent-preset projection and roster used
  * by the composer. It is a navigation affordance, not a second preset store:
@@ -8,7 +8,7 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { NavigationStore } from '../state/navigation.ts';
-/** Current agent identity, patterned after Metis's ChatHeader agent pill. */
+/** Current agent identity, presented as a compact DCode agent pill. */
 export declare function AgentIdentity({ navigation, sessionId }: {
     navigation: NavigationStore;
     sessionId: SessionId | undefined;

@@ -55,6 +55,29 @@ export function createDcodeApi(carrier) {
         readFile: (cwd, path) => call('file/read', { cwd, path }),
     };
 }
+/** Build the durable-memory client face over the same trusted channel. */
+export function createDcodeMemoryApi(carrier) {
+    const call = async (endpoint, payload) => {
+        if (carrier === undefined)
+            return transportFailure('the /dcode channel is unavailable on this connection');
+        try {
+            return envelope(await carrier.rpc.call(CHANNEL, endpoint, payload));
+        }
+        catch (cause) {
+            return transportFailure(cause instanceof Error ? cause.message : String(cause));
+        }
+    };
+    return {
+        available: carrier !== undefined,
+        state: cwd => call('memory/state', cwd === undefined ? {} : { cwd }),
+        search: (query, cwd) => call('memory/search', cwd === undefined ? { query } : { query, cwd }),
+        run: cwd => call('memory/run', cwd === undefined ? {} : { cwd }),
+        abort: () => call('memory/abort', {}),
+        setEnabled: enabled => call('memory/set-enabled', { enabled }),
+        reset: () => call('memory/reset', {}),
+        forget: id => call('memory/forget', { id }),
+    };
+}
 /**
  * The learning channel's browser face, reused verbatim from the existing
  * Interactive Learning host broker: the workbench's learning surfaces call

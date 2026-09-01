@@ -142,6 +142,13 @@ contextBridge.exposeInMainWorld(UI_MODE_BRIDGE_GLOBAL, {
     if (!UI_MODE_MODES.has(mode)) return
     ipcRenderer.send(UI_MODE_IPC_CHANNEL, { mode })
   },
+  // The page reports which surfaces its client plugins actually mounted, so
+  // the application and tray menus can grey out one this build does not carry
+  // instead of offering a choice that silently lands on the official UI.
+  setAvailable: modes => {
+    if (!Array.isArray(modes)) return
+    ipcRenderer.send(UI_MODE_IPC_CHANNEL, { available: modes.filter(mode => UI_MODE_MODES.has(mode)) })
+  },
   onMode: listener => {
     if (typeof listener !== 'function') return () => {}
     const handler = (_event, payload) => {

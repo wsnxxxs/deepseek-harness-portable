@@ -45,13 +45,15 @@
     "@deepseek-ai/dsh-tool-workflow",
     "@deepseek-ai/dsh-web-app",
     "@deepseek-ai/dsh-workflow-worker-thread",
+    "@dsh-portable/crew-dossier",
     "@dsh-portable/dcode-ui",
     "@dsh-portable/desktop-protocol",
     "@dsh-portable/interactive-learning",
+    "@dsh-portable/space-kernel",
     "@dsh-portable/ui-mode",
     "@dsh-portable/vision-bridge"
   ],
-  "closureHash": "sha256:db042b095d46c84bacf65f3268a650c43f3afc3a9f1700f9bb1d150181afa203",
+  "closureHash": "sha256:4089cd17684912c1a6ca5b84264c2e0a60a7b443ad2511592fc6a1ea6b486f32",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -1209,6 +1211,11 @@
       "path": "vendor/deepseek-harness/vendor/schemastery"
     },
     {
+      "name": "@dsh-portable/crew-dossier",
+      "version": "0.1.0",
+      "path": "packages/crew-dossier"
+    },
+    {
       "name": "@dsh-portable/dcode-ui",
       "version": "0.1.0",
       "path": "apps/dcode-ui"
@@ -1222,6 +1229,11 @@
       "name": "@dsh-portable/interactive-learning",
       "version": "0.1.0",
       "path": "apps/interactive-learning"
+    },
+    {
+      "name": "@dsh-portable/space-kernel",
+      "version": "0.1.0",
+      "path": "packages/space-kernel"
     },
     {
       "name": "@dsh-portable/ui-mode",
@@ -1466,9 +1478,11 @@
     "@deepseek-ai/node-addon-landlock-run-linux-arm64": "workspace:^",
     "@deepseek-ai/node-addon-landlock-run-linux-x64": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
+    "@dsh-portable/crew-dossier": "workspace:^",
     "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
+    "@dsh-portable/space-kernel": "workspace:^",
     "@dsh-portable/ui-mode": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",
     "dsh-plugin-marketplace": "github:AwesomeHou/dsh-plugin-marketplace#463e6cb856272018a7f5a76e260a0d1ef5b589e3",

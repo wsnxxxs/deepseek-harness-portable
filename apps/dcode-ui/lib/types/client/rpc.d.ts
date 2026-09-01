@@ -8,8 +8,10 @@
  * @module @dsh-portable/dcode-ui/client/rpc
  */
 import type { DcodeResult } from '../host/rpc.ts';
+import type { DcodeMemorySearchValue, DcodeMemoryState } from '../host/memory.ts';
 import type { GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts';
 export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts';
+export type { DcodeMemoryRecord, DcodeMemorySearchValue, DcodeMemoryState } from '../host/memory.ts';
 /** The Connection RPC face this module needs. */
 export interface RpcCarrier {
     rpc: {
@@ -44,12 +46,25 @@ export interface DcodeApi {
     }>>;
     readFile(cwd: string, path: string): Promise<DcodeResult<FileRead>>;
 }
+/** Durable Agent memory controls exposed by the Host channel. */
+export interface DcodeMemoryApi {
+    readonly available: boolean;
+    state(cwd?: string): Promise<DcodeResult<DcodeMemoryState>>;
+    search(query: string, cwd?: string): Promise<DcodeResult<DcodeMemorySearchValue>>;
+    run(cwd?: string): Promise<DcodeResult<DcodeMemoryState>>;
+    abort(): Promise<DcodeResult<DcodeMemoryState>>;
+    setEnabled(enabled: boolean): Promise<DcodeResult<DcodeMemoryState>>;
+    reset(): Promise<DcodeResult<DcodeMemoryState>>;
+    forget(id: string): Promise<DcodeResult<DcodeMemoryState>>;
+}
 /**
  * Build the channel client.
  * @param carrier - the Connection service, absent on a page without one.
  * @returns a client that refuses every call when no carrier exists.
  */
 export declare function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi;
+/** Build the durable-memory client face over the same trusted channel. */
+export declare function createDcodeMemoryApi(carrier: RpcCarrier | undefined): DcodeMemoryApi;
 /**
  * The learning channel's browser face, reused verbatim from the existing
  * Interactive Learning host broker: the workbench's learning surfaces call

@@ -24,15 +24,13 @@
  * @module @dsh-portable/interactive-learning/src/client/VaultRoster
  */
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
+import { type VaultLibraryTopic } from './VaultLibraryDialog.tsx';
 /** One vault, as `vault-rpc.ts` projects it for this list. */
-export interface RosterVault {
-    cwd: string;
-    title: string;
+export interface RosterVault extends VaultLibraryTopic {
     root: string;
     sources: number;
     concepts: number;
     notes: number;
-    due: number;
     blocked: number;
 }
 export interface Roster {

@@ -1,0 +1,35 @@
+{
+  "name": "@dsh-portable/crew-dossier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mission dossier: attached sources a crew grounds its work in, with citations that survive re-import",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-client-connection": "workspace:^",
+    "@dsh-portable/space-kernel": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

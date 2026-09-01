@@ -24,6 +24,8 @@ const generatedPath = join(runtimeRoot, 'runtime-deps.generated.json')
 
 const STATIC_WORKSPACE_ROOTS = [
   '@dsh-portable/desktop-protocol',
+  '@dsh-portable/space-kernel',
+  '@dsh-portable/crew-dossier',
   '@dsh-portable/interactive-learning',
   '@dsh-portable/vision-bridge',
   '@dsh-portable/dcode-ui',

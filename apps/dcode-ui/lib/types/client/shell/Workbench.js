@@ -11,7 +11,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dcodeScope } from "../tokens.js";
 import { compactOverlayOf, useNavigation, } from "../state/navigation.js";
-import { useConversationBlank, useCurrentSessionId, usePendingApproval, usePendingQuestion, useProjectionValue, useTrajectorySnapshot, useWorkspaceGroups, } from "../state/hooks.js";
+import { useConversationBlank, useCurrentSessionId, usePendingApproval, usePendingQuestion, useProjectionValue, useWorkspaceGroups, } from "../state/hooks.js";
 import { useRuntime } from "../state/runtime.js";
 import { useLayoutSize } from "../state/layout.js";
 import { clampRailWidth, RAIL_WIDTH, readRailWidth, writeRailWidth, } from "../state/rail-width.js";
@@ -31,7 +31,7 @@ import { CommandPalette } from "./CommandPalette.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 import { Button, EmptyState } from "./ui.js";
 import { Transcript } from "../chat/Transcript.js";
-import { LearningHome } from "../learning/LearningHome.js";
+import { ResourceLibraryHome } from "../library/ResourceLibraryHome.js";
 import { PluginsHome } from "../plugins/PluginsHome.js";
 import { SettingsSurface } from "../settings/SettingsSurface.js";
 import { useModelReadiness } from "../settings/readiness.js";
@@ -49,26 +49,6 @@ function historyStateWithOverlay(overlay) {
         ? history.state
         : {};
     return { ...current, [COMPACT_OVERLAY_HISTORY_KEY]: overlay };
-}
-function failedCallIn(block) {
-    for (let index = block.subCalls.length - 1; index >= 0; index -= 1) {
-        const failed = failedCallIn(block.subCalls[index]);
-        if (failed !== undefined)
-            return failed;
-    }
-    return 'isError' in block && block.isError ? block.callId : undefined;
-}
-/** Most recent failure that the Details panel can inspect. */
-function latestFailure(nodes) {
-    for (let index = nodes.length - 1; index >= 0; index -= 1) {
-        const node = nodes[index];
-        if (node?.kind === 'tool-result') {
-            const callId = failedCallIn(node);
-            if (callId !== undefined)
-                return { hasError: true, callId };
-        }
-    }
-    return { hasError: false };
 }
 /** Keep a settings initialization failure local to the replaceable surface. */
 class SettingsBoundary extends Component {
@@ -148,7 +128,6 @@ export function Workbench({ navigation }) {
     const cwd = useCurrentCwd(sessionId);
     const blank = useConversationBlank(sessionId);
     const git = useGitStatus(cwd, sessionId);
-    const trajectory = useTrajectorySnapshot(sessionId);
     const goal = useProjectionValue(sessionId, 'goal');
     const modelReadiness = useModelReadiness(sessionId);
     const { groups } = useWorkspaceGroups();
@@ -162,14 +141,11 @@ export function Workbench({ navigation }) {
     const asideDrag = useRef();
     const modelSelectRef = useRef(null);
     const taskContext = useMemo(() => {
-        const failure = latestFailure(trajectory?.eventNodes ?? []);
         return {
             hasChanges: (git.status?.files.length ?? 0) > 0,
-            hasError: failure.hasError,
             goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
-            failedCallId: failure.callId,
         };
-    }, [git.status, goal, trajectory]);
+    }, [git.status, goal]);
     useEffect(() => { navigation.setWorkspace(cwd); }, [cwd, navigation]);
     // The frame fits itself to its own width rather than the window's: it is
     // mounted into a host slot, and how much room that slot has is a fact only
@@ -475,7 +451,10 @@ export function Workbench({ navigation }) {
         document.addEventListener('keydown', onKeyDown);
         return () => { document.removeEventListener('keydown', onKeyDown); };
     }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus]);
-    const fullSurface = state.view !== 'session';
+    // Plugins is the only full-frame surface. Settings and the resource library
+    // are modal cards over the workspace so the operator can return without
+    // losing the current task context.
+    const fullSurface = state.view === 'plugins';
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
     const overlayOpen = compactOverlay !== undefined;
@@ -485,11 +464,7 @@ export function Workbench({ navigation }) {
             '--zx-font-size-base': `${fontSize}px`,
             '--dsh-content-font-size': `${fontSize}px`,
         }, [ACRYLIC_ATTRIBUTE]: '', children: [fullSurface
-                ? (_jsx("div", { className: css.surface, children: state.view === 'learning'
-                        ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
-                        : state.view === 'plugins'
-                            ? _jsx(PluginsHome, { navigation: navigation })
-                            : (_jsx(SettingsBoundary, { resetKey: state.settingsSection, t: t, onBack: () => { navigation.show('session'); }, children: _jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId }) })) }))
+                ? (_jsx("div", { className: css.surface, children: _jsx(PluginsHome, { navigation: navigation }) }))
                 : (_jsxs(_Fragment, { children: [overlayOpen
                             ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: dismissCompactOverlay }))
                             : null, _jsxs("div", { className: `${css.rail} ${state.railOpen ? '' : css.railCollapsed}`, children: [_jsx(LeftRail, { navigation: navigation, onNewTask: newTask }), state.railOpen && state.layout !== 'compact'
@@ -502,7 +477,11 @@ export function Workbench({ navigation }) {
                                                 ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace, readiness: modelReadiness, onSelectModel: selectModel, onConfigureProvider: configureProvider, modelSelectRef: modelSelectRef }))
                                                 : _jsx(QuestionComposer, { pending: pendingQuestion })] }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsxs("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: [state.asideOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.asideResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": ASIDE_WIDTH.min, "aria-valuemax": ASIDE_WIDTH.max, "aria-valuenow": asideWidth, tabIndex: 0, onPointerDown: startAsideResize, onPointerMove: moveAsideResize, onPointerUp: finishAsideResize, onPointerCancel: finishAsideResize, onKeyDown: resizeAsideWithKeyboard, onDoubleClick: () => { resizeAside(ASIDE_WIDTH.default, true); } }))
-                                    : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext })] })] })), state.paletteOpen
+                                    : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext })] })] })), state.view === 'library' || state.view === 'learning'
+                ? (_jsx(ResourceLibraryHome, { navigation: navigation, cwd: cwd, sessionId: sessionId, onOpenWorkspace: openWorkspace }))
+                : null, state.view === 'settings'
+                ? (_jsx(SettingsBoundary, { resetKey: state.settingsSection, t: t, onBack: () => { navigation.show('session'); }, children: _jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId }) }))
+                : null, state.paletteOpen
                 ? (_jsx(CommandPalette, { navigation: navigation, onNewTask: newTask, onOpenWorkspace: openWorkspace }))
                 : null, browsing
                 ? (_jsx(DirectoryPicker, { onPicked: (path) => {

@@ -276,6 +276,33 @@ function applyUiMode(nextMode, { notifyRenderer = true } = {}) {
   return true
 }
 
+/**
+ * Surfaces this build can actually render, as the page last reported them.
+ *
+ * Every mode until told otherwise. Availability is a property of which client
+ * plugins mounted, which only the renderer can see, and it arrives some way
+ * into a launch — greying out the whole submenu until then would make every
+ * cold start look broken.
+ */
+let uiModeAvailable = new Set(UI_MODES)
+
+/**
+ * Adopt the renderer's report of which surfaces mounted.
+ *
+ * `official` is added unconditionally: it is upstream's own shell and is what
+ * renders whenever no extension surface holds the root slot, so it must never
+ * become unselectable no matter what a page reports.
+ */
+function applyUiModeAvailability(modes) {
+  const next = new Set(modes.filter(id => UI_MODES.includes(id)))
+  next.add('official')
+  const unchanged = next.size === uiModeAvailable.size && [...next].every(id => uiModeAvailable.has(id))
+  if (unchanged) return false
+  uiModeAvailable = next
+  rebuildMenus()
+  return true
+}
+
 function readConfig() {
   return readConfigStore(configPath(), { logger: console })
 }
@@ -1609,7 +1636,15 @@ function registerReleaseNotesIpc() {
   // cold launch opens the same front end. The renderer has already applied it,
   // so this must not echo the change back.
   ipcMain.on(UI_MODE_IPC_CHANNEL, (event, payload = {}) => {
-    if (!isMainRenderer(event.sender) || !payload || typeof payload.mode !== 'string') return
+    if (!isMainRenderer(event.sender) || !payload) return
+    // Two reports share the channel: which surface is showing, and which
+    // surfaces this build carries at all. They are separate messages because
+    // they change at different times — the second only as plugins mount.
+    if (Array.isArray(payload.available)) {
+      applyUiModeAvailability(payload.available)
+      return
+    }
+    if (typeof payload.mode !== 'string') return
     applyUiMode(payload.mode, { notifyRenderer: false })
   })
 
@@ -1762,6 +1797,10 @@ function menuItems() {
         label: desktopText(`menu.interfaceMode.${id}`) || id,
         type: 'radio',
         checked: uiMode === id,
+        // A surface this build does not carry stays listed and goes inert,
+        // matching the in-page switch: a name that vanishes reads as a bug in
+        // the menu, while a greyed one reads as a build that omits it.
+        enabled: uiModeAvailable.has(id),
         click: () => { applyUiMode(id) },
       })),
     },

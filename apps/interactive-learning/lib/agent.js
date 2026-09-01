@@ -1,9 +1,53 @@
-import { $t as readManifest, D as beginMaterialTurn, E as assertMaterialAnchorsReadable, Ht as upsertLearnerConcept, Lt as conceptRecordFromState, St as readLearnerMemoryWithCards, T as syncMentionedMaterial, Vt as renderLearnerMemory, Xt as ensureVaultLayout, _ as MATERIAL_TOOL_NAMES, bn as LEARN_INTENT_MODEL_GUIDANCE, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, g as validateStudyMapAgainstVault, h as formatStudyMapViolations, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, p as registerConceptTools, tn as resolveTopicVault, ut as buildConceptStudyMap, vn as LEARNING_INTENT_ROUTING_GUIDANCE, w as parseFileMentions, x as registerMaterialTools, xt as readConceptCards } from "./teaching-policy-Cb-XoUAt.js";
-import { D as learningCheckpointParametersOneStepV1, E as VISUAL_RESULT_PROTOCOL_V4, O as learningVisualParametersV4, b as LEARNING_VISUAL_RESULT_SCHEMA_V4, f as parseLearningVisualV4, l as parseLearningCheckpointV1, p as LearningProtocolError, v as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, y as LEARNING_VISUAL_KINDS_V4 } from "./protocol-current-_5GVMKMM.js";
+import { E as material_receipts_exports, St as LEARNING_INTENT_ROUTING_GUIDANCE, T as syncMentionedMaterial, W as buildConceptStudyMap, _ as MATERIAL_TOOL_NAMES, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, g as validateStudyMapAgainstVault, h as formatStudyMapViolations, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, mt as conceptRecordFromState, nt as readLearnerMemoryWithCards, p as registerConceptTools, tt as readConceptCards, vt as renderLearnerMemory, w as parseFileMentions, wt as LEARN_INTENT_MODEL_GUIDANCE, x as registerMaterialTools, xt as topic_vault_exports, yt as upsertLearnerConcept } from "./teaching-policy-BezN_TGy.js";
+import { D as learningCheckpointParametersOneStepV1, E as VISUAL_RESULT_PROTOCOL_V4, O as learningVisualParametersV4, b as LEARNING_VISUAL_RESULT_SCHEMA_V4, f as parseLearningVisualV4, l as parseLearningCheckpointV1, p as LearningProtocolError, v as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, y as LEARNING_VISUAL_KINDS_V4 } from "./protocol-current-Cyp6-wYL.js";
 import { realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
-import { BlockAssembler, createUserMessage, deepFreeze } from "@deepseek-ai/dsh-llm";
+import { BlockAssembler, createUserMessage } from "@deepseek-ai/dsh-llm";
 import { defineTool } from "@deepseek-ai/dsh-tools";
+//#region ../../vendor/deepseek-harness/packages/util/values/lib/index.js
+/**
+* Deep-freeze an object graph in place while leaving live AbortSignal objects mutable.
+* @param value - value to freeze.
+* @returns the same value after every reachable enumerable child is frozen.
+*/
+function deepFreeze(value) {
+	const seen = /* @__PURE__ */ new WeakSet();
+	const pending = [{
+		kind: "visit",
+		node: value
+	}];
+	while (pending.length > 0) {
+		const task = pending.pop();
+		/* v8 ignore next -- the loop condition guarantees one pending task. */
+		if (task === void 0) continue;
+		if (task.kind === "property") {
+			pending.push({
+				kind: "visit",
+				node: task.source[task.key]
+			});
+			continue;
+		}
+		const node = task.node;
+		if (node === null || typeof node !== "object") continue;
+		if (node instanceof AbortSignal) continue;
+		if (seen.has(node)) continue;
+		seen.add(node);
+		Object.freeze(node);
+		const keys = Object.keys(node);
+		for (let index = keys.length - 1; index >= 0; index--) {
+			const key = keys[index];
+			/* v8 ignore next -- the loop is bounded by the captured key count. */
+			if (key === void 0) continue;
+			pending.push({
+				kind: "property",
+				source: node,
+				key
+			});
+		}
+	}
+	return value;
+}
+//#endregion
 //#region lib/types/intent-router.js
 /** Low-confidence semantic refinement for the Learning preset. */
 /** Small auxiliary prompt; the user's request is supplied as JSON data below. */
@@ -98,11 +142,10 @@ async function classifyLearningIntentSemantically(ctx, agent, text, signal) {
 	const route = modelRoute(ctx, agent);
 	if (llm === void 0 || route === void 0) return void 0;
 	signal?.throwIfAborted();
-	const requestText = ["Classify this JSON data as instructed above:", JSON.stringify({ user_request: text })].join("\n");
 	const messages = [createUserMessage({
 		content: [{
 			type: "text",
-			text: requestText
+			text: ["Classify this JSON data as instructed above:", JSON.stringify({ user_request: text })].join("\n")
 		}],
 		source: {
 			kind: "plugin",
@@ -1030,7 +1073,7 @@ const learnerMemoryProjectionRevisions = /* @__PURE__ */ new WeakMap();
 */
 async function refreshVaultFlags(services, agent) {
 	try {
-		const vault = await resolveTopicVault(services, agent.session.header.cwd);
+		const vault = await (0, topic_vault_exports.resolveTopicVault)(services, agent.session.header.cwd);
 		if (vault === void 0) {
 			learnerMemoryBlocks.delete(agent);
 			learnerMemoryRenderedSessions.delete(agent);
@@ -1041,7 +1084,7 @@ async function refreshVaultFlags(services, agent) {
 			return;
 		}
 		vaultAvailable.set(agent, true);
-		vaultHasMaterial.set(agent, (await readManifest(vault)).sources.length > 0);
+		vaultHasMaterial.set(agent, (await (0, topic_vault_exports.readManifest)(vault)).sources.length > 0);
 		vaultHasConcepts.set(agent, (await readConceptCards(vault)).length > 0);
 		if (learnerMemoryRenderedSessions.get(agent) === agent.session) return;
 		const memory = await readLearnerMemoryWithCards(vault);
@@ -1066,7 +1109,7 @@ async function refreshVaultFlags(services, agent) {
 */
 async function projectLearnerMemory(services, agent) {
 	try {
-		const vault = await resolveTopicVault(services, agent.session.header.cwd);
+		const vault = await (0, topic_vault_exports.resolveTopicVault)(services, agent.session.header.cwd);
 		if (vault === void 0) return;
 		const state = services.learningActivities.learnerState(agent);
 		const priorProjection = learnerMemoryProjectionRevisions.get(agent);
@@ -1112,11 +1155,11 @@ async function prepareAttachedMaterial(services, agent) {
 	const cwd = agent.session.header.cwd;
 	if (cwd === void 0 || cwd === "") return;
 	try {
-		let vault = await resolveTopicVault(services, cwd);
+		let vault = await (0, topic_vault_exports.resolveTopicVault)(services, cwd);
 		if (vault === void 0) {
 			const root = await realpath(cwd);
 			if (!await hasRealMaterialMention(root, mentions)) return;
-			vault = await ensureVaultLayout(root, basename(root));
+			vault = await (0, topic_vault_exports.ensureVaultLayout)(root, basename(root));
 		}
 		await syncMentionedMaterial(agent, vault, mentions);
 	} catch (cause) {
@@ -1316,7 +1359,7 @@ function apply(ctx) {
 		if (message.source.kind !== "user") return;
 		disposeDynamicTeachingTools(agent);
 		richTeachingMoves.delete(agent);
-		beginMaterialTurn(agent, turn);
+		(0, material_receipts_exports.beginMaterialTurn)(agent, turn);
 		const transcript = learnerTranscriptStates.get(agent);
 		if (transcript !== void 0 && transcript.session !== agent.session) learnerTranscriptStates.delete(agent);
 		const text = textFromUserMessage(message);
@@ -1441,15 +1484,14 @@ function apply(ctx) {
 				async execute(payload, payloadExec) {
 					const visual = parseLearningVisualV4(payload);
 					let materializedStudyMap;
-					const vault = await resolveTopicVault(services, payloadExec.agent?.session.header.cwd);
+					const vault = await (0, topic_vault_exports.resolveTopicVault)(services, payloadExec.agent?.session.header.cwd);
 					if (visual.content.kind === "study_map") {
-						if (vault !== void 0) {
-							if (visual.content.view === "concepts") materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal);
-							else {
-								const violations = await validateStudyMapAgainstVault(vault, visual.content);
-								if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
-							}
-						} else if (visual.content.view === "concepts") throw new TypeError("study_map concepts view requires a learning vault");
+						if (vault !== void 0) if (visual.content.view === "concepts") materializedStudyMap = await buildConceptStudyMap(vault, visual.content.goal);
+						else {
+							const violations = await validateStudyMapAgainstVault(vault, visual.content);
+							if (violations.length > 0) throw new TypeError(formatStudyMapViolations(violations));
+						}
+						else if (visual.content.view === "concepts") throw new TypeError("study_map concepts view requires a learning vault");
 					} else if (visual.content.kind === "recall_deck" && vault !== void 0) {
 						const violations = await validateRecallDeckAgainstVault(vault, visual.content, payloadExec.agent === void 0 ? void 0 : services.learningActivities.turnLocale(payloadExec.agent));
 						if (violations.length > 0) throw new TypeError(`recall_deck must copy saved concept cards verbatim: ${violations.join("; ")}`);
@@ -1527,7 +1569,7 @@ function apply(ctx) {
 			const expectedRevision = services.learningActivities.learnerState(agent).revision;
 			if (args.action === "update") {
 				if (args.event === void 0 || args.correction !== void 0 || args.observation !== void 0) throw new TypeError("action=update requires only event");
-				assertMaterialAnchorsReadable(agent, sourceAnchorsFromEvent(args.event));
+				(0, material_receipts_exports.assertMaterialAnchorsReadable)(agent, sourceAnchorsFromEvent(args.event));
 				return services.learningActivities.updateLearnerState({
 					action: "update",
 					agent,

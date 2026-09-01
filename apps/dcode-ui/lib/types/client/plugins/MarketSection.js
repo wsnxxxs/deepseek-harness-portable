@@ -142,7 +142,6 @@ export function MarketSection({ client, locale, onInstalled }) {
     const t = useT();
     const [draft, setDraft] = useState('');
     const [query, setQuery] = useState('');
-    const [view, setView] = useState('featured');
     const [category, setCategory] = useState('all');
     const [reviewFilter, setReviewFilter] = useState('all');
     const [compatibility, setCompatibility] = useState('all');
@@ -156,7 +155,10 @@ export function MarketSection({ client, locale, onInstalled }) {
     const moreLoading = useRef(false);
     const moreController = useRef(null);
     const { operations, start, cancel } = useOperations(client);
-    const scope = view === 'explore' || query !== '' ? 'explore' : 'curated';
+    // The marketplace opens directly on the complete catalogue. Search and the
+    // metadata selects below remain available as refinements, but discovery
+    // tabs must not hide repositories by default.
+    const scope = 'explore';
     useEffect(() => {
         const timer = setTimeout(() => { setQuery(draft.trim()); }, SEARCH_DEBOUNCE_MS);
         return () => { clearTimeout(timer); };
@@ -256,13 +258,7 @@ export function MarketSection({ client, locale, onInstalled }) {
         return source
             .filter((item) => {
             const metadata = metadataFor(item, locale, platform);
-            const inView = query !== ''
-                || view === 'explore'
-                || (view === 'featured' && metadata.featured)
-                || (view === 'reviewed' && metadata.reviewed)
-                || (view === 'compatible' && metadata.compatibility === 'compatible');
-            return inView
-                && (category === 'all' || metadata.category === category)
+            return (category === 'all' || metadata.category === category)
                 && (reviewFilter === 'all' || (reviewFilter === 'reviewed') === metadata.reviewed)
                 && (compatibility === 'all' || metadata.compatibility === compatibility)
                 && (maintenance === 'all' || metadata.maintenance === maintenance);
@@ -272,11 +268,11 @@ export function MarketSection({ client, locale, onInstalled }) {
             const [rightMatch, rightStars] = searchRank(right, query);
             return rightMatch - leftMatch || rightStars - leftStars || left.fullName.localeCompare(right.fullName);
         });
-    }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter, view]);
+    }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter]);
     const syncedAt = page === undefined || page.fetchedAt === 0
         ? t('plugins.neverSynced')
         : t('plugins.syncedAt', { time: new Date(page.fetchedAt).toLocaleString() });
-    return (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('plugins.section.market') }), _jsx("p", { className: css.subtitle, children: t(scope === 'explore' ? 'plugins.source' : 'plugins.curatedSource') })] }), _jsx("div", { className: css.discoveryTabs, role: "tablist", "aria-label": t('plugins.discovery.label'), children: ['featured', 'reviewed', 'compatible', 'explore'].map(id => (_jsx("button", { type: "button", role: "tab", "aria-selected": view === id, className: `${css.discoveryTab} ${view === id ? css.discoveryTabActive : ''}`, onClick: () => { setView(id); }, children: t(`plugins.discovery.${id}`) }, id))) }), _jsxs("div", { className: css.toolbar, children: [_jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { className: css.searchInput, type: "search", value: draft, placeholder: t('plugins.search'), "aria-label": t('plugins.search'), onChange: (event) => { setDraft(event.target.value); } })] }), _jsxs("span", { className: css.meta, children: [t('plugins.shownOfTotal', { shown: items.length, total: page?.total ?? 0 }), ' · ', syncedAt] }), _jsx(IconButton, { label: t('plugins.refresh'), disabled: loading, onClick: () => { setNonce(value => value + 1); }, children: _jsx(IconRefreshOutline14, {}) }), _jsxs("a", { className: css.meta, href: MARKET_TOPIC_URL, target: "_blank", rel: "noreferrer", children: [t('plugins.sourceLink'), " ", _jsx(IconRightUpOutline14, {})] })] }), _jsxs("div", { className: css.filters, "aria-label": t('plugins.filters'), children: [_jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.category') }), _jsx("select", { value: category, onChange: (event) => { setCategory(event.target.value); }, children: ['all', 'interface', 'vision', 'design', 'automation', 'developer', 'other', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.category.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.review') }), _jsxs("select", { value: reviewFilter, onChange: (event) => { setReviewFilter(event.target.value); }, children: [_jsx("option", { value: "all", children: t('plugins.filter.all') }), _jsx("option", { value: "reviewed", children: t('plugins.reviewed') }), _jsx("option", { value: "unreviewed", children: t('plugins.unreviewed') })] })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.compatibility') }), _jsx("select", { value: compatibility, onChange: (event) => { setCompatibility(event.target.value); }, children: ['all', 'compatible', 'incompatible', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.compatibility.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.maintenance') }), _jsx("select", { value: maintenance, onChange: (event) => { setMaintenance(event.target.value); }, children: ['all', 'active', 'stale', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.maintenance.${value}`) }, value))) })] })] }), scope === 'explore' ? _jsx("div", { className: css.exploreWarning, children: t('plugins.exploreWarning') }) : null, failure === undefined
+    return (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('plugins.section.market') }), _jsx("p", { className: css.subtitle, children: t(scope === 'explore' ? 'plugins.source' : 'plugins.curatedSource') })] }), _jsxs("div", { className: css.toolbar, children: [_jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { className: css.searchInput, type: "search", value: draft, placeholder: t('plugins.search'), "aria-label": t('plugins.search'), onChange: (event) => { setDraft(event.target.value); } })] }), _jsxs("span", { className: css.meta, children: [t('plugins.shownOfTotal', { shown: items.length, total: page?.total ?? 0 }), ' · ', syncedAt] }), _jsx(IconButton, { label: t('plugins.refresh'), disabled: loading, onClick: () => { setNonce(value => value + 1); }, children: _jsx(IconRefreshOutline14, {}) }), _jsxs("a", { className: css.meta, href: MARKET_TOPIC_URL, target: "_blank", rel: "noreferrer", children: [t('plugins.sourceLink'), " ", _jsx(IconRightUpOutline14, {})] })] }), _jsxs("div", { className: css.filters, "aria-label": t('plugins.filters'), children: [_jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.category') }), _jsx("select", { value: category, onChange: (event) => { setCategory(event.target.value); }, children: ['all', 'interface', 'vision', 'design', 'automation', 'developer', 'other', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.category.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.review') }), _jsxs("select", { value: reviewFilter, onChange: (event) => { setReviewFilter(event.target.value); }, children: [_jsx("option", { value: "all", children: t('plugins.filter.all') }), _jsx("option", { value: "reviewed", children: t('plugins.reviewed') }), _jsx("option", { value: "unreviewed", children: t('plugins.unreviewed') })] })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.compatibility') }), _jsx("select", { value: compatibility, onChange: (event) => { setCompatibility(event.target.value); }, children: ['all', 'compatible', 'incompatible', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.compatibility.${value}`) }, value))) })] }), _jsxs("label", { className: css.filterField, children: [_jsx("span", { children: t('plugins.filter.maintenance') }), _jsx("select", { value: maintenance, onChange: (event) => { setMaintenance(event.target.value); }, children: ['all', 'active', 'stale', 'unknown'].map(value => (_jsx("option", { value: value, children: t(value === 'all' ? 'plugins.filter.all' : `plugins.maintenance.${value}`) }, value))) })] })] }), scope === 'explore' ? _jsx("div", { className: css.exploreWarning, children: t('plugins.exploreWarning') }) : null, failure === undefined
                 ? null
                 : _jsx("div", { className: css.error, role: "alert", children: t('plugins.syncFailed', { error: failure }) }), page?.error === undefined
                 ? null

@@ -168,11 +168,6 @@ export function SummaryCard({ navigation, sessionId, cwd, open, compact }) {
                 : (_jsxs("section", { className: css.trace, "aria-label": t('trace.title'), children: [_jsxs("div", { className: css.traceHeader, children: [_jsxs("span", { className: css.traceTitle, children: [_jsx(IconListPenOutline16, { size: 14 }), t('trace.title')] }), _jsxs("span", { className: css.traceStats, children: [t('trace.stats', {
                                             events: trajectory?.eventNodes.length ?? 0,
                                             requests: trajectory?.requests.length ?? 0,
-                                        }), running > 0 ? ` · ${t('trace.runningCount', { count: running })}` : ''] })] }), _jsx("ul", { className: css.traceList, children: traceRows.map(row => (_jsx("li", { className: css.traceItem, "data-status": row.status, children: row.callId === undefined
-                                    ? (_jsxs("div", { className: css.traceRow, children: [_jsx("span", { className: css.traceDot, "aria-hidden": true }), _jsx("span", { className: css.traceLabel, children: row.label }), row.detail === undefined ? null : _jsx("span", { className: css.traceDetail, children: row.detail })] }))
-                                    : (_jsxs("button", { type: "button", className: css.traceRow, title: t('trace.inspect'), onClick: () => {
-                                            navigation.toggleSummary(false);
-                                            navigation.inspect(row.callId);
-                                        }, children: [_jsx("span", { className: css.traceDot, "aria-hidden": true }), _jsx("span", { className: css.traceLabel, children: row.label }), row.detail === undefined ? null : _jsx("span", { className: css.traceDetail, children: row.detail })] })) }, row.id))) })] }))] }));
+                                        }), running > 0 ? ` · ${t('trace.runningCount', { count: running })}` : ''] })] }), _jsx("ul", { className: css.traceList, children: traceRows.map(row => (_jsx("li", { className: css.traceItem, "data-status": row.status, children: _jsxs("div", { className: css.traceRow, children: [_jsx("span", { className: css.traceDot, "aria-hidden": true }), _jsx("span", { className: css.traceLabel, children: row.label }), row.detail === undefined ? null : _jsx("span", { className: css.traceDetail, children: row.detail })] }) }, row.id))) })] }))] }));
 }
 //# sourceMappingURL=SummaryCard.js.map

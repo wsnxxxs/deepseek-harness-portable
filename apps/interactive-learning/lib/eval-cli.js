@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { c as resolveAnchorTarget, h as normalizeQuote, o as mentionSupported, u as sectionMentions } from "./material-anchor-BC14nkcv.js";
+import { n as types_exports, t as material_anchor_exports } from "./material-anchor-ChboTkkx.js";
 import { l as gradeTeachingTrajectorySuite, n as OFFLINE_REFERENCE_CANDIDATES, r as OFFLINE_TRAJECTORY_CANDIDATES, s as gradeTeachingSuite } from "./eval-DiicoVsg.js";
 import { readFile } from "node:fs/promises";
 //#region lib/types/eval-material.js
@@ -33,7 +33,7 @@ function gradeAnchorPrecision(candidate, minimum = 1) {
 		const cited = [];
 		for (const anchor of turn.sourceAnchors ?? []) {
 			anchors += 1;
-			const section = resolveAnchorTarget(anchor, candidate.sections);
+			const section = (0, material_anchor_exports.resolveAnchorTarget)(anchor, candidate.sections);
 			if (section === void 0) unresolved.push(anchor);
 			else {
 				resolved += 1;
@@ -42,9 +42,9 @@ function gradeAnchorPrecision(candidate, minimum = 1) {
 		}
 		for (const claim of turn.citedClaims ?? []) {
 			anchors += 1;
-			const needle = normalizeQuote(claim);
+			const needle = (0, types_exports.normalizeQuote)(claim);
 			const scope = cited.length > 0 ? cited : [];
-			if (needle !== "" && scope.some((section) => normalizeQuote(section.text).includes(needle))) resolved += 1;
+			if (needle !== "" && scope.some((section) => (0, types_exports.normalizeQuote)(section.text).includes(needle))) resolved += 1;
 			else unsupportedClaims.push(claim);
 		}
 	}
@@ -69,9 +69,9 @@ function gradeAnchorPrecision(candidate, minimum = 1) {
 function gradeSectionHallucination(candidate, maximum = 0) {
 	let mentions = 0;
 	const invented = [];
-	for (const turn of candidate.turns) for (const mention of sectionMentions(turn.text)) {
+	for (const turn of candidate.turns) for (const mention of (0, material_anchor_exports.sectionMentions)(turn.text)) {
 		mentions += 1;
-		if (!mentionSupported(mention, candidate.sections)) invented.push(mention);
+		if (!(0, material_anchor_exports.mentionSupported)(mention, candidate.sections)) invented.push(mention);
 	}
 	const rate = mentions === 0 ? 0 : invented.length / mentions;
 	return {

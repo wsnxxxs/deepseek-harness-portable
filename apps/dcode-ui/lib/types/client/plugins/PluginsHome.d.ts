@@ -1,5 +1,5 @@
 /**
- * Plugins as a first-class surface.
+ * Plugins as a first-class modal surface.
  *
  * The sidebar's plugin entry lands here rather than in a settings tab,
  * because installing and managing plugins is a task with its own catalogue,

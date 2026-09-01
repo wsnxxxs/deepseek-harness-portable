@@ -185,8 +185,12 @@ try {
     sourceTypeClosure,
     'source lib/types must contain exactly the public declaration and map closure',
   )
-   assert.equal(sourceDeclarations.length, 43, 'source build must retain exactly 43 public declarations')
-   assert.equal(sourceDeclarationMaps.length, 43, 'source build must retain exactly 43 public declaration maps')
+  // 41 since the ingest, citation and index machinery moved to
+  // `@dsh-portable/space-kernel`: three modules left this pack's public closure
+  // and `learning-reanchor` joined it. The number is pinned rather than derived
+  // so an accidental widening of the published surface fails here.
+  assert.equal(sourceDeclarations.length, 41, 'source build must retain exactly 41 public declarations')
+  assert.equal(sourceDeclarationMaps.length, 41, 'source build must retain exactly 41 public declaration maps')
 
   const packRoot = join(smokeRoot, 'pack')
   await mkdir(packRoot, { recursive: true })

@@ -1,0 +1,36 @@
+{
+  "name": "@dsh-portable/space-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Filesystem-backed material space: ingest with stated degradation, re-anchorable quote citations, and a lexical index",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "workspace:^",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

@@ -11,6 +11,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings';
 import type { VisionConfig } from './types.ts';
 export * from './types.ts';
 export * from './model-selection.ts';
@@ -21,7 +22,7 @@ export declare const name = "vision-bridge";
 export declare const inject: string[];
 export type Config = VisionConfig;
 export declare const Config: z<VisionConfig>;
-export declare const VISION_SETTINGS_NAMESPACE: import("@deepseek-ai/dsh-settings").SettingsNamespace;
+export declare const VISION_SETTINGS_NAMESPACE: SettingsNamespace;
 /**
  * Register the vision bridge on a host context.
  * @param ctx - the injecting cordis context.

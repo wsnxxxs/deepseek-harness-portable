@@ -36,11 +36,9 @@ export function TopBar({ navigation, sessionId, cwd, context }) {
     const workspace = useMemo(() => groups.find(group => group.path === cwd) ?? groups.find(group => group.sessions.some(row => row.id === sessionId)), [groups, cwd, sessionId]);
     const dirty = (git.status?.files.length ?? 0) > 0;
     const contextTab = primaryAsideTab(context);
-    const contextLabel = contextTab === 'details'
-        ? t('top.contextError')
-        : contextTab === 'changes'
-            ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
-            : contextTab === 'goal' ? t('top.contextGoal') : undefined;
+    const contextLabel = contextTab === 'changes'
+        ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
+        : contextTab === 'goal' ? t('top.contextGoal') : undefined;
     // While the first read is outstanding the chip shows nothing rather than
     // asserting "not a repository" about a directory it has not looked at yet.
     // A non-repository workspace reports itself inside the Changes panel; the
@@ -82,12 +80,7 @@ export function TopBar({ navigation, sessionId, cwd, context }) {
                     })) })), cwd === undefined || branchLabel === undefined
                 ? null
                 : (_jsxs("button", { type: "button", className: `${css.chip} ${dirty ? css.dirty : ''}`, title: branchLabel, onClick: () => { navigation.openAside('changes'); }, children: [_jsx(IconBranchOutline16, {}), _jsx("span", { className: css.chipLabel, children: branchLabel })] })), !state.asideOpen && contextTab !== undefined && contextLabel !== undefined
-                ? (_jsxs("button", { type: "button", className: `${css.contextHint} ${contextTab === 'details' ? css.contextHintError : ''}`, onClick: () => {
-                        if (contextTab === 'details')
-                            navigation.inspect(context.failedCallId);
-                        else
-                            navigation.openAside(contextTab);
-                    }, children: [_jsx("span", { className: css.contextDot, "aria-hidden": true }), _jsx("span", { className: css.contextLabel, children: contextLabel })] }))
+                ? (_jsxs("button", { type: "button", className: css.contextHint, onClick: () => { navigation.openAside(contextTab); }, children: [_jsx("span", { className: css.contextDot, "aria-hidden": true }), _jsx("span", { className: css.contextLabel, children: contextLabel })] }))
                 : null, _jsx("span", { className: css.divider, "aria-hidden": true }), _jsxs("div", { className: css.actions, children: [_jsxs("button", { type: "button", className: `${css.shareButton} ${shareClass} ${ui.tooltipTarget}`, "aria-label": shareTooltip, "aria-busy": shareBusy, "data-tooltip": shareTooltip, "data-tooltip-align": "right", disabled: sessionId === undefined || sessionLogDownload === undefined || shareBusy, onClick: () => {
                             if (sessionId !== undefined && sessionLogDownload !== undefined) {
                                 void sessionLogDownload.download(sessionId);

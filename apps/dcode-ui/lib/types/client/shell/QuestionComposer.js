@@ -1,9 +1,10 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /** Codex-style composer takeover for ask-user-question and plan review waits. */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconChecklistOutline14, IconCloseOutline16, IconEditOutline16, IconQuestionOutline14, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconCloseOutline16, IconEditOutline16, IconQuestionOutline14, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useT } from "../state/i18n.js";
 import { Button, Spinner } from "./ui.js";
+import { PlanPreviewCard } from "../chat/PlanPreview.js";
 import css from './QuestionComposer.module.css';
 /** Keep the wire label intact while making the recommendation badge readable. */
 function parseRecommendedLabel(label) {
@@ -206,7 +207,7 @@ function PlanReviewCard({ pending, review }) {
             setError(cause instanceof Error ? cause.message : String(cause));
         });
     };
-    return (_jsx("div", { className: css.frame, "data-plan-review-key": pending.key, children: _jsxs("section", { className: `${css.card} ${css.reviewCard}`, "aria-label": review.question, children: [_jsx("header", { className: css.reviewHeader, children: _jsxs("span", { className: css.kicker, children: [_jsx(IconChecklistOutline14, {}), t('question.planReview')] }) }), _jsxs("div", { className: css.reviewBody, children: [_jsx("h2", { className: css.title, children: review.question }), _jsx("div", { className: css.plan, children: _jsx(MarkdownText, { text: review.plan, labels: labels }) })] }), _jsxs("footer", { className: css.reviewFooter, children: [_jsx("div", { className: css.feedback, role: "alert", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy, onClick: () => { settle(() => pending.cancel()); }, children: t('question.discuss') }), review.decline === undefined ? null : (_jsx(Button, { disabled: busy, title: review.decline.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline.label] }] })); }, children: t('question.decline') })), _jsx(Button, { primary: true, autoFocus: true, disabled: busy, title: review.approve.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })); }, children: busy ? _jsxs(_Fragment, { children: [_jsx(Spinner, { size: "sm" }), t('question.submitting')] }) : t('question.approve') })] })] })] }) }));
+    return (_jsx("div", { className: css.frame, "data-plan-review-key": pending.key, children: _jsx(PlanPreviewCard, { markdown: review.plan, labels: labels, current: true, showStatus: true, ariaLabel: review.question, footer: (_jsxs("div", { className: css.reviewFooter, children: [_jsx("div", { className: css.feedback, role: "alert", children: error }), _jsxs("div", { className: css.footerActions, children: [_jsx(Button, { disabled: busy, onClick: () => { settle(() => pending.cancel()); }, children: t('question.discuss') }), review.decline === undefined ? null : (_jsx(Button, { disabled: busy, title: review.decline.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline.label] }] })); }, children: t('question.decline') })), _jsx(Button, { primary: true, autoFocus: true, disabled: busy, title: review.approve.description, onClick: () => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })); }, children: busy ? _jsxs(_Fragment, { children: [_jsx(Spinner, { size: "sm" }), t('question.submitting')] }) : t('question.approve') })] })] })) }) }));
 }
 /** Route the pending request to the plan-review or generic question surface. */
 export function QuestionComposer({ pending }) {

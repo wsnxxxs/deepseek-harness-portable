@@ -1,5 +1,11 @@
-/** Public Space facade over the existing directory-backed TopicVault. */
-export { SPACE_MANIFEST_RELATIVE_PATH, effectiveSourceIds, ensureSpaceManifest, readSpaceManifest, writeSpaceManifest, } from './manifest.ts';
-export type { SpaceManifest } from '../ingest/types.ts';
-export type { TopicVault as Space } from '../topic-vault.ts';
+/**
+ * Moved to `@dsh-portable/space-kernel`.
+ *
+ * The ingest, citation and index machinery is not specific to teaching: a
+ * mission dossier grounds an agent in attached documents the same way a lesson
+ * grounds a learner. It now lives in its own package, and this file re-exports
+ * its counterpart so every caller in this pack keeps its existing import.
+ * @module @dsh-portable/interactive-learning/space/index
+ */
+export * from '@dsh-portable/space-kernel/space/index';
 //# sourceMappingURL=index.d.ts.map

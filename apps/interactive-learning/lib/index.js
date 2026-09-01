@@ -1,8 +1,8 @@
+import { i as __reExport, n as types_exports, r as __exportAll, t as material_anchor_exports } from "./material-anchor-ChboTkkx.js";
 import { _ as reduceLearnerState, a as LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, b as resetLearnerState, c as LEARNING_CHECKPOINT_METRIC_STATUSES, d as MAX_FAILED_MOVES, f as createInitialLearnerState, g as parseLearnerStateSnapshotEvent, h as hydrateLearnerStateSnapshot, i as LEARNER_STATE_SESSION_EVENT_TYPE, l as LEARNING_SEGMENT_EVENT_PROTOCOL, m as foldLearnerStateSession, n as LEARNER_STATE_EVENT_PROTOCOL, o as LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, p as createLearnerStateSnapshotEvent, r as LEARNER_STATE_PROTOCOL, s as LEARNING_CHECKPOINT_METRIC_KINDS, t as DEFAULT_TRANSCRIPT_TOKEN_BUDGET, u as LEARNING_SEGMENT_SESSION_EVENT_TYPE, v as registerLearningSessionEventType, x as serializeLearnerStateSnapshot, y as renderLearnerStateTranscript } from "./learner-state-BiBCCaLg.js";
 import { t as registerInteractiveLearningSessionCompatibility } from "./bootstrap-CTHy9zCQ.js";
-import { $ as readSourceChunks, $t as readManifest, A as MAX_SOURCE_BYTES, At as yamlString, B as titleOf, Bt as readLearnerMemory, C as mentionedPaths, Cn as classifyLearnIntent, Ct as reanchorConceptCards, Dt as saveConceptCard, Et as reviewIntervalDays, F as SOURCE_PROVIDERS, Ft as MAX_RENDERED_CONCEPTS, G as executeRetrievalPlan, Gt as VAULT_MANIFEST_PATH, H as DEFAULT_RETRIEVAL_BUDGET_CHARS, Ht as upsertLearnerConcept, I as fileProvider, It as MAX_STORED_CONCEPTS, J as planRetrieval, Jt as chunksPathOf, K as keyPhrases, Kt as VaultContainmentError, L as SUPPORTED_EXTENSIONS, Lt as conceptRecordFromState, M as ingestDirectory, Mt as reanchorAnchorLists, N as ingestSource, Nt as reanchorVaultMemory, O as TeachingPlanner, Ot as updateConceptCardAnchors, P as isSupportedSource, Pt as LEARNER_MEMORY_PROTOCOL, Q as lexicalIndexPathOf, Qt as readAllStructures, R as extensionOf, Rt as memoryPathOf, S as sectionAnchor, Sn as LEARN_INTENT_RULES, St as readLearnerMemoryWithCards, T as syncMentionedMaterial, Tn as isLearningBoundary, Tt as renderConceptCard, U as RETRIEVAL_INTENTS, Ut as writeLearnerMemory, V as parseMarkdownBlocks, Vt as renderLearnerMemory, W as excerptAround, Wt as VAULT_DIRECTORIES, X as buildLexicalIndex, Xt as ensureVaultLayout, Y as LEXICAL_INDEX_PROTOCOL, Yt as containedPath, Z as ensureLexicalIndex, Zt as isVaultRoot, _ as MATERIAL_TOOL_NAMES, _n as renderExtractedMarkdown, _t as labelFromBody, a as LEARNING_REVIEW_POLICY, an as vaultRelative, at as DEFAULT_CHUNK_TARGET_CHARS, b as MAX_SEARCH_MATCHES, bn as LEARN_INTENT_MODEL_GUIDANCE, bt as readConceptCard, c as LEARNING_VISUAL_POLICY, cn as effectiveSourceIds, ct as MAX_CONCEPT_CARDS, d as routeLearningTurn, dn as writeSpaceManifest, dt as conceptCardDraftFromState, en as readStructure, et as searchLexicalIndex, f as CONCEPT_TOOL_NAMES, ft as conceptCardPathOf, g as validateStudyMapAgainstVault, gn as reanchor, gt as isConceptDue, h as formatStudyMapViolations, hn as emitSource, ht as hasFreshIndependentTransfer, i as LEARNING_MATERIAL_POLICY, in as vaultFromRoot, it as DEFAULT_CHUNK_OVERLAP, j as describeDegradation, jt as describeReanchor, k as retrieve, kt as updateConceptCardSchedule, l as buildLearningTeachingPolicy, ln as ensureSpaceManifest, lt as MAX_REVIEW_INTERVAL_DAYS, mn as deriveStructure, mt as dateKey, n as LEARNING_CONCEPT_SAVE_POLICY, nn as structurePathOf, nt as updateLexicalIndex, o as LEARNING_TEACHING_POLICY, on as writeManifest, ot as chunkSource, p as registerConceptTools, pn as PAGE_MARKER, pt as conceptRecordFromCard, q as matchedTerms, qt as activeSourceIds, r as LEARNING_GRADED_POLICY, rn as upsertManifestEntry, rt as writeSourceChunks, s as LEARNING_TEACHING_POLICY_CORE, sn as SPACE_MANIFEST_RELATIVE_PATH, st as INITIAL_REVIEW_INTERVAL_DAYS, t as LEARNING_CHINESE_TEMPLATES, tn as resolveTopicVault, tt as tokenize, u as routeLearningRequest, un as readSpaceManifest, ut as buildConceptStudyMap, v as MAX_MAP_SECTIONS, vn as LEARNING_INTENT_ROUTING_GUIDANCE, vt as nextReviewSchedule, w as parseFileMentions, wn as isLearnIntent, wt as recallCardIdOf, x as registerMaterialTools, xn as LEARN_INTENT_NATURAL_LANGUAGE_RULES, xt as readConceptCards, y as MAX_READ_CHARS, yn as LEARN_INTENT, yt as parseMarkdownFrontmatter, z as parseSource, zt as parseLearnerConceptRecord } from "./teaching-policy-Cb-XoUAt.js";
-import { c as parseLearningCheckpointResultV1, h as CHECKPOINT_RESULT_PROTOCOL, l as parseLearningCheckpointV1, p as LearningProtocolError, t as CHECKPOINT_TRANSPORT_PROTOCOL, u as parseLearningRecallFeedbackV1 } from "./protocol-current-_5GVMKMM.js";
-import { _ as sectionIdOf, a as formatSectionAnchor, c as resolveAnchorTarget, d as SOURCE_STRUCTURE_PROTOCOL, f as SPACE_MANIFEST_PROTOCOL, g as quoteHashOf, l as sameStringList, n as anchorPage, o as mentionSupported, p as VAULT_MANIFEST_PROTOCOL, r as anchorTargetsOf, s as parseAnchorText, t as ANCHOR_PATH_SEPARATOR, u as sectionMentions, v as slugify } from "./material-anchor-BC14nkcv.js";
+import { $ as parseMarkdownFrontmatter, A as describeReanchor, B as lexical_exports, C as mentionedPaths, Ct as LEARN_INTENT, D as TeachingPlanner, Dt as classifyLearnIntent, Et as LEARN_INTENT_RULES, F as excerptAround, G as conceptCardDraftFromState, H as MAX_CONCEPT_CARDS, I as executeRetrievalPlan, J as dateKey, K as conceptCardPathOf, L as keyPhrases, M as reanchorVaultMemory, N as DEFAULT_RETRIEVAL_BUDGET_CHARS, O as retrieve, Ot as isLearnIntent, P as RETRIEVAL_INTENTS, Q as nextReviewSchedule, R as matchedTerms, S as sectionAnchor, St as LEARNING_INTENT_ROUTING_GUIDANCE, T as syncMentionedMaterial, Tt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, U as MAX_REVIEW_INTERVAL_DAYS, V as INITIAL_REVIEW_INTERVAL_DAYS, W as buildConceptStudyMap, X as isConceptDue, Y as hasFreshIndependentTransfer, Z as labelFromBody, _ as MATERIAL_TOOL_NAMES, _t as readLearnerMemory, a as LEARNING_REVIEW_POLICY, at as renderConceptCard, b as MAX_SEARCH_MATCHES, bt as writeLearnerMemory, c as LEARNING_VISUAL_POLICY, ct as updateConceptCardAnchors, d as routeLearningTurn, dt as LEARNER_MEMORY_PROTOCOL, et as readConceptCard, f as CONCEPT_TOOL_NAMES, ft as MAX_RENDERED_CONCEPTS, g as validateStudyMapAgainstVault, gt as parseLearnerConceptRecord, h as formatStudyMapViolations, ht as memoryPathOf, i as LEARNING_MATERIAL_POLICY, it as recallCardIdOf, j as reanchorAnchorLists, k as pipeline_exports, kt as isLearningBoundary, l as buildLearningTeachingPolicy, lt as updateConceptCardSchedule, mt as conceptRecordFromState, n as LEARNING_CONCEPT_SAVE_POLICY, nt as readLearnerMemoryWithCards, o as LEARNING_TEACHING_POLICY, ot as reviewIntervalDays, p as registerConceptTools, pt as MAX_STORED_CONCEPTS, q as conceptRecordFromCard, r as LEARNING_GRADED_POLICY, rt as reanchorConceptCards, s as LEARNING_TEACHING_POLICY_CORE, st as saveConceptCard, t as LEARNING_CHINESE_TEMPLATES, tt as readConceptCards, u as routeLearningRequest, ut as yamlString, v as MAX_MAP_SECTIONS, vt as renderLearnerMemory, w as parseFileMentions, wt as LEARN_INTENT_MODEL_GUIDANCE, x as registerMaterialTools, xt as topic_vault_exports, y as MAX_READ_CHARS, yt as upsertLearnerConcept, z as planRetrieval } from "./teaching-policy-BezN_TGy.js";
+import { c as parseLearningCheckpointResultV1, h as CHECKPOINT_RESULT_PROTOCOL, l as parseLearningCheckpointV1, p as LearningProtocolError, t as CHECKPOINT_TRANSPORT_PROTOCOL, u as parseLearningRecallFeedbackV1 } from "./protocol-current-Cyp6-wYL.js";
 import { createHash, randomUUID } from "node:crypto";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
@@ -122,7 +122,7 @@ function panelConcept(vault, card, now) {
 		misconceptions: card.misconceptions,
 		unverifiedTransfer: card.unverifiedTransfer,
 		relatedConcepts: card.relatedConcepts,
-		path: vaultRelative(vault, card.path),
+		path: (0, topic_vault_exports.vaultRelative)(vault, card.path),
 		body: card.body,
 		due_now: isConceptDue(card.due, now)
 	};
@@ -273,7 +273,7 @@ async function readConceptFile(vault, conceptSlug) {
 	if (card === void 0) return void 0;
 	try {
 		return {
-			path: vaultRelative(vault, card.path),
+			path: (0, topic_vault_exports.vaultRelative)(vault, card.path),
 			text: await readFile(card.path, "utf8")
 		};
 	} catch {
@@ -316,7 +316,7 @@ const MAX_NOTE_BODY_CHARS = 2e4;
 const MAX_NOTE_EXCERPT_CHARS = 220;
 const NOTE_KINDS$1 = /* @__PURE__ */ new Set(["note", "pending-concept"]);
 function notePathOf(vault, noteSlug) {
-	return join(vault.notes, `${slugify(noteSlug, "note")}.md`);
+	return join(vault.notes, `${(0, types_exports.slugify)(noteSlug, "note")}.md`);
 }
 function clean(value, limit) {
 	return value.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, " ").trim().slice(0, limit);
@@ -377,12 +377,12 @@ function parseNote(raw, path, vault) {
 	const conceptField = parsed?.fields.get("concept") ?? null;
 	const kind = kindOf(parsed?.fields.get("kind"));
 	return {
-		noteSlug: slugify(parsed?.fields.get("id") ?? fileSlug, fileSlug),
+		noteSlug: (0, types_exports.slugify)(parsed?.fields.get("id") ?? fileSlug, fileSlug),
 		kind,
 		title: labelFromBody(body) || fileSlug,
 		body,
 		excerpt: excerptOf(body),
-		path: vaultRelative(vault, path),
+		path: (0, topic_vault_exports.vaultRelative)(vault, path),
 		conceptSlug: kind === "pending-concept" && conceptField !== null ? conceptField : null,
 		gate: null,
 		sourceSessionId: parsed?.fields.get("source_session") ?? null,
@@ -472,16 +472,16 @@ async function saveNote(vault, input, now = /* @__PURE__ */ new Date()) {
 	const existing = input.noteSlug === void 0 ? void 0 : await readNote(vault, input.noteSlug);
 	const title = clean(input.title ?? "", 160);
 	const body = withHeading(clean(input.body, MAX_NOTE_BODY_CHARS), title);
-	const noteSlug = existing?.noteSlug ?? await freeSlug(vault, slugify(title || labelFromBody(body) || "note", "note"));
+	const noteSlug = existing?.noteSlug ?? await freeSlug(vault, (0, types_exports.slugify)(title || labelFromBody(body) || "note", "note"));
 	const kind = input.kind ?? existing?.kind ?? "note";
-	const conceptSlug = kind === "pending-concept" ? input.conceptSlug === void 0 ? existing?.conceptSlug ?? slugify(title || labelFromBody(body) || noteSlug, "concept") : slugify(input.conceptSlug, "concept") : null;
+	const conceptSlug = kind === "pending-concept" ? input.conceptSlug === void 0 ? existing?.conceptSlug ?? (0, types_exports.slugify)(title || labelFromBody(body) || noteSlug, "concept") : (0, types_exports.slugify)(input.conceptSlug, "concept") : null;
 	const next = {
 		noteSlug,
 		kind,
 		title: labelFromBody(body) || noteSlug,
 		body,
 		excerpt: excerptOf(body),
-		path: vaultRelative(vault, notePathOf(vault, noteSlug)),
+		path: (0, topic_vault_exports.vaultRelative)(vault, notePathOf(vault, noteSlug)),
 		conceptSlug,
 		gate: null,
 		sourceSessionId: existing?.sourceSessionId ?? input.sourceSessionId ?? null,
@@ -548,6 +548,21 @@ async function promoteNote(vault, noteSlug, now = /* @__PURE__ */ new Date()) {
 		concept
 	};
 }
+//#endregion
+//#region lib/types/ingest/markdown.js
+var markdown_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_ingest_markdown from "@dsh-portable/space-kernel/ingest/markdown";
+__reExport(markdown_exports, import__dsh_portable_space_kernel_ingest_markdown);
+//#endregion
+//#region lib/types/ingest/index.js
+var ingest_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_ingest_index from "@dsh-portable/space-kernel/ingest/index";
+__reExport(ingest_exports, import__dsh_portable_space_kernel_ingest_index);
+//#endregion
+//#region lib/types/ingest/text.js
+var text_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_ingest_text from "@dsh-portable/space-kernel/ingest/text";
+__reExport(text_exports, import__dsh_portable_space_kernel_ingest_text);
 //#endregion
 //#region lib/types/material-vision.js
 /**
@@ -740,7 +755,7 @@ async function findPdfRenderer() {
 		await execFileAsync(renderer, ["-v"], {
 			windowsHide: true,
 			timeout: 5e3,
-			maxBuffer: 65536
+			maxBuffer: 64 * 1024
 		});
 		return renderer;
 	} catch (cause) {
@@ -768,7 +783,7 @@ async function renderPdfPage(renderer, filePath, page, signal) {
 			windowsHide: true,
 			timeout: PDF_RENDER_TIMEOUT_MS,
 			signal,
-			maxBuffer: 1048576
+			maxBuffer: 1024 * 1024
 		});
 		const imagePath = `${outputBase}.png`;
 		if (!(await stat(imagePath)).isFile()) throw new Error(`${renderer} produced no image for page ${String(page)}`);
@@ -800,7 +815,7 @@ function imageOnlyPages(degradation) {
 * call before the person confirms a paid re-read.
 */
 async function materialRouteInfo(ctx, vault, sourceId, deps = {}) {
-	const entry = (await readManifest(vault)).sources.find((source) => source.sourceId === sourceId);
+	const entry = (await (0, topic_vault_exports.readManifest)(vault)).sources.find((source) => source.sourceId === sourceId);
 	const blank = {
 		status: "ok",
 		route: "no-route",
@@ -952,7 +967,7 @@ function blocksForPage(sourceId, title, page, markdown) {
 			sourceId,
 			headingPath: [...headingPath],
 			page,
-			quoteHash: quoteHashOf(label)
+			quoteHash: (0, types_exports.quoteHashOf)(label)
 		}
 	}];
 	for (const chunk of markdown.split(/\n{2,}/u)) {
@@ -970,7 +985,7 @@ function blocksForPage(sourceId, title, page, markdown) {
 					sourceId,
 					headingPath: [...headingPath, inner],
 					page,
-					quoteHash: quoteHashOf(inner)
+					quoteHash: (0, types_exports.quoteHashOf)(inner)
 				}
 			});
 			continue;
@@ -982,7 +997,7 @@ function blocksForPage(sourceId, title, page, markdown) {
 				sourceId,
 				headingPath: [...headingPath],
 				page,
-				quoteHash: quoteHashOf(text)
+				quoteHash: (0, types_exports.quoteHashOf)(text)
 			}
 		});
 	}
@@ -996,14 +1011,13 @@ function isPageHeading(text, page) {
 /** Read the emitted extraction so a later batch starts with earlier recovery. */
 async function currentExtraction(vault, entry) {
 	if ((entry.reparsed?.pages.length ?? 0) === 0) return void 0;
-	const structure = await readStructure(vault, entry.sourceId);
+	const structure = await (0, topic_vault_exports.readStructure)(vault, entry.sourceId);
 	if (structure === void 0) return void 0;
 	try {
-		const content = (await readFile(join(vault.root, entry.extractedPath), "utf8")).split(/\r?\n/u).filter((line) => {
+		const parsed = (0, text_exports.parseMarkdownBlocks)((await readFile(join(vault.root, entry.extractedPath), "utf8")).split(/\r?\n/u).filter((line) => {
 			const trimmed = line.trim();
-			return !trimmed.startsWith(`<!-- dsh-learning:source`) && !PAGE_MARKER.test(trimmed);
-		}).join("\n");
-		const parsed = parseMarkdownBlocks(content, entry.sourceId, entry.title);
+			return !trimmed.startsWith(`<!-- ${markdown_exports.EXTRACTED_HEADER}`) && !markdown_exports.PAGE_MARKER.test(trimmed);
+		}).join("\n"), entry.sourceId, entry.title);
 		const sections = structure.sections;
 		const blocks = parsed.map((block) => {
 			const section = sections.find((candidate) => candidate.headingPath.join("\0") === block.anchor.headingPath.join("\0"));
@@ -1105,7 +1119,7 @@ async function reparsePages(ctx, vault, sourceId, requested, now = /* @__PURE__ 
 		...head,
 		status: info.route
 	};
-	const entry = (await readManifest(vault)).sources.find((source) => source.sourceId === sourceId);
+	const entry = (await (0, topic_vault_exports.readManifest)(vault)).sources.find((source) => source.sourceId === sourceId);
 	const wanted = (requested === void 0 || requested.length === 0 ? info.pages : info.pages.filter((page) => requested.includes(page))).slice(0, 8);
 	if (wanted.length === 0) return {
 		...head,
@@ -1178,21 +1192,20 @@ async function reparsePages(ctx, vault, sourceId, requested, now = /* @__PURE__ 
 	};
 	const merged = spliceRecoveredPages({
 		...await currentExtraction(vault, entry) ?? await (async () => {
-			const bytes = await readFile(sourceFile);
-			return await parseSource(bytes, entry.originalName, sourceId);
+			return await (0, ingest_exports.parseSource)(await readFile(sourceFile), entry.originalName, sourceId);
 		})(),
 		degradation: entry.degradation
 	}, recovered);
 	const extractedAbsolute = join(vault.root, entry.extractedPath);
-	const { markdown, structure } = emitSource(merged, entry.extractedPath);
-	const superseded = await readStructure(vault, sourceId);
+	const { markdown, structure } = (0, markdown_exports.emitSource)(merged, entry.extractedPath);
+	const superseded = await (0, topic_vault_exports.readStructure)(vault, sourceId);
 	await writeFile(extractedAbsolute, markdown, "utf8");
-	await writeFile(structurePathOf(vault, sourceId), `${JSON.stringify(structure, void 0, 2)}\n`, "utf8");
+	await writeFile((0, topic_vault_exports.structurePathOf)(vault, sourceId), `${JSON.stringify(structure, void 0, 2)}\n`, "utf8");
 	const pages = [.../* @__PURE__ */ new Set([...entry.reparsed?.pages ?? [], ...recovered.keys()])].sort((left, right) => left - right);
-	await upsertManifestEntry(vault, {
+	await (0, topic_vault_exports.upsertManifestEntry)(vault, {
 		...entry,
 		degradation: merged.degradation,
-		structurePath: vaultRelative(vault, structurePathOf(vault, sourceId)),
+		structurePath: (0, topic_vault_exports.vaultRelative)(vault, (0, topic_vault_exports.structurePathOf)(vault, sourceId)),
 		reparsed: {
 			pages,
 			via: `${route.provider}/${route.model}`,
@@ -1387,8 +1400,7 @@ function sectionBody(lines, section) {
 	return lines.slice(section.line, Math.max(section.line, section.endLine - 1)).join("\n").replace(/^<!--\s*p\.\d+\s*-->$/gmu, "").trim();
 }
 async function extractedLines(vault, structure) {
-	const path = await containedPath(vault, structure.extractedPath);
-	return (await readFile(path, "utf8")).split("\n");
+	return (await readFile(await (0, topic_vault_exports.containedPath)(vault, structure.extractedPath), "utf8")).split("\n");
 }
 /**
 * Vault stats for a set of candidate folders.
@@ -1409,7 +1421,7 @@ async function vaultRoster(ctx, cwds) {
 		seen.add(cwd);
 		let vault;
 		try {
-			vault = await resolveTopicVault(ctx, cwd);
+			vault = await (0, topic_vault_exports.resolveTopicVault)(ctx, cwd);
 		} catch {
 			continue;
 		}
@@ -1437,12 +1449,12 @@ async function vaultRoster(ctx, cwds) {
 /** Vault resolution shared by every endpoint; `undefined` means "not a vault". */
 async function vaultAt(ctx, payload) {
 	const cwd = text(record(payload)?.cwd);
-	return cwd === void 0 ? void 0 : await resolveTopicVault(ctx, cwd);
+	return cwd === void 0 ? void 0 : await (0, topic_vault_exports.resolveTopicVault)(ctx, cwd);
 }
 /** Counts for the panel header. */
 async function vaultSummary(vault) {
 	const [manifest, cards, notes] = await Promise.all([
-		readManifest(vault),
+		(0, topic_vault_exports.readManifest)(vault),
 		readConceptCards(vault),
 		listNotes(vault)
 	]);
@@ -1469,9 +1481,9 @@ async function vaultSummary(vault) {
 * case a person needs to see.
 */
 async function vaultSources(vault) {
-	const [manifest, structures] = await Promise.all([readManifest(vault), readAllStructures(vault)]);
+	const [manifest, structures] = await Promise.all([(0, topic_vault_exports.readManifest)(vault), (0, topic_vault_exports.readAllStructures)(vault)]);
 	const byId = new Map(structures.map((structure) => [structure.sourceId, structure]));
-	const selectedSourceIds = await activeSourceIds(vault);
+	const selectedSourceIds = await (0, topic_vault_exports.activeSourceIds)(vault);
 	const selected = new Set(selectedSourceIds);
 	const sources = manifest.sources.map((entry) => {
 		const structure = byId.get(entry.sourceId);
@@ -1501,11 +1513,11 @@ async function vaultSources(vault) {
 }
 /** Read or update the Space's explicit grounding scope. */
 async function spaceScope(vault, requestedSourceIds) {
-	const manifest = await readManifest(vault);
+	const manifest = await (0, topic_vault_exports.readManifest)(vault);
 	const sourceIds = manifest.sources.map((entry) => entry.sourceId);
-	const selectedSourceIds = requestedSourceIds === void 0 ? await activeSourceIds(vault) : requestedSourceIds === null ? sourceIds : [...new Set(requestedSourceIds)].filter((sourceId) => sourceIds.includes(sourceId));
+	const selectedSourceIds = requestedSourceIds === void 0 ? await (0, topic_vault_exports.activeSourceIds)(vault) : requestedSourceIds === null ? sourceIds : [...new Set(requestedSourceIds)].filter((sourceId) => sourceIds.includes(sourceId));
 	const active = requestedSourceIds === void 0 ? manifest.activeSourceIds === void 0 || manifest.activeSourceIds === null ? null : selectedSourceIds : requestedSourceIds === null || selectedSourceIds.length === sourceIds.length ? null : selectedSourceIds;
-	if (requestedSourceIds !== void 0) await writeManifest(vault, {
+	if (requestedSourceIds !== void 0) await (0, topic_vault_exports.writeManifest)(vault, {
 		...manifest,
 		activeSourceIds: active
 	});
@@ -1519,7 +1531,7 @@ async function spaceScope(vault, requestedSourceIds) {
 }
 /** One section's own body plus its immediate children. */
 async function vaultRead(vault, sourceId, sectionId) {
-	const structure = (await readAllStructures(vault)).find((candidate) => candidate.sourceId === sourceId);
+	const structure = (await (0, topic_vault_exports.readAllStructures)(vault)).find((candidate) => candidate.sourceId === sourceId);
 	if (structure === void 0) return {
 		status: "unknown-source",
 		protocol: VAULT_RPC_PROTOCOL
@@ -1579,12 +1591,12 @@ async function vaultSearch(vault, query) {
 	};
 	if (terms.length === 0) return empty;
 	const material = [];
-	const selectedSourceIds = await activeSourceIds(vault);
-	const structures = await readAllStructures(vault);
+	const selectedSourceIds = await (0, topic_vault_exports.activeSourceIds)(vault);
+	const structures = await (0, topic_vault_exports.readAllStructures)(vault);
 	const bySource = new Map(structures.map((structure) => [structure.sourceId, structure]));
-	const index = await ensureLexicalIndex(vault);
+	const index = await (0, lexical_exports.ensureLexicalIndex)(vault);
 	const chunksBySource = /* @__PURE__ */ new Map();
-	for (const hit of searchLexicalIndex(index, terms, {
+	for (const hit of (0, lexical_exports.searchLexicalIndex)(index, terms, {
 		sourceIds: selectedSourceIds,
 		limit: 20
 	})) {
@@ -1592,7 +1604,7 @@ async function vaultSearch(vault, query) {
 		if (structure === void 0) continue;
 		let chunks = chunksBySource.get(hit.sourceId);
 		if (chunks === void 0) {
-			chunks = await readSourceChunks(vault, hit.sourceId);
+			chunks = await (0, lexical_exports.readSourceChunks)(vault, hit.sourceId);
 			chunksBySource.set(hit.sourceId, chunks);
 		}
 		const chunk = chunks.find((candidate) => candidate.chunkId === hit.chunkId);
@@ -1621,7 +1633,7 @@ async function vaultSearch(vault, query) {
 		const matched = matchedTerms(haystack, terms);
 		if (matched.length === 0) continue;
 		concepts.push({
-			path: vaultRelative(vault, card.path),
+			path: (0, topic_vault_exports.vaultRelative)(vault, card.path),
 			title: card.label,
 			excerpt: excerptAround(card.explanation === "" ? haystack : card.explanation, matched, 220),
 			matched,
@@ -1864,7 +1876,7 @@ async function handleVaultEndpoint(ctx, endpoint, payload) {
 			}
 		}
 	} catch (cause) {
-		if (cause instanceof VaultContainmentError) return fail("forbidden", cause.message);
+		if (cause instanceof topic_vault_exports.VaultContainmentError) return fail("forbidden", cause.message);
 		return fail("internal", cause instanceof Error ? cause.message : String(cause));
 	}
 }
@@ -2261,12 +2273,11 @@ var LearningActivityBroker = class extends Service {
 				revision: state.revision
 			};
 		}
-		const event = request.action === "correct" ? {
+		const state = reduceLearnerState(current, request.action === "correct" ? {
 			type: "state_corrected",
 			correction: request.correction,
 			observation: request.observation
-		} : request.event;
-		const state = reduceLearnerState(current, event);
+		} : request.event);
 		if (state === current) return {
 			status: request.action === "correct" ? "corrected" : "updated",
 			revision: current.revision
@@ -2443,7 +2454,7 @@ var LearningActivityBroker = class extends Service {
 		};
 	}
 	async persistRecallReview(agent, feedback) {
-		const vault = await resolveTopicVault(this.ctx, agent.session.header.cwd);
+		const vault = await (0, topic_vault_exports.resolveTopicVault)(this.ctx, agent.session.header.cwd);
 		if (vault === void 0) return;
 		const card = (await readConceptCards(vault)).find((candidate) => recallCardIdOf(candidate.conceptSlug) === feedback.cardId);
 		if (card === void 0) return;
@@ -2712,8 +2723,86 @@ var LearningActivityBroker = class extends Service {
 	}
 };
 //#endregion
+//#region lib/types/space/index.js
+var space_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_space_index from "@dsh-portable/space-kernel/space/index";
+__reExport(space_exports, import__dsh_portable_space_kernel_space_index);
+//#endregion
+//#region lib/types/ingest/provider.js
+var provider_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_ingest_provider from "@dsh-portable/space-kernel/ingest/provider";
+__reExport(provider_exports, import__dsh_portable_space_kernel_ingest_provider);
+//#endregion
+//#region lib/types/index/chunker.js
+var chunker_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_search_chunker from "@dsh-portable/space-kernel/search/chunker";
+__reExport(chunker_exports, import__dsh_portable_space_kernel_search_chunker);
+//#endregion
 //#region lib/types/index.js
 /** Host entry: one non-model-facing Learning Activity broker service. */
 registerInteractiveLearningSessionCompatibility();
 //#endregion
+var ANCHOR_PATH_SEPARATOR = material_anchor_exports.ANCHOR_PATH_SEPARATOR;
+var DEFAULT_CHUNK_OVERLAP = chunker_exports.DEFAULT_CHUNK_OVERLAP;
+var DEFAULT_CHUNK_TARGET_CHARS = chunker_exports.DEFAULT_CHUNK_TARGET_CHARS;
+var LEXICAL_INDEX_PROTOCOL = lexical_exports.LEXICAL_INDEX_PROTOCOL;
+var MAX_SOURCE_BYTES = pipeline_exports.MAX_SOURCE_BYTES;
+var SOURCE_PROVIDERS = provider_exports.SOURCE_PROVIDERS;
+var SOURCE_STRUCTURE_PROTOCOL = ingest_exports.SOURCE_STRUCTURE_PROTOCOL;
+var SPACE_MANIFEST_PROTOCOL = ingest_exports.SPACE_MANIFEST_PROTOCOL;
+var SPACE_MANIFEST_RELATIVE_PATH = space_exports.SPACE_MANIFEST_RELATIVE_PATH;
+var SUPPORTED_EXTENSIONS = ingest_exports.SUPPORTED_EXTENSIONS;
+var VAULT_DIRECTORIES = topic_vault_exports.VAULT_DIRECTORIES;
+var VAULT_MANIFEST_PATH = topic_vault_exports.VAULT_MANIFEST_PATH;
+var VAULT_MANIFEST_PROTOCOL = ingest_exports.VAULT_MANIFEST_PROTOCOL;
+var VaultContainmentError = topic_vault_exports.VaultContainmentError;
+var activeSourceIds = topic_vault_exports.activeSourceIds;
+var anchorPage = material_anchor_exports.anchorPage;
+var anchorTargetsOf = material_anchor_exports.anchorTargetsOf;
+var buildLexicalIndex = lexical_exports.buildLexicalIndex;
+var chunkSource = chunker_exports.chunkSource;
+var chunksPathOf = topic_vault_exports.chunksPathOf;
+var containedPath = topic_vault_exports.containedPath;
+var deriveStructure = ingest_exports.deriveStructure;
+var describeDegradation = pipeline_exports.describeDegradation;
+var effectiveSourceIds = space_exports.effectiveSourceIds;
+var emitSource = ingest_exports.emitSource;
+var ensureLexicalIndex = lexical_exports.ensureLexicalIndex;
+var ensureSpaceManifest = space_exports.ensureSpaceManifest;
+var ensureVaultLayout = topic_vault_exports.ensureVaultLayout;
+var extensionOf = ingest_exports.extensionOf;
+var fileProvider = provider_exports.fileProvider;
+var formatSectionAnchor = material_anchor_exports.formatSectionAnchor;
+var ingestDirectory = pipeline_exports.ingestDirectory;
+var ingestSource = pipeline_exports.ingestSource;
+var isSupportedSource = pipeline_exports.isSupportedSource;
+var isVaultRoot = topic_vault_exports.isVaultRoot;
+var lexicalIndexPathOf = lexical_exports.lexicalIndexPathOf;
+var mentionSupported = material_anchor_exports.mentionSupported;
+var parseAnchorText = material_anchor_exports.parseAnchorText;
+var parseSource = ingest_exports.parseSource;
+var readAllStructures = topic_vault_exports.readAllStructures;
+var readManifest = topic_vault_exports.readManifest;
+var readSourceChunks = lexical_exports.readSourceChunks;
+var readSpaceManifest = space_exports.readSpaceManifest;
+var readStructure = topic_vault_exports.readStructure;
+var reanchor = ingest_exports.reanchor;
+var renderExtractedMarkdown = ingest_exports.renderExtractedMarkdown;
+var resolveAnchorTarget = material_anchor_exports.resolveAnchorTarget;
+var resolveTopicVault = topic_vault_exports.resolveTopicVault;
+var sameStringList = material_anchor_exports.sameStringList;
+var searchLexicalIndex = lexical_exports.searchLexicalIndex;
+var sectionIdOf = ingest_exports.sectionIdOf;
+var sectionMentions = material_anchor_exports.sectionMentions;
+var slugify = ingest_exports.slugify;
+var structurePathOf = topic_vault_exports.structurePathOf;
+var titleOf = ingest_exports.titleOf;
+var tokenize = lexical_exports.tokenize;
+var updateLexicalIndex = lexical_exports.updateLexicalIndex;
+var upsertManifestEntry = topic_vault_exports.upsertManifestEntry;
+var vaultFromRoot = topic_vault_exports.vaultFromRoot;
+var vaultRelative = topic_vault_exports.vaultRelative;
+var writeManifest = topic_vault_exports.writeManifest;
+var writeSourceChunks = lexical_exports.writeSourceChunks;
+var writeSpaceManifest = space_exports.writeSpaceManifest;
 export { ANCHOR_PATH_SEPARATOR, CONCEPT_TOOL_NAMES, DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_TARGET_CHARS, DEFAULT_RETRIEVAL_BUDGET_CHARS, DEFAULT_TRANSCRIPT_TOKEN_BUDGET, INITIAL_REVIEW_INTERVAL_DAYS, LEARNER_MEMORY_PROTOCOL, LEARNER_STATE_EVENT_PROTOCOL, LEARNER_STATE_PROTOCOL, LEARNER_STATE_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE, LEARNING_CHECKPOINT_METRIC_KINDS, LEARNING_CHECKPOINT_METRIC_STATUSES, LEARNING_CHINESE_TEMPLATES, LEARNING_CONCEPT_SAVE_POLICY, LEARNING_GRADED_POLICY, LEARNING_INTENT_ROUTING_GUIDANCE, LEARNING_MATERIAL_POLICY, LEARNING_REVIEW_POLICY, LEARNING_SEGMENT_EVENT_PROTOCOL, LEARNING_SEGMENT_SESSION_EVENT_TYPE, LEARNING_TEACHING_POLICY, LEARNING_TEACHING_POLICY_CORE, LEARNING_VISUAL_POLICY, LEARN_INTENT, LEARN_INTENT_MODEL_GUIDANCE, LEARN_INTENT_NATURAL_LANGUAGE_RULES, LEARN_INTENT_RULES, LEXICAL_INDEX_PROTOCOL, LearningActivityBroker, LearningActivityBroker as default, MATERIAL_TOOL_NAMES, MAX_CONCEPT_CARDS, MAX_FAILED_MOVES, MAX_MAP_SECTIONS, MAX_READ_CHARS, MAX_RENDERED_CONCEPTS, MAX_REVIEW_INTERVAL_DAYS, MAX_SEARCH_MATCHES, MAX_SOURCE_BYTES, MAX_STORED_CONCEPTS, RETRIEVAL_INTENTS, SOURCE_PROVIDERS, SOURCE_STRUCTURE_PROTOCOL, SPACE_MANIFEST_PROTOCOL, SPACE_MANIFEST_RELATIVE_PATH, SUPPORTED_EXTENSIONS, TeachingPlanner, VAULT_DIRECTORIES, VAULT_MANIFEST_PATH, VAULT_MANIFEST_PROTOCOL, VaultContainmentError, activeSourceIds, anchorPage, anchorTargetsOf, buildConceptStudyMap, buildLearningTeachingPolicy, buildLexicalIndex, chunkSource, chunksPathOf, classifyLearnIntent, conceptCardDraftFromState, conceptCardPathOf, conceptRecordFromCard, conceptRecordFromState, containedPath, createInitialLearnerState, createLearnerStateSnapshotEvent, deriveStructure, describeDegradation, describeReanchor, effectiveSourceIds, emitSource, ensureLexicalIndex, ensureSpaceManifest, ensureVaultLayout, executeRetrievalPlan, extensionOf, fileProvider, foldLearnerStateSession, formatSectionAnchor, formatStudyMapViolations, hasFreshIndependentTransfer, hydrateLearnerStateSnapshot, ingestDirectory, ingestSource, isConceptDue, isLearnIntent, isLearningBoundary, isSupportedSource, isVaultRoot, keyPhrases, lexicalIndexPathOf, memoryPathOf, mentionSupported, mentionedPaths, nextReviewSchedule, parseAnchorText, parseFileMentions, parseLearnerConceptRecord, parseLearnerStateSnapshotEvent, parseSource, planRetrieval, readAllStructures, readConceptCard, readConceptCards, readLearnerMemory, readLearnerMemoryWithCards, readManifest, readSourceChunks, readSpaceManifest, readStructure, reanchor, reanchorAnchorLists, reanchorConceptCards, reanchorVaultMemory, recallCardIdOf, reduceLearnerState, registerConceptTools, registerInteractiveLearningSessionCompatibility, registerLearningSessionEventType, registerMaterialTools, renderConceptCard, renderExtractedMarkdown, renderLearnerMemory, renderLearnerStateTranscript, resetLearnerState, resolveAnchorTarget, resolveTopicVault, retrieve, reviewIntervalDays, routeLearningRequest, routeLearningTurn, sameStringList, saveConceptCard, searchLexicalIndex, sectionAnchor, sectionIdOf, sectionMentions, serializeLearnerStateSnapshot, slugify, structurePathOf, syncMentionedMaterial, titleOf, tokenize, updateConceptCardAnchors, updateConceptCardSchedule, updateLexicalIndex, upsertLearnerConcept, upsertManifestEntry, validateStudyMapAgainstVault, vaultFromRoot, vaultRelative, writeLearnerMemory, writeManifest, writeSourceChunks, writeSpaceManifest };

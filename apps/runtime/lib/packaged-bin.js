@@ -447,6 +447,7 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
                         maxPendingMessagesPerMember: 64,
                         maxMessageBytes: 65536,
                         disposalTimeoutMs: 5000,
+                        maxDelegationDepth: 5,
                     },
                 },
             ],
@@ -830,7 +831,7 @@ async function main() {
         const clientModules = ctx.get('clientModules');
         if (clientModules === undefined)
             throw new Error(`${NAME}: client module host is missing after Loader activation`);
-        clientModules.reconcileLoadedEntries();
+        clientModules.reconcileLoadedEntries?.();
         const clientGraph = clientModules.graph();
         const hasClientModulesBootstrap = clientGraph.entries.some(entry => entry.id === '@deepseek-ai/dsh-client-modules')
             && clientGraph.batches.some(batch => batch.phase === 'bootstrap'

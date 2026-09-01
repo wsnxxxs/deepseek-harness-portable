@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "preinstall": "node scripts/prepare-upstream-submodule.cjs",
-    "test": "pnpm run packaging:test && pnpm run runtime:test && pnpm run learning:test && pnpm run vision:test && pnpm run desktop:test && pnpm run ui-mode:test",
-    "test:dirty": "pnpm run packaging:dirty:test && pnpm run dcode:test && pnpm run learning:package:test && pnpm run ui-mode:test",
+    "test": "pnpm run packaging:test && pnpm run runtime:test && pnpm run learning:test && pnpm run vision:test && pnpm run desktop:test && pnpm run ui-mode:test && pnpm run space-kernel:test && pnpm run crew-dossier:test",
+    "test:dirty": "pnpm run packaging:dirty:test && pnpm run dcode:test && pnpm run learning:package:test && pnpm run ui-mode:test && pnpm run space-kernel:test && pnpm run crew-dossier:test",
     "test:platform": "pnpm run packaging:platform:test && pnpm run desktop:updater:test",
     "packaging:typecheck": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions --types node --typeRoots node_modules/.pnpm/node_modules/@types scripts/build/interactive-learning-contract.ts scripts/build/windows-zip.ts scripts/build/kernel-build.ts scripts/build/client-manifest-bridge.ts scripts/build/packaged-smoke.ts scripts/build-desktop-web-exe.ts",
     "packaging:test": "pnpm run packaging:typecheck && tsx --test \"scripts/**/!(client-manifest-bridge|windows-launcher|setup-runtime-preflight).test.ts\" \"packages/*/src/**/*.test.ts\" && node --test \"packages/*/src/**/*.test.cjs\"",
@@ -16,7 +16,7 @@
     "release:deps:check": "tsx scripts/release/check-dependency-drift.ts",
     "release:deps:approve": "tsx scripts/release/check-dependency-drift.ts --approve",
     "readme:check": "node scripts/check-readme-i18n.cjs",
-    "build": "pnpm run runtime:links:sync && pnpm run runtime:deps:check && tsx scripts/build/client-manifest-bridge.ts && tsx scripts/build/kernel-build.ts && pnpm --filter @dsh-portable/platform-contract run build && pnpm --filter @dsh-portable/release-manifest run build && pnpm --filter @dsh-portable/vision-bridge run build && pnpm --filter @dsh-portable/interactive-learning run build && pnpm --filter @dsh-portable/ui-mode run build && pnpm --filter @dsh-portable/dcode-ui run build && pnpm --filter @dsh-portable/runtime run build && pnpm --filter dsh-desktop-web-pkg run build",
+    "build": "pnpm run runtime:links:sync && pnpm run runtime:deps:check && tsx scripts/build/client-manifest-bridge.ts && tsx scripts/build/kernel-build.ts && pnpm --filter @dsh-portable/platform-contract run build && pnpm --filter @dsh-portable/release-manifest run build && pnpm --filter @dsh-portable/vision-bridge run build && pnpm --filter @dsh-portable/space-kernel run build && pnpm --filter @dsh-portable/crew-dossier run build && pnpm --filter @dsh-portable/interactive-learning run build && pnpm --filter @dsh-portable/ui-mode run build && pnpm --filter @dsh-portable/dcode-ui run build && pnpm --filter @dsh-portable/runtime run build && pnpm --filter dsh-desktop-web-pkg run build",
     "desktop:bootstrap": "git submodule update --init --recursive && pnpm install --frozen-lockfile --prefer-offline --optimistic-repeat-install",
     "desktop:bootstrap:dev": "git submodule update --init --recursive && pnpm install --frozen-lockfile --prefer-offline --optimistic-repeat-install --filter . --filter @dsh-portable/runtime... --filter dsh-desktop-web-pkg...",
     "desktop:dev": "pnpm run runtime:links:sync && pnpm --filter dsh-desktop-web-pkg start",
@@ -42,7 +42,9 @@
     "desktop:make:linux": "pnpm run desktop:package:linux",
     "desktop:release:linux": "pnpm exec tsx scripts/release-linux.ts",
     "desktop:package:exe": "pnpm exec tsx scripts/build-desktop-web-exe.ts",
-    "ui-mode:test": "pnpm --filter @dsh-portable/ui-mode test"
+    "ui-mode:test": "pnpm --filter @dsh-portable/ui-mode test",
+    "space-kernel:test": "pnpm --filter @dsh-portable/space-kernel test",
+    "crew-dossier:test": "pnpm --filter @dsh-portable/crew-dossier test"
   },
   "devDependencies": {
     "@electron/rebuild": "3.7.0",

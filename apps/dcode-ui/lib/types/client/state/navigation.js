@@ -15,27 +15,18 @@
 import { useSyncExternalStore } from 'react';
 import { fitPanels, initialLayoutSize, LAYOUT_FIT, readContextPanelPreference, writeContextPanelPreference, } from "./layout.js";
 /** Stable visual and keyboard order of the preview-panel tabs. */
-export const ASIDE_TABS = ['changes', 'terminal', 'goal', 'details'];
+export const ASIDE_TABS = ['goal', 'changes', 'terminal'];
 /** Highest-priority automatic context signal, if the task has one. */
 export function primaryAsideTab(context) {
-    if (context.hasError)
-        return 'details';
     if (context.hasChanges)
         return 'changes';
     if (context.goalActive)
         return 'goal';
     return undefined;
 }
-/** Put the most actionable context first while retaining every existing tab. */
-export function orderedAsideTabs(context) {
-    const priority = [];
-    if (context.hasError)
-        priority.push('details');
-    if (context.hasChanges)
-        priority.push('changes');
-    if (context.goalActive)
-        priority.push('goal');
-    return [...new Set([...priority, ...ASIDE_TABS])];
+/** Keep the inspector as the stable first tab; context signals use direct actions. */
+export function orderedAsideTabs(_context) {
+    return ASIDE_TABS;
 }
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
 export function adjacentAsideTab(tab, direction, tabs = ASIDE_TABS) {
@@ -59,7 +50,6 @@ const INITIAL = {
     settingsSection: 'general',
     settingsProvider: undefined,
     diff: undefined,
-    inspectedCallId: undefined,
 };
 /** Resolve the active compact overlay; docked layouts have no overlay. */
 export function compactOverlayOf(state) {
@@ -135,16 +125,12 @@ export function createNavigationStore() {
                 asidePinned: preferred !== undefined,
                 asidePreferredOpen: preferred,
                 diff: undefined,
-                inspectedCallId: undefined,
             });
         },
         openDiff: (path, staged = false) => {
             patch({ diff: { path, staged }, aside: 'changes', asideOpen: true, ...compactOverlayPatch('aside'), ...rememberAside(true) });
         },
         closeDiff: () => { patch({ diff: undefined }); },
-        inspect: callId => {
-            patch({ inspectedCallId: callId, aside: 'details', asideOpen: true, ...compactOverlayPatch('aside'), ...rememberAside(true) });
-        },
         togglePalette: open => { patch({ paletteOpen: open ?? !state.paletteOpen }); },
         toggleRail: () => {
             const open = !state.railOpen;
@@ -152,13 +138,22 @@ export function createNavigationStore() {
         },
         toggleAside: () => {
             const open = !state.asideOpen;
-            patch({ asideOpen: open, ...(open ? compactOverlayPatch('aside') : {}), ...rememberAside(open) });
+            patch({
+                ...(open ? { aside: 'goal', ...compactOverlayPatch('aside') } : {}),
+                asideOpen: open,
+                ...rememberAside(open),
+            });
         },
         toggleSummary: open => {
             const next = open ?? !state.summaryOpen;
             patch({ summaryOpen: next, ...(next ? compactOverlayPatch('summary') : {}) });
         },
-        openCompactOverlay: overlay => { patch(compactOverlayPatch(overlay)); },
+        openCompactOverlay: overlay => {
+            patch({
+                ...(overlay === 'aside' ? { aside: 'goal' } : {}),
+                ...compactOverlayPatch(overlay),
+            });
+        },
         closeCompactOverlay: () => {
             if (state.layout === 'compact')
                 patch({ railOpen: false, asideOpen: false, summaryOpen: false });

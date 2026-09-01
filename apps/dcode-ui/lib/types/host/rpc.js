@@ -21,6 +21,13 @@ export const DCODE_ENDPOINTS = [
     'git/commit',
     'git/undo',
     'file/read',
+    'memory/state',
+    'memory/search',
+    'memory/run',
+    'memory/abort',
+    'memory/reset',
+    'memory/set-enabled',
+    'memory/forget',
 ];
 /** RPC channel this plugin answers on. */
 export const DCODE_CHANNEL = '/dcode';
@@ -44,6 +51,12 @@ function requireCwd(payload) {
     if (!isAbsolute(cwd))
         throw new Error('cwd must be absolute');
     return resolve(cwd);
+}
+/** Read an optional absolute workspace directory out of a wire payload. */
+function optionalCwd(payload) {
+    if (payload.cwd === undefined)
+        return undefined;
+    return requireCwd(payload);
 }
 /** Read a required string field out of an untrusted payload. */
 function requireString(payload, field, maxLength) {
@@ -79,7 +92,7 @@ function optionalPaths(payload, field, limit = 500) {
  * @param payload - untrusted wire payload.
  * @returns the endpoint's envelope.
  */
-export async function handleDcodeEndpoint(endpoint, payload) {
+export async function handleDcodeEndpoint(endpoint, payload, memory) {
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
         return failure('bad-request', 'payload must be an object');
     }
@@ -147,6 +160,43 @@ export async function handleDcodeEndpoint(endpoint, payload) {
                     },
                 };
             }
+            case 'memory/state': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: memory.getState(optionalCwd(body)) };
+            }
+            case 'memory/search': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: memory.search(requireString(body, 'query', 4000), optionalCwd(body)) };
+            }
+            case 'memory/run': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: await memory.run(optionalCwd(body)) };
+            }
+            case 'memory/abort': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: memory.abort() };
+            }
+            case 'memory/reset': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: memory.reset() };
+            }
+            case 'memory/set-enabled': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                if (typeof body.enabled !== 'boolean')
+                    return failure('bad-request', 'enabled must be a boolean');
+                return { ok: true, value: memory.setEnabled(body.enabled) };
+            }
+            case 'memory/forget': {
+                if (memory === undefined)
+                    return failure('unavailable', 'memory service is unavailable');
+                return { ok: true, value: memory.forget(requireString(body, 'id', 200)) };
+            }
             default: {
                 return failure('bad-request', `unknown /dcode endpoint`, { endpoint });
             }
@@ -156,13 +206,13 @@ export async function handleDcodeEndpoint(endpoint, payload) {
         const message = cause instanceof Error ? cause.message : String(cause);
         if (message === 'not a git work tree')
             return failure('not-a-repository', message);
-        if (/^(cwd|path|patch|message|paths)\b/.test(message) || message.startsWith('payload')) {
+        if (/^(cwd|path|patch|message|paths|query|enabled|id)\b/.test(message) || message.startsWith('payload')) {
             return failure('bad-request', message);
         }
         if (cause?.code === 'ENOENT') {
             return failure('bad-request', message);
         }
-        return failure('git-failed', message);
+        return failure(endpoint.startsWith('memory/') ? 'memory-failed' : 'git-failed', message);
     }
 }
 //# sourceMappingURL=rpc.js.map

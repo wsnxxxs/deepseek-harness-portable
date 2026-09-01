@@ -2385,8 +2385,8 @@ window.__ModuleLoader__.load({
 		//#region src/protocol-current.ts
 		/** Current visual/checkpoint protocol shared by the Host, Agent, and Client. */
 		const CHECKPOINT_TRANSPORT_PROTOCOL = "dsh-learning/checkpoint-wait@1";
-		const MAX_ACTIVITY_BYTES = 65536;
-		const MAX_RESPONSE_BYTES = 32768;
+		const MAX_ACTIVITY_BYTES = 64 * 1024;
+		const MAX_RESPONSE_BYTES = 32 * 1024;
 		function record(value) {
 			return typeof value === "object" && value !== null && !Array.isArray(value);
 		}
@@ -2548,20 +2548,19 @@ window.__ModuleLoader__.load({
 			if (value.context !== void 0) checkpointDisplayText(value.context, "checkpoint.context", issues, 4e3);
 			if (!LEARNING_CHECKPOINT_EVIDENCE_KINDS.includes(value.expectedEvidence)) issues.push(`checkpoint.expectedEvidence must be one of ${LEARNING_CHECKPOINT_EVIDENCE_KINDS.join(", ")}`);
 			checkpointDisplayText(value.fallbackMarkdown, "checkpoint.fallbackMarkdown", issues, 8e3);
-			if (value.kind === "single_choice") {
-				if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) issues.push("checkpoint.options must contain 2 to 8 options for single_choice");
-				else {
-					const options = value.options.filter(record);
-					if (options.length !== value.options.length) issues.push("checkpoint.options entries must be objects");
-					uniqueIds(options, "checkpoint.options", issues);
-					for (const [index, option] of options.entries()) {
-						const path = `checkpoint.options[${String(index)}]`;
-						onlyKeys(option, ["id", "label"], path, issues);
-						id(option.id, `${path}.id`, issues);
-						checkpointDisplayText(option.label, `${path}.label`, issues, 500);
-					}
+			if (value.kind === "single_choice") if (!Array.isArray(value.options) || value.options.length < 2 || value.options.length > 8) issues.push("checkpoint.options must contain 2 to 8 options for single_choice");
+			else {
+				const options = value.options.filter(record);
+				if (options.length !== value.options.length) issues.push("checkpoint.options entries must be objects");
+				uniqueIds(options, "checkpoint.options", issues);
+				for (const [index, option] of options.entries()) {
+					const path = `checkpoint.options[${String(index)}]`;
+					onlyKeys(option, ["id", "label"], path, issues);
+					id(option.id, `${path}.id`, issues);
+					checkpointDisplayText(option.label, `${path}.label`, issues, 500);
 				}
-			} else if (value.options !== void 0) issues.push("checkpoint.options is supported only for single_choice");
+			}
+			else if (value.options !== void 0) issues.push("checkpoint.options is supported only for single_choice");
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
@@ -2616,28 +2615,27 @@ window.__ModuleLoader__.load({
 				if (cause instanceof LearningProtocolError) issues.push(...cause.issues.map((issue) => `expected ${issue}`));
 				else throw cause;
 			}
-			if (submitted) {
-				if (!record(value.response)) issues.push("checkpointResult.response must be an object when submitted");
-				else {
-					const response = value.response;
-					const responsePath = "checkpointResult.response";
-					const expectedKind = checkpoint?.kind;
-					const shape = expectedKind === "single_choice" ? "optionId" : expectedKind === "numeric" ? "number" : expectedKind === void 0 ? void 0 : "text";
-					if (shape === "optionId" || shape === void 0 && Object.hasOwn(response, "optionId")) {
-						onlyKeys(response, ["optionId"], responsePath, issues);
-						if (id(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
-					} else if (shape === "number" || shape === void 0 && Object.hasOwn(response, "number")) {
-						onlyKeys(response, ["number"], responsePath, issues);
-						finite(response.number, `${responsePath}.number`, issues);
-					} else if (shape === "text" || shape === void 0 && Object.hasOwn(response, "text")) {
-						onlyKeys(response, ["text"], responsePath, issues);
-						text(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
-					} else {
-						issues.push(`${responsePath} must contain exactly one of text, optionId, or number`);
-						onlyKeys(response, [], responsePath, issues);
-					}
+			if (submitted) if (!record(value.response)) issues.push("checkpointResult.response must be an object when submitted");
+			else {
+				const response = value.response;
+				const responsePath = "checkpointResult.response";
+				const expectedKind = checkpoint?.kind;
+				const shape = expectedKind === "single_choice" ? "optionId" : expectedKind === "numeric" ? "number" : expectedKind === void 0 ? void 0 : "text";
+				if (shape === "optionId" || shape === void 0 && Object.hasOwn(response, "optionId")) {
+					onlyKeys(response, ["optionId"], responsePath, issues);
+					if (id(response.optionId, `${responsePath}.optionId`, issues) && checkpoint?.options !== void 0 && !checkpoint.options.some((option) => option.id === response.optionId)) issues.push(`${responsePath}.optionId must reference a declared checkpoint option`);
+				} else if (shape === "number" || shape === void 0 && Object.hasOwn(response, "number")) {
+					onlyKeys(response, ["number"], responsePath, issues);
+					finite(response.number, `${responsePath}.number`, issues);
+				} else if (shape === "text" || shape === void 0 && Object.hasOwn(response, "text")) {
+					onlyKeys(response, ["text"], responsePath, issues);
+					text(response.text, `${responsePath}.text`, issues, expectedKind === "code_slot" ? 16e3 : 8e3);
+				} else {
+					issues.push(`${responsePath} must contain exactly one of text, optionId, or number`);
+					onlyKeys(response, [], responsePath, issues);
 				}
-			} else if (value.response !== void 0) issues.push("checkpointResult.response is allowed only when status is submitted");
+			}
+			else if (value.response !== void 0) issues.push("checkpointResult.response is allowed only when status is submitted");
 			if (issues.length > 0) throw new LearningProtocolError(issues);
 			return value;
 		}
@@ -2845,18 +2843,16 @@ window.__ModuleLoader__.load({
 				"radial"
 			].includes(value.layout)) issues.push("visual.content.layout must be layered, hierarchy, or radial");
 			let groups = [];
-			if (value.groups !== void 0) {
-				if (!Array.isArray(value.groups) || value.groups.length < 1 || value.groups.length > 12) issues.push("visual.content.groups must contain 1 to 12 groups");
-				else {
-					groups = value.groups.filter(record);
-					if (groups.length !== value.groups.length) issues.push("visual.content.groups entries must be objects");
-					uniqueIds(groups, "visual.content.groups", issues);
-					for (const [index, group] of groups.entries()) {
-						const path = `visual.content.groups[${String(index)}]`;
-						onlyKeys(group, ["id", "label"], path, issues);
-						if (id(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
-						text(group.label, `${path}.label`, issues, 120);
-					}
+			if (value.groups !== void 0) if (!Array.isArray(value.groups) || value.groups.length < 1 || value.groups.length > 12) issues.push("visual.content.groups must contain 1 to 12 groups");
+			else {
+				groups = value.groups.filter(record);
+				if (groups.length !== value.groups.length) issues.push("visual.content.groups entries must be objects");
+				uniqueIds(groups, "visual.content.groups", issues);
+				for (const [index, group] of groups.entries()) {
+					const path = `visual.content.groups[${String(index)}]`;
+					onlyKeys(group, ["id", "label"], path, issues);
+					if (id(group.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, group.id, `${path}.id`, issues);
+					text(group.label, `${path}.label`, issues, 120);
 				}
 			}
 			const groupIds = new Set(groups.flatMap((group) => typeof group.id === "string" ? [group.id] : []));
@@ -3236,34 +3232,32 @@ window.__ModuleLoader__.load({
 			}
 			const eventIds = new Set(events.flatMap((event) => typeof event.id === "string" ? [event.id] : []));
 			const eventIndexes = new Map(events.flatMap((event, index) => typeof event.id === "string" ? [[event.id, index]] : []));
-			if (value.eras !== void 0) {
-				if (!Array.isArray(value.eras) || value.eras.length < 1 || value.eras.length > 8) issues.push("visual.content.eras must contain 1 to 8 eras");
-				else {
-					const eras = value.eras.filter(record);
-					if (eras.length !== value.eras.length) issues.push("visual.content.eras entries must be objects");
-					uniqueIds(eras, "visual.content.eras", issues);
-					for (const [index, era] of eras.entries()) {
-						const path = `visual.content.eras[${String(index)}]`;
-						onlyKeys(era, [
-							"id",
-							"label",
-							"startEventId",
-							"endEventId",
-							"detail",
-							"tone"
-						], path, issues);
-						if (id(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
-						text(era.label, `${path}.label`, issues, 120);
-						if (typeof era.startEventId !== "string" || !eventIds.has(era.startEventId)) issues.push(`${path}.startEventId must reference a declared event`);
-						if (typeof era.endEventId !== "string" || !eventIds.has(era.endEventId)) issues.push(`${path}.endEventId must reference a declared event`);
-						if (typeof era.startEventId === "string" && typeof era.endEventId === "string") {
-							const startIndex = eventIndexes.get(era.startEventId);
-							const endIndex = eventIndexes.get(era.endEventId);
-							if (startIndex !== void 0 && endIndex !== void 0 && startIndex > endIndex) issues.push(`${path}.startEventId must not occur after endEventId`);
-						}
-						if (era.detail !== void 0) text(era.detail, `${path}.detail`, issues, 1e3);
-						validateVisualToneV4(era.tone, `${path}.tone`, issues);
+			if (value.eras !== void 0) if (!Array.isArray(value.eras) || value.eras.length < 1 || value.eras.length > 8) issues.push("visual.content.eras must contain 1 to 8 eras");
+			else {
+				const eras = value.eras.filter(record);
+				if (eras.length !== value.eras.length) issues.push("visual.content.eras entries must be objects");
+				uniqueIds(eras, "visual.content.eras", issues);
+				for (const [index, era] of eras.entries()) {
+					const path = `visual.content.eras[${String(index)}]`;
+					onlyKeys(era, [
+						"id",
+						"label",
+						"startEventId",
+						"endEventId",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id(era.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, era.id, `${path}.id`, issues);
+					text(era.label, `${path}.label`, issues, 120);
+					if (typeof era.startEventId !== "string" || !eventIds.has(era.startEventId)) issues.push(`${path}.startEventId must reference a declared event`);
+					if (typeof era.endEventId !== "string" || !eventIds.has(era.endEventId)) issues.push(`${path}.endEventId must reference a declared event`);
+					if (typeof era.startEventId === "string" && typeof era.endEventId === "string") {
+						const startIndex = eventIndexes.get(era.startEventId);
+						const endIndex = eventIndexes.get(era.endEventId);
+						if (startIndex !== void 0 && endIndex !== void 0 && startIndex > endIndex) issues.push(`${path}.startEventId must not occur after endEventId`);
 					}
+					if (era.detail !== void 0) text(era.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(era.tone, `${path}.tone`, issues);
 				}
 			}
 			return focusIds;
@@ -3439,15 +3433,11 @@ window.__ModuleLoader__.load({
 				text(card.prompt, `${path}.prompt`, issues, 1e3);
 				text(card.answer, `${path}.answer`, issues, 2e3);
 				if (card.hint !== void 0) text(card.hint, `${path}.hint`, issues, 800);
-				if (card.tags !== void 0) {
-					if (!Array.isArray(card.tags) || card.tags.length > 6) issues.push(`${path}.tags must contain at most 6 labels`);
-					else {
-						const seen = /* @__PURE__ */ new Set();
-						for (const [tagIndex, tag] of card.tags.entries()) if (text(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") {
-							if (seen.has(tag)) issues.push(`${path}.tags duplicates ${tag}`);
-							else seen.add(tag);
-						}
-					}
+				if (card.tags !== void 0) if (!Array.isArray(card.tags) || card.tags.length > 6) issues.push(`${path}.tags must contain at most 6 labels`);
+				else {
+					const seen = /* @__PURE__ */ new Set();
+					for (const [tagIndex, tag] of card.tags.entries()) if (text(tag, `${path}.tags[${String(tagIndex)}]`, issues, 80) && typeof tag === "string") if (seen.has(tag)) issues.push(`${path}.tags duplicates ${tag}`);
+					else seen.add(tag);
 				}
 			}
 			return focusIds;
@@ -3533,68 +3523,60 @@ window.__ModuleLoader__.load({
 				}
 			}
 			const rowIds = new Set(rows.flatMap((row) => typeof row.id === "string" ? [row.id] : []));
-			if (value.outlierIds !== void 0) {
-				if (!Array.isArray(value.outlierIds) || value.outlierIds.length > 32) issues.push("visual.content.outlierIds must contain at most 32 row ids");
-				else {
-					const seen = /* @__PURE__ */ new Set();
-					for (const [index, rowId] of value.outlierIds.entries()) {
-						const path = `visual.content.outlierIds[${String(index)}]`;
-						if (typeof rowId !== "string" || !rowIds.has(rowId)) issues.push(`${path} must reference a declared row`);
-						else if (seen.has(rowId)) issues.push(`${path} duplicates ${rowId}`);
-						else seen.add(rowId);
-					}
+			if (value.outlierIds !== void 0) if (!Array.isArray(value.outlierIds) || value.outlierIds.length > 32) issues.push("visual.content.outlierIds must contain at most 32 row ids");
+			else {
+				const seen = /* @__PURE__ */ new Set();
+				for (const [index, rowId] of value.outlierIds.entries()) {
+					const path = `visual.content.outlierIds[${String(index)}]`;
+					if (typeof rowId !== "string" || !rowIds.has(rowId)) issues.push(`${path} must reference a declared row`);
+					else if (seen.has(rowId)) issues.push(`${path} duplicates ${rowId}`);
+					else seen.add(rowId);
 				}
 			}
 			const validateColumnRef = (candidate, path) => {
 				if (typeof candidate !== "string" || !columnIds.has(candidate)) issues.push(`${path} must reference a declared column`);
 			};
-			if (value.initialSort !== void 0) {
-				if (!record(value.initialSort)) issues.push("visual.content.initialSort must be an object");
-				else {
-					onlyKeys(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
-					validateColumnRef(value.initialSort.columnId, "visual.content.initialSort.columnId");
-					if (value.initialSort.direction !== "asc" && value.initialSort.direction !== "desc") issues.push("visual.content.initialSort.direction must be asc or desc");
-				}
+			if (value.initialSort !== void 0) if (!record(value.initialSort)) issues.push("visual.content.initialSort must be an object");
+			else {
+				onlyKeys(value.initialSort, ["columnId", "direction"], "visual.content.initialSort", issues);
+				validateColumnRef(value.initialSort.columnId, "visual.content.initialSort.columnId");
+				if (value.initialSort.direction !== "asc" && value.initialSort.direction !== "desc") issues.push("visual.content.initialSort.direction must be asc or desc");
 			}
-			if (value.initialFilter !== void 0) {
-				if (!record(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
-				else {
-					onlyKeys(value.initialFilter, [
-						"columnId",
-						"operator",
-						"value"
-					], "visual.content.initialFilter", issues);
-					validateColumnRef(value.initialFilter.columnId, "visual.content.initialFilter.columnId");
-					if (![
-						"equals",
-						"not_equals",
-						"contains",
-						"gt",
-						"gte",
-						"lt",
-						"lte"
-					].includes(value.initialFilter.operator)) issues.push("visual.content.initialFilter.operator is unknown");
-					validateTableValueV4(value.initialFilter.value, "visual.content.initialFilter.value", issues);
-				}
+			if (value.initialFilter !== void 0) if (!record(value.initialFilter)) issues.push("visual.content.initialFilter must be an object");
+			else {
+				onlyKeys(value.initialFilter, [
+					"columnId",
+					"operator",
+					"value"
+				], "visual.content.initialFilter", issues);
+				validateColumnRef(value.initialFilter.columnId, "visual.content.initialFilter.columnId");
+				if (![
+					"equals",
+					"not_equals",
+					"contains",
+					"gt",
+					"gte",
+					"lt",
+					"lte"
+				].includes(value.initialFilter.operator)) issues.push("visual.content.initialFilter.operator is unknown");
+				validateTableValueV4(value.initialFilter.value, "visual.content.initialFilter.value", issues);
 			}
-			if (value.chart !== void 0) {
-				if (!record(value.chart)) issues.push("visual.content.chart must be an object");
-				else {
-					onlyKeys(value.chart, [
-						"type",
-						"xColumnId",
-						"yColumnId",
-						"seriesColumnId"
-					], "visual.content.chart", issues);
-					if (![
-						"line",
-						"bar",
-						"scatter"
-					].includes(value.chart.type)) issues.push("visual.content.chart.type is unknown");
-					validateColumnRef(value.chart.xColumnId, "visual.content.chart.xColumnId");
-					validateColumnRef(value.chart.yColumnId, "visual.content.chart.yColumnId");
-					if (value.chart.seriesColumnId !== void 0) validateColumnRef(value.chart.seriesColumnId, "visual.content.chart.seriesColumnId");
-				}
+			if (value.chart !== void 0) if (!record(value.chart)) issues.push("visual.content.chart must be an object");
+			else {
+				onlyKeys(value.chart, [
+					"type",
+					"xColumnId",
+					"yColumnId",
+					"seriesColumnId"
+				], "visual.content.chart", issues);
+				if (![
+					"line",
+					"bar",
+					"scatter"
+				].includes(value.chart.type)) issues.push("visual.content.chart.type is unknown");
+				validateColumnRef(value.chart.xColumnId, "visual.content.chart.xColumnId");
+				validateColumnRef(value.chart.yColumnId, "visual.content.chart.yColumnId");
+				if (value.chart.seriesColumnId !== void 0) validateColumnRef(value.chart.seriesColumnId, "visual.content.chart.seriesColumnId");
 			}
 			return focusIds;
 		}
@@ -3660,27 +3642,25 @@ window.__ModuleLoader__.load({
 				}
 			}
 			const transitionIds = new Set(transitions.flatMap((transition) => typeof transition.id === "string" ? [transition.id] : []));
-			if (value.steps !== void 0) {
-				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 steps");
-				else {
-					const steps = value.steps.filter(record);
-					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds(steps, "visual.content.steps", issues);
-					for (const [index, step] of steps.entries()) {
-						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys(step, [
-							"id",
-							"label",
-							"currentStateId",
-							"transitionId",
-							"description"
-						], path, issues);
-						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text(step.label, `${path}.label`, issues, 160);
-						if (typeof step.currentStateId !== "string" || !stateIds.has(step.currentStateId)) issues.push(`${path}.currentStateId must reference a declared state`);
-						if (step.transitionId !== void 0 && (typeof step.transitionId !== "string" || !transitionIds.has(step.transitionId))) issues.push(`${path}.transitionId must reference a declared transition`);
-						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
-					}
+			if (value.steps !== void 0) if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 steps");
+			else {
+				const steps = value.steps.filter(record);
+				if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+				uniqueIds(steps, "visual.content.steps", issues);
+				for (const [index, step] of steps.entries()) {
+					const path = `visual.content.steps[${String(index)}]`;
+					onlyKeys(step, [
+						"id",
+						"label",
+						"currentStateId",
+						"transitionId",
+						"description"
+					], path, issues);
+					if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+					text(step.label, `${path}.label`, issues, 160);
+					if (typeof step.currentStateId !== "string" || !stateIds.has(step.currentStateId)) issues.push(`${path}.currentStateId must reference a declared state`);
+					if (step.transitionId !== void 0 && (typeof step.transitionId !== "string" || !transitionIds.has(step.transitionId))) issues.push(`${path}.transitionId must reference a declared transition`);
+					if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
 				}
 			}
 			return focusIds;
@@ -3723,122 +3703,110 @@ window.__ModuleLoader__.load({
 			const slotIndexes = new Set(slots.flatMap((slot) => typeof slot.index === "number" && Number.isInteger(slot.index) ? [slot.index] : []));
 			const maxIndex = slots.reduce((max, slot) => typeof slot.index === "number" ? Math.max(max, slot.index) : max, -1);
 			let pointers = [];
-			if (value.pointers !== void 0) {
-				if (!Array.isArray(value.pointers) || value.pointers.length < 1 || value.pointers.length > 8) issues.push("visual.content.pointers must contain 1 to 8 pointers");
-				else {
-					pointers = value.pointers.filter(record);
-					if (pointers.length !== value.pointers.length) issues.push("visual.content.pointers entries must be objects");
-					uniqueIds(pointers, "visual.content.pointers", issues);
-					for (const [index, pointer] of pointers.entries()) {
-						const path = `visual.content.pointers[${String(index)}]`;
-						onlyKeys(pointer, [
-							"id",
-							"label",
-							"index",
-							"tone"
-						], path, issues);
-						if (id(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
-						text(pointer.label, `${path}.label`, issues, 120);
-						if (integer(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
-						validateVisualToneV4(pointer.tone, `${path}.tone`, issues);
-					}
+			if (value.pointers !== void 0) if (!Array.isArray(value.pointers) || value.pointers.length < 1 || value.pointers.length > 8) issues.push("visual.content.pointers must contain 1 to 8 pointers");
+			else {
+				pointers = value.pointers.filter(record);
+				if (pointers.length !== value.pointers.length) issues.push("visual.content.pointers entries must be objects");
+				uniqueIds(pointers, "visual.content.pointers", issues);
+				for (const [index, pointer] of pointers.entries()) {
+					const path = `visual.content.pointers[${String(index)}]`;
+					onlyKeys(pointer, [
+						"id",
+						"label",
+						"index",
+						"tone"
+					], path, issues);
+					if (id(pointer.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, pointer.id, `${path}.id`, issues);
+					text(pointer.label, `${path}.label`, issues, 120);
+					if (integer(pointer.index, `${path}.index`, issues) && pointer.index > maxIndex + 1) issues.push(`${path}.index must point within the buffer`);
+					validateVisualToneV4(pointer.tone, `${path}.tone`, issues);
 				}
 			}
 			const pointerIds = new Set(pointers.flatMap((pointer) => typeof pointer.id === "string" ? [pointer.id] : []));
 			let ranges = [];
-			if (value.ranges !== void 0) {
-				if (!Array.isArray(value.ranges) || value.ranges.length < 1 || value.ranges.length > 8) issues.push("visual.content.ranges must contain 1 to 8 ranges");
-				else {
-					ranges = value.ranges.filter(record);
-					if (ranges.length !== value.ranges.length) issues.push("visual.content.ranges entries must be objects");
-					uniqueIds(ranges, "visual.content.ranges", issues);
-					for (const [index, range] of ranges.entries()) {
-						const path = `visual.content.ranges[${String(index)}]`;
-						onlyKeys(range, [
-							"id",
-							"label",
-							"start",
-							"end",
-							"tone"
-						], path, issues);
-						if (id(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
-						text(range.label, `${path}.label`, issues, 120);
-						const startOk = integer(range.start, `${path}.start`, issues);
-						const endOk = integer(range.end, `${path}.end`, issues);
-						if (startOk && !slotIndexes.has(range.start)) issues.push(`${path}.start must reference a declared slot index`);
-						if (endOk && !slotIndexes.has(range.end)) issues.push(`${path}.end must reference a declared slot index`);
-						if (startOk && endOk && range.start > range.end) issues.push(`${path}.start must not exceed end`);
-						validateVisualToneV4(range.tone, `${path}.tone`, issues);
-					}
+			if (value.ranges !== void 0) if (!Array.isArray(value.ranges) || value.ranges.length < 1 || value.ranges.length > 8) issues.push("visual.content.ranges must contain 1 to 8 ranges");
+			else {
+				ranges = value.ranges.filter(record);
+				if (ranges.length !== value.ranges.length) issues.push("visual.content.ranges entries must be objects");
+				uniqueIds(ranges, "visual.content.ranges", issues);
+				for (const [index, range] of ranges.entries()) {
+					const path = `visual.content.ranges[${String(index)}]`;
+					onlyKeys(range, [
+						"id",
+						"label",
+						"start",
+						"end",
+						"tone"
+					], path, issues);
+					if (id(range.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, range.id, `${path}.id`, issues);
+					text(range.label, `${path}.label`, issues, 120);
+					const startOk = integer(range.start, `${path}.start`, issues);
+					const endOk = integer(range.end, `${path}.end`, issues);
+					if (startOk && !slotIndexes.has(range.start)) issues.push(`${path}.start must reference a declared slot index`);
+					if (endOk && !slotIndexes.has(range.end)) issues.push(`${path}.end must reference a declared slot index`);
+					if (startOk && endOk && range.start > range.end) issues.push(`${path}.start must not exceed end`);
+					validateVisualToneV4(range.tone, `${path}.tone`, issues);
 				}
 			}
 			const rangeIds = new Set(ranges.flatMap((range) => typeof range.id === "string" ? [range.id] : []));
-			if (value.steps !== void 0) {
-				if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 snapshots");
-				else {
-					const steps = value.steps.filter(record);
-					if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
-					uniqueIds(steps, "visual.content.steps", issues);
-					for (const [index, step] of steps.entries()) {
-						const path = `visual.content.steps[${String(index)}]`;
-						onlyKeys(step, [
-							"id",
-							"label",
-							"description",
-							"slots",
-							"pointers",
-							"ranges"
-						], path, issues);
-						if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
-						text(step.label, `${path}.label`, issues, 160);
-						if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
-						if (step.slots !== void 0) {
-							if (!Array.isArray(step.slots) || step.slots.length > 128) issues.push(`${path}.slots must contain at most 128 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.slots.entries()) {
-								const snapshotPath = `${path}.slots[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, ["slotId", "value"], snapshotPath, issues);
-								if (typeof snapshot.slotId !== "string" || !slotIds.has(snapshot.slotId)) issues.push(`${snapshotPath}.slotId must reference a declared slot`);
-								if (snapshot.value !== void 0) validateTableValueV4(snapshot.value, `${snapshotPath}.value`, issues);
-							}
+			if (value.steps !== void 0) if (!Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 16) issues.push("visual.content.steps must contain 2 to 16 snapshots");
+			else {
+				const steps = value.steps.filter(record);
+				if (steps.length !== value.steps.length) issues.push("visual.content.steps entries must be objects");
+				uniqueIds(steps, "visual.content.steps", issues);
+				for (const [index, step] of steps.entries()) {
+					const path = `visual.content.steps[${String(index)}]`;
+					onlyKeys(step, [
+						"id",
+						"label",
+						"description",
+						"slots",
+						"pointers",
+						"ranges"
+					], path, issues);
+					if (id(step.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, step.id, `${path}.id`, issues);
+					text(step.label, `${path}.label`, issues, 160);
+					if (step.description !== void 0) text(step.description, `${path}.description`, issues, 1e3);
+					if (step.slots !== void 0) if (!Array.isArray(step.slots) || step.slots.length > 128) issues.push(`${path}.slots must contain at most 128 snapshots`);
+					else for (const [snapshotIndex, snapshot] of step.slots.entries()) {
+						const snapshotPath = `${path}.slots[${String(snapshotIndex)}]`;
+						if (!record(snapshot)) {
+							issues.push(`${snapshotPath} must be an object`);
+							continue;
 						}
-						if (step.pointers !== void 0) {
-							if (!Array.isArray(step.pointers) || step.pointers.length > 8) issues.push(`${path}.pointers must contain at most 8 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.pointers.entries()) {
-								const snapshotPath = `${path}.pointers[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, ["pointerId", "index"], snapshotPath, issues);
-								if (typeof snapshot.pointerId !== "string" || !pointerIds.has(snapshot.pointerId)) issues.push(`${snapshotPath}.pointerId must reference a declared pointer`);
-								if (integer(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
-							}
+						onlyKeys(snapshot, ["slotId", "value"], snapshotPath, issues);
+						if (typeof snapshot.slotId !== "string" || !slotIds.has(snapshot.slotId)) issues.push(`${snapshotPath}.slotId must reference a declared slot`);
+						if (snapshot.value !== void 0) validateTableValueV4(snapshot.value, `${snapshotPath}.value`, issues);
+					}
+					if (step.pointers !== void 0) if (!Array.isArray(step.pointers) || step.pointers.length > 8) issues.push(`${path}.pointers must contain at most 8 snapshots`);
+					else for (const [snapshotIndex, snapshot] of step.pointers.entries()) {
+						const snapshotPath = `${path}.pointers[${String(snapshotIndex)}]`;
+						if (!record(snapshot)) {
+							issues.push(`${snapshotPath} must be an object`);
+							continue;
 						}
-						if (step.ranges !== void 0) {
-							if (!Array.isArray(step.ranges) || step.ranges.length > 8) issues.push(`${path}.ranges must contain at most 8 snapshots`);
-							else for (const [snapshotIndex, snapshot] of step.ranges.entries()) {
-								const snapshotPath = `${path}.ranges[${String(snapshotIndex)}]`;
-								if (!record(snapshot)) {
-									issues.push(`${snapshotPath} must be an object`);
-									continue;
-								}
-								onlyKeys(snapshot, [
-									"rangeId",
-									"start",
-									"end"
-								], snapshotPath, issues);
-								if (typeof snapshot.rangeId !== "string" || !rangeIds.has(snapshot.rangeId)) issues.push(`${snapshotPath}.rangeId must reference a declared range`);
-								const startOk = integer(snapshot.start, `${snapshotPath}.start`, issues);
-								const endOk = integer(snapshot.end, `${snapshotPath}.end`, issues);
-								if (startOk && !slotIndexes.has(snapshot.start)) issues.push(`${snapshotPath}.start must reference a declared slot index`);
-								if (endOk && !slotIndexes.has(snapshot.end)) issues.push(`${snapshotPath}.end must reference a declared slot index`);
-								if (startOk && endOk && snapshot.start > snapshot.end) issues.push(`${snapshotPath}.start must not exceed end`);
-							}
+						onlyKeys(snapshot, ["pointerId", "index"], snapshotPath, issues);
+						if (typeof snapshot.pointerId !== "string" || !pointerIds.has(snapshot.pointerId)) issues.push(`${snapshotPath}.pointerId must reference a declared pointer`);
+						if (integer(snapshot.index, `${snapshotPath}.index`, issues) && snapshot.index > maxIndex + 1) issues.push(`${snapshotPath}.index must point within the buffer`);
+					}
+					if (step.ranges !== void 0) if (!Array.isArray(step.ranges) || step.ranges.length > 8) issues.push(`${path}.ranges must contain at most 8 snapshots`);
+					else for (const [snapshotIndex, snapshot] of step.ranges.entries()) {
+						const snapshotPath = `${path}.ranges[${String(snapshotIndex)}]`;
+						if (!record(snapshot)) {
+							issues.push(`${snapshotPath} must be an object`);
+							continue;
 						}
+						onlyKeys(snapshot, [
+							"rangeId",
+							"start",
+							"end"
+						], snapshotPath, issues);
+						if (typeof snapshot.rangeId !== "string" || !rangeIds.has(snapshot.rangeId)) issues.push(`${snapshotPath}.rangeId must reference a declared range`);
+						const startOk = integer(snapshot.start, `${snapshotPath}.start`, issues);
+						const endOk = integer(snapshot.end, `${snapshotPath}.end`, issues);
+						if (startOk && !slotIndexes.has(snapshot.start)) issues.push(`${snapshotPath}.start must reference a declared slot index`);
+						if (endOk && !slotIndexes.has(snapshot.end)) issues.push(`${snapshotPath}.end must reference a declared slot index`);
+						if (startOk && endOk && snapshot.start > snapshot.end) issues.push(`${snapshotPath}.start must not exceed end`);
 					}
 				}
 			}
@@ -4014,13 +3982,12 @@ window.__ModuleLoader__.load({
 			const columnsOk = integer(value.columns, `${path}.columns`, issues, 2) && value.columns <= 64;
 			const rowsOk = integer(value.rows, `${path}.rows`, issues, 2) && value.rows <= 64;
 			const expected = columnsOk && rowsOk ? value.columns * value.rows : void 0;
-			if (components === "scalar") {
-				if (!Array.isArray(value.values) || value.values.length < 1 || value.values.length > 4096) issues.push(`${path}.values must contain sampled values`);
-				else {
-					if (expected !== void 0 && value.values.length !== expected) issues.push(`${path}.values length must equal rows * columns`);
-					for (const [index, sample] of value.values.entries()) finite(sample, `${path}.values[${String(index)}]`, issues);
-				}
-			} else for (const component of ["u", "v"]) {
+			if (components === "scalar") if (!Array.isArray(value.values) || value.values.length < 1 || value.values.length > 4096) issues.push(`${path}.values must contain sampled values`);
+			else {
+				if (expected !== void 0 && value.values.length !== expected) issues.push(`${path}.values length must equal rows * columns`);
+				for (const [index, sample] of value.values.entries()) finite(sample, `${path}.values[${String(index)}]`, issues);
+			}
+			else for (const component of ["u", "v"]) {
 				const samples = value[component];
 				if (!Array.isArray(samples) || samples.length < 1 || samples.length > 4096) issues.push(`${path}.${component} must contain sampled values`);
 				else {
@@ -4059,37 +4026,31 @@ window.__ModuleLoader__.load({
 			validateFieldAxisV4(value.yAxis, "visual.content.yAxis", issues);
 			if (value.scalar === void 0 && value.vector === void 0) issues.push("visual.content must provide scalar or vector data");
 			const fieldVariables = /* @__PURE__ */ new Set(["y"]);
-			if (value.scalar !== void 0) {
-				if (!record(value.scalar)) issues.push("visual.content.scalar must be an object");
-				else {
-					onlyKeys(value.scalar, [
-						"samples",
-						"expression",
-						"min",
-						"max"
-					], "visual.content.scalar", issues);
-					if (value.scalar.samples === void 0 && value.scalar.expression === void 0) issues.push("visual.content.scalar must provide samples or expression");
-					if (value.scalar.samples !== void 0) validateFieldGridV4(value.scalar.samples, "visual.content.scalar.samples", issues, "scalar");
-					if (value.scalar.expression !== void 0) validateMath(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
-					const minOk = value.scalar.min === void 0 ? false : finite(value.scalar.min, "visual.content.scalar.min", issues);
-					const maxOk = value.scalar.max === void 0 ? false : finite(value.scalar.max, "visual.content.scalar.max", issues);
-					if (minOk && maxOk && value.scalar.min >= value.scalar.max) issues.push("visual.content.scalar.min must be less than max");
-				}
+			if (value.scalar !== void 0) if (!record(value.scalar)) issues.push("visual.content.scalar must be an object");
+			else {
+				onlyKeys(value.scalar, [
+					"samples",
+					"expression",
+					"min",
+					"max"
+				], "visual.content.scalar", issues);
+				if (value.scalar.samples === void 0 && value.scalar.expression === void 0) issues.push("visual.content.scalar must provide samples or expression");
+				if (value.scalar.samples !== void 0) validateFieldGridV4(value.scalar.samples, "visual.content.scalar.samples", issues, "scalar");
+				if (value.scalar.expression !== void 0) validateMath(value.scalar.expression, fieldVariables, "visual.content.scalar.expression", issues, true, 4);
+				const minOk = value.scalar.min === void 0 ? false : finite(value.scalar.min, "visual.content.scalar.min", issues);
+				const maxOk = value.scalar.max === void 0 ? false : finite(value.scalar.max, "visual.content.scalar.max", issues);
+				if (minOk && maxOk && value.scalar.min >= value.scalar.max) issues.push("visual.content.scalar.min must be less than max");
 			}
-			if (value.vector !== void 0) {
-				if (!record(value.vector)) issues.push("visual.content.vector must be an object");
+			if (value.vector !== void 0) if (!record(value.vector)) issues.push("visual.content.vector must be an object");
+			else {
+				onlyKeys(value.vector, ["samples", "expression"], "visual.content.vector", issues);
+				if (value.vector.samples === void 0 && value.vector.expression === void 0) issues.push("visual.content.vector must provide samples or expression");
+				if (value.vector.samples !== void 0) validateFieldGridV4(value.vector.samples, "visual.content.vector.samples", issues, "vector");
+				if (value.vector.expression !== void 0) if (!record(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
 				else {
-					onlyKeys(value.vector, ["samples", "expression"], "visual.content.vector", issues);
-					if (value.vector.samples === void 0 && value.vector.expression === void 0) issues.push("visual.content.vector must provide samples or expression");
-					if (value.vector.samples !== void 0) validateFieldGridV4(value.vector.samples, "visual.content.vector.samples", issues, "vector");
-					if (value.vector.expression !== void 0) {
-						if (!record(value.vector.expression)) issues.push("visual.content.vector.expression must be an object");
-						else {
-							onlyKeys(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
-							validateMath(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
-							validateMath(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
-						}
-					}
+					onlyKeys(value.vector.expression, ["u", "v"], "visual.content.vector.expression", issues);
+					validateMath(value.vector.expression.u, fieldVariables, "visual.content.vector.expression.u", issues, true, 4);
+					validateMath(value.vector.expression.v, fieldVariables, "visual.content.vector.expression.v", issues, true, 4);
 				}
 			}
 			return focusIds;
@@ -4152,38 +4113,36 @@ window.__ModuleLoader__.load({
 				}
 			}
 			const linkIds = new Set(links.flatMap((link) => typeof link.id === "string" ? [link.id] : []));
-			if (value.loops !== void 0) {
-				if (!Array.isArray(value.loops) || value.loops.length < 1 || value.loops.length > 12) issues.push("visual.content.loops must contain 1 to 12 loops");
-				else {
-					const loops = value.loops.filter(record);
-					if (loops.length !== value.loops.length) issues.push("visual.content.loops entries must be objects");
-					uniqueIds(loops, "visual.content.loops", issues);
-					for (const [index, loop] of loops.entries()) {
-						const path = `visual.content.loops[${String(index)}]`;
-						onlyKeys(loop, [
-							"id",
-							"label",
-							"type",
-							"linkIds",
-							"detail",
-							"tone"
-						], path, issues);
-						if (id(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
-						text(loop.label, `${path}.label`, issues, 160);
-						if (loop.type !== "reinforcing" && loop.type !== "balancing") issues.push(`${path}.type must be reinforcing or balancing`);
-						if (!Array.isArray(loop.linkIds) || loop.linkIds.length < 1 || loop.linkIds.length > 96) issues.push(`${path}.linkIds must contain 1 to 96 link ids`);
-						else {
-							const seen = /* @__PURE__ */ new Set();
-							for (const [linkIndex, linkId] of loop.linkIds.entries()) {
-								const linkPath = `${path}.linkIds[${String(linkIndex)}]`;
-								if (typeof linkId !== "string" || !linkIds.has(linkId)) issues.push(`${linkPath} must reference a declared link`);
-								else if (seen.has(linkId)) issues.push(`${linkPath} duplicates ${linkId}`);
-								else seen.add(linkId);
-							}
+			if (value.loops !== void 0) if (!Array.isArray(value.loops) || value.loops.length < 1 || value.loops.length > 12) issues.push("visual.content.loops must contain 1 to 12 loops");
+			else {
+				const loops = value.loops.filter(record);
+				if (loops.length !== value.loops.length) issues.push("visual.content.loops entries must be objects");
+				uniqueIds(loops, "visual.content.loops", issues);
+				for (const [index, loop] of loops.entries()) {
+					const path = `visual.content.loops[${String(index)}]`;
+					onlyKeys(loop, [
+						"id",
+						"label",
+						"type",
+						"linkIds",
+						"detail",
+						"tone"
+					], path, issues);
+					if (id(loop.id, `${path}.id`, issues)) registerVisualIdV4(focusIds, loop.id, `${path}.id`, issues);
+					text(loop.label, `${path}.label`, issues, 160);
+					if (loop.type !== "reinforcing" && loop.type !== "balancing") issues.push(`${path}.type must be reinforcing or balancing`);
+					if (!Array.isArray(loop.linkIds) || loop.linkIds.length < 1 || loop.linkIds.length > 96) issues.push(`${path}.linkIds must contain 1 to 96 link ids`);
+					else {
+						const seen = /* @__PURE__ */ new Set();
+						for (const [linkIndex, linkId] of loop.linkIds.entries()) {
+							const linkPath = `${path}.linkIds[${String(linkIndex)}]`;
+							if (typeof linkId !== "string" || !linkIds.has(linkId)) issues.push(`${linkPath} must reference a declared link`);
+							else if (seen.has(linkId)) issues.push(`${linkPath} duplicates ${linkId}`);
+							else seen.add(linkId);
 						}
-						if (loop.detail !== void 0) text(loop.detail, `${path}.detail`, issues, 1e3);
-						validateVisualToneV4(loop.tone, `${path}.tone`, issues);
 					}
+					if (loop.detail !== void 0) text(loop.detail, `${path}.detail`, issues, 1e3);
+					validateVisualToneV4(loop.tone, `${path}.tone`, issues);
 				}
 			}
 			return focusIds;
@@ -4285,7 +4244,7 @@ window.__ModuleLoader__.load({
 		const CHECKPOINT_WAIT_MARKER_PREFIX = "<!--dsh-learning/checkpoint-wait@1:";
 		const CHECKPOINT_WAIT_QUESTION_ID_PREFIX = "dsh-learning/checkpoint-wait@1:";
 		const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-		const MAX_CHECKPOINT_ENVELOPE_BASE64_CHARS = Math.ceil(98304);
+		const MAX_CHECKPOINT_ENVELOPE_BASE64_CHARS = Math.ceil(73728 * 4 / 3);
 		function decodeBase64Url(value) {
 			if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) return void 0;
 			const bytes = [];
@@ -6313,6 +6272,8 @@ window.__ModuleLoader__.load({
 		/** Two lines of this width read faster than one long line across a diagram. */
 		const EDGE_LABEL_MAX_WIDTH = 118;
 		const EDGE_LABEL_MAX_LINES = 2;
+		const EDGE_LABEL_PADDING_X = 7;
+		const EDGE_LABEL_PADDING_Y = 3;
 		function edgeLabelBox(label) {
 			const wrapped = wrapLabel(label, {
 				fontSize: 12,
@@ -6321,8 +6282,8 @@ window.__ModuleLoader__.load({
 			});
 			return {
 				lines: wrapped.lines,
-				width: Math.round(wrapped.width + 14),
-				height: wrapped.lines.length * 15 + 6,
+				width: Math.round(wrapped.width + EDGE_LABEL_PADDING_X * 2),
+				height: wrapped.lines.length * 15 + EDGE_LABEL_PADDING_Y * 2,
 				truncated: wrapped.truncated
 			};
 		}
@@ -6331,6 +6292,8 @@ window.__ModuleLoader__.load({
 			return box.lines.length === 1 ? box.height / 2 : 8;
 		}
 		const NODE_MAX_TEXT_WIDTH = 124;
+		const NODE_PADDING_X = 15;
+		const NODE_PADDING_Y = 10;
 		const NODE_MIN_WIDTH = 66;
 		const NODE_MIN_HEIGHT = 36;
 		const NODE_LINE_HEIGHT$1 = 17;
@@ -6340,6 +6303,8 @@ window.__ModuleLoader__.load({
 		const MAIN_GAP_MIN = 58;
 		const MAIN_GAP_BASE = 78;
 		const MAIN_GAP_MAX = 196;
+		/** Space kept between a label chip and whatever the gap holding it separates. */
+		const LABEL_CLEARANCE$1 = 11;
 		/** Distance from the content to the first return lane, and between lanes. */
 		const LANE_GAP = 34;
 		const LANE_STEP = 30;
@@ -6413,8 +6378,8 @@ window.__ModuleLoader__.load({
 				fontSize: 13,
 				maxWidth: NODE_MAX_TEXT_WIDTH
 			});
-			const width = Math.max(NODE_MIN_WIDTH, Math.round(wrapped.width + 30));
-			const height = Math.max(NODE_MIN_HEIGHT, wrapped.lines.length * NODE_LINE_HEIGHT$1 + 20);
+			const width = Math.max(NODE_MIN_WIDTH, Math.round(wrapped.width + NODE_PADDING_X * 2));
+			const height = Math.max(NODE_MIN_HEIGHT, wrapped.lines.length * NODE_LINE_HEIGHT$1 + NODE_PADDING_Y * 2);
 			return {
 				id: node.id,
 				width,
@@ -6443,8 +6408,8 @@ window.__ModuleLoader__.load({
 			const tallest = Math.max(...sizes.map((box) => box.height));
 			const count = Math.max(1, content.nodes.length);
 			const radius = Math.max(96, count * (widest + SIBLING_GAP) / (2 * Math.PI));
-			const width = Math.round(radius * 2 + widest + 28);
-			const height = Math.round(radius * 2 + tallest + 28);
+			const width = Math.round(radius * 2 + widest + CANVAS_PADDING * 2);
+			const height = Math.round(radius * 2 + tallest + CANVAS_PADDING * 2);
 			const centerX = width / 2;
 			const centerY = height / 2;
 			const positioned = /* @__PURE__ */ new Map();
@@ -6493,11 +6458,11 @@ window.__ModuleLoader__.load({
 				}
 				if (box === void 0) continue;
 				if (to === from) {
-					siblingGaps[from] = Math.max(siblingGaps[from] ?? SIBLING_GAP, (vertical ? box.width : box.height) + 22);
+					siblingGaps[from] = Math.max(siblingGaps[from] ?? SIBLING_GAP, (vertical ? box.width : box.height) + LABEL_CLEARANCE$1 * 2);
 					continue;
 				}
 				const gap = Math.min(from, mainGaps.length - 1);
-				if (gap >= 0) mainGaps[gap] = Math.max(mainGaps[gap] ?? 0, (vertical ? box.height : box.width) + 22);
+				if (gap >= 0) mainGaps[gap] = Math.max(mainGaps[gap] ?? 0, (vertical ? box.height : box.width) + LABEL_CLEARANCE$1 * 2);
 			}
 			return {
 				mainGaps,
@@ -6528,14 +6493,14 @@ window.__ModuleLoader__.load({
 			const mainContent = mainExtent.reduce((total, size) => total + size, 0);
 			const gapCount = Math.max(0, layers.length - 1);
 			let mainGap = Math.min(MAIN_GAP_MAX, Math.max(vertical ? Math.max(MAIN_GAP_MIN, Math.round(MAIN_GAP_BASE * .72)) : MAIN_GAP_BASE, ...plan.mainGaps));
-			const mainSpan = (gap) => 28 + mainContent + gapCount * gap;
-			let width = vertical ? 28 + crossContent + plan.laneSpace : mainSpan(mainGap);
+			const mainSpan = (gap) => CANVAS_PADDING * 2 + mainContent + gapCount * gap;
+			let width = vertical ? CANVAS_PADDING * 2 + crossContent + plan.laneSpace : mainSpan(mainGap);
 			if (!vertical && gapCount > 0 && width < containerWidth) {
 				mainGap = Math.min(MAIN_GAP_MAX, mainGap + (containerWidth - width) / gapCount);
 				width = mainSpan(mainGap);
 			}
-			if (vertical && width < containerWidth) width = Math.min(containerWidth, width + 28);
-			const height = vertical ? 28 + headerSpace + mainContent + gapCount * mainGap : 28 + headerSpace + crossContent + plan.laneSpace;
+			if (vertical && width < containerWidth) width = Math.min(containerWidth, width + CANVAS_PADDING * 2);
+			const height = vertical ? CANVAS_PADDING * 2 + headerSpace + mainContent + gapCount * mainGap : CANVAS_PADDING * 2 + headerSpace + crossContent + plan.laneSpace;
 			const mainStart = CANVAS_PADDING + (vertical ? headerSpace : 0);
 			const crossStart = CANVAS_PADDING + (vertical ? 0 : headerSpace);
 			const crossTrack = (vertical ? width : height) - crossStart - CANVAS_PADDING - plan.laneSpace;
@@ -7761,7 +7726,7 @@ window.__ModuleLoader__.load({
 				centreY: Math.round(centreY),
 				leftCx: Math.round(leftCx),
 				rightCx: Math.round(rightCx),
-				labelY: Math.round(22),
+				labelY: Math.round(LABEL_BAND - 8),
 				left: position(left, Math.round((leftCx + rightCx) / 2 - radius)),
 				right: position(right, Math.round((leftCx + rightCx) / 2 + radius)),
 				shared: position(shared, Math.round((leftCx + rightCx) / 2))
@@ -8130,13 +8095,13 @@ window.__ModuleLoader__.load({
 		*/
 		function timelineEventLayout(content, containerWidth) {
 			const count = content.events.length;
-			const minimumWidth = 132 + Math.max(0, count - 1) * MIN_EVENT_GAP;
+			const minimumWidth = AXIS_INSET * 2 + Math.max(0, count - 1) * MIN_EVENT_GAP;
 			const baseWidth = Math.max(minimumWidth, Math.floor(containerWidth) - 2);
 			if (count === 0) return {
 				width: baseWidth,
 				positions: []
 			};
-			const ordered = content.events.map((event, index) => AXIS_INSET + timelinePosition(event, index, count) * (baseWidth - 132)).map((position, index) => ({
+			const ordered = content.events.map((event, index) => AXIS_INSET + timelinePosition(event, index, count) * (baseWidth - AXIS_INSET * 2)).map((position, index) => ({
 				position,
 				index
 			})).sort((a, b) => a.position - b.position || a.index - b.index);
@@ -9082,7 +9047,7 @@ window.__ModuleLoader__.load({
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
 							className: data_table_module_css_default.xLabel,
 							x: frame.left + plotWidth / 2,
-							y: 242,
+							y: height - 8,
 							children: xColumn.label
 						}),
 						xTicks.map((value) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
@@ -9094,7 +9059,7 @@ window.__ModuleLoader__.load({
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
 							className: data_table_module_css_default.tick,
 							x: xAt(value),
-							y: 226,
+							y: height - 24,
 							textAnchor: "middle",
 							children: formatNumber(value)
 						})] }, `x-${String(value)}`)),
@@ -9426,6 +9391,7 @@ window.__ModuleLoader__.load({
 		const STATE_WIDTH = 150;
 		const STATE_HEIGHT = 60;
 		const STATE_GAP = 112;
+		const SIDE_PADDING = 28;
 		const ROW_HEIGHT = 122;
 		function transitionLabelLayout(label) {
 			const lines = wrapLabel(label, {
@@ -9470,10 +9436,10 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function layoutStates(states, width) {
-			const perRow = Math.max(1, Math.floor((Math.max(width, 360) - 56 + STATE_GAP) / 262));
+			const perRow = Math.max(1, Math.floor((Math.max(width, 360) - SIDE_PADDING * 2 + STATE_GAP) / 262));
 			const rows = Math.max(1, Math.ceil(states.length / perRow));
-			const canvasWidth = Math.max(Math.max(width, 360), 56 + perRow * STATE_WIDTH + (perRow - 1) * STATE_GAP);
-			const canvasHeight = 96 + rows * STATE_HEIGHT + (rows - 1) * 62;
+			const canvasWidth = Math.max(Math.max(width, 360), SIDE_PADDING * 2 + perRow * STATE_WIDTH + (perRow - 1) * STATE_GAP);
+			const canvasHeight = 96 + rows * STATE_HEIGHT + (rows - 1) * (ROW_HEIGHT - STATE_HEIGHT);
 			const boxes = /* @__PURE__ */ new Map();
 			states.forEach((state, index) => {
 				const row = Math.floor(index / perRow);
@@ -9579,33 +9545,32 @@ window.__ModuleLoader__.load({
 										let path = "";
 										let labelX = (from.x + to.x) / 2;
 										let labelY = (from.y + to.y) / 2;
-										if (sameRow) {
-											if (isForward) {
-												const startX = from.x + from.width / 2;
-												const endX = to.x - to.width / 2;
-												const startY = from.y;
-												const endY = to.y;
-												if (hasReverse) {
-													const curveY = startY - 26;
-													path = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${curveY} ${endX} ${endY}`;
-													labelX = (startX + endX) / 2;
-													labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6;
-												} else {
-													path = `M ${startX} ${startY} L ${endX} ${endY}`;
-													labelX = (startX + endX) / 2;
-													labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6;
-												}
-											} else {
-												const startX = from.x - from.width / 2;
-												const endX = to.x + to.width / 2;
-												const startY = from.y;
-												const endY = to.y;
-												const curveY = startY + 36;
+										if (sameRow) if (isForward) {
+											const startX = from.x + from.width / 2;
+											const endX = to.x - to.width / 2;
+											const startY = from.y;
+											const endY = to.y;
+											if (hasReverse) {
+												const curveY = startY - 26;
 												path = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${curveY} ${endX} ${endY}`;
 												labelX = (startX + endX) / 2;
-												labelY = from.y + from.height / 2 + labelLayout.height / 2 + 6;
+												labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6;
+											} else {
+												path = `M ${startX} ${startY} L ${endX} ${endY}`;
+												labelX = (startX + endX) / 2;
+												labelY = from.y - from.height / 2 - labelLayout.height / 2 - 6;
 											}
 										} else {
+											const startX = from.x - from.width / 2;
+											const endX = to.x + to.width / 2;
+											const startY = from.y;
+											const endY = to.y;
+											const curveY = startY + 36;
+											path = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${curveY} ${endX} ${endY}`;
+											labelX = (startX + endX) / 2;
+											labelY = from.y + from.height / 2 + labelLayout.height / 2 + 6;
+										}
+										else {
 											const startX = isForward ? from.x + from.width / 2 : from.x;
 											const endX = isForward ? to.x - to.width / 2 : to.x;
 											const startY = from.y + from.height / 2;
@@ -9760,9 +9725,8 @@ window.__ModuleLoader__.load({
 						className: process_module_css_default.processSteps,
 						"aria-label": labels.stateTransitionStepsLabel,
 						children: content.steps.map((step) => {
-							const active = focus.active ? focus.currentIds.has(step.currentStateId) : step.id === activeStepId;
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-								"data-active": active || void 0,
+								"data-active": (focus.active ? focus.currentIds.has(step.currentStateId) : step.id === activeStepId) || void 0,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
 									className: `${shell_module_css_default.control} ${process_module_css_default.stepButton}`,
@@ -9985,8 +9949,8 @@ window.__ModuleLoader__.load({
 			const participants = content.participants;
 			const messages = content.messages;
 			const participantById = (0, react.useMemo)(() => new Map(participants.map((participant) => [participant.id, participant])), [participants]);
-			const width = Math.max(520, containerWidth, 144 + Math.max(0, participants.length - 1) * MIN_ACTOR_GAP);
-			const actorGap = participants.length <= 1 ? 0 : (width - 144) / (participants.length - 1);
+			const width = Math.max(520, containerWidth, SIDE_MARGIN * 2 + Math.max(0, participants.length - 1) * MIN_ACTOR_GAP);
+			const actorGap = participants.length <= 1 ? 0 : (width - SIDE_MARGIN * 2) / (participants.length - 1);
 			const height = Math.max(150, MESSAGE_TOP + messages.length * MESSAGE_GAP + 36);
 			const participantX = (index) => participants.length <= 1 ? width / 2 : SIDE_MARGIN + index * actorGap;
 			const participantIndex = (0, react.useMemo)(() => new Map(participants.map((participant, index) => [participant.id, index])), [participants]);
@@ -10146,8 +10110,8 @@ window.__ModuleLoader__.load({
 										children: [
 											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
 												className: process_module_css_default.participantCard,
-												x: -64,
-												y: -21,
+												x: -128 / 2,
+												y: -42 / 2,
 												width: CARD_WIDTH,
 												height: CARD_HEIGHT,
 												rx: "11"
@@ -11343,7 +11307,7 @@ window.__ModuleLoader__.load({
 											"data-loop-kind": kind,
 											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
 												x: -box.labelWidth / 2,
-												y: -16,
+												y: -32 / 2,
 												width: box.labelWidth,
 												height: LOOP_BADGE_HEIGHT,
 												rx: LOOP_BADGE_HEIGHT / 2
@@ -11654,7 +11618,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/LearningToolView.tsx
-		const MAX_PARSEABLE_ARGS_BYTES = 65536;
+		const MAX_PARSEABLE_ARGS_BYTES = 64 * 1024;
 		const MAX_FALLBACK_MARKDOWN_LENGTH = 8e3;
 		const VISUAL_LABEL_KEYS = {
 			eyebrow: "visualEyebrow",
@@ -12081,12 +12045,11 @@ window.__ModuleLoader__.load({
 					t
 				});
 				const materializedContent = visualResult?.protocol === "dsh-learning/visual-result@4" && visualResult.content?.kind === "study_map" ? visualResult.content : void 0;
-				const renderedVisual = materializedContent === void 0 ? definition : {
-					...definition,
-					content: materializedContent
-				};
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningVisualV4, {
-					visual: renderedVisual,
+					visual: materializedContent === void 0 ? definition : {
+						...definition,
+						content: materializedContent
+					},
 					storageKey: `${String(sessionId)}:${callId ?? "visual"}`,
 					labels,
 					onRecallStatusChange: (cardId, status) => {
@@ -12948,7 +12911,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:src/client/VaultView.module.css.mjs
-		const css = "._jzLeq_root{gap:var(--lx-space-xl);padding:var(--lx-space-xl) var(--lx-space-2xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;display:flex;container-type:inline-size}._jzLeq_state{gap:var(--lx-space-sm);padding:var(--lx-space-3xl) var(--lx-space-2xl);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;align-items:flex-start;display:flex}._jzLeq_stateTitle{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-md);margin:0}._jzLeq_stateBody{max-width:62ch;margin:0}._jzLeq_stateActions{gap:var(--lx-space-sm);flex-wrap:wrap;margin-block-start:var(--lx-space-xs);display:flex}._jzLeq_stateDetails{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin-block-start:var(--lx-space-xs)}._jzLeq_stateDetails>summary{cursor:pointer;user-select:none}._jzLeq_stateDetails>summary:focus-visible{outline:2px solid var(--lx-accent);outline-offset:2px;border-radius:var(--lx-radius-sm)}._jzLeq_stateDetails>._jzLeq_path{margin-block-start:var(--lx-space-2xs);display:block}._jzLeq_head{gap:var(--lx-space-md);flex-direction:column;display:flex}._jzLeq_headRow{align-items:baseline;gap:var(--lx-space-lg);flex-wrap:wrap;display:flex}._jzLeq_headActions{justify-content:flex-end;align-items:center;gap:var(--lx-space-md);flex:auto;min-width:0;display:flex}._jzLeq_title{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_counts{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_count,._jzLeq_countDue,._jzLeq_countWarn{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap}._jzLeq_countDue{border-color:color-mix(in srgb, var(--lx-warn) 45%, transparent);color:var(--lx-warn);font-weight:var(--lx-weight-medium)}._jzLeq_countWarn{border-color:color-mix(in srgb, var(--lx-warn) 35%, transparent);color:var(--lx-warn)}._jzLeq_search{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-sm)}._jzLeq_search::placeholder{color:var(--lx-label-tertiary)}._jzLeq_search:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_local{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_scopeNote{margin:calc(var(--lx-space-sm) * -1) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}._jzLeq_sources{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_card{gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-card-radius-compact);background:var(--lx-card-background);padding:var(--lx-card-padding-compact);flex-direction:column;display:flex}._jzLeq_cardHead{align-items:baseline;gap:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_cardIdentity{gap:var(--lx-space-2xs);flex-direction:column;min-width:0;display:flex}._jzLeq_scopeToggle{align-items:center;gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);white-space:nowrap;cursor:pointer;margin-inline-start:auto;display:inline-flex}._jzLeq_scopeToggle input{accent-color:var(--lx-accent)}._jzLeq_cardTitle{font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}._jzLeq_cardStatus{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}._jzLeq_metaRight{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-variant-numeric:tabular-nums;margin-inline-start:auto}._jzLeq_sourceDetails{border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md)}._jzLeq_sourceDetails>summary{border-radius:var(--lx-radius-xs);width:fit-content;padding:var(--lx-space-2xs) var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);cursor:pointer;list-style:none}._jzLeq_sourceDetails>summary::-webkit-details-marker{display:none}._jzLeq_sourceDetails>summary:before{width:5px;height:5px;content:\"\";transition:transform var(--lx-motion-fast) var(--lx-easing);border-block-end:1px solid;border-inline-end:1px solid;margin-inline-end:var(--lx-space-sm);display:inline-block;transform:rotate(-45deg)translate(-1px,-1px)}._jzLeq_sourceDetails[open]>summary:before{transform:rotate(45deg)translate(-1px,-1px)}._jzLeq_sourceDetails>summary:hover{color:var(--lx-label-primary)}._jzLeq_sourceMeta{gap:var(--lx-space-sm) var(--lx-space-xl);margin:var(--lx-space-md) 0 0;padding:var(--lx-space-md) var(--lx-space-lg);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._jzLeq_sourceMeta>div{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;display:flex}._jzLeq_sourceMeta dt{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_sourceMeta dd{color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;text-align:end;margin:0}._jzLeq_sourceMetaWide{grid-column:1/-1}._jzLeq_strip{border-radius:var(--lx-radius-xs);background:var(--lx-border-subtle);gap:1px;height:12px;display:flex;overflow:hidden}._jzLeq_segment{background:color-mix(in srgb, var(--lx-accent) 68%, transparent);min-width:1px;display:block}._jzLeq_segmentDegraded{background:var(--lx-warn)}._jzLeq_segmentThin{background:color-mix(in srgb, var(--lx-accent) 22%, transparent)}._jzLeq_stripEmpty{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-xs);padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_chips{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_chipWarn{border:1px solid color-mix(in srgb, var(--lx-warn) 42%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-warn) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-warn);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 2px)}._jzLeq_cardFoot{align-items:center;gap:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_path{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere;user-select:text}._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:auto}._jzLeq_tree{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}._jzLeq_treeRow{align-items:baseline;gap:var(--lx-space-sm);border-radius:var(--lx-radius-xs);width:100%;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_treeRow:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_treeRow:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_treeRowOpen{background:var(--lx-surface-accent);color:var(--lx-label-primary)}._jzLeq_treeLabel{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}._jzLeq_treeFlag{color:var(--lx-warn);font-size:var(--lx-text-micro);flex:none}._jzLeq_treeMeta{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;flex:none}._jzLeq_reading{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);margin:var(--lx-space-sm) 0 var(--lx-space-md) var(--lx-space-sm);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_readingCrumbs{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_readingBody{max-width:74ch;max-height:min(52vh,520px);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;scroll-padding-block-end:var(--lx-space-xl);overflow:auto}._jzLeq_readingBody:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_readingNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_results{gap:var(--lx-space-2xl);flex-direction:column;display:flex}._jzLeq_group{gap:var(--lx-space-sm);flex-direction:column;display:flex}._jzLeq_groupTitle{align-items:center;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;margin:0;display:flex}._jzLeq_groupCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);padding:0 var(--lx-space-sm);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;letter-spacing:0}._jzLeq_hits{gap:var(--lx-space-sm);flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._jzLeq_hit{display:block}._jzLeq_hitButton,._jzLeq_hitStatic{gap:var(--lx-space-3xs);border:0;border-inline-start:2px solid var(--lx-border-default);width:100%;padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-lg);color:inherit;font:inherit;text-align:start;background:0 0;border-radius:0;flex-direction:column;display:flex}._jzLeq_hitButton{cursor:pointer}._jzLeq_hitButton:hover{border-inline-start-color:var(--lx-accent);background:var(--lx-surface-sunken)}._jzLeq_hitButton:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_hitHead{align-items:baseline;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_hitTitle{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}._jzLeq_hitSection,._jzLeq_hitPage{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._jzLeq_hitExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere}._jzLeq_hitPath{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-glyph-xs);overflow-wrap:anywhere}._jzLeq_foot{align-items:baseline;gap:var(--lx-space-xs);margin:var(--lx-space-sm) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;display:flex}@container (width<=560px){._jzLeq_root{padding-inline:var(--lx-space-lg)}._jzLeq_metaRight,._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:0}}._jzLeq_body{gap:var(--lx-space-xl);grid-template-columns:168px minmax(0,1fr);align-items:start;display:grid}._jzLeq_rail{gap:var(--lx-space-3xs);border-inline-end:1px solid var(--lx-border-subtle);flex-direction:column;padding-inline-end:var(--lx-space-md);display:flex;position:sticky;top:0}._jzLeq_railItem,._jzLeq_railItemOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border-radius:var(--lx-radius-sm);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_railItem:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_railItemOn{background:var(--lx-surface-accent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}._jzLeq_railItem:focus-visible,._jzLeq_railItemOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_railCount,._jzLeq_railDue{font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;color:var(--lx-label-tertiary)}._jzLeq_railDue{border-radius:var(--lx-radius-pill);background:var(--lx-warn);padding:0 var(--lx-space-xs);color:var(--lx-surface-base);font-weight:var(--lx-weight-strong)}._jzLeq_pane{min-width:0}._jzLeq_masteryUnseen,._jzLeq_masteryEmerging,._jzLeq_masteryTransfer{align-items:baseline;gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap;display:inline-flex}._jzLeq_masteryUnseen{color:var(--lx-label-tertiary)}._jzLeq_masteryEmerging{border-color:color-mix(in srgb, var(--lx-accent) 40%, transparent);color:var(--lx-accent)}._jzLeq_masteryTransfer{border-color:color-mix(in srgb, var(--lx-success) 45%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._jzLeq_basis{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_explanation{border-inline-start:2px solid var(--lx-border-strong);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0;padding-inline-start:var(--lx-space-lg)}._jzLeq_anchorRow{gap:var(--lx-space-xs);flex-direction:column;display:flex}._jzLeq_chipLabel{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;align-self:center}._jzLeq_chipAnchor{border:1px solid color-mix(in srgb, var(--lx-accent) 35%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:1px var(--lx-space-md);color:var(--lx-accent);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px)}._jzLeq_chipStale{border:1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-danger) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-danger);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px);text-decoration:line-through}._jzLeq_staleNote,._jzLeq_systemNote,._jzLeq_hint,._jzLeq_notice{font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);max-width:68ch;margin:0}._jzLeq_staleNote{color:var(--lx-danger)}._jzLeq_systemNote,._jzLeq_hint{color:var(--lx-label-tertiary)}._jzLeq_notice{color:var(--lx-success)}._jzLeq_editor{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-md) var(--lx-space-lg);color:var(--lx-label-primary);font-family:var(--lx-font-mono);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);resize:vertical;scroll-margin-block-end:140px}._jzLeq_editor:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_actions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_deferGroup{align-items:center;gap:var(--lx-space-2xs);display:inline-flex}._jzLeq_deferInput{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:56px;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._jzLeq_deferInput:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_deck{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_deckProgress{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;margin:0}._jzLeq_deckCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-strong);border-radius:var(--lx-card-radius);background:var(--lx-surface-raised);padding:var(--lx-space-2xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex}._jzLeq_deckLabel{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_deckPrompt{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}@container (width<=640px){._jzLeq_body{grid-template-columns:minmax(0,1fr)}._jzLeq_rail{border-inline-end:0;border-block-end:1px solid var(--lx-border-subtle);flex-direction:row;padding-block-end:var(--lx-space-sm);padding-inline-end:0;position:static;overflow-x:auto}}._jzLeq_noteExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;max-width:76ch;margin:0}._jzLeq_keepSheet{z-index:1100;box-sizing:border-box;gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-card);width:min(520px,100vw - 24px);max-height:calc(100vh - 24px);padding:var(--lx-space-lg) var(--lx-space-xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex;position:fixed;overflow-y:auto}._jzLeq_keepTitleInput,._jzLeq_keepEditor{box-sizing:border-box;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-xl);background:var(--lx-surface-raised);width:100%;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-md);line-height:var(--lx-leading-md)}._jzLeq_keepTitleInput{min-height:40px;padding:4px var(--lx-space-lg) 4px var(--lx-space-xl)}._jzLeq_keepEditor{min-height:180px;padding:var(--lx-space-md) var(--lx-space-lg) var(--lx-space-md) var(--lx-space-xl);resize:vertical}._jzLeq_keepTitleInput::placeholder,._jzLeq_keepEditor::placeholder{color:var(--lx-label-tertiary)}._jzLeq_keepTitleInput:focus-visible,._jzLeq_keepEditor:focus-visible{border-color:var(--lx-border-strong);outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_keepAction{--keep-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--keep-surface:var(--dsw-alias-bg-layer-1,Canvas);--keep-label:var(--dsw-alias-label-primary,CanvasText);--keep-muted:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--keep-label) 58%, transparent));width:28px;height:28px;color:var(--keep-muted);cursor:pointer;transition:background var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), color var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), box-shadow var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1));background:0 0;border:0;border-radius:28px;justify-content:center;align-items:center;padding:6px;display:inline-flex}._jzLeq_keepAction:hover,._jzLeq_keepAction[aria-expanded=true]{background:color-mix(in srgb, var(--keep-accent) 18%, var(--keep-surface));color:var(--keep-accent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--keep-accent) 48%, transparent)}._jzLeq_keepAction:active{background:color-mix(in srgb, var(--keep-accent) 26%, var(--keep-surface))}._jzLeq_keepAction:focus-visible{outline:var(--lx-focus-width,2px) solid var(--keep-accent);outline-offset:var(--lx-focus-offset,3px)}._jzLeq_reparse{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_spendMark{border:1px solid color-mix(in srgb, var(--lx-warn) 45%, transparent);border-radius:var(--lx-radius-pill);padding:1px var(--lx-space-md);color:var(--lx-warn);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);white-space:nowrap}._jzLeq_rosterRoot{width:100%;position:relative}._jzLeq_rosterRootRail{width:36px}._jzLeq_rosterTrigger{box-sizing:border-box;width:calc(100% + 4px);height:42px;color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-size:14px;line-height:22px;display:flex;overflow:hidden}._jzLeq_rosterTrigger:hover{background:var(--dsw-alias-interactive-bg-hover,var(--lx-surface-sunken))}._jzLeq_rosterTriggerRail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}._jzLeq_rosterTrigger:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_rosterMark{font-size:var(--lx-text-sm);flex:none;line-height:1;display:inline-flex}._jzLeq_rosterLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._jzLeq_libraryOverlay{z-index:1000;justify-content:center;align-items:center;display:flex;position:fixed;inset:0}._jzLeq_libraryMask{background:var(--dsw-alias-bg-mask-1,#0000003d);backdrop-filter:blur(3px);position:absolute;inset:0}._jzLeq_libraryPanel{z-index:1;border:1px solid var(--lx-border-subtle);background:color-mix(in srgb, var(--lx-host-bg) 96%, var(--lx-host-label) 4%);width:min(1080px,100vw - 48px);height:min(760px,100vh - 48px);box-shadow:var(--lx-shadow-lg);border-radius:24px;display:flex;position:relative;overflow:hidden}._jzLeq_libraryNavMeta{margin:calc(var(--lx-space-md) * -1) 12px 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_libraryTopicList{gap:var(--lx-space-2xs);flex-direction:column;min-height:0;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-radius:var(--lx-radius-sm);width:100%;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_libraryTopic:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryTopicOn{background:var(--lx-surface-accent);font-weight:var(--lx-weight-medium)}._jzLeq_libraryTopic:focus-visible,._jzLeq_libraryTopicOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_libraryTopicName{text-overflow:ellipsis;white-space:nowrap;font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow:hidden}._jzLeq_libraryTopicGroup{gap:var(--lx-space-3xs);border-bottom:1px solid var(--lx-border-subtle);flex-direction:column;margin-block-end:var(--lx-space-md);padding-block-end:var(--lx-space-md);display:flex}._jzLeq_libraryTopicHeading{margin:0 0 var(--lx-space-2xs);padding-inline:var(--lx-space-sm);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._jzLeq_libraryMain{flex-direction:column;flex:1;min-width:0;display:flex}._jzLeq_libraryHeader{align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-bottom:1px solid var(--lx-border-subtle);flex:none;height:54px;padding:10px 14px 8px 24px;display:flex}._jzLeq_libraryHeaderTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);flex:1;overflow:hidden}._jzLeq_libraryClose{width:28px;height:28px;color:var(--lx-label-primary);cursor:pointer;background:0 0;border:0;border-radius:50%;flex:none;justify-content:center;align-items:center;display:inline-flex}._jzLeq_libraryClose:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryClose:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_libraryScroll{flex:1;min-height:0;overflow-y:auto}@media (width<=760px){._jzLeq_libraryPanel{flex-direction:column;width:calc(100vw - 24px);height:calc(100vh - 24px)}._jzLeq_libraryTopicList{flex-direction:row;overflow:auto hidden}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{flex:0 0 180px}}";
+		const css = "._jzLeq_root{gap:var(--lx-space-xl);padding:var(--lx-space-xl) var(--lx-space-2xl) calc(var(--lx-space-3xl) + 96px);color:var(--lx-label-primary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;display:flex;container-type:inline-size}._jzLeq_state{gap:var(--lx-space-sm);padding:var(--lx-space-3xl) var(--lx-space-2xl);color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);flex-direction:column;align-items:flex-start;display:flex}._jzLeq_stateTitle{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-md);margin:0}._jzLeq_stateBody{max-width:62ch;margin:0}._jzLeq_stateActions{gap:var(--lx-space-sm);flex-wrap:wrap;margin-block-start:var(--lx-space-xs);display:flex}._jzLeq_stateDetails{color:var(--lx-label-tertiary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin-block-start:var(--lx-space-xs)}._jzLeq_stateDetails>summary{cursor:pointer;user-select:none}._jzLeq_stateDetails>summary:focus-visible{outline:2px solid var(--lx-accent);outline-offset:2px;border-radius:var(--lx-radius-sm)}._jzLeq_stateDetails>._jzLeq_path{margin-block-start:var(--lx-space-2xs);display:block}._jzLeq_head{gap:var(--lx-space-md);flex-direction:column;display:flex}._jzLeq_headRow{align-items:baseline;gap:var(--lx-space-lg);flex-wrap:wrap;display:flex}._jzLeq_headActions{justify-content:flex-end;align-items:center;gap:var(--lx-space-md);flex:auto;min-width:0;display:flex}._jzLeq_title{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_counts{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_count,._jzLeq_countDue,._jzLeq_countWarn{border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap}._jzLeq_countDue{border-color:color-mix(in srgb, var(--lx-warn) 45%, transparent);color:var(--lx-warn);font-weight:var(--lx-weight-medium)}._jzLeq_countWarn{border-color:color-mix(in srgb, var(--lx-warn) 35%, transparent);color:var(--lx-warn)}._jzLeq_search{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-sm) var(--lx-space-lg);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-sm)}._jzLeq_search::placeholder{color:var(--lx-label-tertiary)}._jzLeq_search:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_local{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_scopeNote{margin:calc(var(--lx-space-sm) * -1) 0 0;color:var(--lx-label-secondary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro)}._jzLeq_sources{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_card{gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-card-radius-compact);background:var(--lx-card-background);padding:var(--lx-card-padding-compact);flex-direction:column;display:flex}._jzLeq_cardHead{align-items:baseline;gap:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_cardIdentity{gap:var(--lx-space-2xs);flex-direction:column;min-width:0;display:flex}._jzLeq_scopeToggle{align-items:center;gap:var(--lx-space-xs);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);white-space:nowrap;cursor:pointer;margin-inline-start:auto;display:inline-flex}._jzLeq_scopeToggle input{accent-color:var(--lx-accent)}._jzLeq_cardTitle{font-size:var(--lx-text-base);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-base);margin:0}._jzLeq_cardStatus{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin:0}._jzLeq_metaRight{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-variant-numeric:tabular-nums;margin-inline-start:auto}._jzLeq_sourceDetails{border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md)}._jzLeq_sourceDetails>summary{border-radius:var(--lx-radius-xs);width:fit-content;padding:var(--lx-space-2xs) var(--lx-space-xs);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);cursor:pointer;list-style:none}._jzLeq_sourceDetails>summary::-webkit-details-marker{display:none}._jzLeq_sourceDetails>summary:before{width:5px;height:5px;content:\"\";transition:transform var(--lx-motion-fast) var(--lx-easing);border-block-end:1px solid;border-inline-end:1px solid;margin-inline-end:var(--lx-space-sm);display:inline-block;transform:rotate(-45deg)translate(-1px,-1px)}._jzLeq_sourceDetails[open]>summary:before{transform:rotate(45deg)translate(-1px,-1px)}._jzLeq_sourceDetails>summary:hover{color:var(--lx-label-primary)}._jzLeq_sourceMeta{gap:var(--lx-space-sm) var(--lx-space-xl);margin:var(--lx-space-md) 0 0;padding:var(--lx-space-md) var(--lx-space-lg);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);grid-template-columns:repeat(2,minmax(0,1fr));display:grid}._jzLeq_sourceMeta>div{justify-content:space-between;align-items:baseline;gap:var(--lx-space-lg);min-width:0;display:flex}._jzLeq_sourceMeta dt{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_sourceMeta dd{color:var(--lx-label-secondary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;text-align:end;margin:0}._jzLeq_sourceMetaWide{grid-column:1/-1}._jzLeq_strip{border-radius:var(--lx-radius-xs);background:var(--lx-border-subtle);gap:1px;height:12px;display:flex;overflow:hidden}._jzLeq_segment{background:color-mix(in srgb, var(--lx-accent) 68%, transparent);min-width:1px;display:block}._jzLeq_segmentDegraded{background:var(--lx-warn)}._jzLeq_segmentThin{background:color-mix(in srgb, var(--lx-accent) 22%, transparent)}._jzLeq_stripEmpty{border:1px dashed var(--lx-border-default);border-radius:var(--lx-radius-xs);padding:var(--lx-space-sm) var(--lx-space-md);color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs)}._jzLeq_chips{gap:var(--lx-space-xs);flex-wrap:wrap;margin:0;padding:0;list-style:none;display:flex}._jzLeq_chipWarn{border:1px solid color-mix(in srgb, var(--lx-warn) 42%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-warn) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-warn);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 2px)}._jzLeq_cardFoot{align-items:center;gap:var(--lx-space-md);border-top:1px solid var(--lx-border-subtle);padding-top:var(--lx-space-md);flex-wrap:wrap;display:flex}._jzLeq_path{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);overflow-wrap:anywhere;user-select:text}._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:auto}._jzLeq_tree{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}._jzLeq_treeRow{align-items:baseline;gap:var(--lx-space-sm);border-radius:var(--lx-radius-xs);width:100%;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_treeRow:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_treeRow:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_treeRowOpen{background:var(--lx-surface-accent);color:var(--lx-label-primary)}._jzLeq_treeLabel{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}._jzLeq_treeFlag{color:var(--lx-warn);font-size:var(--lx-text-micro);flex:none}._jzLeq_treeMeta{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;flex:none}._jzLeq_reading{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);margin:var(--lx-space-sm) 0 var(--lx-space-md) var(--lx-space-sm);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_readingCrumbs{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_readingBody{max-width:74ch;max-height:min(52vh,520px);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);margin:0;scroll-padding-block-end:var(--lx-space-xl);overflow:auto}._jzLeq_readingBody:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_readingNote{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);margin:0}._jzLeq_results{gap:var(--lx-space-2xl);flex-direction:column;display:flex}._jzLeq_group{gap:var(--lx-space-sm);flex-direction:column;display:flex}._jzLeq_groupTitle{align-items:center;gap:var(--lx-space-sm);color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;margin:0;display:flex}._jzLeq_groupCount{border-radius:var(--lx-radius-pill);background:var(--lx-surface-sunken);padding:0 var(--lx-space-sm);color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;letter-spacing:0}._jzLeq_hits{gap:var(--lx-space-sm);flex-direction:column;margin:0;padding:0;list-style:none;display:flex}._jzLeq_hit{display:block}._jzLeq_hitButton,._jzLeq_hitStatic{gap:var(--lx-space-3xs);border:0;border-inline-start:2px solid var(--lx-border-default);width:100%;padding:var(--lx-space-2xs) 0 var(--lx-space-2xs) var(--lx-space-lg);color:inherit;font:inherit;text-align:start;background:0 0;border-radius:0;flex-direction:column;display:flex}._jzLeq_hitButton{cursor:pointer}._jzLeq_hitButton:hover{border-inline-start-color:var(--lx-accent);background:var(--lx-surface-sunken)}._jzLeq_hitButton:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_hitHead{align-items:baseline;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_hitTitle{color:var(--lx-label-primary);font-size:var(--lx-text-2xs);font-weight:var(--lx-weight-medium)}._jzLeq_hitSection,._jzLeq_hitPage{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums}._jzLeq_hitExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);overflow-wrap:anywhere}._jzLeq_hitPath{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-glyph-xs);overflow-wrap:anywhere}._jzLeq_foot{align-items:baseline;gap:var(--lx-space-xs);margin:var(--lx-space-sm) 0 0;color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);flex-wrap:wrap;display:flex}@container (width<=560px){._jzLeq_root{padding-inline:var(--lx-space-lg)}._jzLeq_metaRight,._jzLeq_cardFoot ._jzLeq_path{margin-inline-start:0}}._jzLeq_body{gap:var(--lx-space-xl);grid-template-columns:168px minmax(0,1fr);align-items:start;display:grid}._jzLeq_rail{gap:var(--lx-space-3xs);border-inline-end:1px solid var(--lx-border-subtle);flex-direction:column;padding-inline-end:var(--lx-space-md);display:flex;position:sticky;top:0}._jzLeq_railItem,._jzLeq_railItemOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);border-radius:var(--lx-radius-sm);padding:var(--lx-space-xs) var(--lx-space-md);color:var(--lx-label-secondary);font:inherit;font-size:var(--lx-text-2xs);text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_railItem:hover{background:var(--lx-surface-sunken);color:var(--lx-label-primary)}._jzLeq_railItemOn{background:var(--lx-surface-accent);color:var(--lx-label-primary);font-weight:var(--lx-weight-medium)}._jzLeq_railItem:focus-visible,._jzLeq_railItemOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_railCount,._jzLeq_railDue{font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;color:var(--lx-label-tertiary)}._jzLeq_railDue{border-radius:var(--lx-radius-pill);background:var(--lx-warn);padding:0 var(--lx-space-xs);color:var(--lx-surface-base);font-weight:var(--lx-weight-strong)}._jzLeq_pane{min-width:0}._jzLeq_masteryUnseen,._jzLeq_masteryEmerging,._jzLeq_masteryTransfer{align-items:baseline;gap:var(--lx-space-xs);border:1px solid var(--lx-border-subtle);border-radius:var(--lx-radius-pill);padding:0 var(--lx-space-md);font-size:var(--lx-text-2xs);line-height:calc(var(--lx-leading-2xs) + 3px);white-space:nowrap;display:inline-flex}._jzLeq_masteryUnseen{color:var(--lx-label-tertiary)}._jzLeq_masteryEmerging{border-color:color-mix(in srgb, var(--lx-accent) 40%, transparent);color:var(--lx-accent)}._jzLeq_masteryTransfer{border-color:color-mix(in srgb, var(--lx-success) 45%, transparent);background:color-mix(in srgb, var(--lx-success) 10%, transparent);color:var(--lx-success)}._jzLeq_basis{color:var(--lx-label-tertiary);font-size:var(--lx-text-micro)}._jzLeq_explanation{border-inline-start:2px solid var(--lx-border-strong);color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;margin:0;padding-inline-start:var(--lx-space-lg)}._jzLeq_anchorRow{gap:var(--lx-space-xs);flex-direction:column;display:flex}._jzLeq_chipLabel{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase;align-self:center}._jzLeq_chipAnchor{border:1px solid color-mix(in srgb, var(--lx-accent) 35%, transparent);border-radius:var(--lx-radius-pill);background:var(--lx-surface-accent);padding:1px var(--lx-space-md);color:var(--lx-accent);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px)}._jzLeq_chipStale{border:1px solid color-mix(in srgb, var(--lx-danger) 45%, transparent);border-radius:var(--lx-radius-pill);background:color-mix(in srgb, var(--lx-danger) 10%, transparent);padding:1px var(--lx-space-md);color:var(--lx-danger);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);line-height:calc(var(--lx-leading-micro) + 4px);text-decoration:line-through}._jzLeq_staleNote,._jzLeq_systemNote,._jzLeq_hint,._jzLeq_notice{font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);max-width:68ch;margin:0}._jzLeq_staleNote{color:var(--lx-danger)}._jzLeq_systemNote,._jzLeq_hint{color:var(--lx-label-tertiary)}._jzLeq_notice{color:var(--lx-success)}._jzLeq_editor{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:100%;padding:var(--lx-space-md) var(--lx-space-lg);color:var(--lx-label-primary);font-family:var(--lx-font-mono);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-xs);resize:vertical;scroll-margin-block-end:140px}._jzLeq_editor:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_actions{align-items:center;gap:var(--lx-space-sm);flex-wrap:wrap;display:flex}._jzLeq_deferGroup{align-items:center;gap:var(--lx-space-2xs);display:inline-flex}._jzLeq_deferInput{border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-sm);background:var(--lx-surface-sunken);width:56px;padding:var(--lx-space-2xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-2xs);font-variant-numeric:tabular-nums}._jzLeq_deferInput:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_deck{gap:var(--lx-space-lg);flex-direction:column;display:flex}._jzLeq_deckProgress{color:var(--lx-label-tertiary);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);font-variant-numeric:tabular-nums;margin:0}._jzLeq_deckCard{gap:var(--lx-space-lg);border:1px solid var(--lx-border-strong);border-radius:var(--lx-card-radius);background:var(--lx-surface-raised);padding:var(--lx-space-2xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex}._jzLeq_deckLabel{font-size:var(--lx-text-lg);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-lg);margin:0}._jzLeq_deckPrompt{color:var(--lx-label-secondary);font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}@container (width<=640px){._jzLeq_body{grid-template-columns:minmax(0,1fr)}._jzLeq_rail{border-inline-end:0;border-block-end:1px solid var(--lx-border-subtle);flex-direction:row;padding-block-end:var(--lx-space-sm);padding-inline-end:0;position:static;overflow-x:auto}}._jzLeq_noteExcerpt{color:var(--lx-label-secondary);font-size:var(--lx-text-xs);line-height:var(--lx-leading-xs);overflow-wrap:anywhere;max-width:76ch;margin:0}._jzLeq_keepSheet{z-index:1100;box-sizing:border-box;gap:var(--lx-space-md);border:var(--lx-card-border);border-radius:var(--lx-radius-lg);background:var(--lx-surface-card);width:min(520px,100vw - 24px);max-height:calc(100vh - 24px);padding:var(--lx-space-lg) var(--lx-space-xl);box-shadow:var(--lx-shadow-md);flex-direction:column;display:flex;position:fixed;overflow-y:auto}._jzLeq_keepTitleInput,._jzLeq_keepEditor{box-sizing:border-box;border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-xl);background:var(--lx-surface-raised);width:100%;color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-md);line-height:var(--lx-leading-md)}._jzLeq_keepTitleInput{min-height:40px;padding:4px var(--lx-space-lg) 4px var(--lx-space-xl)}._jzLeq_keepEditor{min-height:180px;padding:var(--lx-space-md) var(--lx-space-lg) var(--lx-space-md) var(--lx-space-xl);resize:vertical}._jzLeq_keepTitleInput::placeholder,._jzLeq_keepEditor::placeholder{color:var(--lx-label-tertiary)}._jzLeq_keepTitleInput:focus-visible,._jzLeq_keepEditor:focus-visible{border-color:var(--lx-border-strong);outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_keepAction{--keep-accent:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary,#2f73ea));--keep-surface:var(--dsw-alias-bg-layer-1,Canvas);--keep-label:var(--dsw-alias-label-primary,CanvasText);--keep-muted:var(--dsw-alias-label-tertiary,color-mix(in srgb, var(--keep-label) 58%, transparent));width:28px;height:28px;color:var(--keep-muted);cursor:pointer;transition:background var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), color var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1)), box-shadow var(--lx-motion-fast,.14s) var(--lx-easing,cubic-bezier(.16, 1, .3, 1));background:0 0;border:0;border-radius:28px;justify-content:center;align-items:center;padding:6px;display:inline-flex}._jzLeq_keepAction:hover,._jzLeq_keepAction[aria-expanded=true]{background:color-mix(in srgb, var(--keep-accent) 18%, var(--keep-surface));color:var(--keep-accent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--keep-accent) 48%, transparent)}._jzLeq_keepAction:active{background:color-mix(in srgb, var(--keep-accent) 26%, var(--keep-surface))}._jzLeq_keepAction:focus-visible{outline:var(--lx-focus-width,2px) solid var(--keep-accent);outline-offset:var(--lx-focus-offset,3px)}._jzLeq_reparse{gap:var(--lx-space-sm);border-inline-start:2px solid var(--lx-accent);flex-direction:column;padding-inline-start:var(--lx-space-lg);display:flex}._jzLeq_spendMark{border:1px solid color-mix(in srgb, var(--lx-warn) 45%, transparent);border-radius:var(--lx-radius-pill);padding:1px var(--lx-space-md);color:var(--lx-warn);font-family:var(--lx-font-mono);font-size:var(--lx-text-micro);letter-spacing:var(--lx-tracking-eyebrow);white-space:nowrap}._jzLeq_rosterRoot{width:100%;position:relative}._jzLeq_rosterRootRail{width:36px}._jzLeq_rosterTrigger{box-sizing:border-box;width:calc(100% + 4px);height:42px;color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-size:14px;line-height:22px;display:flex;overflow:hidden}._jzLeq_rosterTrigger:hover{background:var(--dsw-alias-interactive-bg-hover,var(--lx-surface-sunken))}._jzLeq_rosterTriggerRail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}._jzLeq_rosterTrigger:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_rosterMark{font-size:var(--lx-text-sm);flex:none;line-height:1;display:inline-flex}._jzLeq_rosterLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._jzLeq_libraryOverlay{z-index:1000;box-sizing:border-box;justify-content:center;align-items:center;padding:20px;display:flex;position:fixed;inset:0}._jzLeq_libraryMask{background:var(--dsw-alias-bg-mask-1,#0000003d);backdrop-filter:blur(5px);position:absolute;inset:0}._jzLeq_libraryPanel{z-index:1;border:var(--lx-card-border);border-radius:var(--lx-radius-xl);background:color-mix(in srgb, var(--lx-host-bg) 88%, transparent);width:min(920px,100%);max-width:100%;height:min(680px,100%);max-height:100%;box-shadow:var(--lx-shadow-lg);backdrop-filter:blur(18px)saturate(130%);display:flex;position:relative;overflow:hidden}._jzLeq_libraryNavMeta{color:var(--lx-label-tertiary);font-size:var(--lx-text-2xs);line-height:var(--lx-leading-2xs);margin-inline-start:var(--lx-space-2xs)}._jzLeq_libraryTopicList{gap:var(--lx-space-2xs);flex-direction:column;min-height:0;margin:0;padding:0;list-style:none;display:flex;overflow-y:auto}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{justify-content:space-between;align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-radius:var(--lx-radius-sm);width:100%;padding:var(--lx-space-xs) var(--lx-space-sm);color:var(--lx-label-primary);font:inherit;text-align:start;cursor:pointer;background:0 0;border:0;display:flex}._jzLeq_libraryTopic:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryTopicOn{background:var(--lx-surface-accent);font-weight:var(--lx-weight-medium)}._jzLeq_libraryTopic:focus-visible,._jzLeq_libraryTopicOn:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:calc(var(--lx-focus-offset) * -1)}._jzLeq_libraryTopicName{text-overflow:ellipsis;white-space:nowrap;font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);overflow:hidden}._jzLeq_libraryTopicGroup{gap:var(--lx-space-3xs);border-bottom:1px solid var(--lx-border-subtle);flex-direction:column;margin-block-end:var(--lx-space-md);padding-block-end:var(--lx-space-md);display:flex}._jzLeq_libraryTopicHeading{margin:0 0 var(--lx-space-2xs);padding-inline:var(--lx-space-sm);color:var(--lx-label-tertiary);font-size:var(--lx-text-micro);line-height:var(--lx-leading-micro);font-weight:var(--lx-weight-strong);letter-spacing:var(--lx-tracking-eyebrow);text-transform:uppercase}._jzLeq_libraryMain{flex-direction:column;flex:1;min-width:0;display:flex}._jzLeq_libraryHeader{align-items:center;gap:var(--lx-space-sm);box-sizing:border-box;border-bottom:1px solid var(--lx-border-subtle);flex:none;min-height:64px;padding:16px 20px 12px 24px;display:flex}._jzLeq_libraryHeaderTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-medium);line-height:var(--lx-leading-md);flex:1;overflow:hidden}._jzLeq_libraryClose{width:28px;height:28px;color:var(--lx-label-primary);cursor:pointer;background:0 0;border:0;border-radius:50%;flex:none;justify-content:center;align-items:center;display:inline-flex}._jzLeq_libraryClose:hover{background:var(--lx-surface-sunken)}._jzLeq_libraryClose:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._jzLeq_libraryScroll{flex:1;min-height:0;overflow-y:auto}@media (width<=720px){._jzLeq_libraryOverlay{padding:0}._jzLeq_libraryPanel{border-inline:0;border-radius:0;flex-direction:column;width:100%;max-width:none;height:100%;max-height:none}._jzLeq_libraryTopicList{flex-direction:row;overflow:auto hidden}._jzLeq_libraryTopic,._jzLeq_libraryTopicOn{flex:0 0 180px}}";
 		const tagId = "@dsh-portable/interactive-learning/VaultView.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -14490,7 +14453,7 @@ window.__ModuleLoader__.load({
 			return chars >= 1e3 ? `${(chars / 1e3).toFixed(1)}k` : String(chars);
 		}
 		function megabytes(bytes) {
-			if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+			if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 			if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
 			return `${String(bytes)} B`;
 		}
@@ -15298,6 +15261,115 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region src/client/VaultLibraryDialog.tsx
+		/**
+		* Shared external library dialog.
+		*
+		* The official sidebar entry and DCode's library command both open the same
+		* dialog. Keeping the shell and topic switcher here means a layout change is
+		* made once for both front ends; VaultLibrary remains the single owner of the
+		* material, notes, concept and review panes inside it.
+		* @module @dsh-portable/interactive-learning/src/client/VaultLibraryDialog
+		*/
+		function TopicNavigation({ topics, selectedCwd, onSelectCwd, t }) {
+			if (topics.length < 2) return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: VaultView_module_css_default.libraryTopicGroup,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: VaultView_module_css_default.libraryTopicHeading,
+					children: t("vaultRosterTitle")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+					className: VaultView_module_css_default.libraryTopicList,
+					children: topics.map((topic) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: topic.cwd === selectedCwd ? VaultView_module_css_default.libraryTopicOn : VaultView_module_css_default.libraryTopic,
+						"aria-current": topic.cwd === selectedCwd ? "page" : void 0,
+						onClick: () => {
+							onSelectCwd(topic.cwd);
+						},
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: VaultView_module_css_default.libraryTopicName,
+							children: topic.title
+						}), topic.due > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: VaultView_module_css_default.railDue,
+							children: String(topic.due)
+						})]
+					}) }, topic.cwd))
+				})]
+			});
+		}
+		/** Render the common settings-style library card through a document portal. */
+		function VaultLibraryDialog({ open, topics, selectedCwd, call, t, title, onSelectCwd, onClose, content }) {
+			(0, react.useEffect)(() => {
+				if (!open) return;
+				const onKeyDown = (event) => {
+					if (event.key === "Escape") onClose();
+				};
+				document.addEventListener("keydown", onKeyDown);
+				return () => {
+					document.removeEventListener("keydown", onKeyDown);
+				};
+			}, [onClose, open]);
+			if (!open || typeof document === "undefined") return null;
+			const selected = topics.find((topic) => topic.cwd === selectedCwd) ?? topics[0];
+			const headerTitle = selected?.title ?? title ?? t("vaultRosterTitle");
+			const library = content !== void 0 ? content : selected === void 0 || call === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(VaultLibrary, {
+				cwd: selected.cwd,
+				call,
+				t,
+				embedded: true,
+				onClose,
+				topics: onSelectCwd === void 0 ? void 0 : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TopicNavigation, {
+					topics,
+					selectedCwd: selected.cwd,
+					onSelectCwd,
+					t
+				})
+			});
+			return (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				...learningScope,
+				className: VaultView_module_css_default.libraryOverlay,
+				role: "presentation",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: VaultView_module_css_default.libraryMask,
+					"aria-hidden": "true",
+					onClick: onClose
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: VaultView_module_css_default.libraryPanel,
+					role: "dialog",
+					"aria-modal": "true",
+					"aria-label": title ?? t("vaultRosterTitle"),
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+						className: VaultView_module_css_default.libraryMain,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: VaultView_module_css_default.libraryHeader,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, { size: 16 }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: VaultView_module_css_default.libraryHeaderTitle,
+									children: headerTitle
+								}),
+								topics.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: VaultView_module_css_default.libraryNavMeta,
+									children: t("vaultLibraryTopics", { count: String(topics.length) })
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: VaultView_module_css_default.libraryClose,
+									"aria-label": t("vaultKeepClose"),
+									onClick: onClose,
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, { size: 14 })
+								})
+							]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: VaultView_module_css_default.libraryScroll,
+							children: library
+						})]
+					})
+				})]
+			}), document.body);
+		}
+		//#endregion
 		//#region src/client/VaultRoster.tsx
 		/**
 		* The out-of-session entry: 资料库 at the sidebar foot.
@@ -15389,7 +15461,6 @@ window.__ModuleLoader__.load({
 				setRefreshVersion((value) => value + 1);
 			}), []);
 			const candidates = (0, react.useMemo)(() => candidateFolders(ids, byId), [ids, byId]);
-			const key = candidates.map((entry) => `${entry.cwd}@${String(entry.updatedAt)}`).join("|");
 			(0, react.useEffect)(() => {
 				if (candidates.length === 0) {
 					setRoster(void 0);
@@ -15406,23 +15477,13 @@ window.__ModuleLoader__.load({
 				};
 			}, [
 				call,
-				key,
+				candidates.map((entry) => `${entry.cwd}@${String(entry.updatedAt)}`).join("|"),
 				refreshVersion
 			]);
 			(0, react.useEffect)(() => {
 				if (roster === void 0) return;
 				setSelectedCwd((current) => roster.vaults.some((vault) => vault.cwd === current) ? current : roster.vaults[0]?.cwd);
 			}, [roster]);
-			(0, react.useEffect)(() => {
-				if (!open) return;
-				const onKeyDown = (event) => {
-					if (event.key === "Escape") setOpen(false);
-				};
-				document.addEventListener("keydown", onKeyDown);
-				return () => {
-					document.removeEventListener("keydown", onKeyDown);
-				};
-			}, [open]);
 			if (roster === void 0 || roster.vaults.length === 0) return null;
 			const selected = roster.vaults.find((vault) => vault.cwd === selectedCwd) ?? roster.vaults[0];
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -15450,84 +15511,17 @@ window.__ModuleLoader__.load({
 							children: String(roster.due)
 						})
 					]
-				}), open && typeof document !== "undefined" && (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					...learningScope,
-					className: VaultView_module_css_default.libraryOverlay,
-					role: "presentation",
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: VaultView_module_css_default.libraryMask,
-						"aria-hidden": "true",
-						onClick: () => {
-							setOpen(false);
-						}
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: VaultView_module_css_default.libraryPanel,
-						role: "dialog",
-						"aria-modal": "true",
-						"aria-label": t("vaultRosterTitle"),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-							className: VaultView_module_css_default.libraryMain,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: VaultView_module_css_default.libraryHeader,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, { size: 16 }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: VaultView_module_css_default.libraryHeaderTitle,
-										children: selected.title
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: VaultView_module_css_default.libraryNavMeta,
-										children: t("vaultLibraryTopics", { count: String(roster.vaults.length) })
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: VaultView_module_css_default.libraryClose,
-										"aria-label": t("vaultKeepClose"),
-										onClick: () => {
-											setOpen(false);
-										},
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, { size: 14 })
-									})
-								]
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: VaultView_module_css_default.libraryScroll,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(VaultLibrary, {
-									cwd: selected.cwd,
-									call,
-									t,
-									embedded: true,
-									onClose: () => {
-										setOpen(false);
-									},
-									topics: roster.vaults.length < 2 ? void 0 : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: VaultView_module_css_default.libraryTopicGroup,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-											className: VaultView_module_css_default.libraryTopicHeading,
-											children: t("vaultRosterTitle")
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-											className: VaultView_module_css_default.libraryTopicList,
-											children: roster.vaults.map((vault) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: vault.cwd === selected.cwd ? VaultView_module_css_default.libraryTopicOn : VaultView_module_css_default.libraryTopic,
-												"aria-current": vault.cwd === selected.cwd ? "page" : void 0,
-												onClick: () => {
-													setSelectedCwd(vault.cwd);
-												},
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: VaultView_module_css_default.libraryTopicName,
-													children: vault.title
-												}), vault.due > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: VaultView_module_css_default.railDue,
-													children: String(vault.due)
-												})]
-											}) }, vault.cwd))
-										})]
-									})
-								})
-							})]
-						})
-					})]
-				}), document.body)]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(VaultLibraryDialog, {
+					open,
+					topics: roster.vaults,
+					selectedCwd: selected.cwd,
+					call,
+					t,
+					onSelectCwd: setSelectedCwd,
+					onClose: () => {
+						setOpen(false);
+					}
+				})]
 			});
 		}
 		//#endregion
@@ -16449,6 +16443,7 @@ window.__ModuleLoader__.load({
 		exports.LearningStateUpdateToolView = LearningStateUpdateToolView;
 		exports.VaultKeepAction = VaultKeepAction;
 		exports.VaultLibrary = VaultLibrary;
+		exports.VaultLibraryDialog = VaultLibraryDialog;
 		exports.VaultRosterAction = VaultRosterAction;
 		exports.VaultView = VaultView;
 		exports.apply = apply;

@@ -3,7 +3,10 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { reanchorAnchorLists, type ReanchorOutcome } from './material-reanchor.ts'
+// Straight from the kernel rather than through this pack's re-export shim:
+// `learning-reanchor.ts` imports THIS module to register its hooks, and the
+// shim re-exports that module, so going through it would be a cycle.
+import { reanchorAnchorLists, type ReanchorOutcome } from '@dsh-portable/space-kernel'
 import {
   readLearnerMemory,
   type LearnerConceptRecord,

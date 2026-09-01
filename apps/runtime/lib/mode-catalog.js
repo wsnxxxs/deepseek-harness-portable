@@ -74,8 +74,13 @@ export function parseModeDefinition(source, path) {
     };
 }
 function safeConfigPath(directory, relative) {
-    const target = resolve(directory, relative);
-    if (target !== directory && !target.startsWith(`${directory}/`) && !target.startsWith(`${directory}\\`)) {
+    // `resolve` normalizes the target but not the base, so a caller passing a
+    // trailing separator would fail containment against its own directory. The
+    // base is normalized the same way to compare like with like; this admits
+    // nothing the raw comparison rejected except that false positive.
+    const base = resolve(directory);
+    const target = resolve(base, relative);
+    if (target !== base && !target.startsWith(`${base}/`) && !target.startsWith(`${base}\\`)) {
         throw new Error(`mode config escapes its directory: ${relative}`);
     }
     return target;

@@ -1,7 +1,22 @@
 # 学习库 → 通用资料库（Library Space）泛化方案
 
-> 状态：方案稿（未实现）
-> 日期：2026-08-29
+> 状态：**部分已实现，本文保留为设计依据**
+> 日期：2026-08-29；状态更新 2026-08-31
+>
+> 已落地的部分：
+> - 内核已抽出为 `packages/space-kernel`（摄入 / 锚点 / 重锚 / containedPath / space
+>   manifest / chunk + BM25 词法索引）。学习模式原样保留并改为依赖内核，
+>   `pnpm run learning:test` 744 项零改动通过，即为「行为不变」的证明。
+> - 「重锚谁的引用」不再由管线硬编码：消费者注册 `ReanchorHook`。教学侧注册
+>   learner memory 与概念卡；`packages/crew-dossier` 注册自己的接缝。
+> - 索引层已存在（`search/chunker.ts` + `search/lexical.ts`），本文 §1.3 所述
+>   「纯字面子串匹配、无 tf-idf」的瓶颈已不再成立。
+> - 内核之上长出的第一个新消费者是**任务档案**（`packages/crew-dossier`），
+>   见 [crew.md](crew.md)：三个只读工具 + 操作者侧 `/crew-dossier` 附加通道。
+>
+> 尚未实现：来源勾选（grounding 作用域）、Studio 产物（简报 / FAQ / 时间线 / 导图）、
+> 非本地来源 provider（URL / 剪藏 / 转录）、`VaultView` 的 store 化。
+> 这些仍以本文为设计依据。
 > 范围：`apps/interactive-learning`、`apps/dcode-ui/src/client/learning`、宿主 broker/RPC 通道
 > 目标：把「学习模式的学习库」泛化为通用资料库内核，并在此之上提供 NotebookLM 式的
 > 多来源 → 有引用的对话 → 生成产物（Studio）体验，同时保留现有教学模式的全部行为。

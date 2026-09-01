@@ -1,6 +1,5 @@
 import z from "@deepseek-ai/schemastery";
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
 import { contentHasImage, createUserMessage, offloadedImageText } from "@deepseek-ai/dsh-llm";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
@@ -827,7 +826,7 @@ async function pdfPageCount(filePath, signal) {
 			windowsHide: true,
 			timeout: PDF_RENDER_TIMEOUT_MS,
 			signal,
-			maxBuffer: 1048576
+			maxBuffer: 1024 * 1024
 		});
 		const match = /^\s*Pages:\s*(\d+)\s*$/mu.exec(result.stdout);
 		if (match === null) return void 0;
@@ -866,7 +865,7 @@ async function renderPdfPage(filePath, page, signal) {
 				windowsHide: true,
 				timeout: PDF_RENDER_TIMEOUT_MS,
 				signal,
-				maxBuffer: 1048576
+				maxBuffer: 1024 * 1024
 			});
 		} catch (error) {
 			if (isMissingExecutable(error)) continue;
@@ -1381,7 +1380,7 @@ const Config = z.object({
 	enabled: z.boolean().default(true),
 	model: z.string().default("")
 });
-const VISION_SETTINGS_NAMESPACE = settingsNamespace("vision");
+const VISION_SETTINGS_NAMESPACE = "vision";
 /**
 * Register the vision bridge on a host context.
 * @param ctx - the injecting cordis context.
@@ -1390,11 +1389,13 @@ const VISION_SETTINGS_NAMESPACE = settingsNamespace("vision");
 function apply(ctx, config = {}) {
 	const resolved = Config(config);
 	let currentConfig = () => resolved;
-	installSettingsSection(ctx, VISION_SETTINGS_NAMESPACE, Config, resolved, {
-		setSource: (thunk) => {
-			currentConfig = thunk;
-		},
-		onChange: () => {}
+	ctx.inject(["settings"], (settingsCtx) => {
+		settingsCtx.settings.installSection(ctx, VISION_SETTINGS_NAMESPACE, Config, resolved, {
+			setSource: (thunk) => {
+				currentConfig = thunk;
+			},
+			onChange: () => {}
+		});
 	});
 	const llm = ctx.get("llm") ?? ctx.llm;
 	const hybrid = installHybridVisionRouting(ctx, currentConfig, llm);

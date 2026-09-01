@@ -1,6 +1,6 @@
 /**
- * The floating right card: Git changes, Goal and Progress, and the details of
- * whatever the operator last clicked.
+ * The floating right card: Git changes, Goal and Progress, command output, and
+ * selected subagent details.
  *
  * Goal is the host-computed `goal` projection — the same value the official
  * goal bar renders — and Progress is the session's own todo list, folded from

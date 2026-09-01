@@ -27,11 +27,23 @@ An unmeasured platform or phase is `unavailable`, not inferred as available. The
 
 ## Mode contracts and variants
 
-Standard, Code, Cordis, and Minimal each declare a `mode.yml` contract. Stable behavior stays in the base composition; the resolver appends one small target-capability variant. Standard, Code, and Cordis currently provide `posix-bash` and `win32-powershell`; Minimal provides `posix-bash` and `win32-wsl`.
+Standard, PTC, Cordis, Minimal, and Crew each declare a `mode.yml` contract. Stable behavior stays in the base composition; the resolver appends one small target-capability variant. Standard, PTC, Cordis, and Crew provide `posix-bash` and `win32-powershell`; Minimal provides `posix-bash` and `win32-wsl`. Every mode ships a variant per supported target: a mode with only a `win32-*` variant compiles to `unavailable` everywhere else.
 
-Final composition validation enforces required rows, forbidden rows, the exact enabled tool rows, and exactly one provider for the variant slot. Preset YAML contains no `process.platform` branches. A degraded capability satisfies a requirement only where the selected variant explicitly accepts that degradation.
+Final composition validation enforces required rows, forbidden rows, the exact enabled tool rows, and exactly one provider for the variant slot. Preset YAML contains no `process.platform` branches. A degraded capability satisfies a requirement only where the selected variant explicitly accepts that degradation. A mode whose model-facing rows fall outside the `@deepseek-ai/dsh-tool-*` families declares `contract.tools.rowNameMarkers`, so the exact-rows gate counts them; without it a correct composition is rejected for listing a row the gate cannot see.
 
 If no variant satisfies the measured report, the compiler removes that mode directory from the scanned preset root, so discovery cannot retain it as a broken selector row. It keeps `.mode-resolutions/<mode>/mode-resolution.json` with `reason`, `remediation`, and missing capability details for operators and exposes the same result through the runtime capability API.
+
+
+### The roster is the compiled catalog
+
+The runtime sets `includeShippedRoot: false` on the `agent-presets` row, so the compiled portable modes are the only ones an operator can select.
+
+This is what makes the contract real. The roster resolves roots as `[upstream shipped, ...config.roots, user]` and an **earlier root wins a duplicate id**, so leaving the upstream root on means upstream's own `standard`/`ptc`/`minimal`/`cordis` shadow the compiled ones — and the "no variant fits ⇒ mode removed ⇒ unselectable" gate silently does nothing, because upstream backfills the id the compiler just removed. Only ids upstream does not ship reached the operator from the portable root.
+
+Closing it also lets the compiler leave the roster empty on a target no variant fits, so `apps/runtime/src/preset-roster.ts` runs once the catalog is known and covers both consequences:
+
+- the configured default did not compile but others did: select the best-supported survivor so session creation still works, and report at `warning`;
+- nothing compiled: reopen the upstream root for that boot and report at `error`, because a roster whose modes were not measured here is worse than correct but far better than an application whose every new session fails.
 
 Each selectable mode records:
 
@@ -88,7 +100,9 @@ The remaining platform gates are external by design: successful native Windows/W
 
 本项目采用“单一主干 + 统一模式契约 + 多平台能力实现”。运行时通过真实副作用探测 PTY、持久 Bash/PowerShell/WSL、signals、沙箱写入和 Windows directory-picker IPC；未实测能力必须返回 `unavailable + reason + remediation`，不能按平台静态宣称支持。
 
-Standard、Code、Cordis、Minimal 都有契约与小型 variant。最终组合必须通过 required/forbidden/exact-row/单一 variant slot 校验；无法满足能力的模式会删除可发现的 preset 文件，只保留 UI/API 可消费的诊断 JSON。模式追踪包含 variant、preset hash、upstream commit 和 capability snapshot hash。
+Standard、PTC、Cordis、Minimal、Crew 都有契约与小型 variant，且每个目标平台都必须有对应 variant——只有 `win32-*` variant 的模式在其它平台一律编译为 `unavailable`。最终组合必须通过 required/forbidden/exact-row/单一 variant slot 校验；模型面工具行落在 `@deepseek-ai/dsh-tool-*` 家族之外的模式，需自行声明 `contract.tools.rowNameMarkers`，否则正确的组合会因为门禁看不见那一行而被拒。无法满足能力的模式会从预设根中移除，只保留 UI/API 可消费的诊断 JSON。模式追踪包含 variant、preset hash、upstream commit 和 capability snapshot hash。
+
+运行时对 `agent-presets` 行设置 `includeShippedRoot: false`，编译产出的 portable 模式才是操作者唯一可选的集合。这正是让契约生效的关键：根解析顺序是 `[上游 shipped, ...config.roots, user]` 且**靠前的根赢得重复 id**，保留上游根就意味着上游自带的 `standard`/`ptc`/`minimal`/`cordis` 会遮蔽编译产物，「无可用 variant ⇒ 移除模式 ⇒ 不可选」这道门禁也就形同虚设。关上它之后，编译器有可能让 roster 为空，因此 `apps/runtime/src/preset-roster.ts` 在目录已知后运行：默认模式未编译成功但仍有其它模式时，改选支持度最高的幸存者并以 `warning` 上报；一个模式都没有时，本次启动回退上游根并以 `error` 上报。
 
 打包先实测能力，再写 manifest，随后对含 manifest 的最终应用字节再次执行 native-addon 与 `hello → listening → readiness` 冒烟。只有原生目标主机才能生成 `artifact-verification.json`。release 脚本只重新校验并复制已验证字节，不重建、不测试、不打补丁、不重新压缩。
 

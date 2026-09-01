@@ -11,7 +11,6 @@
  */
 import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings';
 import { installHybridVisionRouting } from "./hybrid-host.js";
 import { executeViewImage, renderViewImageContent } from "./view-image.js";
 export * from "./types.js";
@@ -25,7 +24,7 @@ export const Config = z.object({
     enabled: z.boolean().default(true),
     model: z.string().default(''),
 });
-export const VISION_SETTINGS_NAMESPACE = settingsNamespace('vision');
+export const VISION_SETTINGS_NAMESPACE = 'vision';
 /**
  * Register the vision bridge on a host context.
  * @param ctx - the injecting cordis context.
@@ -37,11 +36,13 @@ export function apply(ctx, config = {}) {
     // The api-proxy already publishes every registered namespace to web clients
     // and accepts writes for any of them, so registration is the whole wiring.
     let currentConfig = () => resolved;
-    installSettingsSection(ctx, VISION_SETTINGS_NAMESPACE, Config, resolved, {
-        setSource: thunk => {
-            currentConfig = thunk;
-        },
-        onChange: () => { },
+    ctx.inject(['settings'], settingsCtx => {
+        settingsCtx.settings.installSection(ctx, VISION_SETTINGS_NAMESPACE, Config, resolved, {
+            setSource: thunk => {
+                currentConfig = thunk;
+            },
+            onChange: () => { },
+        });
     });
     // Services are read per call rather than captured: a provider reconfigured
     // mid-session must be visible to the next invocation.
