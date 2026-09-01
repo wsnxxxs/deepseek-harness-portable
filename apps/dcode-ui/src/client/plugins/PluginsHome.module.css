@@ -217,11 +217,6 @@
 
 /* ── toolbar ─────────────────────────────────────────────────────────── */
 
-.filterField select:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
 .toolbar {
   display: flex;
   align-items: center;
@@ -264,33 +259,6 @@
 
 .searchInput::placeholder {
   color: var(--zx-label-tertiary);
-}
-
-.filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--zx-space-2);
-}
-
-.filterField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--zx-space-1);
-  min-width: 0;
-  color: var(--zx-label-tertiary);
-  font-size: var(--zx-text-micro);
-}
-
-.filterField select {
-  min-width: 0;
-  height: var(--zx-control-sm);
-  padding: 0 var(--zx-space-2);
-  border: 1px solid var(--zx-border-control);
-  border-radius: var(--zx-radius-sm);
-  background: var(--zx-bg-card);
-  color: var(--zx-label-secondary);
-  font: inherit;
-  font-size: var(--zx-text-xs);
 }
 
 .exploreWarning {
@@ -375,16 +343,9 @@ a.meta:hover {
 
 .compactGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
   gap: var(--zx-space-3);
   align-items: start;
-}
-
-.denseList {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border-top: 1px solid var(--zx-border-soft);
 }
 
 .card {
@@ -397,66 +358,12 @@ a.meta:hover {
 }
 
 .compactCard .cardBody {
-  gap: var(--zx-space-2);
-  padding: var(--zx-space-3) var(--zx-space-4);
+  gap: var(--zx-space-3);
+  padding: var(--zx-space-3) var(--zx-space-4) var(--zx-space-4);
 }
 
 .compactCard .description {
   -webkit-line-clamp: 2;
-}
-
-.denseCard {
-  border: 0;
-  border-bottom: 1px solid var(--zx-border-soft);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.denseCard:hover {
-  background: var(--zx-bg-panel);
-}
-
-.denseCard .cardHead {
-  min-height: var(--zx-control-md);
-  padding: var(--zx-space-2) var(--zx-space-3) 0;
-  box-shadow: none;
-}
-
-.denseCard .cardBody {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'description facts'
-    'review review';
-  align-items: center;
-  gap: var(--zx-space-1) var(--zx-space-3);
-  padding: var(--zx-space-1) var(--zx-space-3) var(--zx-space-2);
-}
-
-.denseCard .description {
-  grid-area: description;
-  -webkit-line-clamp: 1;
-}
-
-.denseCard .facts {
-  grid-area: facts;
-  flex-wrap: nowrap;
-  gap: var(--zx-space-1);
-}
-
-.denseCard .review {
-  grid-area: review;
-  border: 0;
-  border-top: 1px solid var(--zx-border-soft);
-  border-radius: 0;
-  background: transparent;
-}
-
-.denseCard .reviewSummary {
-  min-height: var(--zx-control-2xs);
-  padding: 0;
-  font-size: var(--zx-text-micro);
 }
 
 .cardHead {
@@ -831,10 +738,6 @@ a.name:hover {
    class. Container queries keep the catalogue readable when the card is
    narrowed by a host pane or by a small window. */
 @container (max-width: 680px) {
-  .filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .compactGrid {
     grid-template-columns: 1fr;
   }
@@ -855,32 +758,6 @@ a.name:hover {
     grid-column: 1 / -1;
   }
 
-  .denseCard .cardHead {
-    flex-direction: column;
-    gap: var(--zx-space-2);
-  }
-
-  .denseCard .actions {
-    justify-content: flex-start;
-  }
-
-  .denseCard .cardBody {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'description'
-      'facts'
-      'review';
-  }
-
-  .denseCard .facts {
-    flex-wrap: wrap;
-  }
-}
-
-@container (max-width: 420px) {
-  .filters {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 720px) {

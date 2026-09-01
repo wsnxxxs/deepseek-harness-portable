@@ -35,15 +35,9 @@ import ui from '../shell/ui.module.css'
 /** How long the search box waits before it asks the Host again. */
 const SEARCH_DEBOUNCE_MS = 300
 
-type ReviewFilter = 'all' | 'reviewed' | 'unreviewed'
-type CompatibilityFilter = 'all' | CompatibilityStatus
-type MaintenanceFilter = 'all' | MaintenanceStatus
-type CategoryFilter = 'all' | PluginCategory
-
 interface DiscoveryMetadata {
   readonly featured: boolean
   readonly featuredSource: string | undefined
-  readonly reviewed: boolean
   readonly category: PluginCategory
   readonly compatibility: CompatibilityStatus
   readonly maintenance: MaintenanceStatus
@@ -64,7 +58,6 @@ function metadataFor(item: MarketItem, locale: AuditLocale, platform: string): D
   return {
     featured: item.featured || audit?.featured === true,
     featuredSource: audit?.featuredSource[locale] ?? item.featuredSource,
-    reviewed: audit !== undefined,
     category: audit?.category ?? item.category,
     compatibility: audit !== undefined && platformId !== undefined
       ? audit.compatibility[platformId]
@@ -156,7 +149,6 @@ interface MarketCardProps {
   readonly onTranslate: () => void
   readonly translating: boolean
   readonly platform: string
-  readonly density: 'compact' | 'dense'
 }
 
 /** One repository, its review panel, and its install state. */
@@ -179,13 +171,10 @@ function MarketCard(props: MarketCardProps): ReactNode {
   const installed = item.installed || operation?.status === 'done'
 
   return (
-    <article className={`${css.card} ${props.density === 'compact' ? css.compactCard : css.denseCard}`}>
+    <article className={`${css.card} ${css.compactCard}`}>
       <div className={`${css.cardHead} ${ui.cardHeader}`}>
         <div className={css.identity}>
           <a className={css.name} href={item.url} target="_blank" rel="noreferrer">{item.fullName}</a>
-          <Pill className={reviewed ? css.tagSuccess : css.tagWarn}>
-            {t(reviewed ? 'plugins.reviewed' : 'plugins.unreviewed')}
-          </Pill>
           {metadata.featured
             ? <Pill className={css.tagAccent}>{t('plugins.featured')}</Pill>
             : null}
@@ -320,10 +309,6 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   const t = useT()
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
-  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all')
-  const [compatibility, setCompatibility] = useState<CompatibilityFilter>('all')
-  const [maintenance, setMaintenance] = useState<MaintenanceFilter>('all')
   const [page, setPage] = useState<MarketPage | undefined>()
   const [loading, setLoading] = useState(true)
   const [failure, setFailure] = useState<string | undefined>()
@@ -333,11 +318,8 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   const moreLoading = useRef(false)
   const moreController = useRef<AbortController | null>(null)
   const { operations, start, cancel } = useOperations(client)
-  // The marketplace opens directly on the complete catalogue. Search and the
-  // metadata selects below remain available as refinements, but discovery
-  // tabs must not hide repositories by default.
-  const scope = 'explore'
-
+  // The marketplace opens directly on the complete catalogue. Search is the
+  // only refinement; the default view never hides repositories by metadata.
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(draft.trim()) }, SEARCH_DEBOUNCE_MS)
     return () => { clearTimeout(timer) }
@@ -353,7 +335,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
     setPage(undefined)
     setLoading(true)
     setFailure(undefined)
-    void client.list(query, 1, controller.signal, scope)
+    void client.list(query, 1, controller.signal, 'explore')
       .then((answer) => {
         if (controller.signal.aborted) return
         if (answer.ok) setPage(answer.value)
@@ -371,7 +353,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
       moreController.current = null
       moreLoading.current = false
     }
-  }, [client, nonce, query, scope])
+  }, [client, nonce, query])
 
   const loadMore = useCallback(() => {
     const current = page
@@ -425,21 +407,13 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
 
   const platform = page?.platform || (typeof navigator === 'undefined' ? '' : navigator.userAgent)
   const items = useMemo(() => {
-    const source = page?.items ?? []
-    return source
-      .filter((item) => {
-        const metadata = metadataFor(item, locale, platform)
-        return (category === 'all' || metadata.category === category)
-          && (reviewFilter === 'all' || (reviewFilter === 'reviewed') === metadata.reviewed)
-          && (compatibility === 'all' || metadata.compatibility === compatibility)
-          && (maintenance === 'all' || metadata.maintenance === maintenance)
-      })
+    return (page?.items ?? []).slice()
       .sort((left, right) => {
         const [leftMatch, leftStars] = searchRank(left, query)
         const [rightMatch, rightStars] = searchRank(right, query)
         return rightMatch - leftMatch || rightStars - leftStars || left.fullName.localeCompare(right.fullName)
       })
-  }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter])
+  }, [page?.items, query])
   const syncedAt = page === undefined || page.fetchedAt === 0
     ? t('plugins.neverSynced')
     : t('plugins.syncedAt', { time: new Date(page.fetchedAt).toLocaleString() })
@@ -448,7 +422,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
     <>
       <div>
         <div className={css.title}>{t('plugins.section.market')}</div>
-        <p className={css.subtitle}>{t(scope === 'explore' ? 'plugins.source' : 'plugins.curatedSource')}</p>
+        <p className={css.subtitle}>{t('plugins.source')}</p>
       </div>
 
       <div className={css.toolbar}>
@@ -480,42 +454,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
         </a>
       </div>
 
-      <div className={css.filters} aria-label={t('plugins.filters')}>
-        <label className={css.filterField}>
-          <span>{t('plugins.filter.category')}</span>
-          <select value={category} onChange={(event) => { setCategory(event.target.value as CategoryFilter) }}>
-            {(['all', 'interface', 'vision', 'design', 'automation', 'developer', 'other', 'unknown'] as const).map(value => (
-              <option key={value} value={value}>{t(value === 'all' ? 'plugins.filter.all' : `plugins.category.${value}` as DcodeKey)}</option>
-            ))}
-          </select>
-        </label>
-        <label className={css.filterField}>
-          <span>{t('plugins.filter.review')}</span>
-          <select value={reviewFilter} onChange={(event) => { setReviewFilter(event.target.value as ReviewFilter) }}>
-            <option value="all">{t('plugins.filter.all')}</option>
-            <option value="reviewed">{t('plugins.reviewed')}</option>
-            <option value="unreviewed">{t('plugins.unreviewed')}</option>
-          </select>
-        </label>
-        <label className={css.filterField}>
-          <span>{t('plugins.filter.compatibility')}</span>
-          <select value={compatibility} onChange={(event) => { setCompatibility(event.target.value as CompatibilityFilter) }}>
-            {(['all', 'compatible', 'incompatible', 'unknown'] as const).map(value => (
-              <option key={value} value={value}>{t(value === 'all' ? 'plugins.filter.all' : `plugins.compatibility.${value}` as DcodeKey)}</option>
-            ))}
-          </select>
-        </label>
-        <label className={css.filterField}>
-          <span>{t('plugins.filter.maintenance')}</span>
-          <select value={maintenance} onChange={(event) => { setMaintenance(event.target.value as MaintenanceFilter) }}>
-            {(['all', 'active', 'stale', 'unknown'] as const).map(value => (
-              <option key={value} value={value}>{t(value === 'all' ? 'plugins.filter.all' : `plugins.maintenance.${value}` as DcodeKey)}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {scope === 'explore' ? <div className={css.exploreWarning}>{t('plugins.exploreWarning')}</div> : null}
+      <div className={css.exploreWarning}>{t('plugins.exploreWarning')}</div>
 
       {failure === undefined
         ? null
@@ -528,10 +467,10 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
         ? (
           loading
             ? <div className={css.loadingState} role="status"><Spinner size="sm" />{t('plugins.loading')}</div>
-            : <EmptyState>{query === '' ? t('plugins.emptyFiltered') : t('plugins.emptySearch', { query })}</EmptyState>
+            : <EmptyState>{query === '' ? t('plugins.emptyMarket') : t('plugins.emptySearch', { query })}</EmptyState>
         )
         : (
-          <div className={scope === 'explore' ? css.denseList : css.compactGrid}>
+          <div className={css.compactGrid}>
             {items.map(item => (
               <MarketCard
                 key={item.fullName}
@@ -541,7 +480,6 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
                 reviewOpen={reviewOpen === item.fullName}
                 translating={translation?.name === item.fullName && translation.loading}
                 platform={platform}
-                density={scope === 'explore' ? 'dense' : 'compact'}
                 onToggleReview={() => {
                   setReviewOpen(current => current === item.fullName ? undefined : item.fullName)
                 }}
@@ -552,7 +490,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
                 onTranslate={() => { translate(item) }}
               />
             ))}
-            {scope === 'explore' && page?.hasMore === true
+            {page?.hasMore === true
               ? (
                 <Button onClick={loadMore} disabled={loading}>
                   {t(loading ? 'plugins.loading' : 'plugins.loadMore')}
