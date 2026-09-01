@@ -356,7 +356,7 @@ function BrowserAcceptance() {
     const observer = new MutationObserver(measure)
     observer.observe(host, { childList: true, subtree: true })
     return () => observer.disconnect()
-  }, [activeFixtureKey, checkpoint.kind, checkpointResult, expectedKind, expectedVisualIdsKey, legacyKind, mode, view, visualKey])
+  }, [activeFixtureKey, checkpoint.kind, checkpointResult, expectedKind, expectedVisualIdsKey, mode, view, visualKey])
 
   useEffect(() => {
     ;(window as unknown as { __LEARNING_ACCEPTANCE__: unknown }).__LEARNING_ACCEPTANCE__ = {
@@ -540,8 +540,6 @@ function BrowserAcceptance() {
             </p>
           </article>
         ) : null}
-        )}
-
         {sentMessages.map((message, index) => (
           <p className="user-message" data-testid="sent-message" key={`${String(index)}:${message}`}>{message}</p>
         ))}
