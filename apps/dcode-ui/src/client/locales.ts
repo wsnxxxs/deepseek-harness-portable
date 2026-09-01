@@ -190,7 +190,9 @@ export const en = {
   'composer.pasteAttachment': 'Attachment added from clipboard',
 
   'changes.title': 'File changes',
-  'changes.count': '{count} files changed',
+  'changes.count': 'Edited {count} files',
+  'changes.showMoreFiles': 'Show {count} more files',
+  'changes.showLessFiles': 'Show fewer files',
   'changes.undo': 'Undo',
   'changes.undoing': 'Undoing…',
   'changes.undone': 'Reverted {count} files',
@@ -1224,7 +1226,9 @@ export const zh: Record<DcodeKey, string> = {
   'composer.pasteAttachment': '已从剪贴板添加附件',
 
   'changes.title': '文件变更',
-  'changes.count': '{count} 个文件已更改',
+  'changes.count': '已编辑 {count} 个文件',
+  'changes.showMoreFiles': '再显示 {count} 个文件',
+  'changes.showLessFiles': '收起文件列表',
   'changes.undo': '撤销',
   'changes.undoing': '正在撤销…',
   'changes.undone': '已还原 {count} 个文件',

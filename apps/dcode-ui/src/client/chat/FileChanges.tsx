@@ -1,10 +1,10 @@
 /**
  * The file-change summary card that closes a turn.
  *
- * It lists exactly the paths that turn's settled write/edit calls touched,
+ * It previews the paths that turn's settled write/edit calls touched,
  * annotates each with the line counts from the working-tree status, opens the
  * diff viewer on click, and offers the one destructive action the workbench
- * has: undoing that turn's edits.
+ * has: undoing that turn's edits. Longer lists stay compact until expanded.
  *
  * Undo is deliberately narrow. It restores tracked files from HEAD and moves
  * untracked ones into `.dsh/dcode-undo/<timestamp>/` rather than deleting
@@ -12,8 +12,11 @@
  * @module @dsh-portable/dcode-ui/client/chat/FileChanges
  */
 
-import { useCallback, useMemo, useState } from 'react'
-import { IconEditOutline16, IconRefreshOutline14, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useCallback, useId, useMemo, useState } from 'react'
+import {
+  IconChevronDownOutline14, IconEditOutline16, IconPlusOutline16, IconRefreshOutline14,
+  RiskConfirmation,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
 import { DiffCount, Spinner, ui } from '../shell/ui.tsx'
@@ -38,6 +41,9 @@ interface UndoNote {
   readonly text: string
   readonly kind: 'success' | 'error'
 }
+
+/** Keep the completed-turn summary short while leaving every file one click away. */
+const DEFAULT_VISIBLE_PATHS = 3
 
 /** Split a path into its directory prefix and file name for two-tone display. */
 function splitPath(path: string): { dir: string; name: string } {
@@ -78,10 +84,12 @@ function countsFor(status: GitStatus | undefined, path: string): { insertions: n
 export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileChangesProps) {
   const runtime = useRuntime()
   const t = useT()
+  const moreFilesId = useId()
   const [undoing, setUndoing] = useState(false)
   const [note, setNote] = useState<UndoNote | undefined>(undefined)
   const [confirmingUndo, setConfirmingUndo] = useState(false)
   const [acknowledgedUndo, setAcknowledgedUndo] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   const gitPath = useCallback(
     (path: string) => repoRelative(path, cwd, status?.root),
@@ -95,6 +103,8 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
     },
     { insertions: 0, deletions: 0 },
   ), [paths, status, gitPath])
+  const hiddenCount = Math.max(paths.length - DEFAULT_VISIBLE_PATHS, 0)
+  const visiblePaths = showAll ? paths : paths.slice(0, DEFAULT_VISIBLE_PATHS)
 
   const undo = useCallback(() => {
     if (cwd === undefined) return
@@ -125,8 +135,13 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
   return (
     <section className={css.card}>
       <header className={`${css.head} ${ui.cardHeader}`}>
-        <span className={css.title}>{t('changes.count', { count: paths.length })}</span>
-        <DiffCount insertions={totals.insertions} deletions={totals.deletions} />
+        <span className={css.titleIcon} aria-hidden><IconEditOutline16 /></span>
+        <div className={css.titleCopy}>
+          <span className={css.title}>{t('changes.count', { count: paths.length })}</span>
+          {totals.insertions === 0 && totals.deletions === 0
+            ? null
+            : <span className={css.stats}><DiffCount insertions={totals.insertions} deletions={totals.deletions} /></span>}
+        </div>
         <button
           type="button"
           className={css.undo}
@@ -141,26 +156,41 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }: FileC
           {undoing ? t('changes.undoing') : t('changes.undo')}
         </button>
       </header>
-      {paths.map((path) => {
-        const { dir, name } = splitPath(path)
-        const target = gitPath(path)
-        const counts = countsFor(status, target)
-        return (
-          <button
-            key={path}
-            type="button"
-            className={css.row}
-            onClick={() => { onOpenDiff(target) }}
-            title={path}
-          >
-            <IconEditOutline16 />
-            {/* `direction: rtl` keeps the file name visible when a long path
-                is truncated; the bidi isolate keeps the text itself in order. */}
-            <span className={css.path}><bdi>{dir === '' ? '' : <span className={css.dir}>{dir}</span>}{name}</bdi></span>
-            <DiffCount insertions={counts.insertions} deletions={counts.deletions} />
-          </button>
-        )
-      })}
+      <div id={moreFilesId} className={css.rows}>
+        {visiblePaths.map((path) => {
+          const { dir, name } = splitPath(path)
+          const target = gitPath(path)
+          const counts = countsFor(status, target)
+          return (
+            <button
+              key={path}
+              type="button"
+              className={css.row}
+              onClick={() => { onOpenDiff(target) }}
+              title={path}
+            >
+              <IconEditOutline16 />
+              {/* `direction: rtl` keeps the file name visible when a long path
+                  is truncated; the bidi isolate keeps the text itself in order. */}
+              <span className={css.path}><bdi>{dir === '' ? '' : <span className={css.dir}>{dir}</span>}{name}</bdi></span>
+              <DiffCount insertions={counts.insertions} deletions={counts.deletions} />
+            </button>
+          )
+        })}
+      </div>
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          className={css.more}
+          aria-expanded={showAll}
+          aria-controls={moreFilesId}
+          onClick={() => { setShowAll(value => !value) }}
+        >
+          <span className={css.moreIcon} aria-hidden><IconPlusOutline16 /></span>
+          <span className={css.moreLabel}>{showAll ? t('changes.showLessFiles') : t('changes.showMoreFiles', { count: hiddenCount })}</span>
+          <span className={`${css.moreChevron} ${showAll ? css.moreChevronOpen : ''}`} aria-hidden><IconChevronDownOutline14 /></span>
+        </button>
+      ) : null}
       {note === undefined
         ? null
         : <p className={`${css.note} ${note.kind === 'error' ? css.noteError : ''}`} role={note.kind === 'error' ? 'alert' : 'status'}>{note.text}</p>}
