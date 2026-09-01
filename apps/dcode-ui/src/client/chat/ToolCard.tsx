@@ -47,12 +47,10 @@ function isSettled(block: ToolCallBlock): block is Extract<ToolCallBlock, { kind
 /** Props of one tool card. */
 export interface ToolCardProps {
   readonly block: ToolCallBlock
-  /** Open the details pane on this call. */
-  readonly onInspect?: (callId: string) => void
 }
 
 /** A compact, expandable tool-execution card. */
-export function ToolCard({ block, onInspect }: ToolCardProps) {
+export function ToolCard({ block }: ToolCardProps) {
   const t = useT()
   const settled = isSettled(block)
   const name = settled ? block.call?.name ?? 'tool' : block.name
@@ -119,15 +117,6 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
               : <span className={css.duration}>{formatToolDuration(duration)}{settled ? '' : '…'}</span>}
             <IconChevronRightOutline14 className={`${css.chevron} ${open ? css.chevronOpen : ''}`} />
           </button>
-          <button
-            type="button"
-            className={css.inspect}
-            aria-label={t('chat.inspect')}
-            title={t('chat.inspect')}
-            onClick={() => { onInspect?.(block.callId) }}
-          >
-            <IconSearchOutline16 />
-          </button>
         </div>
         <div className={`${css.disclosure} ${open ? css.disclosureOpen : ''}`} aria-hidden={!open}>
           <div className={css.disclosureClip}>
@@ -169,7 +158,7 @@ export function ToolCard({ block, onInspect }: ToolCardProps) {
         : (
           <div className={css.children}>
             {block.subCalls.map(child => (
-              <ToolCard key={child.callId} block={child} onInspect={onInspect} />
+              <ToolCard key={child.callId} block={child} />
             ))}
           </div>
         )}

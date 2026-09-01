@@ -39,31 +39,6 @@
   border-radius: var(--zx-radius-sm, 4px);
 }
 
-.inspect {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--zx-label-muted);
-  cursor: pointer;
-  border-radius: var(--zx-radius-sm, 4px);
-}
-
-.inspect:hover {
-  color: var(--zx-label);
-  background: var(--zx-bg-hover);
-}
-
-.inspect:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
 .head:hover {
   background: var(--zx-bg-hover);
 }

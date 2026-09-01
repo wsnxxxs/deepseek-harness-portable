@@ -1,4 +1,4 @@
-/** Glass Inspector stack: Files Changed, Subagents and child detail. */
+/** Glass Inspector stack: Subagents and child detail. */
 
 .section {
   display: flex;
@@ -44,7 +44,6 @@
 
 .sectionToggle:focus-visible,
 .agentRow:focus-visible,
-.fileRow:focus-visible,
 .backButton:focus-visible {
   outline: none;
   box-shadow: inset var(--zx-focus-ring);
@@ -60,7 +59,6 @@
   transform: rotate(90deg);
 }
 
-.sectionMeta,
 .agentDuration {
   color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
@@ -72,14 +70,12 @@
   margin-right: var(--zx-space-1);
 }
 
-.fileList,
 .agentList {
   display: flex;
   flex-direction: column;
   padding: 0 var(--zx-space-2) var(--zx-space-2);
 }
 
-.fileRow,
 .agentRow {
   display: flex;
   align-items: center;
@@ -96,31 +92,12 @@
   cursor: pointer;
 }
 
-.fileRow:hover,
 .agentRow:hover,
 .agentRowActive {
   background: color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-hover));
   color: var(--zx-label);
 }
 
-.fileMark {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--zx-label) 8%, transparent);
-  color: var(--zx-accent);
-  font-family: var(--zx-font-mono);
-  font-size: var(--zx-text-micro);
-  font-weight: var(--zx-weight-semibold);
-}
-
-.fileMarkAdded { color: var(--zx-added); }
-.fileMarkRemoved { color: var(--zx-removed); }
-
-.fileCopy,
 .agentCopy,
 .detailTitleCopy {
   display: flex;
@@ -128,10 +105,8 @@
   min-width: 0;
 }
 
-.fileCopy,
 .agentCopy { flex: 1; }
 
-.fileName,
 .agentName {
   overflow: hidden;
   color: var(--zx-label);
@@ -141,7 +116,6 @@
   white-space: nowrap;
 }
 
-.filePath,
 .agentMeta,
 .detailTitleCopy > span {
   overflow: hidden;
@@ -149,27 +123,6 @@
   font-size: var(--zx-text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.filePath {
-  font-family: var(--zx-font-mono);
-}
-
-.fileStats {
-  display: flex;
-  flex: none;
-  gap: 4px;
-  font-family: var(--zx-font-mono);
-  font-size: var(--zx-text-micro);
-}
-
-.fileStats span:first-child { color: var(--zx-added); }
-.fileStats span:last-child { color: var(--zx-removed); }
-
-.truncated {
-  padding: var(--zx-space-2);
-  color: var(--zx-label-tertiary);
-  font-size: var(--zx-text-micro);
 }
 
 .runningPill {
@@ -310,6 +263,5 @@
 .detail > :global(.button) { align-self: stretch; }
 
 @media (max-width: 620px) {
-  .filePath { display: none; }
   .agentDuration { display: none; }
 }

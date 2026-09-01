@@ -1,16 +1,16 @@
 /**
  * DCode-native Inspector content for the DCode workbench.
  *
- * The component hierarchy follows the DCode Files Changed / Plan / Subagents
- * stack, but each row is backed by an existing DSH source: Git status,
- * projections, Session Controller catalogs, and the child conversation feed.
+ * The component hierarchy follows the DCode Plan / Subagents stack, but each
+ * row is backed by an existing DSH source: projections, Session Controller
+ * catalogs, and the child conversation feed.
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   IconCheckOutline14, IconChevronLeftOutline14,
-  IconChevronRightOutline14, IconCodeOutline16, IconRefreshOutline14,
+  IconChevronRightOutline14, IconRefreshOutline14,
   IconSparkle16, IconUserOutline16, IconWarningOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -21,8 +21,6 @@ import { useChatSnapshot, useConversationBlank, useProjectionValue, useSessionLi
 import { useT } from '../state/i18n.ts'
 import { useRuntime } from '../state/runtime.ts'
 import type { NavigationStore } from '../state/navigation.ts'
-import { useGitStatus } from '../git/useGit.ts'
-import type { GitFileChange } from '../rpc.ts'
 import { formatToolDuration, messageText, resultText } from '../chat/tools.ts'
 import { Transcript } from '../chat/Transcript.tsx'
 import { Button, CopyButton, EmptyState, IconButton, Pill, Spinner, ui } from './ui.tsx'
@@ -44,77 +42,6 @@ function elapsedMs(timing: TimingProjection | undefined, activity: 'running' | '
 
 function entryLabel(entry: SubagentChildEntry): string {
   return entry.label?.trim() || String(entry.id)
-}
-
-function fileStatusMark(file: GitFileChange): string {
-  switch (file.status) {
-    case 'added': return 'A'
-    case 'deleted': return 'D'
-    case 'renamed': return 'R'
-    case 'untracked': return 'U'
-    case 'conflicted': return '!'
-    default: return 'M'
-  }
-}
-
-/** DCode's compact Files Changed section, using the DCode Git host channel. */
-export function ChangedFilesOverview({
-  cwd,
-  sessionId,
-  onOpenDiff,
-}: {
-  readonly cwd: string | undefined
-  readonly sessionId: SessionId | undefined
-  readonly onOpenDiff: (path: string, staged: boolean) => void
-}) {
-  const t = useT()
-  const git = useGitStatus(cwd, sessionId)
-  const [open, setOpen] = useState(true)
-  const files = git.status?.files ?? []
-  const totals = git.status === undefined ? undefined : `${git.status.insertions}+ / ${git.status.deletions}-`
-
-  return (
-    <section className={css.section}>
-      <button type="button" className={css.sectionToggle} aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
-        <IconChevronRightOutline14 className={open ? css.chevronOpen : undefined} />
-        <IconCodeOutline16 />
-        <span className={ui.grow}>{t('git.changes')}</span>
-        {totals === undefined ? null : <span className={css.sectionMeta}>{totals}</span>}
-        <Pill>{files.length}</Pill>
-      </button>
-      {open
-        ? (
-          <div className={css.fileList}>
-            {git.pending
-              ? <EmptyState><Spinner size="sm" /></EmptyState>
-              : git.error !== undefined
-                ? <EmptyState>{git.error}</EmptyState>
-                : files.length === 0
-                  ? <EmptyState>{t('git.clean')}</EmptyState>
-                  : files.map(file => (
-                    <button
-                      key={`${String(file.staged)}:${file.path}`}
-                      type="button"
-                      className={css.fileRow}
-                      title={file.path}
-                      onClick={() => { onOpenDiff(file.path, file.staged) }}
-                    >
-                      <span className={`${css.fileMark} ${file.status === 'deleted' ? css.fileMarkRemoved : file.status === 'added' || file.status === 'untracked' ? css.fileMarkAdded : ''}`} aria-hidden>{fileStatusMark(file)}</span>
-                      <span className={css.fileCopy}>
-                        <span className={css.fileName}>{file.path.split('/').pop() ?? file.path}</span>
-                        <span className={css.filePath}>{file.path}</span>
-                      </span>
-                      {file.insertions === 0 && file.deletions === 0
-                        ? null
-                        : <span className={css.fileStats}><span>+{file.insertions}</span><span>−{file.deletions}</span></span>}
-                    </button>
-                  ))}
-            {git.status?.truncated === true ? <div className={css.truncated}>{t('git.truncated')}</div> : null}
-          </div>
-        )
-        : null}
-    </section>
-  )
 }
 
 function SubagentRow({

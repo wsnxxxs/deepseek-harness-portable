@@ -1,4 +1,4 @@
-/** Docked preview sidebar: git changes, goal/progress, and tool/file details. */
+/** Docked preview sidebar: git changes, goal/progress, and command output. */
 
 .aside {
   display: flex;
@@ -45,7 +45,7 @@
 .tabs {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
   gap: 0;
   flex: none;
@@ -83,7 +83,7 @@
   z-index: 2;
   bottom: -1px;
   left: 0;
-  width: calc(100% / 4);
+  width: calc(100% / 3);
   height: 2px;
   border-radius: var(--zx-radius-pill) var(--zx-radius-pill) 0 0;
   background: var(--zx-accent);
@@ -302,31 +302,6 @@
   backdrop-filter: var(--zx-glass-filter);
 }
 
-.locateButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--zx-label-muted);
-  cursor: pointer;
-  border-radius: var(--zx-radius-sm, 4px);
-}
-
-.locateButton:hover {
-  color: var(--zx-label);
-  background: var(--zx-bg-hover);
-}
-
-.locateButton:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
 .sectionHead {
   display: flex;
   align-items: center;
@@ -412,59 +387,6 @@
 
 @keyframes zx-step-spin {
   to { transform: rotate(360deg); }
-}
-
-.detailBlock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--zx-space-2);
-}
-
-/* Label with its output controls pushed to the far edge. */
-.detailRow {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-2);
-}
-
-.detailLabel {
-  color: var(--zx-label-tertiary);
-  font-size: var(--zx-text-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.filePath {
-  color: var(--zx-label-secondary);
-  font-family: var(--zx-font-mono);
-  font-size: var(--zx-text-xs);
-  overflow-wrap: anywhere;
-}
-
-.fileMeta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--zx-space-2);
-  color: var(--zx-label-tertiary);
-  font-size: var(--zx-text-micro);
-  font-variant-numeric: tabular-nums;
-}
-
-.pre {
-  max-height: 340px;
-  overflow: auto;
-  margin: 0;
-  padding: var(--zx-space-3);
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-sm);
-  background: var(--zx-bg-card);
-  color: var(--zx-label-secondary);
-  font-family: var(--zx-font-mono);
-  font-size: var(--zx-text-xs);
-  line-height: var(--zx-leading-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .goalInput {

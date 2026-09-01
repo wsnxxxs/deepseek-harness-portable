@@ -61,11 +61,9 @@ export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
 
   const dirty = (git.status?.files.length ?? 0) > 0
   const contextTab = primaryAsideTab(context)
-  const contextLabel = contextTab === 'details'
-    ? t('top.contextError')
-    : contextTab === 'changes'
-      ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
-      : contextTab === 'goal' ? t('top.contextGoal') : undefined
+  const contextLabel = contextTab === 'changes'
+    ? t('top.contextChanges', { count: git.status?.files.length ?? 0 })
+    : contextTab === 'goal' ? t('top.contextGoal') : undefined
   // While the first read is outstanding the chip shows nothing rather than
   // asserting "not a repository" about a directory it has not looked at yet.
   // A non-repository workspace reports itself inside the Changes panel; the
@@ -161,11 +159,8 @@ export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
         ? (
           <button
             type="button"
-            className={`${css.contextHint} ${contextTab === 'details' ? css.contextHintError : ''}`}
-            onClick={() => {
-              if (contextTab === 'details') navigation.inspect(context.failedCallId)
-              else navigation.openAside(contextTab)
-            }}
+            className={css.contextHint}
+            onClick={() => { navigation.openAside(contextTab) }}
           >
             <span className={css.contextDot} aria-hidden />
             <span className={css.contextLabel}>{contextLabel}</span>

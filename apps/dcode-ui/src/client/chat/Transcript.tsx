@@ -195,7 +195,6 @@ function ThinkingStatus() {
 /** A compact disclosure for a consecutive run of successful read/search calls. */
 function ToolActivityGroup(props: {
   group: ToolActivityGroupData
-  onInspect: (callId: string) => void
 }) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -239,7 +238,7 @@ function ToolActivityGroup(props: {
         <div className={css.toolActivityClip}>
           <div className={css.toolActivityItems} id={contentId}>
             {props.group.blocks.map(block => (
-              <ToolCard key={block.callId} block={block} onInspect={props.onInspect} />
+              <ToolCard key={block.callId} block={block} />
             ))}
           </div>
         </div>
@@ -589,7 +588,6 @@ function Node(props: {
   sessionId: SessionId
   node: ConversationNode
   labels: MarkdownLabels
-  onInspect: (callId: string) => void
   feedback: MessageFeedbackState
   highlighted?: boolean
   onBranched: () => void
@@ -617,7 +615,7 @@ function Node(props: {
         </div>
       )
     case 'tool-result':
-      return <ToolCard block={node as ToolCallBlock} onInspect={props.onInspect} />
+      return <ToolCard block={node as ToolCallBlock} />
     case 'command':
       return (
         <div className={css.notice}>
@@ -940,7 +938,6 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
                         <ToolActivityGroup
                           key={`tool-activity:${item.blocks[0]?.callId ?? 'empty'}`}
                           group={item}
-                          onInspect={callId => { navigation.inspect(callId) }}
                         />
                       )
                     }
@@ -950,7 +947,6 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
                         key={`${item.kind}:${String(item.seq)}`}
                         node={item}
                         labels={labels}
-                        onInspect={callId => { navigation.inspect(callId) }}
                         feedback={feedback}
                         highlighted={highlightedTurn === turnIndex && itemIndex === firstUserIndex}
                         onBranched={() => { setBranchCreated(true) }}
@@ -978,7 +974,6 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
               <ToolCard
                 key={call.callId}
                 block={call}
-                onInspect={callId => { navigation.inspect(callId) }}
               />
             ))}
 

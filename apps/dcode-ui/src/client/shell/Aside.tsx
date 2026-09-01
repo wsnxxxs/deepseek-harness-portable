@@ -1,6 +1,6 @@
 /**
- * The floating right card: Git changes, Goal and Progress, and the details of
- * whatever the operator last clicked.
+ * The floating right card: Git changes, Goal and Progress, command output, and
+ * selected subagent details.
  *
  * Goal is the host-computed `goal` projection — the same value the official
  * goal bar renders — and Progress is the session's own todo list, folded from
@@ -12,16 +12,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16,
-  IconGoalOutline16, IconSearchOutline16, IconWarningOutline16,
+  IconGoalOutline16, IconWarningOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { useAsync, useChatSnapshot, useProjectionValue, useSessionList, useTrajectorySnapshot } from '../state/hooks.ts'
+import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import {
   adjacentAsideTab, orderedAsideTabs, useNavigation,
-  type AsideTab, type DiffTarget, type NavigationStore, type TaskContext,
+  type AsideTab, type NavigationStore, type TaskContext,
 } from '../state/navigation.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { GitPanel } from '../git/GitPanel.tsx'
@@ -30,7 +30,7 @@ import { Button, CopyButton, EmptyState, Pill, Spinner, ui } from './ui.tsx'
 import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, toolDurationMs } from '../chat/tools.ts'
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import { stripAnsi } from '../chat/ansi.ts'
-import { ChangedFilesOverview, SubagentDetailPanel, SubagentsPanel, type SubagentChildEntry } from './AgentInspector.tsx'
+import { SubagentDetailPanel, SubagentsPanel, type SubagentChildEntry } from './AgentInspector.tsx'
 import { ClusterPanel } from './ClusterPanel.tsx'
 import css from './Aside.module.css'
 
@@ -209,139 +209,6 @@ function GoalPanel({ sessionId }: { sessionId: SessionId | undefined }) {
           ))}
       </section>
     </>
-  )
-}
-
-/** Arguments and output of the tool call the operator last opened. */
-function DetailsPanel({
-  sessionId,
-  callId,
-  cwd,
-  diff,
-}: {
-  sessionId: SessionId | undefined
-  callId: string | undefined
-  cwd: string | undefined
-  diff: DiffTarget | undefined
-}) {
-  const runtime = useRuntime()
-  const t = useT()
-  const chat = useChatSnapshot(sessionId)
-  const trajectory = useTrajectorySnapshot(sessionId)
-  const [wrap, setWrap] = useState(true)
-
-  const block = useMemo(() => {
-    if (callId === undefined) return undefined
-    const nodes = trajectory === undefined || trajectory.eventNodes.length === 0
-      ? chat?.legacy.nodes ?? []
-      : trajectory.eventNodes
-    for (const node of nodes) {
-      if (node.kind !== 'tool-result') continue
-      for (const candidate of walkCalls(node as ToolCallBlock)) {
-        if (candidate.callId === callId) return candidate
-      }
-    }
-    const runningCalls = trajectory === undefined || trajectory.runningCalls.length === 0
-      ? chat?.legacy.runningCalls ?? []
-      : trajectory.runningCalls
-    for (const running of runningCalls) {
-      for (const candidate of walkCalls(running)) {
-        if (candidate.callId === callId) return candidate
-      }
-    }
-    return undefined
-  }, [chat, trajectory, callId])
-
-  const filePath = block === undefined ? diff?.path : undefined
-  const fileRead = useAsync(
-    async () => {
-      if (cwd === undefined || filePath === undefined) return undefined
-      return {
-        cwd,
-        path: filePath,
-        result: await runtime.git.readFile(cwd, filePath),
-      }
-    },
-    [runtime, cwd, filePath],
-  )
-  // Keep a previous file from appearing while a changed target is loading.
-  const loadedFile = fileRead.value
-  const currentFile = loadedFile !== undefined && loadedFile.cwd === cwd && loadedFile.path === filePath
-    ? loadedFile.result
-    : undefined
-
-  if (block === undefined) {
-    if (diff === undefined) return <EmptyState>{t('details.none')}</EmptyState>
-    if (fileRead.loading) return <EmptyState><Spinner /></EmptyState>
-    if (fileRead.error !== undefined) return <EmptyState>{fileRead.error}</EmptyState>
-    if (currentFile === undefined) return <EmptyState>{t('common.error')}</EmptyState>
-    if (currentFile.ok === false) return <EmptyState>{currentFile.error.message || t('common.error')}</EmptyState>
-
-    return (
-      <section className={css.section}>
-        <header className={css.sectionHead}>
-          <span className={ui.grow}>{t('details.file')}</span>
-          <span className={css.fileMeta}>{currentFile.value.size} B</span>
-        </header>
-        <div className={css.filePath} title={currentFile.value.path}><bdi>{currentFile.value.path}</bdi></div>
-        <div className={css.fileMeta}>
-          {currentFile.value.binary ? <Pill>{t('git.binary')}</Pill> : null}
-          {currentFile.value.truncated ? <Pill>{t('git.truncated')}</Pill> : null}
-        </div>
-        {currentFile.value.binary
-          ? <EmptyState>{t('git.binary')}</EmptyState>
-          : <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.file')}>{currentFile.value.text}</pre>}
-      </section>
-    )
-  }
-
-  const settled = 'isError' in block
-  const name = settled ? block.call?.name ?? 'tool' : block.name
-  const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
-  const summary = summarizeTool(name, argsRaw)
-  const output = settled ? resultText(block.content) : ''
-
-  const locate = (): void => {
-    const target = [...document.querySelectorAll<HTMLElement>('[data-tool-call-id]')]
-      .find(element => element.dataset.toolCallId === callId)
-    if (target === undefined) return
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    target.querySelector<HTMLElement>('[data-tool-call-id] button, [data-tool-call-id] .headMain')?.focus({ preventScroll: true })
-  }
-
-  return (
-    <section className={css.section}>
-      <header className={css.sectionHead}>
-        <span className={ui.grow}>{name}</span>
-        <Pill>{summary.kind}</Pill>
-        <button
-          type="button"
-          className={css.locateButton}
-          aria-label={t('details.locate')}
-          title={t('details.locate')}
-          onClick={locate}
-        >
-          <IconSearchOutline16 />
-        </button>
-      </header>
-      <div className={css.detailBlock}>
-        <span className={css.detailLabel}>{t('details.arguments')}</span>
-        <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.arguments')}>{argsRaw ?? '—'}</pre>
-      </div>
-      {settled
-        ? (
-          <div className={css.detailBlock}>
-            <span className={css.detailRow}>
-              <span className={css.detailLabel}>{t('details.output')}</span>
-              {output === '' ? null : <OutputToolbar text={output} wrap={wrap} onWrap={setWrap} />}
-            </span>
-            {output === ''
-              ? <pre className={css.pre} tabIndex={0} role="region" aria-label={t('details.output')}>—</pre>
-              : <AnsiOutput text={output} wrap={wrap} />}
-          </div>
-        )
-        : null}
-    </section>
   )
 }
 
@@ -534,11 +401,10 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
-  const list = useSessionList()
   const selectedPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
   const [selectedSubagent, setSelectedSubagent] = useState<SubagentChildEntry | undefined>()
   const tabPrefix = useId()
-  const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null, details: null })
+  const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null })
 
   useEffect(() => { setSelectedSubagent(undefined) }, [sessionId])
 
@@ -546,7 +412,6 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
     changes: t('git.changes'),
     terminal: t('aside.commandOutput'),
     goal: t('aside.inspector'),
-    details: t('details.title'),
   }
   const tabOrder = orderedAsideTabs(context)
   const tabs = tabOrder.map(id => ({ id, label: labels[id] }))
@@ -565,7 +430,7 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
   }
 
   return (
-    <aside className={css.aside} aria-label={t('details.title')}>
+    <aside className={css.aside} aria-label={t('aside.title')}>
       <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.headerTitle}>{t('aside.title')}</span>
         <button
@@ -641,11 +506,6 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
                 {selectedPreset === 'crew' && runtime.cluster !== undefined
                   ? <ClusterPanel sessionId={sessionId} />
                   : null}
-                <ChangedFilesOverview
-                  cwd={cwd}
-                  sessionId={sessionId}
-                  onOpenDiff={(path, staged) => { navigation.openDiff(path, staged) }}
-                />
                 <GoalPanel sessionId={sessionId} />
                 <SubagentsPanel
                   sessionId={sessionId}
@@ -661,16 +521,6 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
                 onBack={() => { setSelectedSubagent(undefined) }}
               />
             )
-          : null}
-        {state.aside === 'details'
-          ? (
-            <DetailsPanel
-              sessionId={selectedSubagent?.id ?? sessionId}
-              callId={state.inspectedCallId}
-              cwd={selectedSubagent === undefined ? cwd : list.byId[selectedSubagent.id]?.cwd ?? cwd}
-              diff={state.diff}
-            />
-          )
           : null}
       </div>
     </aside>

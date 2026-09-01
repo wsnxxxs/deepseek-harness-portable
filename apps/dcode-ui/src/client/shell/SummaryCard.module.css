@@ -277,20 +277,6 @@
   box-sizing: border-box;
 }
 
-button.traceRow {
-  cursor: pointer;
-}
-
-button.traceRow:hover {
-  background: var(--zx-bg-hover);
-  color: var(--zx-label);
-}
-
-.traceRow:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
 .traceDot {
   flex: 0 0 5px;
   width: 5px;

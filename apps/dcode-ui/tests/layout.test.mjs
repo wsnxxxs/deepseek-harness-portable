@@ -125,7 +125,7 @@ test('opening each compact overlay atomically closes both peers', () => {
   store.openCompactOverlay('rail')
   assert.equal(compactOverlayOf(store.getSnapshot()), 'rail')
   assert.equal(store.getSnapshot().summaryOpen, false)
-  store.openAside('details')
+  store.openAside('terminal')
   assert.equal(compactOverlayOf(store.getSnapshot()), 'aside')
   assert.equal(store.getSnapshot().railOpen, false)
 
@@ -152,10 +152,10 @@ test('revealing the aside pins it open across a class change', () => {
 })
 
 test('task context keeps direct shortcuts without reordering tabs', () => {
-  const context = { hasError: true, hasChanges: true, goalActive: true, failedCallId: 'call-1' }
-  assert.equal(primaryAsideTab(context), 'details')
-  assert.deepEqual(orderedAsideTabs(context), ['goal', 'changes', 'terminal', 'details'])
-  assert.deepEqual(orderedAsideTabs({ ...context, hasError: false }), ['goal', 'changes', 'terminal', 'details'])
+  const context = { hasChanges: true, goalActive: true }
+  assert.equal(primaryAsideTab(context), 'changes')
+  assert.deepEqual(orderedAsideTabs(context), ['goal', 'changes', 'terminal'])
+  assert.deepEqual(orderedAsideTabs({ ...context, hasChanges: false }), ['goal', 'changes', 'terminal'])
 })
 
 test('manual context-panel choices are remembered per workspace', () => {

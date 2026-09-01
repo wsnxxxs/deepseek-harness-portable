@@ -14,7 +14,6 @@ import type {
   PointerEvent as ReactPointerEvent, ReactNode,
 } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ConversationNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { dcodeScope } from '../tokens.ts'
 import {
   compactOverlayOf, useNavigation, type CompactOverlay, type NavigationStore,
@@ -22,7 +21,7 @@ import {
 } from '../state/navigation.ts'
 import {
   useConversationBlank, useCurrentSessionId, usePendingApproval, usePendingQuestion, useProjectionValue,
-  useTrajectorySnapshot, useWorkspaceGroups,
+  useWorkspaceGroups,
 } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useLayoutSize } from '../state/layout.ts'
@@ -79,26 +78,6 @@ function historyStateWithOverlay(overlay: CompactOverlay): Record<string, unknow
 
 interface GoalProjectionView {
   readonly goal: { readonly phase: string }
-}
-
-function failedCallIn(block: ToolCallBlock): string | undefined {
-  for (let index = block.subCalls.length - 1; index >= 0; index -= 1) {
-    const failed = failedCallIn(block.subCalls[index] as ToolCallBlock)
-    if (failed !== undefined) return failed
-  }
-  return 'isError' in block && block.isError ? block.callId : undefined
-}
-
-/** Most recent failure that the Details panel can inspect. */
-function latestFailure(nodes: readonly ConversationNode[]): { hasError: boolean, callId?: string } {
-  for (let index = nodes.length - 1; index >= 0; index -= 1) {
-    const node = nodes[index]
-    if (node?.kind === 'tool-result') {
-      const callId = failedCallIn(node as ToolCallBlock)
-      if (callId !== undefined) return { hasError: true, callId }
-    }
-  }
-  return { hasError: false }
 }
 
 /** Keep a settings initialization failure local to the replaceable surface. */
@@ -221,7 +200,6 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const cwd = useCurrentCwd(sessionId)
   const blank = useConversationBlank(sessionId)
   const git = useGitStatus(cwd, sessionId)
-  const trajectory = useTrajectorySnapshot(sessionId)
   const goal = useProjectionValue<GoalProjectionView | null>(sessionId, 'goal')
   const modelReadiness = useModelReadiness(sessionId)
   const { groups } = useWorkspaceGroups()
@@ -238,14 +216,11 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const modelSelectRef = useRef<ModelSelectHandle>(null)
 
   const taskContext = useMemo<TaskContext>(() => {
-    const failure = latestFailure(trajectory?.eventNodes ?? [])
     return {
       hasChanges: (git.status?.files.length ?? 0) > 0,
-      hasError: failure.hasError,
       goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
-      failedCallId: failure.callId,
     }
-  }, [git.status, goal, trajectory])
+  }, [git.status, goal])
 
   useEffect(() => { navigation.setWorkspace(cwd) }, [cwd, navigation])
 

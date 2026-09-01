@@ -319,29 +319,11 @@ export function SummaryCard({ navigation, sessionId, cwd, open, compact }: Summa
             <ul className={css.traceList}>
               {traceRows.map(row => (
                 <li key={row.id} className={css.traceItem} data-status={row.status}>
-                  {row.callId === undefined
-                    ? (
-                      <div className={css.traceRow}>
-                        <span className={css.traceDot} aria-hidden />
-                        <span className={css.traceLabel}>{row.label}</span>
-                        {row.detail === undefined ? null : <span className={css.traceDetail}>{row.detail}</span>}
-                      </div>
-                    )
-                    : (
-                      <button
-                        type="button"
-                        className={css.traceRow}
-                        title={t('trace.inspect')}
-                        onClick={() => {
-                          navigation.toggleSummary(false)
-                          navigation.inspect(row.callId)
-                        }}
-                      >
-                        <span className={css.traceDot} aria-hidden />
-                        <span className={css.traceLabel}>{row.label}</span>
-                        {row.detail === undefined ? null : <span className={css.traceDetail}>{row.detail}</span>}
-                      </button>
-                    )}
+                  <div className={css.traceRow}>
+                    <span className={css.traceDot} aria-hidden />
+                    <span className={css.traceLabel}>{row.label}</span>
+                    {row.detail === undefined ? null : <span className={css.traceDetail}>{row.detail}</span>}
+                  </div>
                 </li>
               ))}
             </ul>

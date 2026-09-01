@@ -135,11 +135,6 @@
   box-shadow: var(--zx-focus-ring);
 }
 
-.contextHintError {
-  background: color-mix(in srgb, var(--zx-error) 11%, transparent);
-  color: var(--zx-error);
-}
-
 .contextDot {
   flex: none;
   width: 6px;
