@@ -54,12 +54,6 @@ interface PermissionSelectView {
   readonly options: readonly { readonly value: string; readonly name: string; readonly description?: string }[]
 }
 
-/** Host-computed plan-mode projection used by the DCode Plan/Build switch. */
-interface PlanProjectionView {
-  readonly active: boolean
-  readonly pending: boolean
-}
-
 interface ContextReferenceItem {
   readonly id: string
   readonly kind: 'file' | 'skill' | 'command' | 'session'
@@ -144,6 +138,31 @@ function referenceQuery(value: string, caret: number): string | undefined {
   return match?.[1]
 }
 
+interface DesktopFilePathInfo {
+  readonly path: string
+  readonly isDirectory: boolean
+}
+
+interface DesktopFileBridge {
+  readonly getPathInfoForFile?: (file: File) => DesktopFilePathInfo | undefined
+}
+
+/** Resolve a selected or dropped local path through the desktop bridge. */
+function filePathInfo(file: File): DesktopFilePathInfo | undefined {
+  const desktop = (globalThis as typeof globalThis & { readonly deepSeekDesktop?: DesktopFileBridge }).deepSeekDesktop
+  const resolved = desktop?.getPathInfoForFile?.(file)
+  if (resolved?.path !== undefined && resolved.path !== '') return resolved
+  const relativePath = (file as File & { readonly webkitRelativePath?: string }).webkitRelativePath
+  return relativePath === undefined || relativePath === ''
+    ? undefined
+    : { path: relativePath, isDirectory: false }
+}
+
+function fileMention(info: DesktopFilePathInfo): string {
+  const path = info.isDirectory && !/[\\/]$/.test(info.path) ? `${info.path}/` : info.path
+  return /\s/.test(path) ? `@"${path}"` : `@${path}`
+}
+
 function fileKind(name: string): 'archive' | 'code' | 'document' | 'generic' {
   const extension = name.split('.').pop()?.toLocaleLowerCase()
   if (extension !== undefined && ['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 'archive'
@@ -213,7 +232,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const { input, state: inputState } = useSessionInput(sessionId)
   const permissions = useProjectionValue<PermissionSelectView>(sessionId, 'permissions')
   const agentPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
-  const plan = useProjectionValue<PlanProjectionView>(sessionId, 'plan')
   const busyEnter = useObservable(runtime.busyEnter, 'queue')
   const [fallbackDraft, setFallbackDraft] = useState('')
   const [focused, setFocused] = useState(false)
@@ -231,7 +249,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const [queueBusy, setQueueBusy] = useState(false)
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false)
   const [acknowledgedFullAccess, setAcknowledgedFullAccess] = useState(false)
-  const [planBusy, setPlanBusy] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const shellRef = useRef<HTMLDivElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
@@ -307,7 +324,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   )
 
   const running = session?.running === true
-  const planTarget = plan === undefined ? undefined : plan.pending ? !plan.active : plan.active
   const roster = presets.value?.ok === true ? presets.value.value.presets : []
   const currentPreset = agentPreset ?? roster.find(preset => preset.isDefault)?.id ?? roster[0]?.id
   const blankSession = (blank ?? session?.blank ?? false) && !running
@@ -394,20 +410,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
   }, [runtime, sessionId])
 
-  const selectPlanMode = useCallback((active: boolean) => {
-    if (sessionId === undefined || plan === undefined || planBusy) return
-    const target = plan.pending ? !plan.active : plan.active
-    if (target === active) return
-    setPlanBusy(true)
-    setError(undefined)
-    void runtime.remote.commands.execute(sessionId, active ? '/plan' : '/plan off', [])
-      .then((result) => {
-        if (!result.ok) setError(result.error.message)
-      })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
-      .finally(() => { setPlanBusy(false) })
-  }, [plan, planBusy, runtime, sessionId])
-
   const selectPreset = useCallback((id: string) => {
     if (sessionId === undefined || !blankSession) return
     void runtime.remote.agentPresets.select(sessionId, id)
@@ -467,6 +469,27 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     })
   }, [updateDraft])
 
+  const addRows = useMemo<MenuRow[]>(() => [
+    {
+      id: 'files-and-folders',
+      group: t('composer.add'),
+      label: t('composer.filesAndFolders'),
+      icon: <IconPaperclipOutline16 />,
+      onSelect: () => { attachmentInputRef.current?.click() },
+    },
+    ...commands.map(command => ({
+      id: `command:${command.name}`,
+      group: t('composer.commandList'),
+      label: (
+        <span className={css.addCommandLabel}>
+          <span className={css.addCommandName}>{command.name}</span>
+          <span className={css.addCommandDescription}>{command.description}</span>
+        </span>
+      ),
+      onSelect: () => { completeCommand(command) },
+    })),
+  ], [commands, completeCommand, t])
+
   const addAttachments = useCallback((files: readonly File[]) => {
     if (files.length === 0) return
     if (input === undefined || conversation === undefined) {
@@ -487,6 +510,67 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     }
   }, [conversation, input, t])
 
+  const addSelectedFiles = useCallback((files: readonly File[]) => {
+    if (files.length === 0) return
+    const entries = files.map(file => ({ file, info: filePathInfo(file) }))
+    const pathEntries = entries.filter((entry): entry is { file: File; info: DesktopFilePathInfo } => entry.info !== undefined)
+    const imageFallbacks = entries
+      .filter(entry => entry.info === undefined && entry.file.type.startsWith('image/'))
+      .map(entry => entry.file)
+    const unresolvedFiles = entries.filter(entry => entry.info === undefined && !entry.file.type.startsWith('image/'))
+
+    if (imageFallbacks.length > 0) addAttachments(imageFallbacks)
+    if (pathEntries.length === 0) {
+      if (unresolvedFiles.length > 0) setError(t('composer.filePathUnavailable'))
+      return
+    }
+
+    const existing = new Set(contextPills.map(pill => pill.value))
+    const selected = pathEntries
+      .map(entry => {
+        const value = fileMention(entry.info)
+        return {
+          id: `selected-file:${entry.info.path}`,
+          kind: 'file' as const,
+          label: entry.info.path,
+          detail: t(entry.info.isDirectory ? 'composer.referenceDirectory' : 'composer.referenceFile'),
+          value,
+        }
+      })
+      .filter(item => {
+        if (existing.has(item.value)) return false
+        existing.add(item.value)
+        return true
+      })
+    if (selected.length === 0) {
+      if (unresolvedFiles.length > 0) setError(t('composer.filePathUnavailable'))
+      return
+    }
+
+    const textarea = inputRef.current
+    const caret = textarea?.selectionStart ?? draft.length
+    const before = draft.slice(0, caret)
+    const after = draft.slice(caret)
+    const prefix = before.length > 0 && !/\s$/.test(before) ? ' ' : ''
+    const inserted = selected.map(item => item.value).join(' ')
+    const suffix = after.length === 0 || !/^\s/.test(after) ? ' ' : ''
+    updateDraft(`${before}${prefix}${inserted}${suffix}${after}`)
+    setContextPills(current => [
+      ...current,
+      ...selected.filter(item => !current.some(pill => pill.value === item.value)),
+    ])
+    setActiveReferenceQuery(undefined)
+    if (unresolvedFiles.length > 0) setError(t('composer.filePathUnavailable'))
+    else setError(undefined)
+    requestAnimationFrame(() => {
+      const target = inputRef.current
+      if (target === null) return
+      const nextCaret = caret + prefix.length + inserted.length + suffix.length
+      target.focus()
+      target.setSelectionRange(nextCaret, nextCaret)
+    })
+  }, [addAttachments, contextPills, draft, t, updateDraft])
+
   const onPaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files: File[] = []
     for (const item of Array.from(event.clipboardData.items)) {
@@ -502,8 +586,8 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
   const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setDragActive(false)
-    addAttachments(Array.from(event.dataTransfer.files))
-  }, [addAttachments])
+    addSelectedFiles(Array.from(event.dataTransfer.files))
+  }, [addSelectedFiles])
 
   const removeAttachment = useCallback((id: DraftAttachmentId) => {
     if (input === undefined || conversation === undefined) return
@@ -896,7 +980,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
           aria-hidden="true"
           tabIndex={-1}
           onChange={event => {
-            addAttachments(Array.from(event.currentTarget.files ?? []))
+            addSelectedFiles(Array.from(event.currentTarget.files ?? []))
             event.currentTarget.value = ''
           }}
         />
@@ -914,46 +998,14 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         {error === undefined ? null : <div className={css.error} role="alert">{error}</div>}
         <div className={css.controls}>
           <div className={css.leadingControls}>
-            {plan === undefined
-              ? null
-              : (
-                <div className={css.modeSwitch} role="radiogroup" aria-label={t('composer.mode')} aria-busy={planBusy}>
-                  <button
-                    type="button"
-                    role="radio"
-                    className={`${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === true ? css.modeOptionPlan : ''}`}
-                    aria-checked={planTarget === true}
-                    title={t('composer.mode.planDescription')}
-                    disabled={disabled || planBusy}
-                    onClick={() => { selectPlanMode(true) }}
-                  >
-                    <span className={css.modeIcon} aria-hidden><svg viewBox="0 0 16 16"><path d="M3 3.25h10M3 6.5h10M3 9.75h6M3 13h5" /></svg></span>
-                    <span>{t('composer.mode.plan')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    className={`${css.modeOption} ${plan.pending ? css.modeOptionPending : ''} ${planTarget === false ? css.modeOptionBuild : ''}`}
-                    aria-checked={planTarget === false}
-                    title={t('composer.mode.buildDescription')}
-                    disabled={disabled || planBusy}
-                    onClick={() => { selectPlanMode(false) }}
-                  >
-                    <span className={css.modeIcon} aria-hidden><svg viewBox="0 0 16 16"><path d="m5.5 4-3 4 3 4M10.5 4l3 4-3 4M9 2.75 7 13.25" /></svg></span>
-                    <span>{t('composer.mode.build')}</span>
-                  </button>
-                </div>
-              )}
-            <button
-              type="button"
-              className={css.attachButton}
-              aria-label={t('composer.addAttachment')}
-              title={t('composer.addAttachment')}
-              disabled={disabled || input === undefined}
-              onClick={() => { attachmentInputRef.current?.click() }}
-            >
-              <IconPlusOutline16 />
-            </button>
+            <Popover
+              label={t('composer.add')}
+              disabled={disabled}
+              triggerClassName={css.addButton}
+              popoverClassName={css.addMenu}
+              trigger={<IconPlusOutline16 />}
+              rows={addRows}
+            />
             <Popover
               label={confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission')}
               disabled={permissionRows.length === 0 || confirmingFullAccess}

@@ -389,6 +389,9 @@ export const en = {
   'details.file': 'File',
 
   'composer.placeholder': 'Describe what you want to build... / commands, @ files or sessions',
+  'composer.add': 'Add',
+  'composer.filesAndFolders': 'Files and folders',
+  'composer.commandList': 'Commands',
   'composer.commands': 'Slash commands',
   'composer.busyHints': 'Running message shortcuts',
   'composer.keyEnter': 'Enter ↵',
@@ -449,6 +452,7 @@ export const en = {
   'composer.attachmentFile': 'File',
   'composer.attachmentsBusy': 'Attachments cannot be changed while the current send is being prepared.',
   'composer.attachmentsUnavailable': 'Attachments are unavailable in this session.',
+  'composer.filePathUnavailable': 'The selected file has no readable path on this surface.',
 
   'palette.placeholder': 'Search actions, tasks or files',
   'palette.all': 'All',
@@ -1397,6 +1401,9 @@ export const zh: Record<DcodeKey, string> = {
   'details.file': '文件',
 
   'composer.placeholder': '描述你想要构建的内容... / 调用指令 @ 文件或对话',
+  'composer.add': '添加',
+  'composer.filesAndFolders': '文件和文件夹',
+  'composer.commandList': '指令',
   'composer.commands': '斜杠命令',
   'composer.busyHints': '运行中消息快捷键',
   'composer.keyEnter': 'Enter ↵',
@@ -1457,6 +1464,7 @@ export const zh: Record<DcodeKey, string> = {
   'composer.attachmentFile': '文件',
   'composer.attachmentsBusy': '当前发送准备中，暂时不能修改附件。',
   'composer.attachmentsUnavailable': '当前会话暂不支持附件。',
+  'composer.filePathUnavailable': '当前界面无法读取所选文件的路径。',
 
   'palette.placeholder': '搜索操作、任务或文件',
   'palette.all': '全部',
