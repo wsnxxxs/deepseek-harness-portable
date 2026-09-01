@@ -14,16 +14,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16,
+  IconAgentPresetOutline16, IconArchiveOutline20, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16,
   IconPersonalizationOutline16, IconPlusOutline16,
   IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { useRuntime } from '../state/runtime.ts'
-import { useAsync, useSessionList } from '../state/hooks.ts'
+import { useAsync, useSessionList, useWorkspaces } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import { useNavigation, type NavigationStore, type SettingsSection } from '../state/navigation.ts'
-import { Button, EmptyState, Spinner, ui } from '../shell/ui.tsx'
+import { Button, EmptyState, FocusingModal, Spinner, ui } from '../shell/ui.tsx'
 import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ThemeSwitch, useAppearance } from '../shell/ThemeSwitch.tsx'
 import { UiModeSwitch } from '../shell/UiModeSwitch.tsx'
@@ -54,7 +55,7 @@ export interface SettingsSurfaceProps {
 }
 
 /** Settings sections shown in the DCode settings rail. */
-type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data' | 'about'
+type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data' | 'archivedChats' | 'about'
 
 const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   // Keep this order and wording aligned with the official DSH SettingsRoot.
@@ -62,6 +63,7 @@ const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   { id: 'models', label: 'settings.modelsNav' },
   { id: 'plugins', label: 'settings.pluginsNav' },
   { id: 'agentPresets', label: 'settings.agentPresets' },
+  { id: 'archivedChats', label: 'settings.archivedChats' },
   { id: 'about', label: 'settings.about' },
 ]
 
@@ -968,6 +970,116 @@ function CommandsSection({ sessionId }: { sessionId: SessionId | undefined }) {
   )
 }
 
+/** Manage conversations hidden by the registry-global archive set. */
+function ArchivedChatsSection({ navigation }: { navigation: NavigationStore }) {
+  const runtime = useRuntime()
+  const t = useT()
+  const sessions = useSessionList()
+  const workspaces = useWorkspaces()
+  const [busyId, setBusyId] = useState<SessionId | undefined>()
+  const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
+  const [error, setError] = useState<string | undefined>()
+
+  const rows = useMemo(() => workspaces.archivedSessionIds
+    .map(id => sessions.byId[id] ?? {
+      id,
+      displayTitle: id,
+      running: false,
+      blank: false,
+      updatedAt: 0,
+    } satisfies SessionSummary)
+    .sort((left, right) => right.updatedAt - left.updatedAt),
+  [sessions.byId, workspaces.archivedSessionIds])
+
+  const restore = useCallback((id: SessionId) => {
+    if (busyId !== undefined) return
+    setBusyId(id)
+    setError(undefined)
+    void runtime.workspaces.unarchiveSession(id)
+      .then(() => {
+        if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
+          runtime.sessions.open(id)
+          navigation.show('session')
+        }
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setBusyId(undefined) })
+  }, [busyId, navigation, runtime])
+
+  const closeDelete = useCallback(() => {
+    if (busyId !== undefined) return
+    setDeleteTarget(undefined)
+    setError(undefined)
+  }, [busyId])
+
+  const confirmDelete = useCallback(() => {
+    const target = deleteTarget
+    if (target === undefined || busyId !== undefined) return
+    setBusyId(target.id)
+    setError(undefined)
+    void runtime.sessions.delete(target.id)
+      .then(() => {
+        if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear()
+        setDeleteTarget(undefined)
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setBusyId(undefined) })
+  }, [busyId, deleteTarget, runtime])
+
+  return (
+    <Section title={t('settings.archivedChats')} body={t('settings.archivedChatsBody')}>
+      {workspaces.phase !== 'ready' || sessions.phase !== 'ready'
+        ? <EmptyState><Spinner /></EmptyState>
+        : rows.length === 0
+          ? <EmptyState>{t('settings.archivedChatsEmpty')}</EmptyState>
+          : (
+            <div className={css.card}>
+              {rows.map(session => (
+                <Row
+                  key={session.id}
+                  title={session.displayTitle}
+                  body={session.cwd ?? t('settings.archivedChats')}
+                  control={(
+                    <div className={css.presetActions}>
+                      <Button disabled={busyId !== undefined} onClick={() => { restore(session.id) }}>
+                        {busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore')}
+                      </Button>
+                      <button
+                        type="button"
+                        className={css.dangerButton}
+                        disabled={busyId !== undefined}
+                        onClick={() => { setError(undefined); setDeleteTarget(session) }}
+                      >
+                        {t('settings.archivedChatsDelete')}
+                      </button>
+                    </div>
+                  )}
+                />
+              ))}
+            </div>
+          )}
+      {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
+      <FocusingModal
+        open={deleteTarget !== undefined}
+        onClose={closeDelete}
+        title={t('settings.archivedChatsDeleteTitle')}
+        closeLabel={t('common.close')}
+        description={t('settings.archivedChatsDeleteBody')}
+        footer={(
+          <>
+            <Button onClick={closeDelete} disabled={busyId !== undefined}>{t('common.cancel')}</Button>
+            <button type="button" className={css.dangerButton} disabled={busyId !== undefined} onClick={confirmDelete}>
+              {busyId === undefined ? t('settings.archivedChatsDelete') : t('common.saving')}
+            </button>
+          </>
+        )}
+      >
+        <div className={css.rowTitle}>{deleteTarget?.displayTitle}</div>
+      </FocusingModal>
+    </Section>
+  )
+}
+
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(
   runtime: ReturnType<typeof useRuntime>,
@@ -1443,6 +1555,7 @@ function settingsNavSection(section: SettingsSection): SettingsNavSection {
     case 'skills':
     case 'commands':
     case 'usage': return 'data'
+    case 'archivedChats': return 'archivedChats'
     case 'about': return 'about'
     case 'general':
     case 'appearance': return 'general'
@@ -1463,6 +1576,7 @@ function settingsTitleKey(section: SettingsSection): DcodeKey {
     case 'skills':
     case 'commands':
     case 'usage': return 'settings.dataAndAbout'
+    case 'archivedChats': return 'settings.archivedChats'
     case 'about': return 'settings.about'
     case 'general':
     case 'appearance': return 'settings.general'
@@ -1498,6 +1612,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     plugins: <IconPersonalizationOutline16 />,
     agentPresets: <IconAgentPresetOutline16 />,
     data: <IconDatabaseOutline16 />,
+    archivedChats: <IconArchiveOutline20 size={16} />,
     about: <IconQuestionOutline14 />,
   }
 
@@ -1536,6 +1651,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
+      case 'archivedChats': return <ArchivedChatsSection navigation={navigation} />
       case 'about': return <AboutSection />
       case 'memory':
         return <NamespaceSection title={t('settings.memory')} body={t('settings.memoryBody')} match={/memor|context|compaction/i} />

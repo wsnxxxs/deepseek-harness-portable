@@ -71,6 +71,7 @@ export type SettingsSection =
   | 'skills'
   | 'commands'
   | 'usage'
+  | 'archivedChats'
   | 'about'
 
 /** A file the diff viewer is showing. */
