@@ -370,7 +370,7 @@ export const en = {
   'composer.mode.ptc': 'PTC mode',
   'composer.mode.minimal': 'Minimal mode',
   'composer.mode.cordis': 'Creator mode',
-  'composer.mode.crew': 'Cluster mode',
+  'composer.mode.crew': 'Swarm mode',
   'composer.permission.readOnly': 'Read Only',
   'composer.permission.workspaceWrite': 'Workspace Write',
   'composer.permission.fullAccess': 'Full access',
