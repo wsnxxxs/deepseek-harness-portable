@@ -69,10 +69,10 @@ function SessionRow(props: {
     ? t('nav.running')
     : session.completed === true ? t('nav.completed') : t('nav.idle')
   return (
-    <div className={css.rowShell}>
+    <div className={`${css.rowShell} ${current ? css.rowShellActive : ''}`}>
       <button
         type="button"
-        className={`${css.row} ${current ? css.rowActive : ''}`}
+        className={css.row}
         onClick={props.onOpen}
         title={session.displayTitle}
         data-session-id={session.id}

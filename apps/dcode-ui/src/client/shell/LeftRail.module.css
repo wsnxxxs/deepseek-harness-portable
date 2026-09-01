@@ -185,6 +185,7 @@
   align-items: center;
   min-width: 0;
   border-radius: var(--zx-radius-sm);
+  transition: background var(--zx-motion-fast);
 }
 
 .groupHeader {
@@ -207,13 +208,12 @@
 }
 
 .groupHeader:hover {
-  background: var(--zx-bg-hover);
   color: var(--zx-label-secondary);
 }
 
 .groupHeaderShell:hover,
 .groupHeaderShell:focus-within {
-  background: var(--zx-bg-hover);
+  background: var(--zx-bg-raised);
 }
 
 .groupActions {
@@ -226,7 +226,16 @@
 .groupAction {
   opacity: 0;
   pointer-events: none;
+  color: var(--zx-label-tertiary);
   transition: opacity var(--zx-motion-fast);
+}
+
+/* The row owns the hover surface. Actions only change emphasis, so a pointer
+   moving from the label to the menu does not create a darker nested pill. */
+.groupAction:hover:not(:disabled),
+.groupAction[aria-expanded='true'] {
+  background: transparent;
+  color: var(--zx-label);
 }
 
 .groupHeaderShell:hover .groupAction,
@@ -285,11 +294,17 @@
   align-items: center;
   min-width: 0;
   border-radius: var(--zx-radius-md);
+  transition: background var(--zx-motion-fast), box-shadow var(--zx-motion-fast);
 }
 
 .rowShell:hover,
 .rowShell:focus-within {
-  background: var(--zx-bg-hover);
+  background: var(--zx-bg-raised);
+}
+
+.rowShellActive {
+  background: color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-active));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
 }
 
 .row {
@@ -320,10 +335,8 @@
   box-shadow: var(--zx-focus-ring);
 }
 
-.rowActive {
-  background: color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-active));
+.rowShellActive .row {
   color: var(--zx-label);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
 }
 
 .rowMenu {
@@ -331,8 +344,15 @@
   margin-right: var(--zx-space-1);
   opacity: 0;
   pointer-events: none;
+  color: var(--zx-label-tertiary);
   transform: translateX(3px);
   transition: opacity var(--zx-motion-fast), transform var(--zx-motion-fast);
+}
+
+.rowMenu:hover:not(:disabled),
+.rowMenu[aria-expanded='true'] {
+  background: transparent;
+  color: var(--zx-label);
 }
 
 .rowShell:hover .rowMenu,
