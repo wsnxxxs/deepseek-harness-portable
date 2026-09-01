@@ -13,11 +13,6 @@ import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
 import { SelectMenu } from './SelectMenu.tsx'
 import css from './SettingsSurface.module.css'
 
-interface PlanProjectionView {
-  readonly active: boolean
-  readonly pending: boolean
-}
-
 type FollowUpMode = 'one-at-a-time' | 'all'
 
 const BUILTIN_MODE_IDS = ['minimal', 'standard', 'ptc', 'crew'] as const
@@ -330,7 +325,6 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
   )
   const session = useSessionSnapshot(sessionId)
   const activePreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
-  const plan = useProjectionValue<PlanProjectionView>(sessionId, 'plan')
   const busyEnter = useObservable(runtime.busyEnter, 'queue')
   const [selectedMode, setSelectedMode] = useState<string | undefined>()
   const [modeBusy, setModeBusy] = useState(false)
@@ -352,7 +346,6 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
   const steeringMode = valueOf(loop, 'steeringMode') === 'one-at-a-time' ? 'one-at-a-time' : 'all'
   const followUpMode = valueOf(loop, 'followUpMode') === 'all' ? 'all' : 'one-at-a-time'
   const strategy = maxParallel >= 200 ? 'wide' : maxParallel <= 6 ? 'tokensaver' : 'custom'
-  const collaborationMode = plan === undefined ? 'build' : plan.pending ? (plan.active ? 'build' : 'plan') : plan.active ? 'plan' : 'build'
   const autoRetry = booleanOf(retry, 'enabled', true)
   const autoCompaction = booleanOf(compaction, 'auto', true)
   const compactAvailable = commands.value?.ok === true
@@ -404,19 +397,6 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
       .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
       .finally(() => { setActionBusy(undefined) })
   }, [actionBusy, reloadSettings, runtime, settingsWritable, t])
-
-  const selectCollaboration = useCallback((value: string): void => {
-    if (sessionId === undefined || plan === undefined || actionBusy !== undefined) return
-    const active = value === 'plan'
-    const current = plan.pending ? !plan.active : plan.active
-    if (active === current) return
-    setActionBusy('collaboration')
-    setError(undefined)
-    void runtime.remote.commands.execute(sessionId, active ? '/plan' : '/plan off', [])
-      .then(result => { if (!result.ok) throw new Error(result.error.message) })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
-      .finally(() => { setActionBusy(undefined) })
-  }, [actionBusy, plan, runtime, sessionId])
 
   const selectStrategy = useCallback((value: string): void => {
     if (value === 'tokensaver') saveNamespace('parallel', loop, { maxParallelToolCalls: 6 })
@@ -500,22 +480,6 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
 
       <Section title={t('settings.agentWorkflowControls')} body={t('settings.agentWorkflowControlsBody')}>
         <div className={css.card}>
-          <SettingRow
-            title={t('settings.agentWorkflowCollaboration')}
-            body={t('settings.agentWorkflowCollaborationBody')}
-            control={(
-              <SelectMenu
-                value={collaborationMode}
-                ariaLabel={t('settings.agentWorkflowCollaboration')}
-                options={[
-                  { id: 'plan', label: t('composer.mode.plan') },
-                  { id: 'build', label: t('composer.mode.build') },
-                ]}
-                disabled={sessionId === undefined || plan === undefined || actionBusy !== undefined}
-                onChange={selectCollaboration}
-              />
-            )}
-          />
           <SettingRow
             title={t('settings.agentWorkflowConcurrency')}
             body={t('settings.agentWorkflowConcurrencyBody')}
