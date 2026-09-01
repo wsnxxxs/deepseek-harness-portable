@@ -757,10 +757,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.loadOlder {
-  align-self: center;
-}
-
 .hero {
   position: relative;
   display: flex;

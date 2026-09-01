@@ -1032,6 +1032,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
   const highlightTimerRef = useRef<number | undefined>(undefined)
+  const historyLoadSessionRef = useRef<SessionId | undefined>(undefined)
   const [highlightedTurn, setHighlightedTurn] = useState<number | undefined>(undefined)
   const [branchCreated, setBranchCreated] = useState(false)
   const [showScrollLatest, setShowScrollLatest] = useState(false)
@@ -1066,6 +1067,25 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     () => (session?.queue ?? []).filter(item => item.placement !== 'context'),
     [session?.queue],
   )
+
+  // DCode always presents a complete record. Drain the session's history
+  // window as soon as its first page is open instead of exposing pagination
+  // controls in the transcript.
+  useEffect(() => {
+    if (sessionId === undefined || session?.openState !== 'open') {
+      historyLoadSessionRef.current = undefined
+      return
+    }
+    if (session.hasMore !== true) {
+      historyLoadSessionRef.current = undefined
+      return
+    }
+    if (historyLoadSessionRef.current === sessionId) return
+    const face = runtime.binding(sessionId)?.session
+    if (face === undefined) return
+    historyLoadSessionRef.current = sessionId
+    void face.loadThrough(Number.MIN_SAFE_INTEGER)
+  }, [runtime, session?.hasMore, session?.openState, sessionId])
 
   const navigateToTurn = useCallback((index: number) => {
     // Opt out of bottom pinning before smooth scrolling begins, otherwise a
@@ -1155,18 +1175,6 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
                 {t('chat.feedback.failed', { error: feedback.error })}
               </div>
             )}
-            {session?.hasMore === true
-              ? (
-                <Button
-                  className={css.loadOlder}
-                  disabled={session.loadingOlder}
-                  onClick={() => { void runtime.binding(sessionId)?.session.loadOlder() }}
-                >
-                  {session.loadingOlder ? t('chat.loading') : t('chat.loadOlder')}
-                </Button>
-              )
-              : null}
-
             {turns.map((turn, turnIndex) => {
               const paths = changedPaths(turn)
               const last = turnIndex === turns.length - 1
