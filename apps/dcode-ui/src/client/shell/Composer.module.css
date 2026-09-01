@@ -723,12 +723,17 @@
 .permissionMenu {
   width: min(320px, calc(100vw - 32px));
   min-width: min(280px, calc(100vw - 32px));
+  /* Keep the permission choices readable over the acrylic window backdrop. */
+  background: color-mix(in srgb, var(--dsw-alias-bg-base, #0d0d0f) 92%, transparent);
 }
 
 .permissionMenu > button {
-  align-items: flex-start;
-  min-height: 44px;
-  padding: 7px 10px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  column-gap: var(--zx-space-3);
+  align-items: center;
+  min-height: calc(var(--zx-control-xl) + var(--zx-space-1));
+  padding: var(--zx-space-2) var(--zx-space-3);
   border-radius: var(--zx-radius-md);
   line-height: 18px;
 }
@@ -738,14 +743,16 @@
 }
 
 .permissionMenu > button > span > span {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--zx-label-tertiary);
 }
 
 .permissionMenu > button > svg {
+  justify-self: end;
   flex: 0 0 auto;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .modelMenu {
