@@ -125,7 +125,7 @@ export function ContextMeter({ sessionId }: { sessionId: SessionId | undefined }
                   {rows.map(row => (
                     <div className={css.row} key={row.key}>
                       <dt><span className={`${css.swatch} ${row.className}`} aria-hidden />{t(row.key as 'context.system' | 'context.tools' | 'context.messages')}</dt>
-                      <dd>{formatTokens(row.value)}</dd>
+                      <dd>~{formatTokens(row.value)}</dd>
                     </div>
                   ))}
                 </dl>

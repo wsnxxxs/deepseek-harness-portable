@@ -1,0 +1,21 @@
+.root {
+  display: block;
+  width: min(var(--zx-reading-width), 100%);
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: var(--zx-space-1) var(--zx-space-4) 0;
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sep {
+  margin: 0 var(--zx-space-2);
+  color: var(--zx-label-faint);
+}

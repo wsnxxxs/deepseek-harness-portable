@@ -30,7 +30,9 @@ import {
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
 import { Popover, type MenuRow } from './ui.tsx'
+import { ContextMeter } from './ContextMeter.tsx'
 import { ModelSelect, type ModelSelectHandle, type ModelSelectionView } from './ModelSelect.tsx'
+import { SessionStatsLine } from './SessionStatsLine.tsx'
 import type { ModelReadiness } from '../settings/readiness.ts'
 import css from './Composer.module.css'
 
@@ -1068,6 +1070,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
           </div>
           <div className={css.trailingControls} data-dcode-model-select="">
             <ModelSelect ref={modelSelectRef} sessionId={sessionId} disabled={disabled} />
+            <ContextMeter sessionId={sessionId} />
             {running
               ? (
                 <button type="button" className={`${css.send} ${css.stop}`} onClick={stop} aria-label={t('composer.stop')}>
@@ -1088,6 +1091,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
           </div>
         </div>
       </div>
+      <SessionStatsLine sessionId={sessionId} />
       </div>
       <RiskConfirmation
         open={confirmingFullAccess}
