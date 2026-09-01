@@ -78,6 +78,15 @@ test('a toggle survives every resize inside one class', () => {
   assert.deepEqual(panels(store), { railOpen: true, asideOpen: true })
 })
 
+test('opening the aside defaults to the inspector after an explicit tab was closed', () => {
+  const store = createNavigationStore()
+  store.fit('wide')
+  store.openAside('changes')
+  store.toggleAside()
+  store.toggleAside()
+  assert.equal(store.getSnapshot().aside, 'goal')
+})
+
 test('a narrowed frame takes both panels back', () => {
   const store = createNavigationStore()
   store.fit('wide')
@@ -142,11 +151,11 @@ test('revealing the aside pins it open across a class change', () => {
   assert.deepEqual(panels(store), { railOpen: true, asideOpen: true })
 })
 
-test('task context prioritizes errors, then changes, without losing tabs', () => {
+test('task context keeps direct shortcuts without reordering tabs', () => {
   const context = { hasError: true, hasChanges: true, goalActive: true, failedCallId: 'call-1' }
   assert.equal(primaryAsideTab(context), 'details')
-  assert.deepEqual(orderedAsideTabs(context), ['details', 'changes', 'goal', 'terminal'])
-  assert.deepEqual(orderedAsideTabs({ ...context, hasError: false }), ['changes', 'goal', 'terminal', 'details'])
+  assert.deepEqual(orderedAsideTabs(context), ['goal', 'changes', 'terminal', 'details'])
+  assert.deepEqual(orderedAsideTabs({ ...context, hasError: false }), ['goal', 'changes', 'terminal', 'details'])
 })
 
 test('manual context-panel choices are remembered per workspace', () => {

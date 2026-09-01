@@ -29,7 +29,7 @@ export type AsideTab = 'changes' | 'terminal' | 'goal' | 'details'
 export type CompactOverlay = 'rail' | 'aside' | 'summary'
 
 /** Stable visual and keyboard order of the preview-panel tabs. */
-export const ASIDE_TABS: readonly AsideTab[] = ['changes', 'terminal', 'goal', 'details']
+export const ASIDE_TABS: readonly AsideTab[] = ['goal', 'changes', 'terminal', 'details']
 
 /** Facts that decide which context deserves the shortest path. */
 export interface TaskContext {
@@ -47,13 +47,9 @@ export function primaryAsideTab(context: TaskContext): AsideTab | undefined {
   return undefined
 }
 
-/** Put the most actionable context first while retaining every existing tab. */
-export function orderedAsideTabs(context: TaskContext): readonly AsideTab[] {
-  const priority: AsideTab[] = []
-  if (context.hasError) priority.push('details')
-  if (context.hasChanges) priority.push('changes')
-  if (context.goalActive) priority.push('goal')
-  return [...new Set([...priority, ...ASIDE_TABS])]
+/** Keep the inspector as the stable first tab; context signals use direct actions. */
+export function orderedAsideTabs(_context: TaskContext): readonly AsideTab[] {
+  return ASIDE_TABS
 }
 
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
@@ -266,13 +262,22 @@ export function createNavigationStore(): NavigationStore {
     },
     toggleAside: () => {
       const open = !state.asideOpen
-      patch({ asideOpen: open, ...(open ? compactOverlayPatch('aside') : {}), ...rememberAside(open) })
+      patch({
+        ...(open ? { aside: 'goal' as const, ...compactOverlayPatch('aside') } : {}),
+        asideOpen: open,
+        ...rememberAside(open),
+      })
     },
     toggleSummary: open => {
       const next = open ?? !state.summaryOpen
       patch({ summaryOpen: next, ...(next ? compactOverlayPatch('summary') : {}) })
     },
-    openCompactOverlay: overlay => { patch(compactOverlayPatch(overlay)) },
+    openCompactOverlay: overlay => {
+      patch({
+        ...(overlay === 'aside' ? { aside: 'goal' as const } : {}),
+        ...compactOverlayPatch(overlay),
+      })
+    },
     closeCompactOverlay: () => {
       if (state.layout === 'compact') patch({ railOpen: false, asideOpen: false, summaryOpen: false })
     },
