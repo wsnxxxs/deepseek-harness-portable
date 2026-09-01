@@ -30,6 +30,7 @@ export const INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILES = [
   'lib/types/agent.d.ts',
   'lib/types/bootstrap.d.ts',
   'lib/types/broker.d.ts',
+  'lib/types/client/VaultLibraryDialog.d.ts',
   'lib/types/client/VaultKeep.d.ts',
   'lib/types/client/VaultRoster.d.ts',
   'lib/types/client/VaultView.d.ts',
