@@ -25,6 +25,10 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  CreateTeamTaskRequest, TeamTaskMutationResult, TeamView, UpdateTeamTaskRequest,
+} from '@deepseek-ai/dsh-experimental-agent-team/client'
+import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { MessageFeedbackInjected } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type {
@@ -92,6 +96,13 @@ export interface DcodeGoalsRemote {
   pause(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
   resume(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
   clear(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
+}
+
+/** Browser-safe Team surface used only by the DCode Cluster inspector. */
+export interface DcodeClusterRemote {
+  view(sessionId: SessionId): Promise<RemoteResult<TeamView>>
+  createTask(sessionId: SessionId, request: CreateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>
+  updateTask(sessionId: SessionId, request: UpdateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>
 }
 
 /** The small domain face the dcode composer needs from a pending approval. */
@@ -206,6 +217,8 @@ export interface DcodeRuntime {
   readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined
   /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
   readonly goals: DcodeGoalsRemote | undefined
+  /** Generated Team Remote namespace, mounted for DCode's Cluster mode only. */
+  readonly cluster: DcodeClusterRemote | undefined
   /** Session-log export controller, when the export client plugin is present. */
   readonly sessionLogDownload: SessionLogDownloadFace | undefined
   /** Git, diff, undo and file reads over the `/dcode` channel. */
@@ -295,7 +308,11 @@ interface UiSessionFace {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): DcodeRuntime {
+export function createDcodeRuntime(
+  ctx: ClientContext,
+  mode: UiModeController,
+  cluster?: DcodeClusterRemote,
+): DcodeRuntime {
   const sessions = ctx.get('sessions') as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
   const uiConversation = ctx.get('uiConversation') as UiConversationFace | undefined
@@ -368,6 +385,7 @@ export function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): 
     },
     pendingInteractions: uiSession?.pendingInteractions,
     goals,
+    cluster,
     sessionLogDownload,
     git: createDcodeApi(carrier),
     learningCall: createLearningCall(carrier),

@@ -528,6 +528,7 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
             maxPendingMessagesPerMember: 64,
             maxMessageBytes: 65536,
             disposalTimeoutMs: 5000,
+            maxDelegationDepth: 5,
           },
         },
       ],

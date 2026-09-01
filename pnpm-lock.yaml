@@ -125,6 +125,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-workspace':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/ui-workspace
+      '@deepseek-ai/dsh-experimental-agent-team':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/experimental/agent-team
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/llm/llm

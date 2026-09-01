@@ -31,6 +31,7 @@ import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, 
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import { stripAnsi } from '../chat/ansi.ts'
 import { ChangedFilesOverview, SubagentDetailPanel, SubagentsPanel, type SubagentChildEntry } from './AgentInspector.tsx'
+import { ClusterPanel } from './ClusterPanel.tsx'
 import css from './Aside.module.css'
 
 /** Props of the floating right card. */
@@ -530,9 +531,11 @@ function CommandOutputPanel({ sessionId, onLocated }: { sessionId: SessionId | u
 
 /** The docked preview sidebar with its content views. */
 export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
+  const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
   const list = useSessionList()
+  const selectedPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
   const [selectedSubagent, setSelectedSubagent] = useState<SubagentChildEntry | undefined>()
   const tabPrefix = useId()
   const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null, details: null })
@@ -635,6 +638,9 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
           ? selectedSubagent === undefined || sessionId === undefined
             ? (
               <>
+                {selectedPreset === 'crew' && runtime.cluster !== undefined
+                  ? <ClusterPanel sessionId={sessionId} />
+                  : null}
                 <ChangedFilesOverview
                   cwd={cwd}
                   sessionId={sessionId}

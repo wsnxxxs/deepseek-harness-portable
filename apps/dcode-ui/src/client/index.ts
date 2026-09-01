@@ -43,6 +43,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings-plugin-inventory/client
 import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 import type {} from '@deepseek-ai/dsh-client-ui-permission-presets/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-experimental-agent-team/remote'
+import agentTeamsRemote from '@deepseek-ai/dsh-experimental-agent-team/remote'
 import type {} from '@deepseek-ai/dsh-session-log-export/client'
 import type { UiModeController } from '@dsh-portable/ui-mode/client'
 import { createNavigationStore } from './state/navigation.ts'
@@ -51,6 +53,7 @@ import { bindTranslate, TranslateProvider } from './state/i18n.ts'
 import { DCODE_NS, en, zh, type DcodeKey } from './locales.ts'
 import { Workbench } from './shell/Workbench.tsx'
 import { ModelsUsageCard } from './settings/ModelsUsageCard.tsx'
+import type { DcodeClusterRemote } from './state/runtime.ts'
 
 export { Workbench } from './shell/Workbench.tsx'
 export { createNavigationStore, type NavigationState, type NavigationStore } from './state/navigation.ts'
@@ -125,9 +128,13 @@ const SETTINGS_MODELS_FOOTER_ORDER = 0
  * @param mode - the page's mode store.
  * @returns a disposer that removes any active registration and the subscription.
  */
-function bindRootRegistration(ctx: ClientContext, mode: UiModeController): () => void {
+function bindRootRegistration(
+  ctx: ClientContext,
+  mode: UiModeController,
+  cluster: DcodeClusterRemote | undefined,
+): () => void {
   const navigation = createNavigationStore()
-  const runtime = createDcodeRuntime(ctx, mode)
+  const runtime = createDcodeRuntime(ctx, mode, cluster)
   const t = bindTranslate(ctx.locale.bind(DCODE_NS))
 
   // One element tree, created once: a mode flip mounts and unmounts it, and
@@ -190,7 +197,31 @@ export function apply(ctx: ClientContext): void {
   // rather than offering a choice that silently renders the official UI.
   ctx.effect(() => ctx.uiMode.announce('dcode'), 'dcode-ui: surface announcement')
 
-  ctx.effect(() => bindRootRegistration(ctx, ctx.uiMode), 'dcode-ui: root surface')
+  // The Team Remote is mounted in this plugin's own lifecycle. The official
+  // root never reads it; the Cluster inspector receives the namespace only
+  // after the mount succeeds, while a missing optional capability still lets
+  // DCode boot without changing the official surface.
+  ctx.effect(async () => {
+    try {
+      const disposeRemote = await ctx.remote.$mount(agentTeamsRemote)
+      const surface = ctx.inject(['remote.agentTeams'], scope => (
+        bindRootRegistration(scope, scope.uiMode, scope.remote.agentTeams as DcodeClusterRemote)
+      ))
+      try {
+        await surface
+      } catch (error) {
+        await surface.dispose()
+        await disposeRemote()
+        throw error
+      }
+      return async () => {
+        await surface.dispose()
+        await disposeRemote()
+      }
+    } catch {
+      return bindRootRegistration(ctx, ctx.uiMode, undefined)
+    }
+  }, 'dcode-ui: cluster remote and root surface')
 
   // The usage card on the classic Models page. `settings.models.footer` is the
   // seat that page declares for out-of-tree plugins, so the official section
