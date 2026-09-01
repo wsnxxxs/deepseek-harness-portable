@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionSearchResultItem, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { useAsync, useObservable, useProjectionValue, useSessionList, useSessionSnapshot } from '../state/hooks.ts'
 import { useRuntime, type DcodeRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
+import type { DcodeMemoryState } from '../rpc.ts'
 import { Button, EmptyState, Spinner } from '../shell/ui.tsx'
 import { SelectMenu } from './SelectMenu.tsx'
 import css from './SettingsSurface.module.css'
@@ -124,17 +125,43 @@ function memoryEnabledFromStorage(): boolean {
   }
 }
 
-function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabledChange: (value: boolean) => void }) {
+interface MemoryResultItem {
+  readonly sessionId: string
+  readonly snippet: string
+  readonly recordId?: string
+}
+
+function MemorySection({
+  enabled,
+  onEnabledChange,
+  sessionId,
+}: {
+  enabled: boolean
+  onEnabledChange: (value: boolean) => void
+  sessionId: SessionId | undefined
+}) {
   const runtime = useRuntime()
   const t = useT()
   const sessionList = useSessionList()
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<readonly SessionSearchResultItem[]>([])
+  const [results, setResults] = useState<readonly MemoryResultItem[]>([])
+  const [memoryState, setMemoryState] = useState<DcodeMemoryState | undefined>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const abortRef = useRef<AbortController | undefined>()
+  const currentCwd = sessionId === undefined ? undefined : sessionList.byId[sessionId]?.cwd
 
   useEffect(() => () => { abortRef.current?.abort() }, [])
+
+  useEffect(() => {
+    let active = true
+    void runtime.memory.state(currentCwd).then(response => {
+      if (!active || !response.ok) return
+      setMemoryState(response.value)
+      onEnabledChange(response.value.enabled)
+    })
+    return () => { active = false }
+  }, [currentCwd, onEnabledChange, runtime.memory])
 
   const search = useCallback(async (): Promise<void> => {
     const text = query.trim()
@@ -145,10 +172,23 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
     setBusy(true)
     setError(undefined)
     try {
-      const response = await runtime.sessions.search(text, controller.signal)
+      const response = runtime.memory.available
+        ? await runtime.memory.search(text, currentCwd)
+        : undefined
       if (controller.signal.aborted) return
-      if (!response.ok) throw new Error(response.error.message)
-      setResults(response.value.items)
+      if (response !== undefined) {
+        if (!response.ok) throw new Error(response.error.message)
+        setMemoryState(response.value.state)
+        setResults(response.value.items.map(item => ({
+          sessionId: item.sourceSessionIds[0] ?? item.id,
+          snippet: item.snippet,
+          recordId: item.id,
+        })))
+      } else {
+        const history = await runtime.sessions.search(text, controller.signal)
+        if (!history.ok) throw new Error(history.error.message)
+        setResults(history.value.items.map(item => ({ sessionId: item.sessionId, snippet: item.snippet })))
+      }
     } catch (cause: unknown) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : String(cause))
@@ -156,28 +196,68 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
     } finally {
       if (abortRef.current === controller) setBusy(false)
     }
-  }, [busy, enabled, query, runtime])
+  }, [busy, currentCwd, enabled, query, runtime])
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback((): void => {
     if (!enabled || busy) return
+    setBusy(true)
     setError(undefined)
-    void runtime.sessions.refresh().catch((cause: unknown) => {
+    void (async () => {
+      if (runtime.memory.available) {
+        const response = await runtime.memory.run(currentCwd)
+        if (!response.ok) throw new Error(response.error.message)
+        setMemoryState(response.value)
+        setResults([])
+      } else {
+        await runtime.sessions.refresh()
+      }
+    })().catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }).finally(() => { setBusy(false) })
+  }, [busy, currentCwd, enabled, runtime])
+
+  const changeEnabled = useCallback((value: boolean): void => {
+    onEnabledChange(value)
+    if (!runtime.memory.available) return
+    setError(undefined)
+    void runtime.memory.setEnabled(value).then(response => {
+      if (!response.ok) throw new Error(response.error.message)
+      setMemoryState(response.value)
+    }).catch((cause: unknown) => {
+      onEnabledChange(!value)
       setError(cause instanceof Error ? cause.message : String(cause))
     })
-  }, [busy, enabled, runtime])
+  }, [onEnabledChange, runtime.memory])
 
-  const reset = useCallback(() => {
+  const reset = useCallback((): void => {
     abortRef.current?.abort()
-    setBusy(false)
     setError(undefined)
-    setQuery('')
-    setResults([])
-  }, [])
+    if (!runtime.memory.available) {
+      setQuery('')
+      setResults([])
+      return
+    }
+    setBusy(true)
+    void runtime.memory.reset().then(response => {
+      if (!response.ok) throw new Error(response.error.message)
+      setMemoryState(response.value)
+      setQuery('')
+      setResults([])
+    }).catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }).finally(() => { setBusy(false) })
+  }, [runtime.memory])
 
-  const resultTitle = useCallback((result: SessionSearchResultItem): string => {
-    const summary: SessionSummary | undefined = sessionList.byId[result.sessionId]
+  const resultTitle = useCallback((result: MemoryResultItem): string => {
+    const summary: SessionSummary | undefined = sessionList.byId[result.sessionId as SessionId]
     return summary?.displayTitle ?? result.sessionId
   }, [sessionList.byId])
+
+  const resultCount = memoryState === undefined ? results.length : memoryState.globalCount + memoryState.projectCount
+  const lastRun = memoryState?.lastRunAt === undefined ? '—' : new Date(memoryState.lastRunAt).toLocaleString()
+  const method = memoryState?.lastExtractionMethod === 'heuristic'
+    ? t('settings.memoryMethodHeuristic')
+    : t('settings.memoryMethodHistory')
 
   return (
     <Section title={t('settings.memory')} body={t('settings.memoryBody')}>
@@ -185,11 +265,13 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
         <SettingRow
           title={t('settings.memoryToggle')}
           body={t('settings.memoryToggleBody')}
-          control={<Toggle checked={enabled} label={t('settings.memoryToggle')} onChange={onEnabledChange} />}
+          control={<Toggle checked={enabled} disabled={busy} label={t('settings.memoryToggle')} onChange={changeEnabled} />}
         />
       </div>
       <div className={css.memoryCard}>
-        <div className={css.memoryStatus}>{enabled ? t('settings.memoryConnected') : t('settings.memoryDisabled')}</div>
+        <div className={css.memoryStatus}>
+          {memoryState?.phase === 'extracting' ? t('settings.memoryExtracting') : enabled ? t('settings.memoryConnected') : t('settings.memoryDisabled')}
+        </div>
         <div className={css.memoryToolbar}>
           <input
             className={css.search}
@@ -205,11 +287,14 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
           </Button>
           <Button onClick={refresh} disabled={!enabled || busy}>{t('settings.memoryRunNow')}</Button>
         </div>
+        {memoryState?.phase === 'extracting' && memoryState.extractingTotal !== undefined
+          ? <div className={css.memoryProgress}>{t('settings.memoryProgress', { processed: memoryState.extractingProcessed ?? 0, total: memoryState.extractingTotal })}</div>
+          : null}
         <div className={css.memoryStats}>
-          <div className={css.memoryStat}><span>{t('settings.memoryRecords')}</span><strong>{results.length}</strong></div>
-          <div className={css.memoryStat}><span>{t('settings.memoryPending')}</span><strong>{busy ? 1 : 0}</strong></div>
-          <div className={css.memoryStat}><span>{t('settings.memoryLastRun')}</span><strong>{results.length > 0 ? t('settings.memoryJustNow') : '—'}</strong></div>
-          <div className={css.memoryStat}><span>{t('settings.memoryMethod')}</span><strong>{t('settings.memoryMethodHistory')}</strong></div>
+          <div className={css.memoryStat}><span>{t('settings.memoryRecords')}</span><strong>{resultCount}</strong></div>
+          <div className={css.memoryStat}><span>{t('settings.memoryPending')}</span><strong>{memoryState?.pendingJobs ?? (busy ? 1 : 0)}</strong></div>
+          <div className={css.memoryStat}><span>{t('settings.memoryLastRun')}</span><strong>{lastRun}</strong></div>
+          <div className={css.memoryStat}><span>{t('settings.memoryMethod')}</span><strong>{method}</strong></div>
         </div>
         {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
         {results.length === 0
@@ -217,7 +302,7 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
           : (
             <div className={css.memoryResults}>
               {results.map((result, index) => (
-                <div className={css.memoryResult} key={`${result.sessionId}:${index}`}>
+                <div className={css.memoryResult} key={`${result.recordId ?? result.sessionId}:${index}`}>
                   <strong>{resultTitle(result)}</strong>
                   <span>{result.snippet}</span>
                 </div>
@@ -226,7 +311,7 @@ function MemorySection({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
           )}
         <div className={css.memoryFooter}>
           <span>{t('settings.memoryHistoryNote')}</span>
-          <Button onClick={reset} disabled={busy || (query === '' && results.length === 0)}>{t('settings.memoryReset')}</Button>
+          <Button onClick={reset} disabled={busy || (query === '' && results.length === 0 && resultCount === 0)}>{t('settings.memoryReset')}</Button>
         </div>
       </div>
     </Section>
@@ -536,7 +621,7 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
         </div>
       </Section>
 
-      <MemorySection enabled={memoryEnabled} onEnabledChange={setMemory} />
+      <MemorySection enabled={memoryEnabled} onEnabledChange={setMemory} sessionId={sessionId} />
 
       <Section title={t('settings.agentWorkflowComposition')} body={t('settings.agentWorkflowCompositionBody')}>
         <div className={css.card}>

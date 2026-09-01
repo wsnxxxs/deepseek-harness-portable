@@ -16,12 +16,24 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-session'
 import { DCODE_CHANNEL, handleDcodeEndpoint, isDcodeEndpoint } from './host/rpc.ts'
+import {
+  defaultDcodeMemoryRoot, DcodeMemoryStore,
+  type DcodeMemorySessionSource,
+} from './host/memory.ts'
 
 export {
   DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint,
   type DcodeEndpoint, type DcodeErrorCode, type DcodeResult,
 } from './host/rpc.ts'
+export {
+  defaultDcodeMemoryRoot, DcodeMemoryStore,
+  type DcodeMemoryCategory, type DcodeMemoryKind, type DcodeMemoryPhase,
+  type DcodeMemoryRecord, type DcodeMemorySearchValue, type DcodeMemoryService,
+  type DcodeMemorySessionLog, type DcodeMemorySessionRecord, type DcodeMemorySessionSource,
+  type DcodeMemoryState,
+} from './host/memory.ts'
 export {
   GitCommandError, containedRelativePath, parseBranchHeader, parseNumstat, parsePorcelain,
   readBranches, readDiff, readStatus, undoPaths, workTreeRoot,
@@ -43,8 +55,8 @@ export const name = 'dcode-ui'
 
 /**
  * Connection is the only hard requirement: without the RPC carrier there is
- * no channel to claim, and the browser half degrades to a workbench without a
- * Git panel rather than failing to boot.
+ * no channel to claim, and the browser half degrades to a workbench without
+ * Git and durable-memory tooling rather than failing to boot.
  */
 export const inject = ['connection']
 
@@ -81,21 +93,35 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = connectionCtx.get('connection') as DcodeRpcConnection | undefined
     if (connection === undefined) return
-    connectionCtx.effect(() => connection.rpc.handle(
-      DCODE_CHANNEL,
-      async (endpoint: string, payload: unknown) => {
-        if (!isDcodeEndpoint(endpoint)) {
-          return {
-            ok: false,
-            error: { code: 'bad-request', message: 'unknown /dcode RPC endpoint', details: { endpoint } },
+    const memory = new DcodeMemoryStore({
+      root: defaultDcodeMemoryRoot(),
+      source: () => connectionCtx.get('sessionQuery') as DcodeMemorySessionSource | undefined,
+    })
+    connectionCtx.effect(() => {
+      const disposeRpc = connection.rpc.handle(
+        DCODE_CHANNEL,
+        async (endpoint: string, payload: unknown) => {
+          if (!isDcodeEndpoint(endpoint)) {
+            return {
+              ok: false,
+              error: { code: 'bad-request', message: 'unknown /dcode RPC endpoint', details: { endpoint } },
+            }
           }
-        }
-        return await handleDcodeEndpoint(endpoint, payload)
-      },
-      // Same authority the rest of this distribution's private channels use:
-      // the surface runs local commands in the operator's own workspace and
-      // must not be reachable from an untrusted origin.
-      { authority: 'trusted-host' },
-    ), 'dcode-ui: git rpc channel')
+          return await handleDcodeEndpoint(endpoint, payload, memory)
+        },
+        // Same authority the rest of this distribution's private channels use:
+        // the surface runs local commands in the operator's own workspace and
+        // must not be reachable from an untrusted origin.
+        { authority: 'trusted-host' },
+      )
+      const disposeEvents = connectionCtx.on('session/event', (session) => {
+        memory.markPending(String(session.id))
+      })
+      return () => {
+        disposeEvents()
+        disposeRpc()
+        memory.dispose()
+      }
+    }, 'dcode-ui: git and memory rpc channel')
   })
 }

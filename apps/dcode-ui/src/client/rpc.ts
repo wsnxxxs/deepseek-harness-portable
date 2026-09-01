@@ -10,10 +10,14 @@
 
 import type { DcodeEndpoint, DcodeResult } from '../host/rpc.ts'
 import type {
+  DcodeMemoryRecord, DcodeMemorySearchValue, DcodeMemoryState,
+} from '../host/memory.ts'
+import type {
   GitBranch, GitCommitResult, GitDiff, GitRestoreOutcome, GitStageResult, GitStatus,
 } from '../host/git.ts'
 
 export type { GitBranch, GitCommitResult, GitDiff, GitFileChange, GitRestoreOutcome, GitStageResult, GitStatus } from '../host/git.ts'
+export type { DcodeMemoryRecord, DcodeMemorySearchValue, DcodeMemoryState } from '../host/memory.ts'
 
 /** The Connection RPC face this module needs. */
 export interface RpcCarrier {
@@ -67,6 +71,18 @@ export interface DcodeApi {
   readFile(cwd: string, path: string): Promise<DcodeResult<FileRead>>
 }
 
+/** Durable Agent memory controls exposed by the Host channel. */
+export interface DcodeMemoryApi {
+  readonly available: boolean
+  state(cwd?: string): Promise<DcodeResult<DcodeMemoryState>>
+  search(query: string, cwd?: string): Promise<DcodeResult<DcodeMemorySearchValue>>
+  run(cwd?: string): Promise<DcodeResult<DcodeMemoryState>>
+  abort(): Promise<DcodeResult<DcodeMemoryState>>
+  setEnabled(enabled: boolean): Promise<DcodeResult<DcodeMemoryState>>
+  reset(): Promise<DcodeResult<DcodeMemoryState>>
+  forget(id: string): Promise<DcodeResult<DcodeMemoryState>>
+}
+
 /**
  * Build the channel client.
  * @param carrier - the Connection service, absent on a page without one.
@@ -92,6 +108,28 @@ export function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi {
     undo: (cwd, paths) => call('git/undo', { cwd, paths }),
     undoHunk: (cwd, path, patch, staged = false) => call('git/undo', { cwd, path, patch, staged }),
     readFile: (cwd, path) => call('file/read', { cwd, path }),
+  }
+}
+
+/** Build the durable-memory client face over the same trusted channel. */
+export function createDcodeMemoryApi(carrier: RpcCarrier | undefined): DcodeMemoryApi {
+  const call = async <T>(endpoint: DcodeEndpoint, payload: Record<string, unknown>): Promise<DcodeResult<T>> => {
+    if (carrier === undefined) return transportFailure('the /dcode channel is unavailable on this connection')
+    try {
+      return envelope<T>(await carrier.rpc.call(CHANNEL, endpoint, payload))
+    } catch (cause) {
+      return transportFailure(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+  return {
+    available: carrier !== undefined,
+    state: cwd => call('memory/state', cwd === undefined ? {} : { cwd }),
+    search: (query, cwd) => call('memory/search', cwd === undefined ? { query } : { query, cwd }),
+    run: cwd => call('memory/run', cwd === undefined ? {} : { cwd }),
+    abort: () => call('memory/abort', {}),
+    setEnabled: enabled => call('memory/set-enabled', { enabled }),
+    reset: () => call('memory/reset', {}),
+    forget: id => call('memory/forget', { id }),
   }
 }
 

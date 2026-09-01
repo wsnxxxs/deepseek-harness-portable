@@ -1001,6 +1001,11 @@
   min-width: 0;
 }
 
+.memoryProgress {
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-micro);
+}
+
 .memoryStats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -17,6 +17,7 @@ test('the channel and its endpoint roster are stable', () => {
   assert.equal(DCODE_CHANNEL, '/dcode')
   assert.deepEqual([...DCODE_ENDPOINTS], [
     'git/status', 'git/diff', 'git/branches', 'git/stage', 'git/unstage', 'git/commit', 'git/undo', 'file/read',
+    'memory/state', 'memory/search', 'memory/run', 'memory/abort', 'memory/reset', 'memory/set-enabled', 'memory/forget',
   ])
 })
 

@@ -42,7 +42,10 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { UI_MODE_NS, type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client'
-import { createLearningCall, createDcodeApi, type RpcCarrier, type DcodeApi } from '../rpc.ts'
+import {
+  createLearningCall, createDcodeApi, createDcodeMemoryApi,
+  type RpcCarrier, type DcodeApi, type DcodeMemoryApi,
+} from '../rpc.ts'
 import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../theme.ts'
 import type { MessageFeedbackProvider } from '../chat/message-feedback.ts'
 
@@ -223,6 +226,8 @@ export interface DcodeRuntime {
   readonly sessionLogDownload: SessionLogDownloadFace | undefined
   /** Git, diff, undo and file reads over the `/dcode` channel. */
   readonly git: DcodeApi
+  /** Durable memory controls over the `/dcode` channel. */
+  readonly memory: DcodeMemoryApi
   /** The Interactive Learning channel caller, shared with the official UI's learning views. */
   readonly learningCall: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
   /**
@@ -313,7 +318,7 @@ export function createDcodeRuntime(
   mode: UiModeController,
   cluster?: DcodeClusterRemote,
 ): DcodeRuntime {
-  const sessions = ctx.get('sessions') as ISessions
+  const sessions = ctx.get('sessions') as unknown as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
   const uiConversation = ctx.get('uiConversation') as UiConversationFace | undefined
   const conversation = ctx.get('conversation') as ConversationController | undefined
@@ -388,6 +393,7 @@ export function createDcodeRuntime(
     cluster,
     sessionLogDownload,
     git: createDcodeApi(carrier),
+    memory: createDcodeMemoryApi(carrier),
     learningCall: createLearningCall(carrier),
     // The pack registers this namespace itself; an assembly without it falls
     // back to the raw key, which is still readable and never throws.
