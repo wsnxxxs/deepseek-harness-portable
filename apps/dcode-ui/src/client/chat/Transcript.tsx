@@ -810,6 +810,7 @@ function TurnView(props: {
   const finalAssistantSeq = data.finalAssistant?.seq
   const rows: ReactNode[] = []
   let activityInserted = false
+  let previousNodeWasContext = false
   const insertActivity = (): void => {
     if (activityInserted || data.items.length === 0) return
     activityInserted = true
@@ -824,6 +825,15 @@ function TurnView(props: {
   }
 
   for (const node of props.turn) {
+    // Several injected sources can arrive back-to-back. In this compact
+    // renderer they share the same marker, so one divider represents the
+    // whole contiguous context run instead of adding repeated blank space.
+    if (node.kind === 'context') {
+      if (previousNodeWasContext) continue
+      previousNodeWasContext = true
+    } else {
+      previousNodeWasContext = false
+    }
     const processNode = node.kind === 'assistant' || node.kind === 'tool-result'
     if (processNode) insertActivity()
     if (node.kind === 'tool-result') continue
