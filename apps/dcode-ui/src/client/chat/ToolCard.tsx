@@ -47,16 +47,18 @@ function isSettled(block: ToolCallBlock): block is Extract<ToolCallBlock, { kind
 /** Props of one tool card. */
 export interface ToolCardProps {
   readonly block: ToolCallBlock
+  /** Render as a borderless activity row whose second click opens the card. */
+  readonly activity?: boolean
 }
 
 /** A compact, expandable tool-execution card. */
-export function ToolCard({ block }: ToolCardProps) {
+export function ToolCard({ block, activity = false }: ToolCardProps) {
   const t = useT()
   const settled = isSettled(block)
   const name = settled ? block.call?.name ?? 'tool' : block.name
   const argsRaw = settled ? block.call?.argsRaw : block.argsRaw
   const summary = summarizeTool(name, argsRaw)
-  const [open, setOpen] = useState(() => settled && (block.isError || summary.mutating))
+  const [open, setOpen] = useState(() => !activity && settled && (block.isError || summary.mutating))
   const contentId = useId()
   // Wrap is per card and per session: an operator reading a wide table turns
   // it off once, and the next card they open is a stack trace that wants it on.
@@ -89,9 +91,9 @@ export function ToolCard({ block }: ToolCardProps) {
       : t('chat.running')
 
   return (
-    <div className={css.group} data-tool-call-id={block.callId}>
-      <div className={`${css.card} ${emphasized ? css.cardEmphasized : ''}`}>
-        <div className={`${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`}>
+    <div className={css.group} data-tool-call-id={block.callId} data-tool-view={activity ? 'activity' : 'card'}>
+      <div className={`${css.card} ${activity ? css.activityCard : ''} ${emphasized ? css.cardEmphasized : ''}`}>
+        <div className={`${css.head} ${activity ? css.activityHead : ''} ${ui.cardHeader} ${shimmerActive(!settled)}`}>
           <button
             type="button"
             className={css.headMain}
@@ -102,8 +104,9 @@ export function ToolCard({ block }: ToolCardProps) {
             <span className={`${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`} aria-hidden>
               {settled ? failed ? <IconWarningOutline16 /> : <Glyph kind={summary.kind} /> : <Spinner />}
             </span>
-            <span className={`${css.verb} ${failed ? css.error : ''}`}>{verb}</span>
-            <span className={css.detail}>{summary.detail === '' ? name : summary.detail}</span>
+            <span className={`${css.verb} ${failed ? css.error : ''}`}>{activity ? t('chat.activity.toolCall') : verb}</span>
+            {activity ? <span className={css.activityName}>{name}</span> : null}
+            <span className={css.detail}>{summary.detail === '' ? activity ? '' : name : summary.detail}</span>
             {changes === undefined
               ? null
               : (
@@ -158,7 +161,7 @@ export function ToolCard({ block }: ToolCardProps) {
         : (
           <div className={css.children}>
             {block.subCalls.map(child => (
-              <ToolCard key={child.callId} block={child} />
+              <ToolCard key={child.callId} block={child} activity={activity} />
             ))}
           </div>
         )}

@@ -12,6 +12,16 @@
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--zx-accent) 66%, transparent);
 }
 
+/* Activity rows are intentionally quiet; their second-level panel carries
+   the visual boundary when an operator asks for the call details. */
+.activityCard {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -41,6 +51,22 @@
 
 .head:hover {
   background: var(--zx-bg-hover);
+}
+
+.activityHead {
+  min-height: 30px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: inherit;
+}
+
+.activityHead:hover {
+  background: transparent;
+}
+
+.activityCard .headMain {
+  gap: var(--zx-space-2);
 }
 
 .head:focus-visible {
@@ -82,6 +108,24 @@
   font-family: var(--zx-font-mono);
   font-size: var(--zx-text-xs);
   color: var(--zx-label);
+}
+
+.activityName {
+  flex: none;
+  color: var(--zx-label-secondary);
+}
+
+.activityName::before,
+.activityCard .detail:not(:empty)::before {
+  content: '·';
+  margin: 0 var(--zx-space-2);
+  color: var(--zx-label-decor);
+}
+
+.activityCard .detail {
+  font-family: inherit;
+  font-size: var(--zx-text-xs);
+  color: var(--zx-label-tertiary);
 }
 
 .duration {
@@ -144,6 +188,17 @@
   gap: var(--zx-space-3);
 }
 
+.activityCard .disclosure {
+  padding-left: calc(16px + var(--zx-space-2));
+}
+
+.activityCard .body {
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
+  border: 1px solid var(--zx-border-soft);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-surface-1);
+}
+
 .toolbarDuration {
   flex: none;
   color: var(--zx-label-tertiary);
@@ -187,6 +242,10 @@
   gap: var(--zx-space-2);
   padding-left: var(--zx-space-4);
   border-left: 1px solid var(--zx-border-soft);
+}
+
+.activityCard + .children {
+  margin-left: calc(16px + var(--zx-space-2));
 }
 
 .group {

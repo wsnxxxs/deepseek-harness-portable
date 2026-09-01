@@ -4,24 +4,25 @@
  * Nodes come from the Chat target the official UI assembles — the very same
  * `ConversationNode` stream, projections and streaming partial — so a session
  * opened in one surface and continued in the other shows one history. What
- * differs is the presentation: a compact tool card per call, a file-change
+ * differs is the presentation: a turn-level process disclosure, a file-change
  * summary closing each turn, and a reading column instead of a full-width
  * flow.
  * @module @dsh-portable/dcode-ui/client/chat/Transcript
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
   IconDislikeOutline16, IconEditOutline16, IconLikeOutline16,
-  IconSearchOutline16, IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16,
+  IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  AssistantBlock, AssistantMessageNode, ConversationNode, ToolCallBlock,
+  AssistantBlock, AssistantMessageNode, ConversationNode, RunningToolCall, ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
   PendingSubmission, SessionFace, SessionSnapshot,
@@ -42,8 +43,7 @@ import { FileChanges } from './FileChanges.tsx'
 import { extractProposedPlan, PlanPreviewCard } from './PlanPreview.tsx'
 import { useMessageFeedback, type MessageFeedbackState } from './message-feedback.ts'
 import {
-  aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns,
-  type ToolActivityGroup as ToolActivityGroupData,
+  changedPaths, isSubagentTool, messageText, splitTurns,
 } from './tools.ts'
 import type { DcodeKey } from '../locales.ts'
 import css from './Transcript.module.css'
@@ -192,55 +192,195 @@ function ThinkingStatus() {
   )
 }
 
-/** A compact disclosure for a consecutive run of successful read/search calls. */
-function ToolActivityGroup(props: {
-  group: ToolActivityGroupData
-}) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const contentId = useId()
-  const summary = [
-    props.group.memoryCount === 0 ? undefined : t(
-      props.group.memoryCount === 1 ? 'chat.toolActivity.memoryOne' : 'chat.toolActivity.memoryMany',
-      { count: props.group.memoryCount },
-    ),
-    props.group.readCount === 0 ? undefined : t(
-      props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany',
-      { count: props.group.readCount },
-    ),
-    props.group.searchCount === 0 ? undefined : t(
-      props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany',
-      { count: props.group.searchCount },
-    ),
-  ].filter((part): part is string => part !== undefined).join(' · ')
+type TurnActivityItem =
+  | {
+    readonly kind: 'reasoning'
+    readonly key: string
+    readonly text: string
+  }
+  | { readonly kind: 'message'; readonly key: string; readonly text: string }
+  | { readonly kind: 'tool'; readonly key: string; readonly block: ToolCallBlock }
 
+interface TurnActivityData {
+  readonly items: readonly TurnActivityItem[]
+  readonly finalAssistant?: AssistantMessageNode
+  readonly messageCount: number
+  readonly toolCallCount: number
+  readonly subagentCount: number
+}
+
+function hasAssistantAnswer(node: AssistantMessageNode): boolean {
+  if (node.blocks.some(block => block.kind === 'tool-call')) return false
+  return node.blocks.some(block => (
+    (block.kind === 'text' && block.text.trim() !== '') || block.kind === 'image'
+  ))
+}
+
+function turnNodeNumber(node: ConversationNode): number | undefined {
+  return 'turn' in node && typeof node.turn === 'number' ? node.turn : undefined
+}
+
+/** Build one turn's process rows while keeping the final answer separate. */
+function buildTurnActivity(
+  turn: readonly ConversationNode[],
+  runningCalls: readonly RunningToolCall[],
+): TurnActivityData {
+  const items: TurnActivityItem[] = []
+  let finalAssistant: AssistantMessageNode | undefined
+  for (let index = turn.length - 1; index >= 0; index -= 1) {
+    const node = turn[index]
+    if (node?.kind === 'assistant' && hasAssistantAnswer(node)) {
+      finalAssistant = node
+      break
+    }
+  }
+
+  let messageCount = 0
+  let toolCallCount = 0
+  let subagentCount = 0
+  for (const node of turn) {
+    if (node.kind === 'assistant') {
+      if (node.seq !== finalAssistant?.seq) {
+        const hasMessage = node.blocks.some(block => block.kind === 'text' && block.text.trim() !== '')
+        if (hasMessage) messageCount += 1
+      }
+      for (const [blockIndex, block] of node.blocks.entries()) {
+        if (block.kind === 'reasoning' && block.text.trim() !== '') {
+          items.push({
+            kind: 'reasoning',
+            key: `reasoning:${String(node.seq)}:${String(blockIndex)}`,
+            text: block.text,
+          })
+        } else if (node.seq !== finalAssistant?.seq && block.kind === 'text' && block.text.trim() !== '') {
+          items.push({ kind: 'message', key: `message:${String(node.seq)}:${String(blockIndex)}`, text: block.text })
+        }
+      }
+      continue
+    }
+    if (node.kind !== 'tool-result') continue
+    const name = node.call?.name ?? 'tool'
+    if (isSubagentTool(name)) subagentCount += 1
+    else toolCallCount += 1
+    items.push({ kind: 'tool', key: `tool:${node.callId}`, block: node })
+  }
+  for (const call of runningCalls) {
+    if (isSubagentTool(call.name)) subagentCount += 1
+    else toolCallCount += 1
+    items.push({ kind: 'tool', key: `running:${call.callId}`, block: call })
+  }
+
+  return { items, finalAssistant, messageCount, toolCallCount, subagentCount }
+}
+
+function activityPreview(text: string): string {
+  const singleLine = text.replace(/\s+/g, ' ').trim()
+  return singleLine.length > 180 ? `${singleLine.slice(0, 179)}…` : singleLine
+}
+
+function ActivityTextRow(props: {
+  icon: 'thinking' | 'message'
+  label: string
+  text: string
+  labels: MarkdownLabels
+  streaming?: boolean
+}) {
+  const [open, setOpen] = useState(props.streaming === true)
+  const contentId = useId()
+  useEffect(() => {
+    if (props.streaming) setOpen(true)
+  }, [props.streaming])
   return (
-    <div className={css.toolActivity}>
+    <div className={css.activityItem}>
       <button
         type="button"
-        className={css.toolActivityHead}
+        className={css.activityRow}
         aria-expanded={open}
         aria-controls={contentId}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.toolActivityIcon} aria-hidden>
-          {props.group.memoryCount > 0 && props.group.readCount === 0 && props.group.searchCount === 0
-            ? <IconSparkle16 />
-            : <IconSearchOutline16 />}
+        <span className={css.activityRowIcon} aria-hidden>
+          {props.icon === 'thinking' ? <IconThinkOutline14 /> : <IconSparkle16 />}
         </span>
-        <span className={css.toolActivitySummary}>{summary}</span>
-        {props.group.durationMs === undefined
-          ? null
-          : <span className={css.toolActivityDuration}>· {formatToolDuration(props.group.durationMs)}</span>}
-        <IconChevronRightOutline14 className={`${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}`} />
+        <span className={css.activityRowLabel}>{props.label}</span>
+        <span className={css.activityRowPreview}>{activityPreview(props.text)}</span>
+        <IconChevronRightOutline14 className={`${css.activityRowChevron} ${open ? css.activityRowChevronOpen : ''}`} />
       </button>
-      <div className={`${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`} aria-hidden={!open}>
-        <div className={css.toolActivityClip}>
-          <div className={css.toolActivityItems} id={contentId}>
-            {props.group.blocks.map(block => (
-              <ToolCard key={block.callId} block={block} />
-            ))}
-          </div>
+      <div className={`${css.activityDisclosure} ${open ? css.activityDisclosureOpen : ''}`} aria-hidden={!open}>
+        <div className={css.activityDetail} id={contentId} role="region">
+          <MarkdownText text={props.text} streaming={props.streaming === true} labels={props.labels} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** One turn's process summary. Completed summaries start closed. */
+function TurnActivity(props: {
+  data: TurnActivityData
+  labels: MarkdownLabels
+  running: boolean
+}) {
+  const t = useT()
+  const [open, setOpen] = useState(props.running)
+  const wasRunning = useRef(props.running)
+  const contentId = useId()
+
+  useEffect(() => {
+    if (props.running) setOpen(true)
+    else if (wasRunning.current) setOpen(false)
+    wasRunning.current = props.running
+  }, [props.running])
+
+  const summaryParts: string[] = []
+  if (props.data.toolCallCount > 0) {
+    summaryParts.push(t(
+      props.data.toolCallCount === 1 ? 'chat.activity.toolCalls.one' : 'chat.activity.toolCalls.many',
+      { count: props.data.toolCallCount },
+    ))
+  }
+  if (props.data.messageCount > 0) {
+    summaryParts.push(t(
+      props.data.messageCount === 1 ? 'chat.activity.messages.one' : 'chat.activity.messages.many',
+      { count: props.data.messageCount },
+    ))
+  }
+  if (props.data.subagentCount > 0) {
+    summaryParts.push(t(
+      props.data.subagentCount === 1 ? 'chat.activity.subagents.one' : 'chat.activity.subagents.many',
+      { count: props.data.subagentCount },
+    ))
+  }
+  const summary = summaryParts.length === 0
+    ? t('chat.activity.thoughtForAWhile')
+    : summaryParts.join(t('chat.activity.separator'))
+
+  return (
+    <div className={css.turnActivity} data-turn-activity data-activity-open={open || undefined}>
+      <button
+        type="button"
+        className={css.turnActivityHead}
+        aria-expanded={open}
+        aria-controls={contentId}
+        onClick={() => { setOpen(value => !value) }}
+      >
+        <span className={css.turnActivitySummary}>{summary}</span>
+        <IconChevronRightOutline14 className={`${css.turnActivityChevron} ${open ? css.turnActivityChevronOpen : ''}`} />
+      </button>
+      <div className={`${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`} aria-hidden={!open}>
+        <div className={css.turnActivityItems} id={contentId}>
+          {props.data.items.map(item => {
+            if (item.kind === 'tool') return <ToolCard key={item.key} block={item.block} activity />
+            return (
+              <ActivityTextRow
+                key={item.key}
+                icon={item.kind === 'reasoning' ? 'thinking' : 'message'}
+                label={item.kind === 'reasoning' ? t('chat.activity.thinking') : t('chat.activity.message')}
+                text={item.text}
+                labels={props.labels}
+                streaming={false}
+              />
+            )
+          })}
         </div>
       </div>
     </div>
@@ -329,6 +469,7 @@ function AssistantBlocks(props: {
   labels: MarkdownLabels
   durationMs?: number
   tokenCount?: number
+  showReasoning?: boolean
 }) {
   return (
     <div className={css.blockGap}>
@@ -361,6 +502,7 @@ function AssistantBlocks(props: {
           )
         }
         if (block.kind === 'reasoning') {
+          if (props.showReasoning === false) return null
           return (
             <Reasoning
               key={index}
@@ -590,6 +732,7 @@ function Node(props: {
   labels: MarkdownLabels
   feedback: MessageFeedbackState
   highlighted?: boolean
+  showReasoning?: boolean
   onBranched: () => void
 }) {
   const t = useT()
@@ -609,6 +752,7 @@ function Node(props: {
             labels={props.labels}
             durationMs={assistantDurationMs(node)}
             tokenCount={assistantTokenCount(node)}
+            showReasoning={props.showReasoning}
           />
           <AssistantActions sessionId={props.sessionId} node={node} feedback={props.feedback} onBranched={props.onBranched} />
           <Stats node={node} />
@@ -645,6 +789,60 @@ function Node(props: {
     default:
       return null
   }
+}
+
+/** Render a turn with one process owner between the prompt and final answer. */
+function TurnView(props: {
+  sessionId: SessionId
+  turn: readonly ConversationNode[]
+  runningCalls: readonly RunningToolCall[]
+  labels: MarkdownLabels
+  feedback: MessageFeedbackState
+  highlighted: boolean
+  running: boolean
+  onBranched: () => void
+}) {
+  const data = useMemo(
+    () => buildTurnActivity(props.turn, props.runningCalls),
+    [props.runningCalls, props.turn],
+  )
+  const firstHumanSeq = props.turn.find(node => node.kind === 'user' || node.kind === 'steering')?.seq
+  const finalAssistantSeq = data.finalAssistant?.seq
+  const rows: ReactNode[] = []
+  let activityInserted = false
+  const insertActivity = (): void => {
+    if (activityInserted || data.items.length === 0) return
+    activityInserted = true
+    rows.push(
+      <TurnActivity
+        key="turn-activity"
+        data={data}
+        labels={props.labels}
+        running={props.running}
+      />,
+    )
+  }
+
+  for (const node of props.turn) {
+    const processNode = node.kind === 'assistant' || node.kind === 'tool-result'
+    if (processNode) insertActivity()
+    if (node.kind === 'tool-result') continue
+    if (node.kind === 'assistant' && node.seq !== finalAssistantSeq) continue
+    rows.push(
+      <Node
+        sessionId={props.sessionId}
+        key={`${node.kind}:${String(node.seq)}`}
+        node={node}
+        labels={props.labels}
+        feedback={props.feedback}
+        highlighted={props.highlighted && node.seq === firstHumanSeq}
+        showReasoning={data.items.length > 0 && node.seq === finalAssistantSeq ? false : undefined}
+        onBranched={props.onBranched}
+      />,
+    )
+  }
+  insertActivity()
+  return <>{rows}</>
 }
 
 /** Queue controls mirror the host queue verbs instead of treating queued text as static output. */
@@ -820,6 +1018,15 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
   const partial = chat?.legacy.partial ?? null
   const runningCalls = chat?.legacy.runningCalls ?? []
   const turns = useMemo(() => splitTurns(nodes), [nodes])
+  const lastTurnHasNumber = turns.length > 0
+    && turns[turns.length - 1].some(node => turnNodeNumber(node) !== undefined)
+  const nodeLessLastTurnNumber = !lastTurnHasNumber ? runningCalls[0]?.turn : undefined
+  const loadedTurnNumbers = useMemo(() => new Set(
+    [...turns.flatMap(turn => turn
+      .map(turnNodeNumber)
+      .filter((number): number is number => number !== undefined)), nodeLessLastTurnNumber]
+      .filter((number): number is number => number !== undefined),
+  ), [nodeLessLastTurnNumber, turns])
   const queued = useMemo(
     () => (session?.queue ?? []).filter(item => item.placement !== 'context'),
     [session?.queue],
@@ -927,32 +1134,26 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
 
             {turns.map((turn, turnIndex) => {
               const paths = changedPaths(turn)
-              const items = aggregateToolActivity(turn)
               const last = turnIndex === turns.length - 1
-              const firstUserIndex = items.findIndex(item => item.kind === 'user' || item.kind === 'steering')
+              const turnNumber = turn
+                .map(turnNodeNumber)
+                .find((number): number is number => number !== undefined)
+                ?? (last ? nodeLessLastTurnNumber : undefined)
+              const turnRunningCalls = turnNumber === undefined
+                ? []
+                : runningCalls.filter(call => call.turn === turnNumber)
               return (
                 <div className={css.turn} key={turn[0]?.seq ?? turnIndex} data-turn-index={turnIndex}>
-                  {items.map((item, itemIndex) => {
-                    if (item.kind === 'tool-activity') {
-                      return (
-                        <ToolActivityGroup
-                          key={`tool-activity:${item.blocks[0]?.callId ?? 'empty'}`}
-                          group={item}
-                        />
-                      )
-                    }
-                    return (
-                      <Node
-                        sessionId={sessionId}
-                        key={`${item.kind}:${String(item.seq)}`}
-                        node={item}
-                        labels={labels}
-                        feedback={feedback}
-                        highlighted={highlightedTurn === turnIndex && itemIndex === firstUserIndex}
-                        onBranched={() => { setBranchCreated(true) }}
-                      />
-                    )
-                  })}
+                  <TurnView
+                    sessionId={sessionId}
+                    turn={turn}
+                    runningCalls={turnRunningCalls}
+                    labels={labels}
+                    feedback={feedback}
+                    highlighted={highlightedTurn === turnIndex}
+                    running={last && session?.running === true}
+                    onBranched={() => { setBranchCreated(true) }}
+                  />
                   {/* The summary closes a turn only once it has settled; a
                       running turn's edits are still arriving. */}
                   {paths.length > 0 && (!last || session?.running !== true)
@@ -970,7 +1171,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
               )
             })}
 
-            {runningCalls.map(call => (
+            {runningCalls.filter(call => !loadedTurnNumbers.has(call.turn)).map(call => (
               <ToolCard
                 key={call.callId}
                 block={call}
