@@ -1,69 +1,118 @@
-/** Settings: a grouped rail beside one scrolling detail column. */
+/** Settings: DSH-sized centered panel with a glass mask and card groups. */
 
-.surface {
-  display: grid;
+.overlay {
+  position: absolute;
+  z-index: var(--zx-z-dialog);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--zx-scrim);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.panel {
   position: relative;
-  grid-template-columns: 240px 1fr;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
+  z-index: 1;
+  display: flex;
+  width: min(920px, 100%);
+  height: min(680px, 100%);
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
-  background: var(--zx-bg-app);
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-dialog);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-dialog);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
 }
 
 .rail {
   display: flex;
+  flex: 0 0 230px;
   flex-direction: column;
-  gap: 1px;
-  padding: var(--zx-space-2) var(--zx-space-3) var(--zx-space-4);
+  gap: var(--zx-space-3);
+  width: 230px;
+  padding: var(--zx-space-6) var(--zx-space-3) var(--zx-space-4);
+  box-sizing: border-box;
   border-right: 1px solid var(--zx-border-soft);
-  background: var(--zx-bg-panel);
-  overflow: hidden auto;
+  background: color-mix(in srgb, var(--zx-bg-panel) 90%, transparent);
+  overflow: hidden;
 }
 
-.back {
+.railTitle {
+  margin: 0 var(--zx-space-2) var(--zx-space-2);
+  color: var(--zx-label);
+  font-size: var(--zx-text-lg);
+  font-weight: var(--zx-weight-semibold);
+  line-height: 1.5;
+}
+
+.searchShell {
   display: flex;
   align-items: center;
   gap: var(--zx-space-2);
-  height: var(--zx-control-md);
+  height: var(--zx-control-lg);
+  margin: 0 var(--zx-space-1) var(--zx-space-2);
   padding: 0 var(--zx-space-3);
-  margin-bottom: var(--zx-space-2);
-  border: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
   border-radius: var(--zx-radius-md);
-  background: transparent;
-  color: var(--zx-label-secondary);
-  font: inherit;
-  font-size: var(--zx-text-xs);
-  font-weight: var(--zx-weight-medium);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+  background: color-mix(in srgb, var(--zx-label) 6%, transparent);
+  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast);
 }
 
-.back:hover {
-  background: var(--zx-bg-hover);
-  color: var(--zx-label);
+.searchShell:focus-within {
+  border-color: var(--zx-border-control);
+  background: var(--zx-bg-overlay);
+  box-shadow: var(--zx-shadow-focus);
 }
 
-.back:focus-visible,
-.item:focus-visible {
-  outline: none;
-  box-shadow: var(--zx-focus-ring);
-}
-
-.group {
-  padding: var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);
+.searchIcon {
+  flex: none;
   color: var(--zx-label-tertiary);
-  font-size: var(--zx-text-micro);
-  font-weight: var(--zx-weight-semibold);
-  letter-spacing: 0.02em;
+}
+
+.searchShell .search {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.searchShell .search:focus {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.navList {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--zx-space-1);
+  overflow: hidden auto;
 }
 
 .item {
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
-  height: var(--zx-control-md);
+  min-height: 40px;
   padding: 0 var(--zx-space-3);
   border: 0;
   border-radius: var(--zx-radius-md);
@@ -73,6 +122,12 @@
   font-size: var(--zx-text-sm);
   text-align: left;
   cursor: pointer;
+  transition: background var(--zx-motion-fast), color var(--zx-motion-fast);
+}
+
+.item :global(svg) {
+  flex: none;
+  color: var(--zx-label-tertiary);
 }
 
 .item:hover {
@@ -83,21 +138,85 @@
 .itemActive {
   background: var(--zx-bg-active);
   color: var(--zx-label);
+  font-weight: var(--zx-weight-medium);
+}
+
+.itemActive :global(svg) {
+  color: var(--zx-label);
+}
+
+.item:focus-visible,
+.close:focus-visible {
+  outline: none;
+  box-shadow: var(--zx-focus-ring);
+}
+
+.searchEmpty {
+  margin: var(--zx-space-2);
+  color: var(--zx-label-tertiary);
+  font-size: var(--zx-text-micro);
+  line-height: var(--zx-leading-body);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zx-space-3);
+  min-height: 64px;
+  padding: var(--zx-space-5) var(--zx-space-5) var(--zx-space-3) var(--zx-space-6);
+  box-sizing: border-box;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--zx-radius-pill);
+  background: transparent;
+  color: var(--zx-label-secondary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--zx-bg-hover);
+  color: var(--zx-label);
 }
 
 .body {
-  min-width: 0;
+  flex: 1;
+  min-height: 0;
   overflow: hidden auto;
-  padding: var(--zx-space-6) var(--zx-space-7) var(--zx-space-7);
-  background: var(--zx-bg-app);
+  padding: 0 var(--zx-space-6) var(--zx-space-7);
+  background: color-mix(in srgb, var(--zx-bg-overlay) 94%, transparent);
 }
 
 .inner {
-  width: min(820px, 100%);
-  margin: 0 auto;
+  width: min(680px, 100%);
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--zx-space-5);
+  gap: var(--zx-space-6);
+}
+
+.section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--zx-space-3);
 }
 
 /* DSH feature sections keep their own business UI and slot-owned states. This
@@ -110,28 +229,81 @@
 
 .title {
   margin: 0;
-  font-size: var(--zx-text-2xl);
-  font-weight: var(--zx-weight-medium);
   color: var(--zx-label);
+  font-size: var(--zx-text-lg);
+  font-weight: var(--zx-weight-semibold);
+  line-height: 1.5;
 }
 
 .section {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: var(--zx-space-2);
+  gap: var(--zx-space-3);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: var(--zx-text-lg);
-  font-weight: inherit;
   color: var(--zx-label);
+  font-size: var(--zx-text-md);
+  font-weight: var(--zx-weight-semibold);
+  line-height: 1.5;
 }
 
 .sectionBody {
+  margin: 0;
   color: var(--zx-label-muted);
   font-size: var(--zx-text-xs);
   line-height: var(--zx-leading-body);
+}
+
+@media (max-width: 720px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .panel {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    border-inline: 0;
+  }
+
+  .rail {
+    flex-basis: 200px;
+    width: 200px;
+  }
+
+  .body {
+    padding-inline: var(--zx-space-5);
+  }
+}
+
+@media (max-width: 540px) {
+  .rail {
+    flex-basis: 176px;
+    width: 176px;
+  }
+
+  .railTitle {
+    font-size: var(--zx-text-md);
+  }
+
+  .item {
+    gap: var(--zx-space-2);
+    padding-inline: var(--zx-space-2);
+    font-size: var(--zx-text-xs);
+  }
+
+  .header {
+    padding-inline: var(--zx-space-4);
+  }
+
+  .body {
+    padding-inline: var(--zx-space-4);
+  }
 }
 
 .usageTotal {
@@ -209,9 +381,11 @@
 
 .card {
   border: 1px solid var(--zx-border-subtle);
-  border-radius: var(--zx-radius-lg);
-  background: var(--zx-bg-panel);
-  box-shadow: none;
+  border-radius: var(--zx-radius-md);
+  background: color-mix(in srgb, var(--zx-bg-card) 92%, transparent);
+  box-shadow: var(--zx-shadow-card);
+  -webkit-backdrop-filter: var(--zx-glass-filter);
+  backdrop-filter: var(--zx-glass-filter);
   overflow: hidden;
 }
 
@@ -219,8 +393,8 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-3);
-  min-height: var(--zx-control-xl);
-  padding: var(--zx-space-2) var(--zx-space-4);
+  min-height: 48px;
+  padding: var(--zx-space-3) 14px;
 }
 
 .row + .row {

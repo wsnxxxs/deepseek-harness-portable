@@ -63,6 +63,8 @@ export type SettingsSection =
   | 'general'
   | 'appearance'
   | 'models'
+  | 'workspace'
+  | 'data'
   | 'browser'
   | 'computer'
   | 'memory'

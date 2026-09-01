@@ -14,10 +14,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  IconApiOutline14, IconBrowseOutline16, IconChevronLeftOutline14,
-  IconCodeOutline16, IconCordisPluginOutline14, IconDataOutline16,
-  IconFollowsystemOutline16, IconListPenOutline16, IconSettingsOutline16,
-  IconPlusOutline16, IconSkillOutline16, IconSparkle16, IconUserOutline16,
+  IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16,
+  IconFolderOpenOutline16, IconPersonalizationOutline16, IconPlusOutline16,
+  IconSearchOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
@@ -54,14 +53,18 @@ export interface SettingsSurfaceProps {
   readonly sessionId: SessionId | undefined
 }
 
-/** Rail layout: the settings pages visible in the workbench. */
-const RAIL: readonly { id: SettingsSection; label: DcodeKey }[] = [
+/** Official DSH sections first, followed by DCode-only grouped additions. */
+type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'workspace' | 'data'
+
+const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
+  // Keep this order and wording aligned with the official DSH SettingsRoot.
   { id: 'general', label: 'settings.general' },
-  { id: 'models', label: 'settings.models' },
-  { id: 'agentWorkflow', label: 'settings.agentWorkflow' },
-  { id: 'plugins', label: 'settings.plugins' },
-  { id: 'commands', label: 'settings.commands' },
-  { id: 'usage', label: 'settings.usage' },
+  { id: 'models', label: 'settings.modelsNav' },
+  { id: 'plugins', label: 'settings.pluginsNav' },
+  { id: 'agentPresets', label: 'settings.agentPresets' },
+  // DCode additions are grouped after the official surface.
+  { id: 'workspace', label: 'settings.workspaceAndConnections' },
+  { id: 'data', label: 'settings.dataAndAbout' },
 ]
 
 /** A titled block with an explanatory line. */
@@ -1367,28 +1370,99 @@ function UsageSection() {
   )
 }
 
+/** Map direct actions to the official-first navigation groups shown by the modal. */
+function settingsNavSection(section: SettingsSection): SettingsNavSection {
+  switch (section) {
+    case 'models': return 'models'
+    case 'plugins':
+    case 'mcp': return 'plugins'
+    case 'agentWorkflow':
+    case 'agentPresets':
+    case 'memory':
+    case 'subagents': return 'agentPresets'
+    case 'workspace':
+    case 'browser':
+    case 'computer': return 'workspace'
+    case 'data':
+    case 'skills':
+    case 'commands':
+    case 'usage': return 'data'
+    case 'general':
+    case 'appearance': return 'general'
+  }
+}
+
+/** The title shown in the modal content header for a selected page. */
+function settingsTitleKey(section: SettingsSection): DcodeKey {
+  switch (section) {
+    case 'models': return 'settings.modelsNav'
+    case 'plugins':
+    case 'mcp': return 'settings.pluginsNav'
+    case 'agentWorkflow':
+    case 'agentPresets':
+    case 'memory':
+    case 'subagents': return 'settings.agentPresets'
+    case 'workspace':
+    case 'browser':
+    case 'computer': return 'settings.workspaceAndConnections'
+    case 'data':
+    case 'skills':
+    case 'commands':
+    case 'usage': return 'settings.dataAndAbout'
+    case 'general':
+    case 'appearance': return 'settings.general'
+  }
+}
+
+/** Workspace-scoped controls grouped under one DCode-only settings page. */
+function WorkspaceSection() {
+  const t = useT()
+  return (
+    <>
+      <NamespaceSection title={t('settings.browser')} body={t('settings.browserBody')} match={/browser|web|vision/i} />
+      <NamespaceSection title={t('settings.computer')} body={t('settings.computerBody')} match={/shell|terminal|sandbox|permission/i} />
+    </>
+  )
+}
+
+/** Skills, commands, and usage records grouped under one DCode-only data page. */
+function DataSection({ sessionId }: { sessionId: SessionId | undefined }) {
+  return (
+    <>
+      <SkillsSection sessionId={sessionId} />
+      <CommandsSection sessionId={sessionId} />
+      <UsageSection />
+    </>
+  )
+}
+
 /** The settings rail and the selected section. */
 export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps) {
   const t = useT()
   const state = useNavigation(navigation)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => () => { navigation.patch({ settingsProvider: undefined }) }, [navigation])
+  const close = useCallback(() => { navigation.show('session') }, [navigation])
+  useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose: close })
 
-  const icons: Partial<Record<SettingsSection, React.ReactNode>> = {
+  const icons: Record<SettingsNavSection, React.ReactNode> = {
     general: <IconSettingsOutline16 />,
-    models: <IconApiOutline14 size={16} />,
-    browser: <IconBrowseOutline16 />,
-    computer: <IconCodeOutline16 />,
-    memory: <IconDataOutline16 />,
-    subagents: <IconUserOutline16 />,
-    plugins: <IconCordisPluginOutline14 size={16} />,
-    mcp: <IconApiOutline14 size={16} />,
-    agentWorkflow: <IconSparkle16 />,
-    agentPresets: <IconSparkle16 />,
-    skills: <IconSkillOutline16 />,
-    commands: <IconListPenOutline16 />,
-    usage: <IconDataOutline16 />,
+    models: <IconDataOutline16 />,
+    plugins: <IconPersonalizationOutline16 />,
+    agentPresets: <IconAgentPresetOutline16 />,
+    workspace: <IconFolderOpenOutline16 />,
+    data: <IconDatabaseOutline16 />,
   }
+
+  const activeNav = settingsNavSection(state.settingsSection)
+  const visibleRail = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase()
+    if (needle === '') return RAIL
+    return RAIL.filter(item => t(item.label).toLocaleLowerCase().includes(needle))
+  }, [query, t])
 
   // `settings.section` is declared by the official settings shell, and a slot
   // has exactly one declarer, so the workbench cannot own a renderSlot for it.
@@ -1407,13 +1481,16 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'commands': return <CommandsSection sessionId={sessionId} />
       case 'plugins': return <PluginSettingsSection />
       case 'mcp': return <PluginSettingsSection mcpOnly />
-      case 'agentWorkflow':
+      case 'workspace': return <WorkspaceSection />
+      case 'data': return <DataSection sessionId={sessionId} />
       case 'agentPresets': return (
         <>
           <AgentWorkflowSection sessionId={sessionId} />
           <AgentPresetsSection />
+          <SubagentsSection sessionId={sessionId} />
         </>
       )
+      case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'memory':
@@ -1428,37 +1505,56 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
   }
 
   return (
-    <div
-      className={css.surface}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) return
-        event.preventDefault()
-        navigation.show('session')
-      }}
-    >
-      <nav className={css.rail} aria-label={t('settings.title')}>
-        <button type="button" className={css.back} onClick={() => { navigation.show('session') }}>
-          <IconChevronLeftOutline14 />
-          {t('nav.backToWorkspace')}
-        </button>
-        {RAIL.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={`${css.item} ${state.settingsSection === item.id ? css.itemActive : ''}`}
-            aria-current={state.settingsSection === item.id ? 'page' : undefined}
-            onClick={() => { navigation.openSettings(item.id) }}
-          >
-            {icons[item.id] ?? <IconFollowsystemOutline16 />}
-            {t(item.label)}
-          </button>
-        ))}
-      </nav>
-      <div className={css.body}>
-        <div className={css.inner}>
-          <h1 className={css.title}>{t('settings.title')}</h1>
-          {body()}
-        </div>
+    <div className={css.overlay} role="presentation">
+      <div className={css.mask} aria-hidden="true" onClick={close} />
+      <div
+        ref={panelRef}
+        className={css.panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dcode-settings-dialog-title"
+        tabIndex={-1}
+      >
+        <nav className={css.rail} aria-label={t('settings.title')}>
+          <h1 className={css.railTitle} id="dcode-settings-dialog-title">{t('settings.title')}</h1>
+          <label className={css.searchShell}>
+            <IconSearchOutline16 className={css.searchIcon} />
+            <input
+              className={css.search}
+              type="search"
+              value={query}
+              placeholder={t('settings.search')}
+              aria-label={t('settings.search')}
+              onChange={event => { setQuery(event.target.value) }}
+            />
+          </label>
+          <div className={css.navList}>
+            {visibleRail.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${css.item} ${activeNav === item.id ? css.itemActive : ''}`}
+                aria-current={activeNav === item.id ? 'page' : undefined}
+                onClick={() => { setQuery(''); navigation.openSettings(item.id) }}
+              >
+                {icons[item.id]}
+                {t(item.label)}
+              </button>
+            ))}
+          </div>
+          {visibleRail.length === 0 ? <p className={css.searchEmpty}>{t('settings.searchEmpty')}</p> : null}
+        </nav>
+        <main className={css.content}>
+          <header className={css.header}>
+            <h2 className={css.title}>{t(settingsTitleKey(state.settingsSection))}</h2>
+            <button ref={closeRef} type="button" className={css.close} onClick={close} aria-label={t('common.close')}>
+              <IconCloseOutline16 size={14} />
+            </button>
+          </header>
+          <div className={css.body}>
+            <div className={css.inner}>{body()}</div>
+          </div>
+        </main>
       </div>
     </div>
   )

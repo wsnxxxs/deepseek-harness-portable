@@ -545,7 +545,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus])
 
-  const fullSurface = state.view !== 'session'
+  const fullSurface = state.view === 'library' || state.view === 'learning' || state.view === 'plugins'
   // Compact holds both side panels over the conversation instead of beside
   // it, so there they need a scrim to dismiss against.
   const overlayOpen = compactOverlay !== undefined
@@ -572,20 +572,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
           <div className={css.surface}>
             {state.view === 'library' || state.view === 'learning'
               ? <ResourceLibraryHome navigation={navigation} cwd={cwd} sessionId={sessionId} onOpenWorkspace={openWorkspace} />
-              : state.view === 'plugins'
-                ? <PluginsHome navigation={navigation} />
-                : (
-                  <SettingsBoundary
-                    resetKey={state.settingsSection}
-                    t={t}
-                    onBack={() => { navigation.show('session') }}
-                  >
-                    <SettingsSurface
-                      navigation={navigation}
-                      sessionId={sessionId}
-                    />
-                  </SettingsBoundary>
-                )}
+              : <PluginsHome navigation={navigation} />}
           </div>
         )
         : (
@@ -707,6 +694,20 @@ export function Workbench({ navigation }: WorkbenchProps) {
             </div>
           </>
         )}
+      {state.view === 'settings'
+        ? (
+          <SettingsBoundary
+            resetKey={state.settingsSection}
+            t={t}
+            onBack={() => { navigation.show('session') }}
+          >
+            <SettingsSurface
+              navigation={navigation}
+              sessionId={sessionId}
+            />
+          </SettingsBoundary>
+        )
+        : null}
       {state.paletteOpen
         ? (
           <CommandPalette

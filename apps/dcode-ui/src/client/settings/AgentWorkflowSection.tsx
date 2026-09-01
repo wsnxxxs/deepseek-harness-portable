@@ -464,7 +464,7 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
 
   return (
     <>
-      <Section title={t('settings.agentWorkflow')} body={t('settings.agentWorkflowBody')}>
+      <Section title={t('settings.agentWorkflowModesTitle')} body={t('settings.agentWorkflowBody')}>
         {roster.loading
           ? <div className={css.card}><EmptyState><Spinner /></EmptyState></div>
           : roster.error !== undefined
