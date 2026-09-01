@@ -1,34 +1,38 @@
-# DCode Codex-style workbench QA
+# DCode plan preview visual QA
 
-## Visual references
+## Comparison target
 
-- Reference chrome: `C:/Users/Ryan/Pictures/Screenshots/屏幕截图 2026-08-29 024318.png`
-- Reference compact state: `C:/Users/Ryan/Pictures/Screenshots/屏幕截图 2026-08-29 024323.png`
-- Implementation panel state: `design-qa-implementation-panel-1814x1127.png`
-- Implementation compact state: `design-qa-implementation-empty-878x1127.png`
+- Source visual truth: `C:\Users\Ryan\AppData\Local\Temp\codex-clipboard-f8da19f6-d5c4-4bbb-ad21-267c2502f73e.png`
+- Source pixels: 657 × 489; CSS viewport represented by the capture: 657 × 489; density normalization: none.
+- Intended state: completed plan proposal with a collapsed/expandable header, readable Markdown summary and implementation sections, Modify/Execute actions, and a lower-left DSH whale status mark.
 
-The reference and implementation were opened together for comparison. The implementation keeps the existing DCode tokens and primitives while matching the reference's dark chrome, compact controls, floating card, border contrast, and rounded corners.
+## Implementation evidence
 
-## Checked states
+- Implementation screenshot: not captured.
+- Intended implementation: the authenticated DSH desktop runtime with `dcode-ui` selected.
+- The current local DSH web endpoint is protected by its launch-token exchange. The available in-app browser could open the source capture, but direct access to the running DSH endpoint was blocked before the page rendered, so no implementation image is substituted here.
+- Build evidence: `pnpm --filter @dsh-portable/dcode-ui test` passed TypeScript compilation, bundle generation, 10 focused Vitest tests, and 127 Node tests.
 
-- Wide panel state at 1814×1127: the right card floats over the workbench at the upper-right and the center remains full width.
-- Compact state at 878×1127: the session rail and preview card can be independently collapsed without leaving a grid gap.
-- Narrow viewport at 420×700: the card is capped by `min(300px, calc(100vw - 32px))` and remains vertically scrollable.
-- Top controls: Share/export, pinned summary, preview/details, and session-rail layout controls are separate buttons. The left session-rail toggle remains available at the left edge of the workbench bar.
+## State and comparison
 
-## Interaction checks
+- Full-view comparison: blocked because the implementation artifact is missing.
+- Focused region comparison: blocked for the same reason; the card header, Markdown rhythm, footer actions, and whale asset still need a same-viewport rendered check.
+- No P0/P1/P2 visual finding is asserted without the rendered implementation image.
 
-- Preview button hides only the floating card.
-- Summary button changes only the pinned summary visibility.
-- Session-rail button collapses only the left session list.
-- Workspace controls use the existing workspace navigation and native directory picker path.
-- Changed files continue to open the existing `DiffViewer`; details continue to resolve tool arguments/output and file contents.
-- Trace rows consume the DSH `trajectory` target and can open the corresponding details view.
-- Share calls the injected DSH session-log exporter and exposes preparing/success/failure states.
+## Open questions
 
-## Verification
+- Verify the authenticated DCode desktop runtime at 657 × 489 (or its actual content viewport) and compare the completed proposal state against the source capture.
+- Verify the pending plan-review state does not show a second action footer; the implementation suppresses proposal actions during a plan transition and leaves approval to the pending interaction card.
 
-- `pnpm --filter @dsh-portable/dcode-ui test` — passed: 57 tests, 0 failures.
-- DCode preview booted successfully after removing the duplicate `settings.section` registration.
+## Implementation checklist
 
-final result: passed
+- [x] Parse completed and streaming `<proposed_plan>` envelopes into a dedicated preview card.
+- [x] Render a lightbulb header, H1 title split, Markdown body, fold control, and DCode glass tokens.
+- [x] Add localized Modify/Execute actions and refinement input.
+- [x] Reuse the DSH `FishLogo` for the completed/standing-by status row.
+- [x] Reuse the same card for plan-review interactions.
+- [ ] Capture and compare the running DCode UI at the source viewport.
+
+## Final result
+
+final result: blocked

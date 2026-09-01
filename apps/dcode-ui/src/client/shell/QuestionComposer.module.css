@@ -259,8 +259,7 @@
   border-color: var(--zx-accent);
 }
 
-.footer,
-.reviewFooter {
+.footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -270,7 +269,12 @@
 }
 
 .reviewFooter {
-  padding-top: var(--zx-space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--zx-space-2);
+  width: 100%;
+  padding: 0;
 }
 
 .feedback {
@@ -302,8 +306,7 @@
     padding-left: var(--zx-space-4);
   }
 
-  .footer,
-  .reviewFooter {
+  .footer {
     align-items: flex-end;
   }
 

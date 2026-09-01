@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import {
   IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14,
-  IconChecklistOutline14, IconCloseOutline16, IconEditOutline16,
+  IconCloseOutline16, IconEditOutline16,
   IconQuestionOutline14, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -12,6 +12,7 @@ import type {
 } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
 import { Button, Spinner } from './ui.tsx'
+import { PlanPreviewCard } from '../chat/PlanPreview.tsx'
 import css from './QuestionComposer.module.css'
 
 interface DraftAnswer {
@@ -372,43 +373,41 @@ function PlanReviewCard({ pending, review }: { pending: DcodePendingInteraction;
 
   return (
     <div className={css.frame} data-plan-review-key={pending.key}>
-      <section className={`${css.card} ${css.reviewCard}`} aria-label={review.question}>
-        <header className={css.reviewHeader}>
-          <span className={css.kicker}><IconChecklistOutline14 />{t('question.planReview')}</span>
-        </header>
-        <div className={css.reviewBody}>
-          <h2 className={css.title}>{review.question}</h2>
-          <div className={css.plan}>
-            <MarkdownText text={review.plan} labels={labels} />
-          </div>
-        </div>
-        <footer className={css.reviewFooter}>
-          <div className={css.feedback} role="alert">{error}</div>
-          <div className={css.footerActions}>
-            <Button disabled={busy} onClick={() => { settle(() => pending.cancel()) }}>
-              {t('question.discuss')}
-            </Button>
-            {review.decline === undefined ? null : (
-              <Button
-                disabled={busy}
-                title={review.decline.description}
-                onClick={() => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline!.label] }] })) }}
-              >
-                {t('question.decline')}
+      <PlanPreviewCard
+        markdown={review.plan}
+        labels={labels}
+        current
+        showStatus
+        ariaLabel={review.question}
+        footer={(
+          <div className={css.reviewFooter}>
+            <div className={css.feedback} role="alert">{error}</div>
+            <div className={css.footerActions}>
+              <Button disabled={busy} onClick={() => { settle(() => pending.cancel()) }}>
+                {t('question.discuss')}
               </Button>
-            )}
-            <Button
-              primary
-              autoFocus
-              disabled={busy}
-              title={review.approve.description}
-              onClick={() => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })) }}
-            >
-              {busy ? <><Spinner size="sm" />{t('question.submitting')}</> : t('question.approve')}
-            </Button>
+              {review.decline === undefined ? null : (
+                <Button
+                  disabled={busy}
+                  title={review.decline.description}
+                  onClick={() => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.decline!.label] }] })) }}
+                >
+                  {t('question.decline')}
+                </Button>
+              )}
+              <Button
+                primary
+                autoFocus
+                disabled={busy}
+                title={review.approve.description}
+                onClick={() => { settle(() => pending.answer({ answers: [{ id: review.id, selected: [review.approve.label] }] })) }}
+              >
+                {busy ? <><Spinner size="sm" />{t('question.submitting')}</> : t('question.approve')}
+              </Button>
+            </div>
           </div>
-        </footer>
-      </section>
+        )}
+      />
     </div>
   )
 }

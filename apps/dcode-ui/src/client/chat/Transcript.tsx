@@ -39,6 +39,7 @@ import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { MessageNavRail } from '../shell/MessageNavRail.tsx'
 import { ToolCard } from './ToolCard.tsx'
 import { FileChanges } from './FileChanges.tsx'
+import { extractProposedPlan, PlanPreviewCard } from './PlanPreview.tsx'
 import { useMessageFeedback, type MessageFeedbackState } from './message-feedback.ts'
 import {
   aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns,
@@ -334,6 +335,26 @@ function AssistantBlocks(props: {
     <div className={css.blockGap}>
       {props.blocks.map((block, index) => {
         if (block.kind === 'text') {
+          const proposedPlan = extractProposedPlan(block.text, props.streaming)
+          if (proposedPlan !== undefined) {
+            return (
+              <div className={css.proposalBlock} key={index}>
+                {proposedPlan.before === ''
+                  ? null
+                  : <div className={css.assistant}><MarkdownText text={proposedPlan.before} streaming={props.streaming} labels={props.labels} /></div>}
+                <PlanPreviewCard
+                  sessionId={props.sessionId}
+                  markdown={proposedPlan.plan}
+                  partial={proposedPlan.partial}
+                  labels={props.labels}
+                  showStatus
+                />
+                {proposedPlan.after === ''
+                  ? null
+                  : <div className={css.assistant}><MarkdownText text={proposedPlan.after} streaming={props.streaming} labels={props.labels} /></div>}
+              </div>
+            )
+          }
           return (
             <div className={css.assistant} key={index}>
               <MarkdownText text={block.text} streaming={props.streaming} labels={props.labels} />
