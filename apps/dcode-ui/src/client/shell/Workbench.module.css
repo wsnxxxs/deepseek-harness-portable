@@ -270,7 +270,7 @@ html:not([data-dcode-acrylic]) .root[data-dcode-acrylic] {
   visibility: hidden;
 }
 
-/* One full-bleed resource surface replacing rail + center + aside. */
+/* One full-bleed plugin surface replacing rail + center + aside. */
 .surface {
   grid-column: 1 / -1;
   display: flex;

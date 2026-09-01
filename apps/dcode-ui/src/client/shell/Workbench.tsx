@@ -545,10 +545,10 @@ export function Workbench({ navigation }: WorkbenchProps) {
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus])
 
-  // Resource browsing owns the whole frame; plugins and settings are modal
-  // cards over the workspace so the operator can return without losing the
-  // current task context.
-  const fullSurface = state.view === 'library' || state.view === 'learning'
+  // Plugins is the only full-frame surface. Settings and the resource library
+  // are modal cards over the workspace so the operator can return without
+  // losing the current task context.
+  const fullSurface = state.view === 'plugins'
   // Compact holds both side panels over the conversation instead of beside
   // it, so there they need a scrim to dismiss against.
   const overlayOpen = compactOverlay !== undefined
@@ -573,9 +573,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
       {fullSurface
         ? (
           <div className={css.surface}>
-            {state.view === 'library' || state.view === 'learning'
-              ? <ResourceLibraryHome navigation={navigation} cwd={cwd} sessionId={sessionId} onOpenWorkspace={openWorkspace} />
-              : <PluginsHome navigation={navigation} />}
+            <PluginsHome navigation={navigation} />
           </div>
         )
         : (
@@ -697,8 +695,15 @@ export function Workbench({ navigation }: WorkbenchProps) {
             </div>
           </>
         )}
-      {state.view === 'plugins'
-        ? <PluginsHome navigation={navigation} />
+      {state.view === 'library' || state.view === 'learning'
+        ? (
+          <ResourceLibraryHome
+            navigation={navigation}
+            cwd={cwd}
+            sessionId={sessionId}
+            onOpenWorkspace={openWorkspace}
+          />
+        )
         : null}
       {state.view === 'settings'
         ? (

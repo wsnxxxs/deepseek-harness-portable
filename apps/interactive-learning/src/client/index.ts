@@ -30,6 +30,11 @@ import { en, zh } from './locales.ts'
 
 export { subscribeLearningUiLifecycle, type LearningUiLifecycleEvent } from './lifecycle.ts'
 export { VaultLibrary, VaultView, type VaultViewInjected } from './VaultView.tsx'
+export {
+  VaultLibraryDialog,
+  type VaultLibraryDialogProps,
+  type VaultLibraryTopic,
+} from './VaultLibraryDialog.tsx'
 export { VaultKeepAction, messageText, titleFrom, type VaultKeepInjected } from './VaultKeep.tsx'
 export {
   notifyVaultRosterRefresh,

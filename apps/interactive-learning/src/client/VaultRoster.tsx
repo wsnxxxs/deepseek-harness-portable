@@ -24,24 +24,20 @@
  * @module @dsh-portable/interactive-learning/src/client/VaultRoster
  */
 
-import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { IconBrowseOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { learningScope } from './tokens.ts'
 import css from './VaultView.module.css'
-import { VaultLibrary } from './VaultView.tsx'
+import { VaultLibraryDialog, type VaultLibraryTopic } from './VaultLibraryDialog.tsx'
 
 /** One vault, as `vault-rpc.ts` projects it for this list. */
-export interface RosterVault {
-  cwd: string
-  title: string
+export interface RosterVault extends VaultLibraryTopic {
   root: string
   sources: number
   concepts: number
   notes: number
-  due: number
   blocked: number
 }
 
@@ -163,15 +159,6 @@ export function VaultRosterAction({
       : roster.vaults[0]?.cwd)
   }, [roster])
 
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [open])
-
   if (roster === undefined || roster.vaults.length === 0) return null
 
   const selected = roster.vaults.find(vault => vault.cwd === selectedCwd) ?? roster.vaults[0]!
@@ -194,60 +181,15 @@ export function VaultRosterAction({
         )}
       </button>
 
-      {open && typeof document !== 'undefined' && createPortal(
-        <div {...learningScope} className={css.libraryOverlay} role="presentation">
-          <div className={css.libraryMask} aria-hidden="true" onClick={() => { setOpen(false) }} />
-          <div className={css.libraryPanel} role="dialog" aria-modal="true" aria-label={t('vaultRosterTitle')}>
-            <section className={css.libraryMain}>
-              <div className={css.libraryHeader}>
-                <IconBrowseOutline16 size={16} />
-                <span className={css.libraryHeaderTitle}>{selected.title}</span>
-                <span className={css.libraryNavMeta}>
-                  {t('vaultLibraryTopics', { count: String(roster.vaults.length) })}
-                </span>
-                <button
-                  type="button"
-                  className={css.libraryClose}
-                  aria-label={t('vaultKeepClose')}
-                  onClick={() => { setOpen(false) }}
-                >
-                  <IconCloseOutline16 size={14} />
-                </button>
-              </div>
-              <div className={css.libraryScroll}>
-                <VaultLibrary
-                  cwd={selected.cwd}
-                  call={call}
-                  t={t}
-                  embedded
-                  onClose={() => { setOpen(false) }}
-                  topics={roster.vaults.length < 2 ? undefined : (
-                    <div className={css.libraryTopicGroup}>
-                      <p className={css.libraryTopicHeading}>{t('vaultRosterTitle')}</p>
-                      <ul className={css.libraryTopicList}>
-                        {roster.vaults.map(vault => (
-                          <li key={vault.cwd}>
-                            <button
-                              type="button"
-                              className={vault.cwd === selected.cwd ? css.libraryTopicOn : css.libraryTopic}
-                              aria-current={vault.cwd === selected.cwd ? 'page' : undefined}
-                              onClick={() => { setSelectedCwd(vault.cwd) }}
-                            >
-                              <span className={css.libraryTopicName}>{vault.title}</span>
-                              {vault.due > 0 && <span className={css.railDue}>{String(vault.due)}</span>}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                />
-              </div>
-            </section>
-          </div>
-        </div>,
-        document.body,
-      )}
+      <VaultLibraryDialog
+        open={open}
+        topics={roster.vaults}
+        selectedCwd={selected.cwd}
+        call={call}
+        t={t}
+        onSelectCwd={setSelectedCwd}
+        onClose={() => { setOpen(false) }}
+      />
     </div>
   )
 }
