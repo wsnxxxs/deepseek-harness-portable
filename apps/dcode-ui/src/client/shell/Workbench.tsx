@@ -615,13 +615,17 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 open={state.summaryOpen}
                 compact={state.layout === 'compact'}
               />
-              <Transcript
-                navigation={navigation}
-                sessionId={sessionId}
-                cwd={cwd}
-                blank={blank}
-                compact={state.layout === 'compact'}
-              />
+              {fullSubagentConversation === undefined
+                ? (
+                  <Transcript
+                    navigation={navigation}
+                    sessionId={sessionId}
+                    cwd={cwd}
+                    blank={blank}
+                    compact={state.layout === 'compact'}
+                  />
+                )
+                : null}
               {/* The composer seat is the plan card's anchor. The card is
                   absolutely positioned above this wrapper, so it floats over
                   the transcript instead of shortening its scroll viewport. */}

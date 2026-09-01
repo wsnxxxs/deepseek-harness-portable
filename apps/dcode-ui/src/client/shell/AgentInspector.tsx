@@ -7,7 +7,7 @@
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
  */
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   IconCheckOutline14, IconChevronLeftOutline14,
   IconChevronRightOutline14, IconCloseOutline16, IconRefreshOutline14,
@@ -231,7 +231,7 @@ export function SubagentConversationDialog({
 
   useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setOpenFailure(undefined)
     try {
       runtime.sessions.openSubagent(address)
