@@ -1,7 +1,7 @@
 /**
- * Metis-inspired Inspector content for the DCode workbench.
+ * DCode-native Inspector content for the DCode workbench.
  *
- * The component hierarchy follows Metis's Files Changed / Plan / Subagents
+ * The component hierarchy follows the DCode Files Changed / Plan / Subagents
  * stack, but each row is backed by an existing DSH source: Git status,
  * projections, Session Controller catalogs, and the child conversation feed.
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
@@ -57,7 +57,7 @@ function fileStatusMark(file: GitFileChange): string {
   }
 }
 
-/** Metis's compact Files Changed section, using the DCode Git host channel. */
+/** DCode's compact Files Changed section, using the DCode Git host channel. */
 export function ChangedFilesOverview({
   cwd,
   sessionId,
@@ -159,7 +159,7 @@ function SubagentRow({
   )
 }
 
-/** Metis's Subagents section over Session Controller's live direct-child catalog. */
+/** DCode's Subagents section over Session Controller's live direct-child catalog. */
 export function SubagentsPanel({
   sessionId,
   selectedId,
@@ -266,7 +266,7 @@ function childTask(nodes: readonly ConversationNode[], fallback: string): string
   return fallback
 }
 
-/** Detailed child view, following Metis's back / copy-log / transcript pattern. */
+/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
 export function SubagentDetailPanel({
   parentSessionId,
   entry,

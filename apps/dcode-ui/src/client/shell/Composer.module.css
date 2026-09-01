@@ -479,7 +479,7 @@
   flex: 1 1 auto;
 }
 
-/* Metis's Plan/Build mode rail, backed by the host plan projection and the
+/* DCode's Plan/Build mode rail, backed by the host plan projection and the
    existing /plan command. It stays a compact glass segment in the DCode
    composer rather than introducing another mode store. */
 .modeSwitch {

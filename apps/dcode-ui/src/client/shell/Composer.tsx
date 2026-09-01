@@ -54,7 +54,7 @@ interface PermissionSelectView {
   readonly options: readonly { readonly value: string; readonly name: string; readonly description?: string }[]
 }
 
-/** Host-computed plan-mode projection used by the Metis Plan/Build switch. */
+/** Host-computed plan-mode projection used by the DCode Plan/Build switch. */
 interface PlanProjectionView {
   readonly active: boolean
   readonly pending: boolean

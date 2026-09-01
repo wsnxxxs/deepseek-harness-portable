@@ -1,5 +1,5 @@
 /**
- * The Metis-style agent identity seat in the chat header.
+ * The DCode-native agent identity seat in the chat header.
  *
  * The label is resolved from the same agent-preset projection and roster used
  * by the composer. It is a navigation affordance, not a second preset store:
@@ -26,7 +26,7 @@ interface AgentPresetCatalog {
   readonly presets?: readonly AgentPresetRow[]
 }
 
-/** Current agent identity, patterned after Metis's ChatHeader agent pill. */
+/** Current agent identity, presented as a compact DCode agent pill. */
 export function AgentIdentity({ navigation, sessionId }: { navigation: NavigationStore; sessionId: SessionId | undefined }) {
   const runtime = useRuntime()
   const t = useT()
