@@ -29,6 +29,7 @@ const { patchAgentTeamToolScope } = require('../../../patches/dsh-experimental-t
 const TEAM_TOOLS = [
   'followup_task',
   'interrupt_agent',
+  'kill_agent',
   'list_agents',
   'send_message',
   'spawn_teammate',
