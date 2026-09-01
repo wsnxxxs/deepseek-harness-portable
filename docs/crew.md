@@ -1,7 +1,7 @@
-# Crew: mission work on a shared task board
+# Swarm mode: mission work on a shared task board
 
 Crew is one backend capability surfaced as a runtime mode and a dossier-backed
-workflow. In the user interface the mode is labelled **Cluster mode** (Chinese:
+workflow. In the user interface the mode is labelled **Swarm mode** (Chinese:
 集群模式), while the stable runtime id remains `crew`.
 
 The capability is delivered in two parts that only make sense together:
@@ -15,7 +15,7 @@ The capability is delivered in two parts that only make sense together:
 `apps/runtime/config/agent-presets/crew/`. What makes it a different mode is the
 composition, not the persona:
 
-| | Standard | Crew |
+| | Standard | Swarm (`crew`) |
 | --- | --- | --- |
 | Delegation | continuable children via `tool-subagent-control` | named durable teammates via `tool-agent-team` |
 | Coordination | none beyond the parent's own turn | a shared task board with dependencies and write scopes |

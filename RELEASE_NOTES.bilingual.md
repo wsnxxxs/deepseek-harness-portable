@@ -5,7 +5,7 @@ Windows x64 桌面版 · 2026-08-30
 ## 更新内容
 
 - 优化 DCode 工作台、悬浮输入框、消息导航、变更审阅、终端体验与响应式布局。
-- 新增可选的集群（`crew`）模式：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。
+- 新增可选的集群编排（英文界面：Swarm mode，运行时 id：`crew`）：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。
 - 抽出可复用的资料库内核，让 Learning 与资料档案任务共享材料摄入、锚点、重锚和词法检索能力。
 - 完善插件管理、后台更新、安装器预检和历史缓存清理。
 - 更新学习模式与本地资料导入、检索和复习能力；相关功能仍在持续演进。
@@ -28,7 +28,7 @@ Windows x64 desktop release · 2026-08-30
 ### Changes
 
 - Refined the DCode workbench, floating composer, message navigation, change review, terminal experience, and responsive layouts.
-- Added the optional Cluster (`crew`) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.
+- Added the optional Swarm (`crew`) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.
 - Extracted the reusable material-space kernel so Learning and dossier-backed tasks share ingestion, anchors, re-anchoring, and lexical search behavior.
 - Improved plugin management, background updates, installer preflight checks, and stale update-cache cleanup.
 - Updated Learning Mode and local material import, retrieval, and review capabilities; these areas remain under active development.

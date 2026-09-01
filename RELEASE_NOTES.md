@@ -7,7 +7,7 @@ Windows x64 desktop release · 2026-08-30
 ## Changes
 
 - Refined the DCode workbench, floating composer, message navigation, change review, terminal experience, and responsive layouts.
-- Added the optional Cluster (`crew`) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.
+- Added the optional Swarm (`crew`) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.
 - Extracted the reusable material-space kernel so Learning and dossier-backed tasks share ingestion, anchors, re-anchoring, and lexical search behavior.
 - Improved plugin management, background updates, installer preflight checks, and stale update-cache cleanup.
 - Updated Learning Mode and local material import, retrieval, and review capabilities; these areas remain under active development.

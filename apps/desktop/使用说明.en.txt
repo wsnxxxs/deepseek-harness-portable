@@ -36,9 +36,9 @@ Chinese guide: 使用说明.txt
    Removes the portable application, shortcuts, and PATH entry. User data is kept
    unless you explicitly confirm its removal.
 
-Cluster mode (runtime id: crew) appears in the DCode Agent workspace when the
-Agent Teams runtime is available. It provides named teammates, a shared task
-board, and dossier-backed material search.
+Swarm mode (runtime id: crew) appears in the DCode Agent workspace when the
+Agent Teams runtime is available. Its Cluster orchestration panel provides
+named teammates, a shared task board, and dossier-backed material search.
 
 The marketplace is preinstalled once per Web profile and can be disabled or
 removed under Settings → Plugins → Installed; restart does not restore it.

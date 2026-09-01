@@ -16,7 +16,7 @@ DCode 将会话和工作区放在同一界面，环境信息与终端，以及�
 
 ### 多智能体任务有共享上下文
 
-集群模式（运行时 id 为 `crew`，英文界面显示为 Cluster mode）将具名队友、共享任务看板、依赖关系和写入范围放在同一任务中；DCode Agent 工作台直接读取宿主保存的队伍状态。操作者还可以附加资料档案，让队友通过只读工具检索带来源的任务材料。
+集群模式（运行时 id 为 `crew`，英文界面显示为 Swarm mode）将具名队友、共享任务看板、依赖关系和写入范围放在同一任务中；DCode Agent 工作台通过集群编排面板直接读取宿主保存的队伍状态。操作者还可以附加资料档案，让队友通过只读工具检索带来源的任务材料。
 
 ### 扩展能力保持独立
 
@@ -51,6 +51,6 @@ Learning 模式支持概念讲解和疑惑澄清，也能用于材料学习。�
 - Windows 的 Minimal 模式依赖可用的默认 WSL 发行版；macOS 和 Linux 使用原生 `/bin/bash` POSIX PTY。
 - Linux 沙箱模式依赖可用的 bwrap/Landlock 后端，无法执行约束时保持失败关闭。
 - 插件市场中的条目属于第三方代码，安装前需要检查来源、构建脚本和权限。
-- 集群模式依赖上游 Agent Teams experimental 包；该依赖不可用时，Cluster/`crew` 会从模式选择器中移除，其他模式和 DCode 工作台仍可用。
+- 集群模式依赖上游 Agent Teams experimental 包；该依赖不可用时，Swarm/`crew` 会从模式选择器中移除，其他模式和 DCode 工作台仍可用。
 
-安装步骤、平台要求和常见问题见[中文 README](README.zh.md)；集群模式的运行时与资料档案见[Cluster 文档](docs/crew.md)，内部能力探测与发布门禁见[运行时架构](docs/runtime-architecture.md)。
+安装步骤、平台要求和常见问题见[中文 README](README.zh.md)；集群模式的运行时与资料档案见[Swarm 文档](docs/crew.md)，内部能力探测与发布门禁见[运行时架构](docs/runtime-architecture.md)。
