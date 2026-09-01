@@ -577,7 +577,6 @@ export const en = {
   'settings.browser': 'Browser control',
   'settings.computer': 'Computer control',
   'settings.memory': 'Memory',
-  'settings.subagents': 'Subagents',
   'settings.plugins': 'Plugin configuration',
   'settings.mcp': 'MCP servers',
   'settings.skills': 'Skills',
@@ -826,7 +825,6 @@ export const en = {
   'settings.commandsEmpty': 'No commands are available.',
   'settings.inventoryEmpty': 'No installed plugins are available.',
   'settings.presetsEmpty': 'No Agent presets are available.',
-  'settings.subagentsEmpty': 'No subagent configurations are available.',
   'settings.namespaceEmpty': 'This namespace has no configurable fields.',
   'settings.usageTurns': 'Recorded turns',
 
@@ -1606,7 +1604,6 @@ export const zh: Record<DcodeKey, string> = {
   'settings.browser': '浏览器控制',
   'settings.computer': '电脑控制',
   'settings.memory': '记忆',
-  'settings.subagents': '子智能体',
   'settings.plugins': '插件配置',
   'settings.mcp': 'MCP 服务器',
   'settings.skills': '技能',
@@ -1855,7 +1852,6 @@ export const zh: Record<DcodeKey, string> = {
   'settings.commandsEmpty': '当前没有可用命令。',
   'settings.inventoryEmpty': '当前没有可用的已安装插件。',
   'settings.presetsEmpty': '当前没有可用的 Agent 预设。',
-  'settings.subagentsEmpty': '当前没有可用的子智能体配置。',
   'settings.namespaceEmpty': '此命名空间没有可配置字段。',
   'settings.usageTurns': '已记录回合',
 

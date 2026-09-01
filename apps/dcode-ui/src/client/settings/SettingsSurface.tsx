@@ -1372,44 +1372,6 @@ function AgentPresetsSection() {
   )
 }
 
-/** Direct subagents of the current session. */
-function SubagentsSection({ sessionId }: { sessionId: SessionId | undefined }) {
-  const runtime = useRuntime()
-  const t = useT()
-  const catalog = useAsync(
-    async (signal) => (sessionId === undefined ? undefined : await runtime.remote.subagents.list(sessionId, signal)),
-    [runtime, sessionId],
-  )
-
-  if (sessionId === undefined) return <EmptyState>{t('composer.needsSession')}</EmptyState>
-  if (catalog.loading) return <EmptyState><Spinner /></EmptyState>
-  if (catalog.error !== undefined) return <EmptyState>{catalog.error}</EmptyState>
-  if (catalog.value?.ok === false) return <EmptyState>{catalog.value.error.message}</EmptyState>
-  const entries = catalog.value?.ok === true
-    ? catalog.value.value.entries
-    : []
-
-  return (
-    <Section title={t('settings.subagents')} body={t('settings.count', { count: entries.length })}>
-      {entries.length === 0
-        ? <EmptyState>{t('settings.subagentsEmpty')}</EmptyState>
-        : (
-          <div className={css.card}>
-            {entries.map(entry => (
-              <Row
-                key={entry.id}
-                title={entry.kind === 'child' ? entry.label ?? entry.id : entry.id}
-                body={entry.kind === 'child'
-                  ? `${entry.activity} · ${entry.mode}`
-                  : entry.reason}
-              />
-            ))}
-          </div>
-        )}
-    </Section>
-  )
-}
-
 /**
  * Registered settings namespaces, filtered to those a section is about.
  *
@@ -1550,7 +1512,7 @@ function settingsNavSection(section: SettingsSection): SettingsNavSection {
     case 'agentWorkflow':
     case 'agentPresets':
     case 'memory':
-    case 'subagents': return 'agentPresets'
+      return 'agentPresets'
     case 'data':
     case 'skills':
     case 'commands':
@@ -1571,7 +1533,7 @@ function settingsTitleKey(section: SettingsSection): DcodeKey {
     case 'agentWorkflow':
     case 'agentPresets':
     case 'memory':
-    case 'subagents': return 'settings.agentPresets'
+      return 'settings.agentPresets'
     case 'data':
     case 'skills':
     case 'commands':
@@ -1645,11 +1607,9 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
         <>
           <AgentWorkflowSection sessionId={sessionId} />
           <AgentPresetsSection />
-          <SubagentsSection sessionId={sessionId} />
         </>
       )
       case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
-      case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
       case 'archivedChats': return <ArchivedChatsSection navigation={navigation} />
       case 'about': return <AboutSection />
