@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16,
   IconPersonalizationOutline16, IconPlusOutline16,
-  IconSearchOutline16, IconSettingsOutline16,
+  IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
@@ -53,8 +53,8 @@ export interface SettingsSurfaceProps {
   readonly sessionId: SessionId | undefined
 }
 
-/** Official DSH sections shown in the settings rail. */
-type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data'
+/** Settings sections shown in the DCode settings rail. */
+type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data' | 'about'
 
 const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   // Keep this order and wording aligned with the official DSH SettingsRoot.
@@ -62,6 +62,7 @@ const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   { id: 'models', label: 'settings.modelsNav' },
   { id: 'plugins', label: 'settings.pluginsNav' },
   { id: 'agentPresets', label: 'settings.agentPresets' },
+  { id: 'about', label: 'settings.about' },
 ]
 
 /** A titled block with an explanatory line. */
@@ -85,6 +86,64 @@ function Row(props: { title: string; body?: string; control?: React.ReactNode })
       </div>
       {props.control}
     </div>
+  )
+}
+
+interface ClientBuildInfo {
+  readonly version: string | undefined
+  readonly commit: string | undefined
+  readonly dirty: boolean
+}
+
+/** Read the same public build metadata used by the shared DSH client shell. */
+function clientBuildInfo(): ClientBuildInfo {
+  const version = process.env.DSH_CLIENT_VERSION?.trim() || undefined
+  const commit = process.env.DSH_CLIENT_COMMIT_HASH?.trim() || undefined
+  return {
+    version,
+    commit,
+    dirty: process.env.DSH_CLIENT_GIT_DIRTY === 'true',
+  }
+}
+
+/** Product identity and build metadata for the DCode settings rail. */
+function AboutSection() {
+  const t = useT()
+  const build = clientBuildInfo()
+
+  return (
+    <Section title={t('settings.about')} body={t('settings.aboutBody')}>
+      <div className={css.aboutHero}>
+        <div className={css.aboutIcon} aria-hidden="true"><IconQuestionOutline14 size={18} /></div>
+        <div className={css.aboutCopy}>
+          <h3 className={css.aboutName}>{t('settings.aboutProduct')}</h3>
+          <p className={css.aboutDescription}>{t('settings.aboutDescription')}</p>
+        </div>
+      </div>
+      <div className={css.card}>
+        <Row
+          title={t('settings.aboutVersion')}
+          body={t('settings.aboutVersionBody')}
+          control={<span className={css.rowMono}>{build.version === undefined ? t('settings.aboutVersionDevelopment') : `v${build.version}`}</span>}
+        />
+        {build.commit === undefined ? null : (
+          <Row
+            title={t('settings.aboutCommit')}
+            control={<span className={css.rowMono}>{build.commit}</span>}
+          />
+        )}
+        {build.commit === undefined ? null : (
+          <Row
+            title={t('settings.aboutBuild')}
+            control={(
+              <span className={`${css.badge} ${build.dirty ? css.aboutStatusDirty : css.aboutStatusClean}`}>
+                {build.dirty ? t('settings.aboutBuildDirty') : t('settings.aboutBuildClean')}
+              </span>
+            )}
+          />
+        )}
+      </div>
+    </Section>
   )
 }
 
@@ -1384,6 +1443,7 @@ function settingsNavSection(section: SettingsSection): SettingsNavSection {
     case 'skills':
     case 'commands':
     case 'usage': return 'data'
+    case 'about': return 'about'
     case 'general':
     case 'appearance': return 'general'
   }
@@ -1403,6 +1463,7 @@ function settingsTitleKey(section: SettingsSection): DcodeKey {
     case 'skills':
     case 'commands':
     case 'usage': return 'settings.dataAndAbout'
+    case 'about': return 'settings.about'
     case 'general':
     case 'appearance': return 'settings.general'
   }
@@ -1437,6 +1498,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     plugins: <IconPersonalizationOutline16 />,
     agentPresets: <IconAgentPresetOutline16 />,
     data: <IconDatabaseOutline16 />,
+    about: <IconQuestionOutline14 />,
   }
 
   const activeNav = settingsNavSection(state.settingsSection)
@@ -1474,6 +1536,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
       case 'subagents': return <SubagentsSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
+      case 'about': return <AboutSection />
       case 'memory':
         return <NamespaceSection title={t('settings.memory')} body={t('settings.memoryBody')} match={/memor|context|compaction/i} />
       default:

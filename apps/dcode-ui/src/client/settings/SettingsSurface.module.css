@@ -257,6 +257,47 @@
   line-height: var(--zx-leading-body);
 }
 
+.aboutHero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zx-space-4);
+  padding: var(--zx-space-5);
+  border: 1px solid color-mix(in srgb, var(--zx-accent) 20%, var(--zx-border-subtle));
+  border-radius: var(--zx-radius-lg);
+  background: color-mix(in srgb, var(--zx-accent) 6%, var(--zx-bg-card));
+}
+
+.aboutIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--zx-radius-md);
+  background: color-mix(in srgb, var(--zx-accent) 14%, var(--zx-bg-raised));
+  color: var(--zx-accent);
+}
+
+.aboutCopy {
+  min-width: 0;
+}
+
+.aboutName {
+  margin: 0;
+  color: var(--zx-label);
+  font-size: var(--zx-text-md);
+  font-weight: var(--zx-weight-semibold);
+  line-height: 1.4;
+}
+
+.aboutDescription {
+  margin: var(--zx-space-1) 0 0;
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-sm);
+  line-height: var(--zx-leading-body);
+}
+
 @media (max-width: 720px) {
   .overlay {
     padding: 0;
@@ -525,6 +566,14 @@
   color: var(--zx-label-tertiary);
   font-size: var(--zx-text-micro);
   font-variant-numeric: tabular-nums;
+}
+
+.aboutStatusClean {
+  color: var(--zx-success);
+}
+
+.aboutStatusDirty {
+  color: var(--zx-warn);
 }
 
 .providerList {

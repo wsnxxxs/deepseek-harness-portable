@@ -71,6 +71,7 @@ export type SettingsSection =
   | 'skills'
   | 'commands'
   | 'usage'
+  | 'about'
 
 /** A file the diff viewer is showing. */
 export interface DiffTarget {
