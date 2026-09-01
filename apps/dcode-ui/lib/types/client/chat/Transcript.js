@@ -125,7 +125,7 @@ function DurableImage(props) {
         ? _jsx("span", { className: css.attachmentPlaceholder, children: props.attachment.name ?? 'image' })
         : _jsx(ImageLightbox, { src: src, alt: props.attachment.name ?? 'image' });
 }
-/** Render official alpha.2 image attachments without changing the DCode layout. */
+/** Render official alpha.3 image attachments without changing the DCode layout. */
 function MessageAttachments(props) {
     const images = [...(props.images ?? [])];
     for (const block of props.content ?? []) {

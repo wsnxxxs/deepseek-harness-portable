@@ -668,7 +668,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       return
     }
 
-    const handle = face.beginSubmission({ text, images: [] })
+    const handle = face.beginSubmission({ mode, text, images: [] })
     void face.prompt([{ type: 'text', text }], mode, undefined, handle.requestId)
       .then((result) => {
         if (!result.ok) setError(result.error.message)

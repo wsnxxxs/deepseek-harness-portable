@@ -275,7 +275,7 @@ function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachment
 
 type PreviewImage = PendingSubmission['images'][number]
 
-/** Render official alpha.2 image attachments without changing the DCode layout. */
+/** Render official alpha.3 image attachments without changing the DCode layout. */
 function MessageAttachments(props: {
   sessionId: SessionId
   content?: readonly unknown[]

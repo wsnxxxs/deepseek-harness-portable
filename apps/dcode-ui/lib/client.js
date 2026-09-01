@@ -11963,6 +11963,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		async function promptSession(session, text) {
 			const handle = session.beginSubmission({
+				mode: "queue",
 				text,
 				images: []
 			});
@@ -12593,7 +12594,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				alt: props.attachment.name ?? "image"
 			});
 		}
-		/** Render official alpha.2 image attachments without changing the DCode layout. */
+		/** Render official alpha.3 image attachments without changing the DCode layout. */
 		function MessageAttachments(props) {
 			const images = [...props.images ?? []];
 			for (const block of props.content ?? []) {
@@ -16460,6 +16461,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					return;
 				}
 				const handle = face.beginSubmission({
+					mode,
 					text,
 					images: []
 				});
