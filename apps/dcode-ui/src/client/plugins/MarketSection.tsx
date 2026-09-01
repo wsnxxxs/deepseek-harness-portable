@@ -35,7 +35,6 @@ import ui from '../shell/ui.module.css'
 /** How long the search box waits before it asks the Host again. */
 const SEARCH_DEBOUNCE_MS = 300
 
-type DiscoveryView = 'featured' | 'reviewed' | 'compatible' | 'explore'
 type ReviewFilter = 'all' | 'reviewed' | 'unreviewed'
 type CompatibilityFilter = 'all' | CompatibilityStatus
 type MaintenanceFilter = 'all' | MaintenanceStatus
@@ -321,7 +320,6 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   const t = useT()
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
-  const [view, setView] = useState<DiscoveryView>('featured')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all')
   const [compatibility, setCompatibility] = useState<CompatibilityFilter>('all')
@@ -335,7 +333,10 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
   const moreLoading = useRef(false)
   const moreController = useRef<AbortController | null>(null)
   const { operations, start, cancel } = useOperations(client)
-  const scope = view === 'explore' || query !== '' ? 'explore' : 'curated'
+  // The marketplace opens directly on the complete catalogue. Search and the
+  // metadata selects below remain available as refinements, but discovery
+  // tabs must not hide repositories by default.
+  const scope = 'explore'
 
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(draft.trim()) }, SEARCH_DEBOUNCE_MS)
@@ -428,13 +429,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
     return source
       .filter((item) => {
         const metadata = metadataFor(item, locale, platform)
-        const inView = query !== ''
-          || view === 'explore'
-          || (view === 'featured' && metadata.featured)
-          || (view === 'reviewed' && metadata.reviewed)
-          || (view === 'compatible' && metadata.compatibility === 'compatible')
-        return inView
-          && (category === 'all' || metadata.category === category)
+        return (category === 'all' || metadata.category === category)
           && (reviewFilter === 'all' || (reviewFilter === 'reviewed') === metadata.reviewed)
           && (compatibility === 'all' || metadata.compatibility === compatibility)
           && (maintenance === 'all' || metadata.maintenance === maintenance)
@@ -444,7 +439,7 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
         const [rightMatch, rightStars] = searchRank(right, query)
         return rightMatch - leftMatch || rightStars - leftStars || left.fullName.localeCompare(right.fullName)
       })
-  }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter, view])
+  }, [category, compatibility, locale, maintenance, page?.items, platform, query, reviewFilter])
   const syncedAt = page === undefined || page.fetchedAt === 0
     ? t('plugins.neverSynced')
     : t('plugins.syncedAt', { time: new Date(page.fetchedAt).toLocaleString() })
@@ -454,21 +449,6 @@ export function MarketSection({ client, locale, onInstalled }: MarketSectionProp
       <div>
         <div className={css.title}>{t('plugins.section.market')}</div>
         <p className={css.subtitle}>{t(scope === 'explore' ? 'plugins.source' : 'plugins.curatedSource')}</p>
-      </div>
-
-      <div className={css.discoveryTabs} role="tablist" aria-label={t('plugins.discovery.label')}>
-        {(['featured', 'reviewed', 'compatible', 'explore'] as const).map(id => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={view === id}
-            className={`${css.discoveryTab} ${view === id ? css.discoveryTabActive : ''}`}
-            onClick={() => { setView(id) }}
-          >
-            {t(`plugins.discovery.${id}` as DcodeKey)}
-          </button>
-        ))}
       </div>
 
       <div className={css.toolbar}>

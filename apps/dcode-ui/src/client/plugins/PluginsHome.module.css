@@ -127,44 +127,9 @@
 
 /* ── toolbar ─────────────────────────────────────────────────────────── */
 
-.discoveryTabs {
-  display: flex;
-  align-items: center;
-  gap: var(--zx-space-1);
-  padding: var(--zx-space-1);
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-md);
-  background: var(--zx-bg-panel);
-  overflow-x: auto;
-}
-
-.discoveryTab {
-  flex: 0 0 auto;
-  min-height: var(--zx-control-sm);
-  padding: 0 var(--zx-space-3);
-  border: 0;
-  border-radius: var(--zx-radius-sm);
-  background: transparent;
-  color: var(--zx-label-muted);
-  font: inherit;
-  font-size: var(--zx-text-xs);
-  cursor: pointer;
-}
-
-.discoveryTab:hover {
-  color: var(--zx-label);
-}
-
-.discoveryTab:focus-visible,
 .filterField select:focus-visible {
   outline: none;
   box-shadow: var(--zx-focus-ring);
-}
-
-.discoveryTabActive {
-  background: var(--zx-bg-card);
-  color: var(--zx-label);
-  box-shadow: var(--zx-shadow-card);
 }
 
 .toolbar {
