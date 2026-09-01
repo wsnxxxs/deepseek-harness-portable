@@ -38,6 +38,7 @@ import { useAppearance } from './ThemeSwitch.tsx'
 import { TopBar } from './TopBar.tsx'
 import { LeftRail } from './LeftRail.tsx'
 import { Aside } from './Aside.tsx'
+import { SubagentConversationDialog, type SubagentChildEntry } from './AgentInspector.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Composer } from './Composer.tsx'
 import type { ModelSelectHandle } from './ModelSelect.tsx'
@@ -78,6 +79,11 @@ function historyStateWithOverlay(overlay: CompactOverlay): Record<string, unknow
 
 interface GoalProjectionView {
   readonly goal: { readonly phase: string }
+}
+
+interface FullSubagentConversation {
+  readonly parentSessionId: SessionId
+  readonly entry: SubagentChildEntry
 }
 
 /** Keep a settings initialization failure local to the replaceable surface. */
@@ -205,6 +211,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
   const { groups } = useWorkspaceGroups()
   const { scheme, fontSize } = useAppearance()
   const [browsing, setBrowsing] = useState(false)
+  const [fullSubagentConversation, setFullSubagentConversation] = useState<FullSubagentConversation>()
   const [railWidth, setRailWidth] = useState(readRailWidth)
   const [railResizing, setRailResizing] = useState(false)
   const railDrag = useRef<{ pointerId: number, startX: number, startWidth: number, width: number }>()
@@ -221,6 +228,17 @@ export function Workbench({ navigation }: WorkbenchProps) {
       goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
     }
   }, [git.status, goal])
+
+  const openSubagentConversation = useCallback((parentSessionId: SessionId, entry: SubagentChildEntry) => {
+    setFullSubagentConversation({ parentSessionId, entry })
+  }, [])
+
+  const closeSubagentConversation = useCallback(() => {
+    const opened = fullSubagentConversation
+    setFullSubagentConversation(undefined)
+    if (opened === undefined || runtime.sessions.list.getSnapshot().current !== opened.entry.id) return
+    runtime.sessions.open(opened.parentSessionId)
+  }, [fullSubagentConversation, runtime])
 
   useEffect(() => { navigation.setWorkspace(cwd) }, [cwd, navigation])
 
@@ -666,7 +684,13 @@ export function Workbench({ navigation }: WorkbenchProps) {
                   />
                 )
                 : null}
-              <Aside navigation={navigation} sessionId={sessionId} cwd={cwd} context={taskContext} />
+              <Aside
+                navigation={navigation}
+                sessionId={sessionId}
+                cwd={cwd}
+                context={taskContext}
+                onOpenSubagentConversation={openSubagentConversation}
+              />
             </div>
           </>
         )}
@@ -714,6 +738,16 @@ export function Workbench({ navigation }: WorkbenchProps) {
           />
         )
         : null}
+      {fullSubagentConversation === undefined
+        ? null
+        : (
+          <SubagentConversationDialog
+            parentSessionId={fullSubagentConversation.parentSessionId}
+            entry={fullSubagentConversation.entry}
+            navigation={navigation}
+            onClose={closeSubagentConversation}
+          />
+        )}
     </div>
   )
 }

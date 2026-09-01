@@ -7,10 +7,10 @@
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   IconCheckOutline14, IconChevronLeftOutline14,
-  IconChevronRightOutline14, IconRefreshOutline14,
+  IconChevronRightOutline14, IconCloseOutline16, IconRefreshOutline14,
   IconSparkle16, IconUserOutline16, IconWarningOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -24,6 +24,7 @@ import type { NavigationStore } from '../state/navigation.ts'
 import { formatToolDuration, messageText, resultText } from '../chat/tools.ts'
 import { Transcript } from '../chat/Transcript.tsx'
 import { Button, CopyButton, EmptyState, IconButton, Pill, Spinner, ui } from './ui.tsx'
+import { useModalFocus } from './use-modal-focus.ts'
 import css from './AgentInspector.module.css'
 
 type CatalogEntry = SubagentCatalogSnapshot['entries'][number]
@@ -193,19 +194,106 @@ function childTask(nodes: readonly ConversationNode[], fallback: string): string
   return fallback
 }
 
+/** Centered full-session reader opened over the workbench. */
+export function SubagentConversationDialog({
+  parentSessionId,
+  entry,
+  navigation,
+  onClose,
+}: {
+  readonly parentSessionId: SessionId
+  readonly entry: SubagentChildEntry
+  readonly navigation: NavigationStore
+  readonly onClose: () => void
+}) {
+  const runtime = useRuntime()
+  const t = useT()
+  const list = useSessionList()
+  const session = useSessionSnapshot(entry.id)
+  const chat = useChatSnapshot(entry.id)
+  const blank = useConversationBlank(entry.id)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
+  const titleId = useId()
+  const address = useMemo(() => ({
+    parentSessionId,
+    childSessionId: entry.id,
+    mode: entry.mode,
+  } as const), [entry.id, entry.mode, parentSessionId])
+  const [openFailure, setOpenFailure] = useState<string>()
+  const parentCwd = list.byId[parentSessionId]?.cwd
+  const cwd = list.byId[entry.id]?.cwd ?? parentCwd
+  const running = entry.activity === 'running' || session?.running === true
+  const log = useMemo(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry])
+  const transcriptReady = session?.openState === 'open' && chat !== undefined
+  const transcriptError = openFailure
+    ?? (session?.openState === 'error' ? session.openError?.message ?? t('common.error') : undefined)
+
+  useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose })
+
+  useEffect(() => {
+    setOpenFailure(undefined)
+    try {
+      runtime.sessions.openSubagent(address)
+    } catch (cause: unknown) {
+      setOpenFailure(cause instanceof Error ? cause.message : String(cause))
+    }
+  }, [address, runtime])
+
+  return (
+    <div className={css.conversationOverlay} role="presentation">
+      <div className={css.conversationMask} aria-hidden="true" onClick={onClose} />
+      <div
+        ref={panelRef}
+        className={css.conversationPanel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <header className={css.conversationHeader}>
+          <div className={css.conversationTitleCopy}>
+            <div className={css.conversationEyebrow}>{t('agents.openFull')}</div>
+            <h2 id={titleId}>{entryLabel(entry)}</h2>
+            <span className={css.conversationMeta}>
+              {running ? t('agents.running') : t('agents.inactive')}
+              <span aria-hidden>·</span>
+              {entry.mode === 'continuable' ? t('agents.continuable') : t('agents.oneShot')}
+            </span>
+          </div>
+          <div className={css.conversationActions}>
+            <CopyButton text={log} label={t('agents.copyLog')} copiedLabel={t('agents.copied')} />
+            <button ref={closeRef} type="button" className={css.conversationClose} onClick={onClose} aria-label={t('common.close')}>
+              <IconCloseOutline16 />
+            </button>
+          </div>
+        </header>
+        <div className={css.conversationBody}>
+          {transcriptError !== undefined
+            ? <EmptyState>{transcriptError}</EmptyState>
+            : !transcriptReady
+              ? <EmptyState><Spinner size="md" />{t('chat.loading')}</EmptyState>
+              : <Transcript navigation={navigation} sessionId={entry.id} cwd={cwd} blank={blank} />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Detailed child view, following DCode's back / copy-log / transcript pattern. */
 export function SubagentDetailPanel({
   parentSessionId,
   entry,
   navigation,
   onBack,
+  onOpenFull,
 }: {
   readonly parentSessionId: SessionId
   readonly entry: SubagentChildEntry
   readonly navigation: NavigationStore
   readonly onBack: () => void
+  readonly onOpenFull: () => void
 }) {
-  const runtime = useRuntime()
   const t = useT()
   const list = useSessionList()
   const session = useSessionSnapshot(entry.id)
@@ -217,24 +305,19 @@ export function SubagentDetailPanel({
   const timing = useProjectionValue<TimingProjection>(entry.id, 'subagentTiming')
   const running = entry.activity === 'running' || session?.running === true
   const duration = elapsedMs(timing, running ? 'running' : 'inactive', now)
-  const address = {
-    parentSessionId,
-    childSessionId: entry.id,
-    mode: entry.mode,
-  } as const
-
   useEffect(() => {
     if (!running) return undefined
     const timer = window.setInterval(() => { setNow(Date.now()) }, 1000)
     return () => { window.clearInterval(timer) }
   }, [running])
 
-  const openFull = useCallback(() => {
-    runtime.sessions.openSubagent(address)
-  }, [address, runtime])
   const log = useMemo(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry])
   const task = useMemo(() => childTask(chat?.legacy.nodes ?? [], entryLabel(entry)), [chat?.legacy.nodes, entry])
   const error = session?.lastAgentError
+  const transcriptError = session?.openState === 'error'
+    ? session.openError?.message ?? t('common.error')
+    : undefined
+  const transcriptReady = session?.openState === 'open' && chat !== undefined
 
   return (
     <div className={css.detail}>
@@ -261,14 +344,14 @@ export function SubagentDetailPanel({
         <span>{task}</span>
       </section>
       {error === undefined ? null : <div className={css.detailError} role="alert"><IconWarningOutline16 />{error}</div>}
-      {runtime.binding(entry.id) === undefined
-        ? <EmptyState>{t('agents.noTranscript')}</EmptyState>
-        : (
-          <div className={css.childTranscript}>
-            <Transcript navigation={navigation} sessionId={entry.id} cwd={cwd} blank={blank} compact />
-          </div>
-        )}
-      <Button primary onClick={openFull}>{t('agents.openFull')}</Button>
+      <div className={css.childTranscript}>
+        {transcriptError !== undefined
+          ? <EmptyState>{transcriptError}</EmptyState>
+          : !transcriptReady
+            ? <EmptyState><Spinner size="sm" />{t('chat.loading')}</EmptyState>
+            : <Transcript navigation={navigation} sessionId={entry.id} cwd={cwd} blank={blank} compact />}
+      </div>
+      <Button primary onClick={onOpenFull}>{t('agents.openFull')}</Button>
     </div>
   )
 }

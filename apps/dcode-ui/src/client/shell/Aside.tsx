@@ -40,6 +40,7 @@ export interface AsideProps {
   readonly sessionId: SessionId | undefined
   readonly cwd: string | undefined
   readonly context: TaskContext
+  readonly onOpenSubagentConversation: (parentSessionId: SessionId, entry: SubagentChildEntry) => void
 }
 
 /** The goal projection's shape, read structurally to avoid a package edge. */
@@ -397,7 +398,7 @@ function CommandOutputPanel({ sessionId, onLocated }: { sessionId: SessionId | u
 }
 
 /** The docked preview sidebar with its content views. */
-export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
+export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConversation }: AsideProps) {
   const runtime = useRuntime()
   const t = useT()
   const state = useNavigation(navigation)
@@ -519,6 +520,7 @@ export function Aside({ navigation, sessionId, cwd, context }: AsideProps) {
                 entry={selectedSubagent}
                 navigation={navigation}
                 onBack={() => { setSelectedSubagent(undefined) }}
+                onOpenFull={() => { onOpenSubagentConversation(sessionId, selectedSubagent) }}
               />
             )
           : null}
