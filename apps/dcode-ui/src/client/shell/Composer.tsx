@@ -800,22 +800,6 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               )}
               rows={modeRows}
             />
-            {cwd === undefined
-              ? null
-              : (
-                <div className={css.starterActions} aria-label={t('composer.starters')}>
-                  {(['explain', 'changes', 'tests'] as const).map(action => (
-                    <button
-                      key={action}
-                      type="button"
-                      className={css.starterAction}
-                      onClick={() => { updateDraft(t(`composer.starter.${action}.prompt`)) }}
-                    >
-                      {t(`composer.starter.${action}`)}
-                    </button>
-                  ))}
-                </div>
-              )}
           </div>
         )
         : null}
