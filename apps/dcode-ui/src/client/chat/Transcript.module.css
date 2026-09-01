@@ -585,14 +585,8 @@
   padding: var(--zx-space-2) 0 0;
 }
 
-.activityMessages {
-  display: flex;
-  flex-direction: column;
-  gap: var(--zx-space-2);
-  padding-top: var(--zx-space-3);
-}
-
 .activityMessage {
+  padding: var(--zx-space-2) 0;
   color: var(--zx-label);
   font-size: var(--zx-text-sm);
   line-height: var(--zx-leading-body);
@@ -605,6 +599,18 @@
 
 .activityMessage :global(p + p) {
   margin-top: var(--zx-space-2);
+}
+
+.activityContextRow {
+  display: flex;
+  align-items: center;
+  gap: var(--zx-space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: var(--zx-space-1) 0;
+  color: var(--zx-label-secondary);
+  font-size: var(--zx-text-xs);
 }
 
 .activityItem {

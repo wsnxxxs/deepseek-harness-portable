@@ -16,13 +16,14 @@ import { createPortal } from 'react-dom'
 import {
   FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
+  IconContextInjectionOutline16,
   IconDislikeOutline16, IconEditOutline16, IconLikeOutline16,
-  IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
+  IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  AssistantBlock, AssistantMessageNode, ConversationNode, RunningToolCall, ToolCallBlock,
+  AssistantBlock, AssistantMessageNode, ContextMessageNode, ConversationNode, RunningToolCall, ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
   PendingSubmission, SessionFace, SessionSnapshot,
@@ -193,6 +194,7 @@ function ThinkingStatus() {
 }
 
 type TurnActivityItem =
+  | { readonly kind: 'context'; readonly key: string; readonly node: ContextMessageNode }
   | {
     readonly kind: 'reasoning'
     readonly key: string
@@ -239,6 +241,10 @@ function buildTurnActivity(
   let toolCallCount = 0
   let subagentCount = 0
   for (const node of turn) {
+    if (node.kind === 'context') {
+      items.push({ kind: 'context', key: `context:${String(node.seq)}`, node })
+      continue
+    }
     if (node.kind === 'assistant') {
       if (node.seq !== finalAssistant?.seq) {
         const hasMessage = node.blocks.some(block => block.kind === 'text' && block.text.trim() !== '')
@@ -278,11 +284,12 @@ function activityPreview(text: string): string {
 }
 
 function ActivityTextRow(props: {
+  icon: 'thinking' | 'message'
+  label: string
   text: string
   labels: MarkdownLabels
   streaming?: boolean
 }) {
-  const t = useT()
   const [open, setOpen] = useState(props.streaming === true)
   const contentId = useId()
   useEffect(() => {
@@ -298,9 +305,9 @@ function ActivityTextRow(props: {
         onClick={() => { setOpen(value => !value) }}
       >
         <span className={css.activityRowIcon} aria-hidden>
-          <IconThinkOutline14 />
+          {props.icon === 'thinking' ? <IconThinkOutline14 /> : <IconSparkle16 />}
         </span>
-        <span className={css.activityRowLabel}>{t('chat.activity.thinking')}</span>
+        <span className={css.activityRowLabel}>{props.label}</span>
         <span className={css.activityRowPreview}>{activityPreview(props.text)}</span>
         <IconChevronRightOutline14 className={`${css.activityRowChevron} ${open ? css.activityRowChevronOpen : ''}`} />
       </button>
@@ -313,7 +320,7 @@ function ActivityTextRow(props: {
   )
 }
 
-/** Progress messages read like assistant output and stay visible in the turn. */
+/** Progress messages are output-like rows, not another disclosure layer. */
 function ActivityMessageRow(props: { text: string; labels: MarkdownLabels }) {
   return (
     <div className={css.activityMessage}>
@@ -322,7 +329,24 @@ function ActivityMessageRow(props: { text: string; labels: MarkdownLabels }) {
   )
 }
 
-/** One turn's process summary. Details close after completion; messages stay visible. */
+/** A context source keeps the same compact, one-line rhythm as activity rows. */
+function ActivityContextRow(props: { node: ContextMessageNode }) {
+  const t = useT()
+  const source = props.node.provenance.label
+  return (
+    <div className={css.activityContextRow}>
+      <span className={css.activityRowIcon} aria-hidden><IconContextInjectionOutline16 size={14} /></span>
+      <span className={css.activityRowLabel}>
+        {t(props.node.provenance.role === 'recall' ? 'chat.activity.contextRecall' : 'chat.activity.contextInjection')}
+      </span>
+      {source === null ? null : (
+        <span className={css.activityRowPreview}>{source}</span>
+      )}
+    </div>
+  )
+}
+
+/** One turn's process summary. Completed summaries start closed. */
 function TurnActivity(props: {
   data: TurnActivityData
   labels: MarkdownLabels
@@ -332,8 +356,6 @@ function TurnActivity(props: {
   const [open, setOpen] = useState(props.running)
   const wasRunning = useRef(props.running)
   const contentId = useId()
-  const messageItems = props.data.items.filter(item => item.kind === 'message')
-  const detailItems = props.data.items.filter(item => item.kind !== 'message')
 
   useEffect(() => {
     if (props.running) setOpen(true)
@@ -376,27 +398,25 @@ function TurnActivity(props: {
         <span className={css.turnActivitySummary}>{summary}</span>
         <IconChevronRightOutline14 className={`${css.turnActivityChevron} ${open ? css.turnActivityChevronOpen : ''}`} />
       </button>
-      {messageItems.length === 0
-        ? null
-        : (
-          <div className={css.activityMessages} aria-live="polite">
-            {messageItems.map(item => (
-              <ActivityMessageRow key={item.key} text={item.text} labels={props.labels} />
-            ))}
-          </div>
-        )}
-      {detailItems.length === 0
-        ? null
-        : (
-          <div className={`${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`} aria-hidden={!open}>
-            <div className={css.turnActivityItems} id={contentId}>
-              {detailItems.map(item => {
-                if (item.kind === 'tool') return <ToolCard key={item.key} block={item.block} activity />
-                return <ActivityTextRow key={item.key} text={item.text} labels={props.labels} streaming={false} />
-              })}
-            </div>
-          </div>
-        )}
+      <div className={`${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`} aria-hidden={!open}>
+        <div className={css.turnActivityItems} id={contentId}>
+          {props.data.items.map(item => {
+            if (item.kind === 'context') return <ActivityContextRow key={item.key} node={item.node} />
+            if (item.kind === 'tool') return <ToolCard key={item.key} block={item.block} activity />
+            if (item.kind === 'message') return <ActivityMessageRow key={item.key} text={item.text} labels={props.labels} />
+            return (
+              <ActivityTextRow
+                key={item.key}
+                icon="thinking"
+                label={t('chat.activity.thinking')}
+                text={item.text}
+                labels={props.labels}
+                streaming={false}
+              />
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -824,7 +844,6 @@ function TurnView(props: {
   const finalAssistantSeq = data.finalAssistant?.seq
   const rows: ReactNode[] = []
   let activityInserted = false
-  let previousNodeWasContext = false
   const insertActivity = (): void => {
     if (activityInserted || data.items.length === 0) return
     activityInserted = true
@@ -839,17 +858,9 @@ function TurnView(props: {
   }
 
   for (const node of props.turn) {
-    // Several injected sources can arrive back-to-back. In this compact
-    // renderer they share the same marker, so one divider represents the
-    // whole contiguous context run instead of adding repeated blank space.
-    if (node.kind === 'context') {
-      if (previousNodeWasContext) continue
-      previousNodeWasContext = true
-    } else {
-      previousNodeWasContext = false
-    }
-    const processNode = node.kind === 'assistant' || node.kind === 'tool-result'
+    const processNode = node.kind === 'context' || node.kind === 'assistant' || node.kind === 'tool-result'
     if (processNode) insertActivity()
+    if (node.kind === 'context') continue
     if (node.kind === 'tool-result') continue
     if (node.kind === 'assistant' && node.seq !== finalAssistantSeq) continue
     rows.push(
