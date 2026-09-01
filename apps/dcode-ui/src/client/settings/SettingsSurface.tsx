@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16,
-  IconFolderOpenOutline16, IconPersonalizationOutline16, IconPlusOutline16,
+  IconPersonalizationOutline16, IconPlusOutline16,
   IconSearchOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -53,8 +53,8 @@ export interface SettingsSurfaceProps {
   readonly sessionId: SessionId | undefined
 }
 
-/** Official DSH sections first, followed by DCode-only grouped additions. */
-type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'workspace' | 'data'
+/** Official DSH sections plus DCode's usage page. */
+type SettingsNavSection = 'general' | 'models' | 'plugins' | 'agentPresets' | 'data'
 
 const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   // Keep this order and wording aligned with the official DSH SettingsRoot.
@@ -62,8 +62,6 @@ const RAIL: readonly { id: SettingsNavSection; label: DcodeKey }[] = [
   { id: 'models', label: 'settings.modelsNav' },
   { id: 'plugins', label: 'settings.pluginsNav' },
   { id: 'agentPresets', label: 'settings.agentPresets' },
-  // DCode additions are grouped after the official surface.
-  { id: 'workspace', label: 'settings.workspaceAndConnections' },
   { id: 'data', label: 'settings.dataAndAbout' },
 ]
 
@@ -1380,9 +1378,6 @@ function settingsNavSection(section: SettingsSection): SettingsNavSection {
     case 'agentPresets':
     case 'memory':
     case 'subagents': return 'agentPresets'
-    case 'workspace':
-    case 'browser':
-    case 'computer': return 'workspace'
     case 'data':
     case 'skills':
     case 'commands':
@@ -1402,9 +1397,6 @@ function settingsTitleKey(section: SettingsSection): DcodeKey {
     case 'agentPresets':
     case 'memory':
     case 'subagents': return 'settings.agentPresets'
-    case 'workspace':
-    case 'browser':
-    case 'computer': return 'settings.workspaceAndConnections'
     case 'data':
     case 'skills':
     case 'commands':
@@ -1412,17 +1404,6 @@ function settingsTitleKey(section: SettingsSection): DcodeKey {
     case 'general':
     case 'appearance': return 'settings.general'
   }
-}
-
-/** Workspace-scoped controls grouped under one DCode-only settings page. */
-function WorkspaceSection() {
-  const t = useT()
-  return (
-    <>
-      <NamespaceSection title={t('settings.browser')} body={t('settings.browserBody')} match={/browser|web|vision/i} />
-      <NamespaceSection title={t('settings.computer')} body={t('settings.computerBody')} match={/shell|terminal|sandbox|permission/i} />
-    </>
-  )
 }
 
 /** Skills, commands, and usage records grouped under one DCode-only data page. */
@@ -1453,7 +1434,6 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
     models: <IconDataOutline16 />,
     plugins: <IconPersonalizationOutline16 />,
     agentPresets: <IconAgentPresetOutline16 />,
-    workspace: <IconFolderOpenOutline16 />,
     data: <IconDatabaseOutline16 />,
   }
 
@@ -1481,7 +1461,6 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'commands': return <CommandsSection sessionId={sessionId} />
       case 'plugins': return <PluginSettingsSection />
       case 'mcp': return <PluginSettingsSection mcpOnly />
-      case 'workspace': return <WorkspaceSection />
       case 'data': return <DataSection sessionId={sessionId} />
       case 'agentPresets': return (
         <>
@@ -1495,10 +1474,6 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       case 'usage': return <UsageSection />
       case 'memory':
         return <NamespaceSection title={t('settings.memory')} body={t('settings.memoryBody')} match={/memor|context|compaction/i} />
-      case 'browser':
-        return <NamespaceSection title={t('settings.browser')} body={t('settings.browserBody')} match={/browser|web|vision/i} />
-      case 'computer':
-        return <NamespaceSection title={t('settings.computer')} body={t('settings.computerBody')} match={/shell|terminal|sandbox|permission/i} />
       default:
         return <GeneralSection />
     }
