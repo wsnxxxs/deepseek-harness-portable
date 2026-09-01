@@ -585,6 +585,28 @@
   padding: var(--zx-space-2) 0 0;
 }
 
+.activityMessages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-2);
+  padding-top: var(--zx-space-3);
+}
+
+.activityMessage {
+  color: var(--zx-label);
+  font-size: var(--zx-text-sm);
+  line-height: var(--zx-leading-body);
+  overflow-wrap: anywhere;
+}
+
+.activityMessage :global(p) {
+  margin: 0;
+}
+
+.activityMessage :global(p + p) {
+  margin-top: var(--zx-space-2);
+}
+
 .activityItem {
   display: flex;
   min-width: 0;

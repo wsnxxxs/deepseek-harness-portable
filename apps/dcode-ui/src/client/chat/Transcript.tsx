@@ -17,7 +17,7 @@ import {
   FishLogo,
   IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16,
   IconDislikeOutline16, IconEditOutline16, IconLikeOutline16,
-  IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16,
+  IconSendOutline14, IconThinkOutline14, IconTrashOutline16,
   IconWarningOutline16, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -278,12 +278,11 @@ function activityPreview(text: string): string {
 }
 
 function ActivityTextRow(props: {
-  icon: 'thinking' | 'message'
-  label: string
   text: string
   labels: MarkdownLabels
   streaming?: boolean
 }) {
+  const t = useT()
   const [open, setOpen] = useState(props.streaming === true)
   const contentId = useId()
   useEffect(() => {
@@ -299,9 +298,9 @@ function ActivityTextRow(props: {
         onClick={() => { setOpen(value => !value) }}
       >
         <span className={css.activityRowIcon} aria-hidden>
-          {props.icon === 'thinking' ? <IconThinkOutline14 /> : <IconSparkle16 />}
+          <IconThinkOutline14 />
         </span>
-        <span className={css.activityRowLabel}>{props.label}</span>
+        <span className={css.activityRowLabel}>{t('chat.activity.thinking')}</span>
         <span className={css.activityRowPreview}>{activityPreview(props.text)}</span>
         <IconChevronRightOutline14 className={`${css.activityRowChevron} ${open ? css.activityRowChevronOpen : ''}`} />
       </button>
@@ -314,7 +313,16 @@ function ActivityTextRow(props: {
   )
 }
 
-/** One turn's process summary. Completed summaries start closed. */
+/** Progress messages read like assistant output and stay visible in the turn. */
+function ActivityMessageRow(props: { text: string; labels: MarkdownLabels }) {
+  return (
+    <div className={css.activityMessage}>
+      <MarkdownText text={props.text} streaming={false} labels={props.labels} />
+    </div>
+  )
+}
+
+/** One turn's process summary. Details close after completion; messages stay visible. */
 function TurnActivity(props: {
   data: TurnActivityData
   labels: MarkdownLabels
@@ -324,6 +332,8 @@ function TurnActivity(props: {
   const [open, setOpen] = useState(props.running)
   const wasRunning = useRef(props.running)
   const contentId = useId()
+  const messageItems = props.data.items.filter(item => item.kind === 'message')
+  const detailItems = props.data.items.filter(item => item.kind !== 'message')
 
   useEffect(() => {
     if (props.running) setOpen(true)
@@ -366,23 +376,27 @@ function TurnActivity(props: {
         <span className={css.turnActivitySummary}>{summary}</span>
         <IconChevronRightOutline14 className={`${css.turnActivityChevron} ${open ? css.turnActivityChevronOpen : ''}`} />
       </button>
-      <div className={`${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`} aria-hidden={!open}>
-        <div className={css.turnActivityItems} id={contentId}>
-          {props.data.items.map(item => {
-            if (item.kind === 'tool') return <ToolCard key={item.key} block={item.block} activity />
-            return (
-              <ActivityTextRow
-                key={item.key}
-                icon={item.kind === 'reasoning' ? 'thinking' : 'message'}
-                label={item.kind === 'reasoning' ? t('chat.activity.thinking') : t('chat.activity.message')}
-                text={item.text}
-                labels={props.labels}
-                streaming={false}
-              />
-            )
-          })}
-        </div>
-      </div>
+      {messageItems.length === 0
+        ? null
+        : (
+          <div className={css.activityMessages} aria-live="polite">
+            {messageItems.map(item => (
+              <ActivityMessageRow key={item.key} text={item.text} labels={props.labels} />
+            ))}
+          </div>
+        )}
+      {detailItems.length === 0
+        ? null
+        : (
+          <div className={`${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`} aria-hidden={!open}>
+            <div className={css.turnActivityItems} id={contentId}>
+              {detailItems.map(item => {
+                if (item.kind === 'tool') return <ToolCard key={item.key} block={item.block} activity />
+                return <ActivityTextRow key={item.key} text={item.text} labels={props.labels} streaming={false} />
+              })}
+            </div>
+          </div>
+        )}
     </div>
   )
 }
