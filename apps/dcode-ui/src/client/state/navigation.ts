@@ -22,6 +22,9 @@ import {
 /** The top-level surfaces the left rail selects between. */
 export type WorkbenchView = 'session' | 'library' | 'learning' | 'plugins' | 'settings'
 
+/** Temporary product switch for the unfinished resource-library surface. */
+export const RESOURCE_LIBRARY_ENABLED = false
+
 /** Tabs of the right-hand preview column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal'
 
@@ -222,7 +225,12 @@ export function createNavigationStore(): NavigationStore {
     patch,
     // The compact drawer floats over the conversation, so every rail entry
     // that changes what is showing behind it also dismisses it.
-    show: view => { patch({ view, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
+    show: view => {
+      const nextView = !RESOURCE_LIBRARY_ENABLED && (view === 'library' || view === 'learning')
+        ? 'session'
+        : view
+      patch({ view: nextView, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) })
+    },
     openSettings: section => { patch({ view: 'settings', settingsSection: section, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
     openProviderSettings: provider => { patch({ view: 'settings', settingsSection: 'models', settingsProvider: provider, paletteOpen: false, ...(state.layout === 'compact' ? { railOpen: false, asideOpen: false, summaryOpen: false } : {}) }) },
     // Picking a row in the summary card is a navigation, so the card gives

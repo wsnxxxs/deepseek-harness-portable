@@ -18,7 +18,7 @@ import {
 import { useRuntime } from '../state/runtime.ts'
 import { useCurrentSessionId, useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
-import type { NavigationStore } from '../state/navigation.ts'
+import { RESOURCE_LIBRARY_ENABLED, type NavigationStore } from '../state/navigation.ts'
 import { THEME_PREFERENCES, type ThemePreference } from '../theme.ts'
 import type { DcodeKey } from '../locales.ts'
 import { commandShortcut } from '../platform.ts'
@@ -180,14 +180,16 @@ export function CommandPalette({ navigation, onNewTask, onOpenWorkspace }: Comma
       label: t('goal.title'),
       run: () => { navigation.openAside('goal') },
     },
-    {
-      id: 'library',
-      kind: 'action',
-      group: t('palette.configuration'),
-      label: t('nav.library'),
-      icon: <IconBrowseOutline16 />,
-      run: () => { navigation.show('library') },
-    },
+    ...(RESOURCE_LIBRARY_ENABLED
+      ? [{
+          id: 'library',
+          kind: 'action' as const,
+          group: t('palette.configuration'),
+          label: t('nav.library'),
+          icon: <IconBrowseOutline16 />,
+          run: () => { navigation.show('library') },
+        }]
+      : []),
     {
       id: 'plugins',
       kind: 'action',

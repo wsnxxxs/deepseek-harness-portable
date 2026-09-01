@@ -16,7 +16,7 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { dcodeScope } from '../tokens.ts'
 import {
-  compactOverlayOf, useNavigation, type CompactOverlay, type NavigationStore,
+  compactOverlayOf, RESOURCE_LIBRARY_ENABLED, useNavigation, type CompactOverlay, type NavigationStore,
   type TaskContext,
 } from '../state/navigation.ts'
 import {
@@ -698,7 +698,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
             </div>
           </>
         )}
-      {state.view === 'library' || state.view === 'learning'
+      {RESOURCE_LIBRARY_ENABLED && (state.view === 'library' || state.view === 'learning')
         ? (
           <ResourceLibraryHome
             navigation={navigation}

@@ -49,6 +49,10 @@ export {
 
 const NS = 'interactive-learning'
 const CHANNEL = '/interactive-learning'
+
+/** Temporarily keep the vault-facing UI out of both bundled frontends. */
+export const LIBRARY_UI_ENABLED = false
+
 /**
  * Persisted id formerly used by the in-session library tab. Reusing it lets
  * existing sessions migrate from `学习库` to `笔记` without a stale selection.
@@ -143,6 +147,8 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
     }, LearningToolView))
   }
+
+  if (!LIBRARY_UI_ENABLED) return
 
   // The view owns the visible note surface. This invisible bridge keeps its
   // action buttons on the host composer path without duplicating the composer.

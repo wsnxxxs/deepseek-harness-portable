@@ -22,7 +22,7 @@ import { commandShortcut } from '../platform.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useSessionList, useWorkspaceGroups, type WorkspaceGroup } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
-import { useNavigation, type NavigationStore } from '../state/navigation.ts'
+import { RESOURCE_LIBRARY_ENABLED, useNavigation, type NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { EmptyState, FocusingModal, IconButton, Popover, ui } from './ui.tsx'
 import css from './LeftRail.module.css'
@@ -408,9 +408,9 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   return (
     <nav className={css.rail} aria-label={t('app.title')}>
       {/* Only search and the primary action are pinned. Everything else —
-          the two library entries and the task tree — belongs to one scroll,
-          so a long task list can reclaim the rail's whole height instead of
-          squeezing itself under a growing block of chrome. */}
+          optional actions and the task tree — belongs to one scroll, so a long
+          task list can reclaim the rail's whole height instead of squeezing it
+          under a growing block of chrome. */}
       <div className={css.top}>
         <div className={css.brand}>
           <span className={css.brandMark} aria-hidden><IconSparkle16 /></span>
@@ -467,14 +467,18 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
             <IconCordisPluginOutline14 size={16} />
             <span className={ui.grow}>{t('nav.plugins')}</span>
           </button>
-          <button
-            type="button"
-            className={`${css.action} ${state.view === 'library' || state.view === 'learning' ? css.actionActive : ''}`}
-            onClick={() => { navigation.show('library') }}
-          >
-            <IconBrowseOutline16 />
-            <span className={ui.grow}>{t('nav.library')}</span>
-          </button>
+          {RESOURCE_LIBRARY_ENABLED
+            ? (
+              <button
+                type="button"
+                className={`${css.action} ${state.view === 'library' || state.view === 'learning' ? css.actionActive : ''}`}
+                onClick={() => { navigation.show('library') }}
+              >
+                <IconBrowseOutline16 />
+                <span className={ui.grow}>{t('nav.library')}</span>
+              </button>
+            )
+            : null}
         </div>
         {hasRows ? <div className={css.sectionLabel}>{t('nav.conversations')}</div> : null}
         {hasRows ? <div className={css.treeDivider} aria-hidden /> : null}
