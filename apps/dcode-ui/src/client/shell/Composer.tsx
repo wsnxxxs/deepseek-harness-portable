@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
   IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14,
-  IconPaperclipOutline16, IconPlusOutline16,
+  IconFolderOpen16, IconFolderOpenOutline16, IconPaperclipOutline16, IconPlusOutline16,
   IconSendOutline16, IconStopFill16,
   RiskConfirmation,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -25,6 +25,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime, type BusyEnterBehavior } from '../state/runtime.ts'
 import {
   useAsync, useObservable, useProjectionValue, useSessionInput, useSessionList, useSessionSnapshot,
+  useWorkspaceGroups,
 } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { Translate } from '../locales.ts'
@@ -108,6 +109,16 @@ function oppositeBusyEnter(value: BusyEnterBehavior): BusyEnterBehavior {
 
 /** Draft text per session, so switching tasks does not lose an unsent prompt. */
 const drafts = new Map<string, string>()
+
+const OPEN_WORKSPACE_ROW_ID = 'open-workspace'
+
+/** Keep a useful folder label visible while the durable workspace list settles. */
+function folderLabel(path: string | undefined): string | undefined {
+  if (path === undefined || path.trim() === '') return undefined
+  const normalized = path.replace(/[\\/]+$/, '')
+  const leaf = normalized.slice(Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/')) + 1)
+  return leaf === '' ? path : leaf
+}
 
 /** A leading, argument-free slash token is eligible for command completion. */
 function slashQuery(value: string): string | undefined {
@@ -633,6 +644,35 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     },
   })), [currentPreset, roster, selectPreset, t])
 
+  const { groups } = useWorkspaceGroups()
+  const workspace = useMemo(
+    () => groups.find(group => group.path === cwd)
+      ?? groups.find(group => group.sessions.some(row => row.id === sessionId)),
+    [cwd, groups, sessionId],
+  )
+  const workspaceTitle = workspace?.title ?? folderLabel(cwd)
+  const workspaceRows = useMemo<MenuRow[]>(() => {
+    if (groups.length === 0) return []
+    return [
+      ...groups.map(group => ({
+        id: String(group.workspaceId),
+        label: group.title,
+        detail: group.path,
+        icon: <IconFolderOpen16 />,
+        active: group.workspaceId === workspace?.workspaceId,
+        onSelect: () => { runtime.navigation?.startSession(group.workspaceId) },
+      })),
+      ...(onOpenWorkspace === undefined
+        ? []
+        : [{
+          id: OPEN_WORKSPACE_ROW_ID,
+          label: t('nav.openWorkspace'),
+          icon: <IconFolderOpenOutline16 />,
+          onSelect: onOpenWorkspace,
+        }]),
+    ]
+  }, [groups, onOpenWorkspace, runtime, t, workspace?.workspaceId])
+
   const send = useCallback((mode: BusyEnterBehavior) => {
     if (sessionId === undefined) return
     const text = draft.trim()
@@ -780,13 +820,34 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
       {blank && sessionId !== undefined
         ? (
           <div className={css.headerRow}>
-            {cwd === undefined
+            {workspaceRows.length > 0
               ? (
-                <button type="button" className={css.projectChip} onClick={onOpenWorkspace}>
-                  <span>{t('nav.openWorkspace')}</span>
-                </button>
+                <Popover
+                  label={t('top.workspaceMenu')}
+                  triggerClassName={css.projectChip}
+                  trigger={(
+                    <span className={css.headerChipContent}>
+                      <IconFolderOpenOutline16 />
+                      <span>{workspaceTitle ?? t('nav.openWorkspace')}</span>
+                      <IconChevronDownOutline14 />
+                    </span>
+                  )}
+                  rows={workspaceRows}
+                />
               )
-              : null}
+              : (
+                <button
+                  type="button"
+                  className={css.projectChip}
+                  onClick={onOpenWorkspace}
+                  disabled={onOpenWorkspace === undefined}
+                  title={cwd}
+                >
+                  <IconFolderOpenOutline16 />
+                  <span>{workspaceTitle ?? t('nav.openWorkspace')}</span>
+                  <IconChevronDownOutline14 />
+                </button>
+              )}
             <Popover
               label={t('composer.mode')}
               disabled={modeRows.length === 0}
