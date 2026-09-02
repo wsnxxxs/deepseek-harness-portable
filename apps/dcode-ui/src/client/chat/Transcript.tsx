@@ -115,7 +115,7 @@ function compactTokens(count: number): string {
   return `${(count / 1_000_000).toFixed(1)}m`
 }
 
-/** Running reasoning stays visible; completed reasoning folds into a one-line row. */
+/** Reasoning details stay behind a one-line row until the operator opens them. */
 function Reasoning(props: {
   text: string
   streaming: boolean
@@ -124,7 +124,7 @@ function Reasoning(props: {
   labels: MarkdownLabels
 }) {
   const t = useT()
-  const [open, setOpen] = useState(props.streaming)
+  const [open, setOpen] = useState(false)
   const panelId = useId()
   const startedAt = useRef(Date.now())
   const [elapsed, setElapsed] = useState(0)
@@ -135,10 +135,6 @@ function Reasoning(props: {
     update()
     const timer = window.setInterval(update, 1000)
     return () => { window.clearInterval(timer) }
-  }, [props.streaming])
-
-  useEffect(() => {
-    if (props.streaming) setOpen(true)
   }, [props.streaming])
 
   const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1000))
@@ -154,14 +150,11 @@ function Reasoning(props: {
         className={css.reasoningHead}
         aria-expanded={open}
         aria-controls={panelId}
-        disabled={props.streaming}
         onClick={() => { setOpen(value => !value) }}
       >
         <span className={css.reasoningIcon} aria-hidden><IconThinkOutline14 /></span>
         <span className={css.reasoningTitle}>{title}</span>
-        {props.streaming
-          ? null
-          : <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />}
+        <IconChevronRightOutline14 className={`${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}`} />
       </button>
       <div className={`${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`}>
         <div className={css.reasoningBody} id={panelId} role="region">
@@ -290,11 +283,8 @@ function ActivityTextRow(props: {
   labels: MarkdownLabels
   streaming?: boolean
 }) {
-  const [open, setOpen] = useState(props.streaming === true)
+  const [open, setOpen] = useState(false)
   const contentId = useId()
-  useEffect(() => {
-    if (props.streaming) setOpen(true)
-  }, [props.streaming])
   return (
     <div className={css.activityItem}>
       <button
@@ -353,13 +343,12 @@ function TurnActivity(props: {
   running: boolean
 }) {
   const t = useT()
-  const [open, setOpen] = useState(props.running)
+  const [open, setOpen] = useState(false)
   const wasRunning = useRef(props.running)
   const contentId = useId()
 
   useEffect(() => {
-    if (props.running) setOpen(true)
-    else if (wasRunning.current) setOpen(false)
+    if (!props.running && wasRunning.current) setOpen(false)
     wasRunning.current = props.running
   }, [props.running])
 

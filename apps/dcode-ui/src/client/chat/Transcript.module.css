@@ -454,10 +454,6 @@
   cursor: pointer;
 }
 
-.reasoningHead:disabled {
-  cursor: default;
-}
-
 .reasoningIcon {
   display: grid;
   place-items: center;
