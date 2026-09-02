@@ -1,0 +1,52 @@
+/** The conversation-header trigger and the sheet it anchors. */
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--zc-radius-pill);
+  background: transparent;
+  color: var(--zc-label-secondary);
+  cursor: pointer;
+  transition: background var(--zc-motion-fast), color var(--zc-motion-fast);
+}
+
+.trigger:hover {
+  background: var(--zc-bg-hover);
+  color: var(--zc-label);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--zc-focus-ring);
+}
+
+.triggerOpen {
+  background: var(--zc-bg-hover);
+  color: var(--zc-label);
+}
+
+.sheet {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + var(--zc-space-2));
+  right: 0;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 640px);
+  box-sizing: border-box;
+  overflow: hidden auto;
+  border: 1px solid var(--zc-border-soft);
+  border-radius: var(--zc-radius-lg);
+  background: var(--dsw-alias-bg-base, #ffffff);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  scrollbar-width: thin;
+}

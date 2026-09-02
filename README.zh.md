@@ -85,7 +85,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 | 项目 | 版本 |
 | --- | --- |
-| 发布 | DeepSeek Harness Desktop **v1.6.0**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.0)) |
+| 发布 | DeepSeek Harness Desktop **v1.6.1**（[下载](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.1)) |
 
 请阅读[中文发布说明](RELEASE_NOTES.zh.md)，或在桌面端托盘菜单中打开“更新日志”。
 
@@ -210,12 +210,12 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 
     pnpm run desktop:package:win
 
-如需使用当前 1.6.0 产品版本身份生成一次性的 Windows x64 测试包，建议写入独立目录：
+如需使用当前 1.6.1 产品版本身份生成一次性的 Windows x64 测试包，建议写入独立目录：
 
-    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.1-test --no-cache
 
 测试 ZIP 与 Setup 安装包位于
-`dist-desktop/electron-v1.6.0-test/windows-artifacts/`；未压缩应用和已验证 bundle
+`dist-desktop/electron-v1.6.1-test/windows-artifacts/`；未压缩应用和已验证 bundle
 也在同一输出目录下。
 
 Windows 已验证 bundle 位于 `dist-desktop/electron/verified/win32-x64/`。发布是独立的只复制操作，必须显式传入该目录：

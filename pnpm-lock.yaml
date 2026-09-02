@@ -35,6 +35,58 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
+  apps/cluster-ui:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/vendor/cordis
+    devDependencies:
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/api/remotes
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/api/session-controller
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/locale
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-conversation
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-slots
+      '@deepseek-ai/dsh-experimental-agent-team':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/experimental/agent-team
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/core/session
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/typert/protocol
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.1
+      '@types/react':
+        specifier: ^18.3.18
+        version: 18.3.31
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(oxc-resolver@11.24.2)(publint@0.3.23)(tsx@4.23.12)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+
   apps/dcode-ui:
     dependencies:
       '@deepseek-ai/cordis':
@@ -125,9 +177,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-workspace':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/ui-workspace
-      '@deepseek-ai/dsh-experimental-agent-team':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/experimental/agent-team
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/llm/llm
@@ -998,6 +1047,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: link:../../vendor/deepseek-harness/vendor/schemastery
         version: link:../../vendor/deepseek-harness/vendor/schemastery
+      '@dsh-portable/cluster-ui':
+        specifier: workspace:^
+        version: link:../cluster-ui
       '@dsh-portable/crew-dossier':
         specifier: workspace:^
         version: link:../../packages/crew-dossier
@@ -18125,7 +18177,7 @@ snapshots:
 
   '@babel/generator@8.0.0-rc.6':
     dependencies:
-      '@babel/parser': 8.0.0-rc.6
+      '@babel/parser': 8.0.4
       '@babel/types': 8.0.4
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31

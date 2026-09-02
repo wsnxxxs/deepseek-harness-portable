@@ -39,12 +39,12 @@
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
 
-如需生成一次性的 Windows x64 1.6.0 测试包，请使用独立输出目录：
+如需生成一次性的 Windows x64 1.6.1 测试包，请使用独立输出目录：
 
-    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.1-test --no-cache
 
 ZIP 与 Setup 安装包写入
-`dist-desktop/electron-v1.6.0-test/windows-artifacts/`。
+`dist-desktop/electron-v1.6.1-test/windows-artifacts/`。
 
 每条打包命令都必须在对应的原生主机执行：带可用 WSL 发行版的 Windows x64、Apple Silicon macOS 或 Linux x64。命令会下载 Electron、执行能力探测与打包后冒烟测试，并把不可变的已验证 bundle 写入 `dist-desktop/electron/verified/<target>/`。
 
@@ -74,7 +74,7 @@ Electron runtime。构建期间会使用 `musl-gcc` 编译官方上游 Landlock 
 
 ## 发布身份
 
-- 发布：DeepSeek Harness Desktop v1.6.0
+- 发布：DeepSeek Harness Desktop v1.6.1
 
 release-manifest.json 会写入 runtime 同级目录，记录发布身份、内核 Git 提交和本地发布说明。
 

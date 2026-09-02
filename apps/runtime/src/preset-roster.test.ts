@@ -127,15 +127,18 @@ test('the Crew host dependency follows Crew preset availability', () => {
   const unavailable: PatchOptions[] = []
   const noCrew = catalog(mode('crew', 'unavailable', false), mode('standard', 'native'))
   assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
-  // The Agent Teams host service is the only Crew-specific runtime row. The
-  // user-facing Agent workbench lives in dcode-ui.
+  // Two Crew-specific rows: the Agent Teams host service, and the Cluster
+  // plugin that is its only browser reader. The Agent workbench itself is not
+  // Crew-specific and stays.
   assert.deepEqual(unavailable, [
     { id: 'agent-team', disabled: true },
+    { id: 'cluster-ui', disabled: true },
   ])
 
   // Idempotent: reconciling twice must not stack duplicate patches.
   assert.equal(reconcileCrewRuntime(unavailable, noCrew), 'disabled')
   assert.deepEqual(unavailable, [
     { id: 'agent-team', disabled: true },
+    { id: 'cluster-ui', disabled: true },
   ])
 })

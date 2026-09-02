@@ -248,6 +248,7 @@
     "@deepseek-ai/node-addon-landlock-run-linux-arm64": "workspace:^",
     "@deepseek-ai/node-addon-landlock-run-linux-x64": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
+    "@dsh-portable/cluster-ui": "workspace:^",
     "@dsh-portable/crew-dossier": "workspace:^",
     "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",

@@ -56,6 +56,69 @@ export const EMPTY_TRAJECTORY_SNAPSHOT = {
     partial: null,
     runningCalls: [],
 };
+/** Cordis service name the Cluster plugin publishes its surface under. */
+const CLUSTER_SERVICE = 'cluster';
+/**
+ * Narrow whatever occupies `ctx.cluster` to the surface the aside can mount.
+ *
+ * An assembly without the plugin reads `undefined`; an assembly whose plugin
+ * loaded but whose Team Remote never answered publishes nothing at all. Both
+ * land here as "no Cluster surface", which is the state the aside renders as
+ * an absent section rather than as an error.
+ * @param value - the raw service value, if any.
+ */
+function readClusterSurface(value) {
+    if (typeof value !== 'object' || value === null)
+        return undefined;
+    const candidate = value;
+    if (candidate.available !== true || typeof candidate.Panel !== 'function')
+        return undefined;
+    return candidate;
+}
+/**
+ * Observe `ctx.cluster` across the plugin loads and unloads of a live page.
+ *
+ * Load order between two independently bundled plugins is not fixed, so a
+ * one-time read at workbench construction would miss a Cluster plugin that
+ * activates a frame later. Cordis announces every service publication on
+ * `internal/service`, so the aside re-renders on the event instead.
+ *
+ * The resolved value is cached between announcements: `useSyncExternalStore`
+ * requires a snapshot that is reference-stable while nothing changed, and
+ * reading a cordis service can hand back a fresh contextualized value each
+ * time.
+ * @param ctx - client root context.
+ * @returns the observable read by the aside.
+ */
+function createClusterProbe(ctx) {
+    const events = ctx;
+    let cached;
+    let fresh = false;
+    return {
+        getSnapshot: () => {
+            if (!fresh) {
+                cached = readClusterSurface(ctx.get(CLUSTER_SERVICE));
+                fresh = true;
+            }
+            return cached;
+        },
+        subscribe: (listener) => {
+            try {
+                return events.on?.('internal/service', (name) => {
+                    if (name !== CLUSTER_SERVICE)
+                        return;
+                    fresh = false;
+                    listener();
+                }) ?? (() => { });
+            }
+            catch {
+                // An assembly whose event bus refuses the internal channel simply
+                // never re-renders on a late load; the first read still stands.
+                return () => { };
+            }
+        },
+    };
+}
 /**
  * Build the runtime from a live client context.
  *
@@ -66,7 +129,7 @@ export const EMPTY_TRAJECTORY_SNAPSHOT = {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export function createDcodeRuntime(ctx, mode, cluster) {
+export function createDcodeRuntime(ctx, mode) {
     const sessions = ctx.get('sessions');
     const workspaces = ctx.get('workspaces');
     const uiConversation = ctx.get('uiConversation');
@@ -136,7 +199,7 @@ export function createDcodeRuntime(ctx, mode, cluster) {
         },
         pendingInteractions: uiSession?.pendingInteractions,
         goals,
-        cluster,
+        cluster: createClusterProbe(ctx),
         sessionLogDownload,
         git: createDcodeApi(carrier),
         memory: createDcodeMemoryApi(carrier),

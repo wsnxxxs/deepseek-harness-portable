@@ -11,7 +11,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { IconChecklistOutline14, IconCheckOutline14, IconChevronRightOutline14, IconCloseOutline16, IconGoalOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
+import { useChatSnapshot, useObservable, useProjectionValue, useTrajectorySnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { adjacentAsideTab, orderedAsideTabs, useNavigation, } from "../state/navigation.js";
 import { useRuntime } from "../state/runtime.js";
@@ -22,7 +22,6 @@ import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, 
 import { AnsiOutput, OutputToolbar } from "../chat/AnsiOutput.js";
 import { stripAnsi } from "../chat/ansi.js";
 import { SubagentDetailPanel, SubagentsPanel } from "./AgentInspector.js";
-import { ClusterPanel } from "./ClusterPanel.js";
 import css from './Aside.module.css';
 /** Walk a tool block and its children depth-first. */
 function* walkCalls(block) {
@@ -238,6 +237,10 @@ export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConve
     const t = useT();
     const state = useNavigation(navigation);
     const selectedPreset = useProjectionValue(sessionId, 'agentPreset');
+    // Cluster mode is an optional plugin, and the aside is the one place the
+    // workbench offers it a seat. Observed rather than read once, so a plugin
+    // that finishes loading after the workbench mounted still appears.
+    const cluster = useObservable(runtime.cluster, undefined);
     const [selectedSubagent, setSelectedSubagent] = useState();
     const tabPrefix = useId();
     const tabRefs = useRef({ changes: null, terminal: null, goal: null });
@@ -272,8 +275,8 @@ export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConve
                         ? _jsx(CommandOutputPanel, { sessionId: sessionId, onLocated: () => { navigation.closeCompactOverlay(); } })
                         : null, state.aside === 'goal'
                         ? selectedSubagent === undefined || sessionId === undefined
-                            ? (_jsxs(_Fragment, { children: [selectedPreset === 'crew' && runtime.cluster !== undefined
-                                        ? _jsx(ClusterPanel, { sessionId: sessionId })
+                            ? (_jsxs(_Fragment, { children: [selectedPreset === 'crew' && cluster !== undefined
+                                        ? _jsx(cluster.Panel, { sessionId: sessionId })
                                         : null, _jsx(GoalPanel, { sessionId: sessionId }), _jsx(SubagentsPanel, { sessionId: sessionId, onSelect: setSelectedSubagent })] }))
                             : (_jsx(SubagentDetailPanel, { parentSessionId: sessionId, entry: selectedSubagent, navigation: navigation, onBack: () => { setSelectedSubagent(undefined); }, onOpenFull: () => { onOpenSubagentConversation(sessionId, selectedSubagent); } }))
                         : null] })] }));

@@ -23,6 +23,7 @@ test('only packages delegating to the kernel preset are bridged', () => {
 test('every out-of-tree client plugin in this repository is discovered', () => {
   const names = discoverBridgedPackages(root).map(item => item.name)
   assert.deepEqual(names, [
+    '@dsh-portable/cluster-ui',
     '@dsh-portable/dcode-ui',
     '@dsh-portable/interactive-learning',
     '@dsh-portable/ui-mode',

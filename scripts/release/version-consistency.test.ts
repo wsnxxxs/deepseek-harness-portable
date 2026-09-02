@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { packageVersions, readJson, readText } from './dependency-state.js'
 
-const approvedReleaseVersion = '1.6.0'
+const approvedReleaseVersion = '1.6.1'
 
 test('the approved product version is synchronized across release metadata and documentation', () => {
   const desktop = readJson('apps/desktop/package.json')

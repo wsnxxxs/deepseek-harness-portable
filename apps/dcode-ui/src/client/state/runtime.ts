@@ -15,7 +15,7 @@
  * @module @dsh-portable/dcode-ui/client/state/runtime
  */
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, type ComponentType } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
   AgentContext, ISessions, SessionBinding, SessionListState, SessionSummary,
@@ -25,10 +25,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatNodeProcessSource, ChatNodeSource, ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
-import type {
-  CreateTeamTaskRequest, TeamTaskMutationResult, TeamView, UpdateTeamTaskRequest,
-} from '@deepseek-ai/dsh-experimental-agent-team/client'
-import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { MessageFeedbackInjected } from '@deepseek-ai/dsh-client-ui-message-feedback/client'
 import type {
@@ -114,11 +110,87 @@ export interface DcodeGoalsRemote {
   clear(sessionId: SessionId, ref: { readonly id: string; readonly revision: number }): Promise<{ ok: boolean; error?: { message: string } }>
 }
 
-/** Browser-safe Team surface used only by the DCode Cluster inspector. */
-export interface DcodeClusterRemote {
-  view(sessionId: SessionId): Promise<RemoteResult<TeamView>>
-  createTask(sessionId: SessionId, request: CreateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>
-  updateTask(sessionId: SessionId, request: UpdateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>
+/**
+ * The Cluster surface an orchestration plugin may publish on `ctx.cluster`.
+ *
+ * Restated structurally rather than imported: Cluster mode ships as its own
+ * plugin (`@dsh-portable/cluster-ui`), and the workbench must render whether
+ * or not that plugin is in the assembly. A type import would be a build edge
+ * on an optional package; this shape is the whole contract, and a mismatch
+ * fails the narrowing in {@link readClusterSurface} rather than the page.
+ */
+export interface DcodeClusterSurface {
+  /** Whether the publisher's own backing capability answered. */
+  readonly available: boolean
+  /** The roster and shared task board, mountable anywhere in this tree. */
+  readonly Panel: ComponentType<{ readonly sessionId: SessionId | undefined }>
+}
+
+/** Cordis service name the Cluster plugin publishes its surface under. */
+const CLUSTER_SERVICE = 'cluster'
+
+/**
+ * Narrow whatever occupies `ctx.cluster` to the surface the aside can mount.
+ *
+ * An assembly without the plugin reads `undefined`; an assembly whose plugin
+ * loaded but whose Team Remote never answered publishes nothing at all. Both
+ * land here as "no Cluster surface", which is the state the aside renders as
+ * an absent section rather than as an error.
+ * @param value - the raw service value, if any.
+ */
+function readClusterSurface(value: unknown): DcodeClusterSurface | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const candidate = value as { available?: unknown; Panel?: unknown }
+  if (candidate.available !== true || typeof candidate.Panel !== 'function') return undefined
+  return candidate as unknown as DcodeClusterSurface
+}
+
+/** The event-bus slice the Cluster probe subscribes to. */
+interface ServiceEventSource {
+  on(name: 'internal/service', listener: (name: string) => void): () => void
+}
+
+/**
+ * Observe `ctx.cluster` across the plugin loads and unloads of a live page.
+ *
+ * Load order between two independently bundled plugins is not fixed, so a
+ * one-time read at workbench construction would miss a Cluster plugin that
+ * activates a frame later. Cordis announces every service publication on
+ * `internal/service`, so the aside re-renders on the event instead.
+ *
+ * The resolved value is cached between announcements: `useSyncExternalStore`
+ * requires a snapshot that is reference-stable while nothing changed, and
+ * reading a cordis service can hand back a fresh contextualized value each
+ * time.
+ * @param ctx - client root context.
+ * @returns the observable read by the aside.
+ */
+function createClusterProbe(ctx: ClientContext): Observable<DcodeClusterSurface | undefined> {
+  const events = ctx as unknown as Partial<ServiceEventSource>
+  let cached: DcodeClusterSurface | undefined
+  let fresh = false
+  return {
+    getSnapshot: () => {
+      if (!fresh) {
+        cached = readClusterSurface(ctx.get(CLUSTER_SERVICE))
+        fresh = true
+      }
+      return cached
+    },
+    subscribe: (listener) => {
+      try {
+        return events.on?.('internal/service', (name) => {
+          if (name !== CLUSTER_SERVICE) return
+          fresh = false
+          listener()
+        }) ?? (() => {})
+      } catch {
+        // An assembly whose event bus refuses the internal channel simply
+        // never re-renders on a late load; the first read still stands.
+        return () => {}
+      }
+    },
+  }
 }
 
 /** The small domain face the dcode composer needs from a pending approval. */
@@ -233,8 +305,8 @@ export interface DcodeRuntime {
   readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined
   /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
   readonly goals: DcodeGoalsRemote | undefined
-  /** Generated Team Remote namespace, mounted for DCode's Cluster mode only. */
-  readonly cluster: DcodeClusterRemote | undefined
+  /** The optional Cluster surface, observed so a late plugin load still shows. */
+  readonly cluster: Observable<DcodeClusterSurface | undefined>
   /** Session-log export controller, when the export client plugin is present. */
   readonly sessionLogDownload: SessionLogDownloadFace | undefined
   /** Git, diff, undo and file reads over the `/dcode` channel. */
@@ -329,7 +401,6 @@ interface UiSessionFace {
 export function createDcodeRuntime(
   ctx: ClientContext,
   mode: UiModeController,
-  cluster?: DcodeClusterRemote,
 ): DcodeRuntime {
   const sessions = ctx.get('sessions') as unknown as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
@@ -403,7 +474,7 @@ export function createDcodeRuntime(
     },
     pendingInteractions: uiSession?.pendingInteractions,
     goals,
-    cluster,
+    cluster: createClusterProbe(ctx),
     sessionLogDownload,
     git: createDcodeApi(carrier),
     memory: createDcodeMemoryApi(carrier),

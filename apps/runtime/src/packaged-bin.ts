@@ -479,6 +479,9 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
       },
     })
   }
+  // These portable features are default-injected extension rows. A matching
+  // row in either user layer is authoritative, so an operator can keep the
+  // default or add `disabled: true` to remove one from the assembly.
   if (!rows.has('vision-bridge')) {
     overlays.push({
       insert: [
@@ -562,6 +565,27 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
       ],
     })
   }
+  // Cluster mode: the Agent Teams roster and shared task board.
+  //
+  // Its own row rather than a part of any surface. The browser half mounts the
+  // Team Remote namespace, publishes the panel as `ctx.cluster` for whichever
+  // surface wants to seat it, and registers its own entry in the official
+  // conversation header — so the capability survives a surface being trimmed,
+  // and a surface survives this row being disabled.
+  //
+  // `reconcileCrewRuntime` disables it beside the `agent-team` host row when
+  // Crew did not pass capability measurement: with no host service to answer
+  // `agentTeams.*` there is nothing for this plugin to show.
+  if (!rows.has('cluster-ui')) {
+    overlays.push({
+      insert: [
+        {
+          id: 'cluster-ui',
+          name: '@dsh-portable/cluster-ui',
+        },
+      ],
+    })
+  }
   const telemetryPatch = resolveTelemetryPatch(process.env.DSH_TELEMETRY_DISABLED, rows.has(TELEMETRY_ROW_ID))
   if (telemetryPatch !== undefined) overlays.push(telemetryPatch)
   return {
@@ -578,14 +602,10 @@ function isLauncherFlag(arg: string): arg is '--no-open' | '--open' {
   return arg === '--no-open' || arg === '--open'
 }
 
-/** The browser shell cannot activate until these graph entries exist. */
+/** The browser shell cannot activate until these core graph entries exist. */
 const REQUIRED_CLIENT_ENTRIES = [
   '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-layout',
-  '@dsh-portable/interactive-learning',
-  '@dsh-portable/vision-bridge',
-  '@dsh-portable/ui-mode',
-  '@dsh-portable/dcode-ui',
 ]
 
 /**
@@ -688,7 +708,7 @@ async function openBrowserWhenReady(ctx: Context): Promise<void> {
             result?: { ok?: boolean; error?: { message?: string }; value?: { namespaces?: Array<{ ns?: string }> } }
           }
           const namespaces = new Set(body.result?.value?.namespaces?.map(namespace => namespace.ns) ?? [])
-          if (body.result?.ok && namespaces.has('ui-onboarding') && namespaces.has('vision')) {
+          if (body.result?.ok && namespaces.has('ui-onboarding')) {
             openBrowser(url)
             return
           }

@@ -36,7 +36,7 @@ test('normalizes a trailing listening slash to the exact settings RPC route', ()
   )
 })
 
-test('client readiness requires the portable feature rows', () => {
+test('client readiness requires only the core shell rows', () => {
   const shellOnly = {
     entries: [
       { id: '@deepseek-ai/dsh-client-modules', inject: [] },
@@ -44,17 +44,14 @@ test('client readiness requires the portable feature rows', () => {
       { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
   }
-  assert.equal(hasRequiredClientGraph(shellOnly), false)
+  assert.equal(hasRequiredClientGraph(shellOnly), true)
   assert.equal(hasRequiredClientGraph({
-    entries: [
-      ...shellOnly.entries,
-      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-    ],
+    entries: shellOnly.entries.filter(entry => entry.id !== '@deepseek-ai/dsh-client-ui-layout'),
   }), false)
   assert.equal(hasRequiredClientGraph({
-    entries: [
-      ...shellOnly.entries,
-      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
+      entries: [
+        ...shellOnly.entries,
+        { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
       { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
   }), true)
@@ -67,8 +64,6 @@ test('browser readiness requires the blocking client-modules bootstrap script', 
       { id: '@deepseek-ai/dsh-client-modules', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-session', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-      { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-      { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
     ],
     batches: [{
       phase: 'bootstrap',
@@ -111,8 +106,6 @@ test('waits for onboarding and the complete client graph instead of trusting the
             { id: '@deepseek-ai/dsh-client-ui-session', inject: ['@deepseek-ai/dsh-client-connection'] },
             { id: '@deepseek-ai/dsh-client-connection', inject: [] },
             { id: '@deepseek-ai/dsh-client-ui-layout', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-            { id: '@dsh-portable/interactive-learning', inject: ['@deepseek-ai/dsh-client-ui-session'] },
-            { id: '@dsh-portable/vision-bridge', inject: ['@deepseek-ai/dsh-client-ui-session'] },
           ] : []
       const batches = complete ? [{
         phase: 'bootstrap',
@@ -127,7 +120,7 @@ test('waits for onboarding and the complete client graph instead of trusting the
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify(settingsAttempts < 3
       ? { result: { ok: true, value: { namespaces: [] } } }
-      : { result: { ok: true, value: { namespaces: [{ ns: 'ui-onboarding' }, { ns: 'vision' }] } } }))
+      : { result: { ok: true, value: { namespaces: [{ ns: 'ui-onboarding' }] } } }))
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   try {

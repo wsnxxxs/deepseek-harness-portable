@@ -14,13 +14,11 @@ function readyUrl(output) {
 /** Bootstrap package whose blocking client bundle creates the browser module system. */
 const CLIENT_MODULES_ENTRY = '@deepseek-ai/dsh-client-modules'
 
-/** The browser shell cannot activate until its bootstrap, shell, and portable feature roots exist. */
+/** The browser shell cannot activate until its bootstrap and core shell roots exist. */
 const REQUIRED_CLIENT_ENTRIES = [
   CLIENT_MODULES_ENTRY,
   '@deepseek-ai/dsh-client-ui-session',
   '@deepseek-ai/dsh-client-ui-layout',
-  '@dsh-portable/interactive-learning',
-  '@dsh-portable/vision-bridge',
 ]
 
 /** Build the settings RPC endpoint without producing a double-slash path. */
@@ -237,7 +235,7 @@ async function waitForOnboardingReady(baseUrl, options = {}) {
         } else {
           const body = await response.json()
           const namespaces = new Set(body?.result?.value?.namespaces?.map(namespace => namespace.ns) ?? [])
-          if (body?.result?.ok && namespaces.has('ui-onboarding') && namespaces.has('vision')) {
+          if (body?.result?.ok && namespaces.has('ui-onboarding')) {
             settingsReady = true
           } else {
             lastReason = body?.result?.error?.message ?? 'required settings namespaces are not registered'

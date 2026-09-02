@@ -14,6 +14,7 @@
  * entry is selected) lives separately in {@link ../state/navigation.ts}.
  * @module @dsh-portable/dcode-ui/client/state/runtime
  */
+import { type ComponentType } from 'react';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type { AgentContext, ISessions, SessionBinding, SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client';
 import type { IWorkspaces, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client';
@@ -21,8 +22,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client';
-import type { CreateTeamTaskRequest, TeamTaskMutationResult, TeamView, UpdateTeamTaskRequest } from '@deepseek-ai/dsh-experimental-agent-team/client';
-import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client';
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { ComposerAttachment, ConversationController, DraftAttachmentId, SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
@@ -90,11 +89,22 @@ export interface DcodeGoalsRemote {
         };
     }>;
 }
-/** Browser-safe Team surface used only by the DCode Cluster inspector. */
-export interface DcodeClusterRemote {
-    view(sessionId: SessionId): Promise<RemoteResult<TeamView>>;
-    createTask(sessionId: SessionId, request: CreateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>;
-    updateTask(sessionId: SessionId, request: UpdateTeamTaskRequest): Promise<RemoteResult<TeamTaskMutationResult>>;
+/**
+ * The Cluster surface an orchestration plugin may publish on `ctx.cluster`.
+ *
+ * Restated structurally rather than imported: Cluster mode ships as its own
+ * plugin (`@dsh-portable/cluster-ui`), and the workbench must render whether
+ * or not that plugin is in the assembly. A type import would be a build edge
+ * on an optional package; this shape is the whole contract, and a mismatch
+ * fails the narrowing in {@link readClusterSurface} rather than the page.
+ */
+export interface DcodeClusterSurface {
+    /** Whether the publisher's own backing capability answered. */
+    readonly available: boolean;
+    /** The roster and shared task board, mountable anywhere in this tree. */
+    readonly Panel: ComponentType<{
+        readonly sessionId: SessionId | undefined;
+    }>;
 }
 /** The small domain face the dcode composer needs from a pending approval. */
 export interface DcodePendingApproval extends SessionPendingInteractionBase {
@@ -199,8 +209,8 @@ export interface DcodeRuntime {
     readonly pendingInteractions: Observable<ReadonlyMap<SessionId, SessionPendingInteractionBase>> | undefined;
     /** Generated goals Remote namespace (edit/pause/resume/clear), when mounted. */
     readonly goals: DcodeGoalsRemote | undefined;
-    /** Generated Team Remote namespace, mounted for DCode's Cluster mode only. */
-    readonly cluster: DcodeClusterRemote | undefined;
+    /** The optional Cluster surface, observed so a late plugin load still shows. */
+    readonly cluster: Observable<DcodeClusterSurface | undefined>;
     /** Session-log export controller, when the export client plugin is present. */
     readonly sessionLogDownload: SessionLogDownloadFace | undefined;
     /** Git, diff, undo and file reads over the `/dcode` channel. */
@@ -272,7 +282,7 @@ interface SettingsScopeBinderFace {
  * @param mode - the page's mode store.
  * @returns the runtime handed to the React tree.
  */
-export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeController, cluster?: DcodeClusterRemote): DcodeRuntime;
+export declare function createDcodeRuntime(ctx: ClientContext, mode: UiModeController): DcodeRuntime;
 /** Provider for the runtime; mounted once at the workbench root. */
 export declare const DcodeRuntimeProvider: import("react").Provider<DcodeRuntime | undefined>;
 /**

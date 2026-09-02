@@ -22,7 +22,6 @@
  * @module @dsh-portable/dcode-ui/client
  */
 import { createElement } from 'react';
-import agentTeamsRemote from '@deepseek-ai/dsh-experimental-agent-team/remote';
 import { createNavigationStore } from "./state/navigation.js";
 import { createDcodeRuntime, DcodeRuntimeProvider } from "./state/runtime.js";
 import { bindTranslate, TranslateProvider } from "./state/i18n.js";
@@ -90,9 +89,9 @@ const SETTINGS_MODELS_FOOTER_ORDER = 0;
  * @param mode - the page's mode store.
  * @returns a disposer that removes any active registration and the subscription.
  */
-function bindRootRegistration(ctx, mode, cluster) {
+function bindRootRegistration(ctx, mode) {
     const navigation = createNavigationStore();
-    const runtime = createDcodeRuntime(ctx, mode, cluster);
+    const runtime = createDcodeRuntime(ctx, mode);
     const t = bindTranslate(ctx.locale.bind(DCODE_NS));
     // One element tree, created once: a mode flip mounts and unmounts it, and
     // the workbench's own view state survives in `navigation` across the flip.
@@ -141,31 +140,18 @@ export function apply(ctx) {
     // body from running, leaves the workbench marked unavailable in every switch
     // rather than offering a choice that silently renders the official UI.
     ctx.effect(() => ctx.uiMode.announce('dcode'), 'dcode-ui: surface announcement');
-    // The Team Remote is mounted in this plugin's own lifecycle. The official
-    // root never reads it; the Cluster inspector receives the namespace only
-    // after the mount succeeds, while a missing optional capability still lets
-    // DCode boot without changing the official surface.
-    ctx.effect(async () => {
-        try {
-            const disposeRemote = await ctx.remote.$mount(agentTeamsRemote);
-            const surface = ctx.inject(['remote.agentTeams'], scope => (bindRootRegistration(scope, scope.uiMode, scope.remote.agentTeams)));
-            try {
-                await surface;
-            }
-            catch (error) {
-                await surface.dispose();
-                await disposeRemote();
-                throw error;
-            }
-            return async () => {
-                await surface.dispose();
-                await disposeRemote();
-            };
-        }
-        catch {
-            return bindRootRegistration(ctx, ctx.uiMode, undefined);
-        }
-    }, 'dcode-ui: cluster remote and root surface');
+    // The workbench root, and nothing else. Cluster mode used to be mounted from
+    // here: this body first mounted the Agent Teams Remote namespace and then
+    // registered the whole surface inside that injection, which tied the
+    // lifetime of the entire workbench to an optional experimental capability
+    // and re-registered the root from a catch when the mount failed.
+    //
+    // Cluster mode is its own plugin now (`@dsh-portable/cluster-ui`). It owns
+    // that mount, publishes `ctx.cluster`, and the aside probes for it — so this
+    // registration depends on nothing but the services in `inject`, and an
+    // assembly without the Cluster plugin renders the same workbench minus one
+    // section.
+    ctx.effect(() => bindRootRegistration(ctx, ctx.uiMode), 'dcode-ui: root surface');
     // The usage card on the classic Models page. `settings.models.footer` is the
     // seat that page declares for out-of-tree plugins, so the official section
     // itself stays untouched. Registration is unconditional: while the workbench

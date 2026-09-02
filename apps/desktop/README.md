@@ -40,12 +40,12 @@ That faster mode does not cover a from-scratch kernel build or release package.
     pnpm run desktop:package:mac
     pnpm run desktop:package:linux
 
-For a disposable Windows x64 1.6.0 test build, use a separate output root:
+For a disposable Windows x64 1.6.1 test build, use a separate output root:
 
-    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.0-test --no-cache
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.1-test --no-cache
 
 The ZIP and Setup outputs are written to
-`dist-desktop/electron-v1.6.0-test/windows-artifacts/`.
+`dist-desktop/electron-v1.6.1-test/windows-artifacts/`.
 
 Run each packaging command on its matching native host: Windows x64 with a working WSL distribution, Apple Silicon macOS, or Linux x64. The commands download Electron, run capability probes and packaged smoke tests, and write immutable verified bundles under `dist-desktop/electron/verified/<target>/`.
 
@@ -78,7 +78,7 @@ Publishing is a separate copy-only step. It re-hashes the exact files named by `
 
 ## Release identity
 
-- Release: DeepSeek Harness Desktop v1.6.0
+- Release: DeepSeek Harness Desktop v1.6.1
 
 The release manifest is written beside runtime and records the release identity, kernel Git commit, and bundled release notes.
 

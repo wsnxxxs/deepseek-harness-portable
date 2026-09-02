@@ -1,0 +1,69 @@
+/**
+ * Cluster mode's design tokens.
+ *
+ * The panel has to look right in two very different places: inside a
+ * workbench that already declares a full `--zx-*` scale on an ancestor, and
+ * inside the official DSH UI, which declares none of it. So every token below
+ * is read as `var(--zx-<same-name>, <standalone value>)`: where a host surface
+ * publishes that scale the panel adopts it exactly and cannot drift from the
+ * surrounding chrome, and everywhere else it falls back to a value derived
+ * from the Host's own `--dsw-alias-*` theme aliases.
+ *
+ * The standalone fallbacks are written as mixes of the label colour into
+ * transparency rather than as literal greys. The label alias flips with the
+ * Host light/dark theme, so one declaration is correct in both directions and
+ * this file needs no light branch of its own.
+ *
+ * Every alias read carries an inline literal fallback: an alias a Host has not
+ * declared, read bare, resolves to the guaranteed-invalid value and would
+ * silently drop the whole declaration — including inside `color-mix()`.
+ */
+
+[data-cluster-scope] {
+  /* Type ramp, tracking the Host's configured content size. */
+  --zc-font-size-base: var(--dsh-content-font-size, 14px);
+  --zc-text-micro: var(--zx-text-micro, calc(var(--zc-font-size-base) - 3px));
+  --zc-text-xs: var(--zx-text-xs, calc(var(--zc-font-size-base) - 2px));
+  --zc-leading-body: var(--zx-leading-body, 1.65);
+  --zc-weight-medium: var(--zx-weight-medium, 500);
+  --zc-weight-semibold: var(--zx-weight-semibold, 600);
+
+  /* Rhythm. */
+  --zc-space-1: var(--zx-space-1, 4px);
+  --zc-space-2: var(--zx-space-2, 6px);
+  --zc-space-3: var(--zx-space-3, 8px);
+  --zc-radius-sm: var(--zx-radius-sm, 6px);
+  --zc-radius-md: var(--zx-radius-md, 8px);
+  --zc-radius-lg: var(--zx-radius-lg, 12px);
+  --zc-radius-pill: var(--zx-radius-pill, 999px);
+
+  /* Label ramp. Everything below derives from these two. */
+  --zc-label: var(--zx-label, var(--dsw-alias-label-primary, #1c2024));
+  --zc-label-secondary: var(--zx-label-secondary, var(--dsw-alias-label-secondary, #525866));
+  --zc-label-tertiary: var(--zx-label-tertiary, color-mix(in srgb, var(--zc-label-secondary) 82%, transparent));
+  --zc-label-faint: var(--zx-label-faint, color-mix(in srgb, var(--zc-label-secondary) 68%, transparent));
+  --zc-label-decor: var(--zx-label-decor, var(--zc-label-faint));
+
+  /* Surfaces and hairlines, washed out of the label colour so one declaration
+     reads correctly on a near-black and on a near-white ground alike. */
+  --zc-bg-surface-1: var(--zx-bg-surface-1, color-mix(in srgb, var(--zc-label) 4%, transparent));
+  --zc-bg-card: var(--zx-bg-card, color-mix(in srgb, var(--zc-label) 6%, transparent));
+  --zc-bg-hover: var(--zx-bg-hover, color-mix(in srgb, var(--zc-label) 8%, transparent));
+  --zc-border-soft: var(--zx-border-soft, color-mix(in srgb, var(--zc-label) 12%, transparent));
+  --zc-border-control: var(--zx-border-control, color-mix(in srgb, var(--zc-label) 20%, transparent));
+
+  /* Accent and state colours follow the Host theme directly. */
+  --zc-accent: var(--zx-accent, var(--dsw-alias-brand-primary, #2563eb));
+  --zc-accent-soft: var(--zx-accent-soft, color-mix(in srgb, var(--zc-accent) 16%, transparent));
+  --zc-success: var(--zx-success, var(--dsw-alias-state-success-primary, #1a7f37));
+  --zc-warn: var(--zx-warn, var(--dsw-alias-state-warn-primary, #9a6700));
+  --zc-error: var(--zx-error, var(--dsw-alias-state-error-primary, #cf222e));
+
+  /* Depth, motion and the monospaced face used for task identities. */
+  --zc-focus-ring: var(--zx-focus-ring, 0 0 0 2px color-mix(in srgb, var(--zc-accent) 55%, transparent));
+  --zc-shadow-inset-top: var(--zx-shadow-inset-top, inset 0 1px 0 0 rgb(255 255 255 / 8%));
+  --zc-glass-filter: var(--zx-glass-filter, blur(16px) saturate(140%));
+  --zc-motion-fast: var(--zx-motion-fast, 120ms cubic-bezier(0.2, 0, 0.2, 1));
+  --zc-opacity-disabled: var(--zx-opacity-disabled, 0.45);
+  --zc-font-mono: var(--zx-font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace);
+}

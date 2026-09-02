@@ -17,7 +17,7 @@ import {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { useChatSnapshot, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
+import { useChatSnapshot, useObservable, useProjectionValue, useTrajectorySnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import {
   adjacentAsideTab, orderedAsideTabs, useNavigation,
@@ -31,7 +31,6 @@ import { formatToolDuration, latestTodos, parseArgs, resultText, summarizeTool, 
 import { AnsiOutput, OutputToolbar } from '../chat/AnsiOutput.tsx'
 import { stripAnsi } from '../chat/ansi.ts'
 import { SubagentDetailPanel, SubagentsPanel, type SubagentChildEntry } from './AgentInspector.tsx'
-import { ClusterPanel } from './ClusterPanel.tsx'
 import css from './Aside.module.css'
 
 /** Props of the floating right card. */
@@ -403,6 +402,10 @@ export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConve
   const t = useT()
   const state = useNavigation(navigation)
   const selectedPreset = useProjectionValue<string | null>(sessionId, 'agentPreset')
+  // Cluster mode is an optional plugin, and the aside is the one place the
+  // workbench offers it a seat. Observed rather than read once, so a plugin
+  // that finishes loading after the workbench mounted still appears.
+  const cluster = useObservable(runtime.cluster, undefined)
   const [selectedSubagent, setSelectedSubagent] = useState<SubagentChildEntry | undefined>()
   const tabPrefix = useId()
   const tabRefs = useRef<Record<AsideTab, HTMLButtonElement | null>>({ changes: null, terminal: null, goal: null })
@@ -504,8 +507,8 @@ export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConve
           ? selectedSubagent === undefined || sessionId === undefined
             ? (
               <>
-                {selectedPreset === 'crew' && runtime.cluster !== undefined
-                  ? <ClusterPanel sessionId={sessionId} />
+                {selectedPreset === 'crew' && cluster !== undefined
+                  ? <cluster.Panel sessionId={sessionId} />
                   : null}
                 <GoalPanel sessionId={sessionId} />
                 <SubagentsPanel

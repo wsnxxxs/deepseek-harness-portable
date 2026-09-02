@@ -7,7 +7,7 @@ import { canonicalModeId } from './mode-catalog.js';
 export const PORTABLE_MODE_RESOLUTION_EVENT_TYPE = 'portable-runtime/mode-resolution';
 /** Register the exact legacy portable event understood by this distribution. */
 export function registerPortableSessionCompatibility() {
-    // rc7 exposes the catalog as ReadonlySet, but the runtime value is the
+    // Alpha.4 exposes the catalog as ReadonlySet, but the runtime value is the
     // process-wide Set also read by persistence. Extend only this exact event.
     ;
     KNOWN_SESSION_EVENT_TYPES.add(PORTABLE_MODE_RESOLUTION_EVENT_TYPE);

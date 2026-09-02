@@ -54,9 +54,12 @@ export declare function reconcilePresetRoster(overlays: readonly PatchOptions[],
 /**
  * Withdraw the whole Crew product whenever its compiled preset is unavailable.
  *
- * The `agent-team` service is the host-side dependency of the Crew preset.
- * The Crew board surface is no longer a separate frontend: DCode's Agent
- * Inspector is the single frontend for agent orchestration.
+ * The `agent-team` service is the host-side dependency of the Crew preset, and
+ * `cluster-ui` is the browser half that reads it — the Cluster roster and
+ * shared task board, seated in the official conversation header and offered to
+ * any other surface as `ctx.cluster`. Neither has anything to show once Crew is
+ * withdrawn, and the browser row would only mount a Remote namespace no host
+ * service can answer.
  *
  * @param overlays - composed overlay list; Crew's host row is disabled in place.
  * @param catalog - the compiled mode catalog.

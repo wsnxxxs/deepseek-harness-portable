@@ -5,6 +5,8 @@ import { useAsync } from "../state/hooks.js";
 import { useRuntime } from "../state/runtime.js";
 import { useT } from "../state/i18n.js";
 import { Button, EmptyState, Spinner, ui } from "../shell/ui.js";
+import { createMarketClient } from "../plugins/market.js";
+import { useOperations } from "../plugins/useJob.js";
 import css from './SettingsSurface.module.css';
 function objectValue(source) {
     return typeof source === 'object' && source !== null && !Array.isArray(source)
@@ -302,6 +304,18 @@ function isUserExtension(entry) {
         && !moduleName.startsWith('@dsh-portable/')
         && !moduleName.startsWith('cordis:');
 }
+function packageName(moduleName) {
+    const parts = moduleName.replaceAll('\\', '/').split('/').filter(Boolean);
+    if (parts[0]?.startsWith('@'))
+        return parts.slice(0, 2).join('/');
+    return parts[0] ?? moduleName;
+}
+function findMarketPlugin(moduleName, snapshot) {
+    if (snapshot === undefined)
+        return undefined;
+    return snapshot.plugins.find(plugin => plugin.name === moduleName)
+        ?? snapshot.plugins.find(plugin => packageName(plugin.name) === packageName(moduleName));
+}
 function inventoryDescription(moduleName, name, t) {
     const normalized = moduleName.toLowerCase();
     if (normalized.includes('mcp'))
@@ -341,12 +355,17 @@ function VirtualInventoryList(props) {
     const visible = props.entries.slice(start, end);
     const topSpace = shouldWindow ? start * INVENTORY_ROW_HEIGHT : 0;
     const bottomSpace = shouldWindow ? (props.entries.length - end) * INVENTORY_ROW_HEIGHT : 0;
-    return (_jsxs("div", { className: `${css.card} ${shouldWindow ? css.inventoryViewport : ''}`, role: "list", onScroll: shouldWindow ? event => { setScrollTop(event.currentTarget.scrollTop); } : undefined, children: [topSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: topSpace } }) : null, visible.map(({ entry, name, description, status }) => (_jsx("div", { className: css.inventoryRow, role: "listitem", "aria-label": `${name}, ${status}`, children: _jsxs("div", { className: css.inventoryMain, "aria-hidden": "true", children: [_jsxs("div", { className: css.inventoryCopy, children: [_jsx("span", { className: css.rowTitle, children: name }), _jsx("span", { className: css.rowBody, children: description }), _jsx("code", { className: css.inventoryId, title: entry.entryId, children: entry.moduleName })] }), _jsx("span", { className: css.inventoryStatus, children: status })] }) }, entry.entryId))), bottomSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: bottomSpace } }) : null] }));
+    return (_jsxs("div", { className: `${css.card} ${shouldWindow ? css.inventoryViewport : ''}`, role: "list", onScroll: shouldWindow ? event => { setScrollTop(event.currentTarget.scrollTop); } : undefined, children: [topSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: topSpace } }) : null, visible.map(row => (_jsx("div", { className: css.inventoryRow, role: "listitem", "aria-label": `${row.name}, ${row.status}`, children: _jsxs("div", { className: css.inventoryMain, children: [_jsxs("div", { className: css.inventoryCopy, children: [_jsx("span", { className: css.rowTitle, children: row.name }), _jsx("span", { className: css.rowBody, children: row.description }), _jsx("code", { className: css.inventoryId, title: row.entry.entryId, children: row.entry.moduleName })] }), _jsxs("div", { className: css.inventoryActions, children: [props.action?.(row), _jsx("span", { className: css.inventoryStatus, children: row.status })] })] }) }, row.entry.entryId))), bottomSpace > 0 ? _jsx("div", { "aria-hidden": "true", style: { height: bottomSpace } }) : null] }));
 }
 function PluginInventory(props) {
     const t = useT();
     const [query, setQuery] = useState('');
     const [runtimeOpen, setRuntimeOpen] = useState(false);
+    const [uninstallTarget, setUninstallTarget] = useState();
+    const marketClient = useMemo(() => createMarketClient(), []);
+    const market = useAsync(async (signal) => props.mcpOnly ? undefined : await marketClient.installed(signal), [marketClient, props.mcpOnly]);
+    const { operations, start } = useOperations(marketClient);
+    const marketSnapshot = market.value?.ok === true ? market.value.value : undefined;
     const entries = useMemo(() => props.data.inventory.entries
         .filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
         .map(entry => {
@@ -356,16 +375,39 @@ function PluginInventory(props) {
             name,
             description: inventoryDescription(entry.moduleName, name, t),
             status: inventoryStatus(entry, t),
+            marketPlugin: findMarketPlugin(entry.moduleName, marketSnapshot),
         };
-    }), [props.data.inventory.entries, props.mcpOnly, t]);
+    }), [marketSnapshot, props.data.inventory.entries, props.mcpOnly, t]);
     const normalizedQuery = query.trim().toLowerCase();
     const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
         .toLowerCase()
         .includes(normalizedQuery)), [entries, normalizedQuery]);
     const extensions = filtered.filter(row => isUserExtension(row.entry));
     const runtimeModules = filtered.filter(row => !isUserExtension(row.entry));
+    const reload = () => {
+        props.onReload();
+        market.reload();
+    };
+    const extensionAction = (row) => {
+        const plugin = row.marketPlugin;
+        if (plugin === undefined || marketSnapshot?.self?.name === plugin.name)
+            return null;
+        const operation = operations[plugin.name];
+        const busy = operation?.status === 'running';
+        const confirm = uninstallTarget === plugin.name;
+        return (_jsx(Button, { className: css.dangerButton, disabled: busy, onClick: () => {
+                if (!confirm) {
+                    setUninstallTarget(plugin.name);
+                    return;
+                }
+                setUninstallTarget(undefined);
+                start(plugin.name, () => marketClient.uninstall(plugin.name), reload);
+            }, children: busy ? t('plugins.working') : confirm ? t('plugins.confirmUninstall') : t('plugins.uninstall') }));
+    };
     return (_jsxs("div", { className: css.pluginInventory, children: [_jsx("input", { className: css.search, type: "search", value: query, placeholder: t('settings.plugins.search'), "aria-label": t('settings.plugins.search'), onChange: event => { const next = event.target.value; setQuery(next); if (next.trim() !== '')
-                    setRuntimeOpen(true); } }), _jsxs("div", { className: css.inventoryHeading, children: [_jsx("h3", { className: css.sectionTitle, children: t('settings.plugins.extensionsTitle') }), _jsx("span", { className: css.badge, children: extensions.length })] }), _jsx("p", { className: css.inventoryIntro, children: t('settings.plugins.extensionsBody') }), extensions.length === 0 ? _jsx(EmptyState, { children: t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory') }) : _jsx(VirtualInventoryList, { entries: extensions }, `extensions-${normalizedQuery}`), !props.mcpOnly ? (_jsxs("details", { className: css.runtimeModules, open: runtimeOpen, onToggle: event => { setRuntimeOpen(event.currentTarget.open); }, children: [_jsxs("summary", { className: css.runtimeSummary, "aria-label": `${t('settings.plugins.runtimeTitle')}, ${String(runtimeModules.length)}`, "aria-expanded": runtimeOpen, children: [_jsxs("span", { children: [_jsx("span", { className: css.runtimeTitle, children: t('settings.plugins.runtimeTitle') }), _jsx("span", { className: css.runtimeHint, children: t('settings.plugins.runtimeBody') })] }), _jsx("span", { className: css.badge, children: runtimeModules.length })] }), _jsx("div", { className: css.runtimeContent, children: runtimeModules.length === 0 ? _jsx(EmptyState, { children: t('settings.plugins.emptyRuntime') }) : _jsx(VirtualInventoryList, { entries: runtimeModules }, `runtime-${normalizedQuery}`) })] })) : null] }));
+                    setRuntimeOpen(true); } }), _jsxs("div", { className: css.inventoryHeading, children: [_jsx("h3", { className: css.sectionTitle, children: t('settings.plugins.extensionsTitle') }), _jsx("span", { className: css.badge, children: extensions.length })] }), _jsx("p", { className: css.inventoryIntro, children: t('settings.plugins.extensionsBody') }), !props.mcpOnly && extensions.length > 0 && market.value?.ok === false
+                ? _jsx("div", { className: css.notice, role: "status", children: t('settings.plugins.marketUnavailable') })
+                : null, extensions.length === 0 ? _jsx(EmptyState, { children: t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory') }) : _jsx(VirtualInventoryList, { entries: extensions, action: extensionAction }, `extensions-${normalizedQuery}`), !props.mcpOnly ? (_jsxs("details", { className: css.runtimeModules, open: runtimeOpen, onToggle: event => { setRuntimeOpen(event.currentTarget.open); }, children: [_jsxs("summary", { className: css.runtimeSummary, "aria-label": `${t('settings.plugins.runtimeTitle')}, ${String(runtimeModules.length)}`, "aria-expanded": runtimeOpen, children: [_jsxs("span", { children: [_jsx("span", { className: css.runtimeTitle, children: t('settings.plugins.runtimeTitle') }), _jsx("span", { className: css.runtimeHint, children: t('settings.plugins.runtimeBody') })] }), _jsx("span", { className: css.badge, children: runtimeModules.length })] }), _jsx("div", { className: css.runtimeContent, children: runtimeModules.length === 0 ? _jsx(EmptyState, { children: t('settings.plugins.emptyRuntime') }) : _jsx(VirtualInventoryList, { entries: runtimeModules }, `runtime-${normalizedQuery}`) })] })) : null] }));
 }
 /** Plugins page with DCode tabs, local token styling, and writable host settings. */
 export function PluginSettingsSection({ mcpOnly = false }) {
@@ -401,6 +443,6 @@ export function PluginSettingsSection({ mcpOnly = false }) {
     if (data.value === undefined)
         return _jsx(EmptyState, { children: t('common.error') });
     const value = data.value;
-    return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.sectionTitle, children: mcpOnly ? t('settings.mcp') : t('plugins.section.settings') }), _jsx("p", { className: css.sectionBody, children: mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody') }), !mcpOnly ? (_jsx("div", { className: css.pluginTabs, role: "tablist", "aria-label": t('settings.plugins.tabs'), children: tabs.map((entry, index) => (_jsx("button", { ref: element => { tabRefs.current[entry.id] = element; }, id: `${tabPrefix}-${entry.id}`, type: "button", role: "tab", "aria-selected": tab === entry.id, "aria-controls": `${tabPrefix}-panel`, tabIndex: tab === entry.id ? 0 : -1, className: `${css.pluginTab} ${tab === entry.id ? css.pluginTabActive : ''}`, onClick: () => { setTab(entry.id); }, onKeyDown: event => { moveTab(event, index); }, children: entry.label }, entry.id))) })) : null, _jsx("div", { id: `${tabPrefix}-panel`, role: "tabpanel", tabIndex: 0, "aria-labelledby": mcpOnly ? undefined : `${tabPrefix}-${tab}`, children: !mcpOnly && tab === 'config' ? _jsx(PluginConfigSection, { data: value, onReload: data.reload }) : _jsx(PluginInventory, { data: value, mcpOnly: mcpOnly }) })] }));
+    return (_jsxs("section", { className: css.section, children: [_jsx("h2", { className: css.sectionTitle, children: mcpOnly ? t('settings.mcp') : t('plugins.section.settings') }), _jsx("p", { className: css.sectionBody, children: mcpOnly ? t('settings.plugins.mcpBody') : t('settings.pluginsBody') }), !mcpOnly ? (_jsx("div", { className: css.pluginTabs, role: "tablist", "aria-label": t('settings.plugins.tabs'), children: tabs.map((entry, index) => (_jsx("button", { ref: element => { tabRefs.current[entry.id] = element; }, id: `${tabPrefix}-${entry.id}`, type: "button", role: "tab", "aria-selected": tab === entry.id, "aria-controls": `${tabPrefix}-panel`, tabIndex: tab === entry.id ? 0 : -1, className: `${css.pluginTab} ${tab === entry.id ? css.pluginTabActive : ''}`, onClick: () => { setTab(entry.id); }, onKeyDown: event => { moveTab(event, index); }, children: entry.label }, entry.id))) })) : null, _jsx("div", { id: `${tabPrefix}-panel`, role: "tabpanel", tabIndex: 0, "aria-labelledby": mcpOnly ? undefined : `${tabPrefix}-${tab}`, children: !mcpOnly && tab === 'config' ? _jsx(PluginConfigSection, { data: value, onReload: data.reload }) : _jsx(PluginInventory, { data: value, mcpOnly: mcpOnly, onReload: data.reload }) })] }));
 }
 //# sourceMappingURL=PluginSettingsSection.js.map
