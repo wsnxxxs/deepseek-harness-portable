@@ -400,15 +400,20 @@ window.__ModuleLoader__.load({
 		var VisionCardController = class {
 			scope;
 			store;
+			unsubscribe;
 			staged = {};
 			saving = false;
 			failed = false;
 			constructor(scope) {
 				this.scope = scope;
 				this.store = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)(this.projection());
-				this.scope.subscribe(() => {
+				this.unsubscribe = this.scope.subscribe(() => {
 					this.store.set(this.projection());
 				});
+			}
+			/** Release the settings listener when the browser plugin fiber unloads. */
+			dispose() {
+				this.unsubscribe();
 			}
 			/** Staged edit, then stored value, then the schema default. */
 			field(current, key) {
@@ -478,11 +483,15 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/index.ts
 		const name = "vision-bridge-client";
+		/**
+		* Only services read by this body belong in Cordis injection. The settings
+		* card and composer marker target slots owned by other plugins; `slots.inject`
+		* below waits for those declarations without making either slot owner a
+		* service-level activation barrier.
+		*/
 		const inject = [
 			"slots",
 			"locale",
-			"connection",
-			"remote",
 			"settingsScope"
 		];
 		function apply(ctx) {
@@ -491,6 +500,7 @@ window.__ModuleLoader__.load({
 				en
 			}), "vision-bridge: dictionaries");
 			const controller = new VisionCardController(ctx.settingsScope.bind({ namespace: "vision" }));
+			ctx.effect(() => () => controller.dispose(), "vision-bridge: settings controller");
 			ctx.slots.inject("settings.plugin.item", () => ctx.slots.register({
 				name: "settings.plugin.item",
 				key: "vision",

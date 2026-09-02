@@ -13,15 +13,20 @@ const DEFAULTS = {
 export class VisionCardController {
     scope;
     store;
+    unsubscribe;
     staged = {};
     saving = false;
     failed = false;
     constructor(scope) {
         this.scope = scope;
         this.store = createSnapshotStore(this.projection());
-        this.scope.subscribe(() => {
+        this.unsubscribe = this.scope.subscribe(() => {
             this.store.set(this.projection());
         });
+    }
+    /** Release the settings listener when the browser plugin fiber unloads. */
+    dispose() {
+        this.unsubscribe();
     }
     /** Staged edit, then stored value, then the schema default. */
     field(current, key) {

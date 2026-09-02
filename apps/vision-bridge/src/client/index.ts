@@ -10,14 +10,20 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { zh, en } from './locales.ts'
 import { VisionCard } from './VisionCard.tsx'
 import { VisionRouteMarker } from './VisionRouteMarker.tsx'
 import { VisionCardController, type VisionSettings } from './vision-card-controller.ts'
 
 export const name = 'vision-bridge-client'
-export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
+/**
+ * Only services read by this body belong in Cordis injection. The settings
+ * card and composer marker target slots owned by other plugins; `slots.inject`
+ * below waits for those declarations without making either slot owner a
+ * service-level activation barrier.
+ */
+export const inject = ['slots', 'locale', 'settingsScope']
 
 export function apply(ctx: ClientContext): void {
   // 1) Register i18n dictionary
@@ -30,6 +36,7 @@ export function apply(ctx: ClientContext): void {
   const controller = new VisionCardController(
     ctx.settingsScope.bind<VisionSettings>({ namespace: 'vision' }),
   )
+  ctx.effect(() => () => controller.dispose(), 'vision-bridge: settings controller')
 
   // 3) Register card into official settings.plugin.item slot
   ctx.slots.inject('settings.plugin.item', () =>

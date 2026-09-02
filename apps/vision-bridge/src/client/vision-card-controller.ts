@@ -43,15 +43,21 @@ export interface VisionCardFace {
 
 export class VisionCardController {
   private readonly store: SnapshotStore<VisionCardState>
+  private readonly unsubscribe: () => void
   private staged: Partial<VisionSettings> = {}
   private saving = false
   private failed = false
 
   constructor(private readonly scope: SettingsScope<VisionSettings>) {
     this.store = createSnapshotStore<VisionCardState>(this.projection())
-    this.scope.subscribe(() => {
+    this.unsubscribe = this.scope.subscribe(() => {
       this.store.set(this.projection())
     })
+  }
+
+  /** Release the settings listener when the browser plugin fiber unloads. */
+  dispose(): void {
+    this.unsubscribe()
   }
 
   /** Staged edit, then stored value, then the schema default. */

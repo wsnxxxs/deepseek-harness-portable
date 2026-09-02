@@ -31,10 +31,13 @@ export interface VisionCardFace {
 export declare class VisionCardController {
     private readonly scope;
     private readonly store;
+    private readonly unsubscribe;
     private staged;
     private saving;
     private failed;
     constructor(scope: SettingsScope<VisionSettings>);
+    /** Release the settings listener when the browser plugin fiber unloads. */
+    dispose(): void;
     /** Staged edit, then stored value, then the schema default. */
     private field;
     private projection;

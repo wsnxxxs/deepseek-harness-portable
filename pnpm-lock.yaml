@@ -1063,21 +1063,12 @@ importers:
       '@deepseek-ai/dsh-client-store':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/store
-      '@deepseek-ai/dsh-client-ui-attachment':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-attachment
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/ui-conversation
-      '@deepseek-ai/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-primitives
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/ui-renderer
-      '@deepseek-ai/dsh-client-ui-session':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-session
       '@deepseek-ai/dsh-client-ui-settings':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/client/ui-settings
@@ -1093,9 +1084,6 @@ importers:
       '@types/react':
         specifier: ^18.3.18
         version: 18.3.31
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
       react:
         specifier: ^18.3.1
         version: 18.3.1
