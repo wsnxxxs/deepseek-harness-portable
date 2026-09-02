@@ -283,8 +283,8 @@ export function findHistoricalImageRef(events, attachmentId) {
 }
 /** Get the live session event log without coupling this package to a session package. */
 function sessionEvents(exec) {
-    const candidate = exec.agent?.session?.events;
-    return Array.isArray(candidate) ? candidate : [];
+    const session = exec.agent?.session;
+    return session?.snapshotEvents?.() ?? [];
 }
 /** Render a stable, non-path display key for a history-backed image. */
 function historyDisplayPath(attachmentId) {

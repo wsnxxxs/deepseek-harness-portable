@@ -19,12 +19,20 @@ export declare function SubagentsPanel({ sessionId, selectedId, onSelect, }: {
     readonly selectedId?: SessionId;
     readonly onSelect: (entry: SubagentChildEntry) => void;
 }): import("react").JSX.Element;
+/** Centered full-session reader opened over the workbench. */
+export declare function SubagentConversationDialog({ parentSessionId, entry, navigation, onClose, }: {
+    readonly parentSessionId: SessionId;
+    readonly entry: SubagentChildEntry;
+    readonly navigation: NavigationStore;
+    readonly onClose: () => void;
+}): import("react").JSX.Element;
 /** Detailed child view, following DCode's back / copy-log / transcript pattern. */
-export declare function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, }: {
+export declare function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, onOpenFull, }: {
     readonly parentSessionId: SessionId;
     readonly entry: SubagentChildEntry;
     readonly navigation: NavigationStore;
     readonly onBack: () => void;
+    readonly onOpenFull: () => void;
 }): import("react").JSX.Element;
 export {};
 //# sourceMappingURL=AgentInspector.d.ts.map

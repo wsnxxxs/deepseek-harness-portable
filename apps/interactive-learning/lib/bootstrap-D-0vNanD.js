@@ -1,4 +1,4 @@
-import { v as registerLearningSessionEventType } from "./learner-state-BiBCCaLg.js";
+import { v as registerLearningSessionEventType } from "./learner-state-CA63fLIw.js";
 //#region lib/types/bootstrap.js
 /**
 * Compatibility hook for the installable Learning package.
@@ -6,10 +6,8 @@ import { v as registerLearningSessionEventType } from "./learner-state-BiBCCaLg.
 * The portable runtime statically imports this package's preset entry before
 * boot and before persistence can load a session. Keep session-event
 * registration here so every Host/preset entry uses the same idempotent seam.
-* Learning snapshots are also written with the envelope's `ignorable` marker,
-* so a host that attaches this package lazily can still retain and fold them
-* after the import resolves. The Session reader keeps an exact compatibility
-* exception for older `learning/state` snapshots written before that marker.
+* The package-owned events are only restored when this package is mounted and
+* has registered its vocabulary with the alpha.4 persistence catalog.
 */
 /** Register the Learning session event for strict validation when the package is attached. */
 function registerInteractiveLearningSessionCompatibility() {

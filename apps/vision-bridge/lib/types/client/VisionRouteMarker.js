@@ -1,7 +1,8 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { planVisionTurn } from "./vision-route.js";
 import css from './VisionRouteMarker.module.css';
-export function VisionRouteMarker({ input, t, useVisionCard }) {
+export function VisionRouteMarker({ useInput, t, useVisionCard }) {
+    const input = useInput(state => state);
     const enabled = useVisionCard(state => state.enabled);
     const plan = planVisionTurn(input.imageIds);
     if (!enabled || plan.kind === 'text')

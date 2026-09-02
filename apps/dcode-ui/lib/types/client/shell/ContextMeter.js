@@ -60,7 +60,7 @@ export function ContextMeter({ sessionId }) {
                                 ? _jsx("span", { className: css.segment, style: { width: `${String(percent)}%` } })
                                 : rows.map(row => (_jsx("span", { className: `${css.segment} ${row.className}`, style: { width: `${String(percent * row.value / totalBreakdown)}%` } }, row.key))) }), rows.length === 0
                             ? null
-                            : (_jsx("dl", { className: css.rows, children: rows.map(row => (_jsxs("div", { className: css.row, children: [_jsxs("dt", { children: [_jsx("span", { className: `${css.swatch} ${row.className}`, "aria-hidden": true }), t(row.key)] }), _jsx("dd", { children: formatTokens(row.value) })] }, row.key))) }))] }))
+                            : (_jsx("dl", { className: css.rows, children: rows.map(row => (_jsxs("div", { className: css.row, children: [_jsxs("dt", { children: [_jsx("span", { className: `${css.swatch} ${row.className}`, "aria-hidden": true }), t(row.key)] }), _jsxs("dd", { children: ["~", formatTokens(row.value)] })] }, row.key))) }))] }))
                 : null] }));
 }
 //# sourceMappingURL=ContextMeter.js.map

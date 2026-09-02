@@ -233,7 +233,7 @@ function CommandOutputPanel({ sessionId, onLocated }) {
                 : _jsx("div", { className: css.commandList, children: commands.map(block => _jsx(CommandOutputEntry, { block: block, onLocated: onLocated }, block.callId)) })] }));
 }
 /** The docked preview sidebar with its content views. */
-export function Aside({ navigation, sessionId, cwd, context }) {
+export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConversation }) {
     const runtime = useRuntime();
     const t = useT();
     const state = useNavigation(navigation);
@@ -275,7 +275,7 @@ export function Aside({ navigation, sessionId, cwd, context }) {
                             ? (_jsxs(_Fragment, { children: [selectedPreset === 'crew' && runtime.cluster !== undefined
                                         ? _jsx(ClusterPanel, { sessionId: sessionId })
                                         : null, _jsx(GoalPanel, { sessionId: sessionId }), _jsx(SubagentsPanel, { sessionId: sessionId, onSelect: setSelectedSubagent })] }))
-                            : (_jsx(SubagentDetailPanel, { parentSessionId: sessionId, entry: selectedSubagent, navigation: navigation, onBack: () => { setSelectedSubagent(undefined); } }))
+                            : (_jsx(SubagentDetailPanel, { parentSessionId: sessionId, entry: selectedSubagent, navigation: navigation, onBack: () => { setSelectedSubagent(undefined); }, onOpenFull: () => { onOpenSubagentConversation(sessionId, selectedSubagent); } }))
                         : null] })] }));
 }
 //# sourceMappingURL=Aside.js.map

@@ -1,9 +1,9 @@
-import { E as material_receipts_exports, St as LEARNING_INTENT_ROUTING_GUIDANCE, T as syncMentionedMaterial, W as buildConceptStudyMap, _ as MATERIAL_TOOL_NAMES, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, g as validateStudyMapAgainstVault, h as formatStudyMapViolations, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, mt as conceptRecordFromState, nt as readLearnerMemoryWithCards, p as registerConceptTools, tt as readConceptCards, vt as renderLearnerMemory, w as parseFileMentions, wt as LEARN_INTENT_MODEL_GUIDANCE, x as registerMaterialTools, xt as topic_vault_exports, yt as upsertLearnerConcept } from "./teaching-policy-BezN_TGy.js";
+import { E as material_receipts_exports, H as buildConceptStudyMap, T as syncMentionedMaterial, X as readConceptCards, Z as readLearnerMemoryWithCards, _ as MATERIAL_TOOL_NAMES, ct as conceptRecordFromState, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, ft as renderLearnerMemory, g as validateStudyMapAgainstVault, gt as LEARNING_INTENT_ROUTING_GUIDANCE, h as formatStudyMapViolations, ht as topic_vault_exports, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, p as registerConceptTools, pt as upsertLearnerConcept, vt as LEARN_INTENT_MODEL_GUIDANCE, w as parseFileMentions, x as registerMaterialTools } from "./teaching-policy-BUhKcKN3.js";
 import { D as learningCheckpointParametersOneStepV1, E as VISUAL_RESULT_PROTOCOL_V4, O as learningVisualParametersV4, b as LEARNING_VISUAL_RESULT_SCHEMA_V4, f as parseLearningVisualV4, l as parseLearningCheckpointV1, p as LearningProtocolError, v as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, y as LEARNING_VISUAL_KINDS_V4 } from "./protocol-current-Cyp6-wYL.js";
 import { realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
-import { BlockAssembler, createUserMessage } from "@deepseek-ai/dsh-llm";
 import { defineTool } from "@deepseek-ai/dsh-tools";
+import { BlockAssembler, createUserMessage } from "@deepseek-ai/dsh-llm";
 //#region ../../vendor/deepseek-harness/packages/util/values/lib/index.js
 /**
 * Deep-freeze an object graph in place while leaving live AbortSignal objects mutable.
@@ -1285,7 +1285,7 @@ function modelStepPosition(exec) {
 	const agent = exec.agent;
 	if (agent === void 0) return void 0;
 	const callId = String(exec.callId);
-	for (const event of [...agent.session.events].reverse()) {
+	for (const event of [...agent.session.snapshotEvents()].reverse()) {
 		if (event.type !== "tool/call" || String(event.data.callId) !== callId) continue;
 		return {
 			turn: event.data.turn,
@@ -1296,8 +1296,8 @@ function modelStepPosition(exec) {
 /** Include calls already logged and calls still waiting in the assistant step. */
 function modelStepToolNames(agent, position) {
 	const names = [];
-	for (const event of agent.session.events) if (event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step) names.push(event.data.name);
-	const assistant = [...agent.session.events].reverse().find((event) => event.type === "assistant/message" && event.data.turn === position.turn && event.data.step === position.step);
+	for (const event of agent.session.snapshotEvents()) if (event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step) names.push(event.data.name);
+	const assistant = [...agent.session.snapshotEvents()].reverse().find((event) => event.type === "assistant/message" && event.data.turn === position.turn && event.data.step === position.step);
 	if (assistant?.type !== "assistant/message") return names;
 	const content = isRecord(assistant.data.message) ? assistant.data.message.content : void 0;
 	if (!Array.isArray(content)) return names;
@@ -1309,7 +1309,7 @@ function modelStepToolNames(agent, position) {
 }
 function completedToolCallIds(agent, position) {
 	const ids = /* @__PURE__ */ new Set();
-	for (const event of agent.session.events) {
+	for (const event of agent.session.snapshotEvents()) {
 		if (event.type !== "tool/result" || event.data.turn !== position.turn || event.data.step !== position.step) continue;
 		const content = event.data.message.content;
 		for (const block of content) if (block.type === "tool-result") ids.add(String(block.toolCallId));
@@ -1331,7 +1331,7 @@ function hasPendingStateUpdateInModelStep(exec) {
 	if (agent === void 0 || position === void 0) return false;
 	const names = modelStepToolNames(agent, position);
 	if (!names.includes("learning_state_update")) return false;
-	const calls = agent.session.events.filter((event) => event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step && event.data.name === "learning_state_update");
+	const calls = agent.session.snapshotEvents().filter((event) => event.type === "tool/call" && event.data.turn === position.turn && event.data.step === position.step && event.data.name === "learning_state_update");
 	const completed = completedToolCallIds(agent, position);
 	return calls.some((call) => !completed.has(String(call.data.callId))) || calls.length < names.filter((name) => name === "learning_state_update").length;
 }

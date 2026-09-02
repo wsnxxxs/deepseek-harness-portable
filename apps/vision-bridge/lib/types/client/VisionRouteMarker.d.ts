@@ -9,5 +9,5 @@
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { VisionCardFace } from './vision-card-controller.ts';
 export type VisionRouteMarkerProps = PropsRuntime<'conversation.composer.dock'> & PropsLocale<'vision-bridge'> & InjectFace<VisionCardFace>;
-export declare function VisionRouteMarker({ input, t, useVisionCard }: VisionRouteMarkerProps): import("react").JSX.Element | null;
+export declare function VisionRouteMarker({ useInput, t, useVisionCard }: VisionRouteMarkerProps): import("react").JSX.Element | null;
 //# sourceMappingURL=VisionRouteMarker.d.ts.map

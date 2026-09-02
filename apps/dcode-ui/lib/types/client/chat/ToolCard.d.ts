@@ -12,7 +12,9 @@ import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client';
 /** Props of one tool card. */
 export interface ToolCardProps {
     readonly block: ToolCallBlock;
+    /** Render as a borderless activity row whose second click opens the card. */
+    readonly activity?: boolean;
 }
 /** A compact, expandable tool-execution card. */
-export declare function ToolCard({ block }: ToolCardProps): import("react").JSX.Element;
+export declare function ToolCard({ block, activity }: ToolCardProps): import("react").JSX.Element;
 //# sourceMappingURL=ToolCard.d.ts.map

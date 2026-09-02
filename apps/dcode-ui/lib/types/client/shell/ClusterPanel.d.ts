@@ -1,4 +1,4 @@
-/** DCode's Cluster workbench: durable roster, task DAG, worktrees, and gates. */
+/** DCode's Cluster workbench: durable roster and shared task board. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 /** Cluster mode's durable orchestration inspector. */
 export declare function ClusterPanel({ sessionId }: {

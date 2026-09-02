@@ -1,10 +1,10 @@
 /**
  * The file-change summary card that closes a turn.
  *
- * It lists exactly the paths that turn's settled write/edit calls touched,
+ * It previews the paths that turn's settled write/edit calls touched,
  * annotates each with the line counts from the working-tree status, opens the
  * diff viewer on click, and offers the one destructive action the workbench
- * has: undoing that turn's edits.
+ * has: undoing that turn's edits. Longer lists stay compact until expanded.
  *
  * Undo is deliberately narrow. It restores tracked files from HEAD and moves
  * untracked ones into `.dsh/dcode-undo/<timestamp>/` rather than deleting

@@ -25,6 +25,8 @@ export interface ToolSummary {
 }
 /** The card head vocabulary. */
 export type ToolKind = 'run' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'agent' | 'memory' | 'plan' | 'skill' | 'other';
+/** Whether a tool row represents a delegated subagent. */
+export declare function isSubagentTool(name: string): boolean;
 /** A collapsed run of lightweight, successful read/search calls. */
 export interface ToolActivityGroup {
     readonly kind: 'tool-activity';

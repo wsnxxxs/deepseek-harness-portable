@@ -24,6 +24,7 @@ contract:
       - crew-dossier
       - tool-agent-team
       - tool-subagent
+      - tool-subagent-scout
       - tool-subagent-fork
       - tool-workflow
       - tool-ralph
@@ -57,6 +58,29 @@ contract:
   crew:
     teamRuntime: host-plane
     board: shared-human-agent
+    # One persona text is read by the Lead, by every durable teammate, and by
+    # every one-shot child that joins this preset, so it is written as labelled
+    # role blocks rather than as one undifferentiated procedure.
+    persona: role-routed
+    # The upstream `tool-agent-team` plugin registers its own always-on section
+    # at TEAM_POLICY carrying the tool mechanics. The persona decides what those
+    # mechanics are FOR and restates none of them: a duplicated mechanic is paid
+    # for on every request by every member, and drifts silently the moment
+    # upstream edits its own copy. `crew-preset.test.ts` holds both halves.
+    mechanics: upstream-team-policy
+    # One-shot helpers are leaves: their own bounded persona, because they hold
+    # no Team tools and the orchestration text does not apply to them, plus
+    # `maxDepth: 2`, which refuses a helper's own helper.
+    helpers: leaf-with-bounded-persona
+    # Two tiers with different prices. The durable roster is capped at eight and
+    # only the Lead may add to it; one-shot helpers are startable by any member,
+    # in numbers, in one assistant message. The reading this mode exists to do
+    # belongs to the second tier, and the persona prices them against each other.
+    delegation: scarce-roster-plentiful-helpers
+    # `subagent_scout` carries `toolFilter.deny: [write, edit]`, so "a scout
+    # never changes files" is a property of the child rather than a request to
+    # it — which is what makes a wide read-only wave safe to overlap.
+    scout: tool-enforced-read-only
 
 variants:
   - id: win32-powershell

@@ -9,6 +9,10 @@
  * rather than disappearing.
  * @module @dsh-portable/dcode-ui/client/chat/tools
  */
+/** Whether a tool row represents a delegated subagent. */
+export function isSubagentTool(name) {
+    return name === 'subagent' || name.startsWith('subagent_');
+}
 /** Tools that change files on disk. */
 const MUTATING = new Set([
     'write', 'edit', 'str_replace_editor', 'write_to_file', 'replace_file_content',

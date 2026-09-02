@@ -37,13 +37,13 @@ function isSettled(block) {
     return 'isError' in block;
 }
 /** A compact, expandable tool-execution card. */
-export function ToolCard({ block }) {
+export function ToolCard({ block, activity = false }) {
     const t = useT();
     const settled = isSettled(block);
     const name = settled ? block.call?.name ?? 'tool' : block.name;
     const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
     const summary = summarizeTool(name, argsRaw);
-    const [open, setOpen] = useState(() => settled && (block.isError || summary.mutating));
+    const [open, setOpen] = useState(() => !activity && settled && (block.isError || summary.mutating));
     const contentId = useId();
     // Wrap is per card and per session: an operator reading a wide table turns
     // it off once, and the next card they open is a stack trace that wants it on.
@@ -72,7 +72,7 @@ export function ToolCard({ block }) {
         : settled
             ? t('chat.ran')
             : t('chat.running');
-    return (_jsxs("div", { className: css.group, "data-tool-call-id": block.callId, children: [_jsxs("div", { className: `${css.card} ${emphasized ? css.cardEmphasized : ''}`, children: [_jsx("div", { className: `${css.head} ${ui.cardHeader} ${shimmerActive(!settled)}`, children: _jsxs("button", { type: "button", className: css.headMain, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: `${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: verb }), _jsx("span", { className: css.detail, children: summary.detail === '' ? name : summary.detail }), changes === undefined
+    return (_jsxs("div", { className: css.group, "data-tool-call-id": block.callId, "data-tool-view": activity ? 'activity' : 'card', children: [_jsxs("div", { className: `${css.card} ${activity ? css.activityCard : ''} ${emphasized ? css.cardEmphasized : ''}`, children: [_jsx("div", { className: `${css.head} ${activity ? css.activityHead : ''} ${ui.cardHeader} ${shimmerActive(!settled)}`, children: _jsxs("button", { type: "button", className: css.headMain, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: `${css.glyph} ${!settled ? css.runningGlyph : ''} ${failed ? css.error : ''}`, "aria-hidden": true, children: settled ? failed ? _jsx(IconWarningOutline16, {}) : _jsx(Glyph, { kind: summary.kind }) : _jsx(Spinner, {}) }), _jsx("span", { className: `${css.verb} ${failed ? css.error : ''}`, children: activity ? t('chat.activity.toolCall') : verb }), activity ? _jsx("span", { className: css.activityName, children: name }) : null, _jsx("span", { className: css.detail, children: summary.detail === '' ? activity ? '' : name : summary.detail }), changes === undefined
                                     ? null
                                     : (_jsxs("span", { className: css.changes, "aria-label": `${changes.additions} lines added, ${changes.deletions} lines removed`, children: [_jsxs("span", { className: css.additions, children: ["+", changes.additions] }), _jsxs("span", { className: css.deletions, children: ["\u2212", changes.deletions] })] })), duration === undefined
                                     ? null
@@ -84,6 +84,6 @@ export function ToolCard({ block }) {
                                                     : (_jsx(AnsiOutput, { text: output, wrap: wrap, className: failed ? css.error : undefined }))] }))
                                         : null] }) }) })] }), block.subCalls.length === 0
                 ? null
-                : (_jsx("div", { className: css.children, children: block.subCalls.map(child => (_jsx(ToolCard, { block: child }, child.callId))) }))] }));
+                : (_jsx("div", { className: css.children, children: block.subCalls.map(child => (_jsx(ToolCard, { block: child, activity: activity }, child.callId))) }))] }));
 }
 //# sourceMappingURL=ToolCard.js.map

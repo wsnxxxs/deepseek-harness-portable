@@ -22,6 +22,7 @@ import { useAppearance } from "./ThemeSwitch.js";
 import { TopBar } from "./TopBar.js";
 import { LeftRail } from "./LeftRail.js";
 import { Aside } from "./Aside.js";
+import { SubagentConversationDialog } from "./AgentInspector.js";
 import { SummaryCard } from "./SummaryCard.js";
 import { Composer } from "./Composer.js";
 import { PlanCard } from "./PlanCard.js";
@@ -31,7 +32,7 @@ import { CommandPalette } from "./CommandPalette.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 import { Button, EmptyState } from "./ui.js";
 import { Transcript } from "../chat/Transcript.js";
-import { ResourceLibraryHome } from "../library/ResourceLibraryHome.js";
+import { LearningHome } from "../learning/LearningHome.js";
 import { PluginsHome } from "../plugins/PluginsHome.js";
 import { SettingsSurface } from "../settings/SettingsSurface.js";
 import { useModelReadiness } from "../settings/readiness.js";
@@ -133,6 +134,7 @@ export function Workbench({ navigation }) {
     const { groups } = useWorkspaceGroups();
     const { scheme, fontSize } = useAppearance();
     const [browsing, setBrowsing] = useState(false);
+    const [fullSubagentConversation, setFullSubagentConversation] = useState();
     const [railWidth, setRailWidth] = useState(readRailWidth);
     const [railResizing, setRailResizing] = useState(false);
     const railDrag = useRef();
@@ -146,6 +148,16 @@ export function Workbench({ navigation }) {
             goalActive: goal != null && goal.goal.phase !== 'completed' && goal.goal.phase !== 'paused',
         };
     }, [git.status, goal]);
+    const openSubagentConversation = useCallback((parentSessionId, entry) => {
+        setFullSubagentConversation({ parentSessionId, entry });
+    }, []);
+    const closeSubagentConversation = useCallback(() => {
+        const opened = fullSubagentConversation;
+        setFullSubagentConversation(undefined);
+        if (opened === undefined || runtime.sessions.list.getSnapshot().current !== opened.entry.id)
+            return;
+        runtime.sessions.open(opened.parentSessionId);
+    }, [fullSubagentConversation, runtime]);
     useEffect(() => { navigation.setWorkspace(cwd); }, [cwd, navigation]);
     // The frame fits itself to its own width rather than the window's: it is
     // mounted into a host slot, and how much room that slot has is a fact only
@@ -451,10 +463,10 @@ export function Workbench({ navigation }) {
         document.addEventListener('keydown', onKeyDown);
         return () => { document.removeEventListener('keydown', onKeyDown); };
     }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus]);
-    // Plugins is the only full-frame surface. Settings and the resource library
-    // are modal cards over the workspace so the operator can return without
-    // losing the current task context.
-    const fullSurface = state.view === 'plugins';
+    // Learning and Plugins are focused full-frame surfaces. Settings remains a
+    // card over the workspace so the operator can return without losing the
+    // current task context.
+    const fullSurface = state.view === 'plugins' || state.view === 'learning';
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
     const overlayOpen = compactOverlay !== undefined;
@@ -464,12 +476,16 @@ export function Workbench({ navigation }) {
             '--zx-font-size-base': `${fontSize}px`,
             '--dsh-content-font-size': `${fontSize}px`,
         }, [ACRYLIC_ATTRIBUTE]: '', children: [fullSurface
-                ? (_jsx("div", { className: css.surface, children: _jsx(PluginsHome, { navigation: navigation }) }))
+                ? (_jsx("div", { className: css.surface, children: state.view === 'learning'
+                        ? _jsx(LearningHome, { navigation: navigation, cwd: cwd, sessionId: sessionId })
+                        : _jsx(PluginsHome, { navigation: navigation }) }))
                 : (_jsxs(_Fragment, { children: [overlayOpen
                             ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: dismissCompactOverlay }))
                             : null, _jsxs("div", { className: `${css.rail} ${state.railOpen ? '' : css.railCollapsed}`, children: [_jsx(LeftRail, { navigation: navigation, onNewTask: newTask }), state.railOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.railResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": RAIL_WIDTH.min, "aria-valuemax": RAIL_WIDTH.max, "aria-valuenow": railWidth, tabIndex: 0, onPointerDown: startRailResize, onPointerMove: moveRailResize, onPointerUp: finishRailResize, onPointerCancel: finishRailResize, onKeyDown: resizeRailWithKeyboard, onDoubleClick: () => { resizeRail(RAIL_WIDTH.default, true); } }))
-                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), _jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank, compact: state.layout === 'compact' }), _jsxs("div", { className: css.composerSeat, children: [_jsx(PlanCard, { sessionId: sessionId }, sessionId), blank
+                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), fullSubagentConversation === undefined
+                                    ? (_jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank, compact: state.layout === 'compact' }))
+                                    : null, _jsxs("div", { className: css.composerSeat, children: [_jsx(PlanCard, { sessionId: sessionId }, sessionId), blank
                                             ? (_jsx(ReadinessCard, { hasWorkspace: groups.length > 0, hasSession: sessionId !== undefined, model: modelReadiness, onOpenWorkspace: openWorkspace, onNewTask: () => { newTask(groups[0]?.workspaceId); }, onSelectModel: selectModel, onConfigureProvider: configureProvider, t: t }))
                                             : null, pendingApproval !== undefined
                                             ? _jsx(ApprovalCard, { pending: pendingApproval })
@@ -477,9 +493,7 @@ export function Workbench({ navigation }) {
                                                 ? (_jsx(Composer, { sessionId: sessionId, blank: blank, cwd: cwd, onOpenWorkspace: openWorkspace, readiness: modelReadiness, onSelectModel: selectModel, onConfigureProvider: configureProvider, modelSelectRef: modelSelectRef }))
                                                 : _jsx(QuestionComposer, { pending: pendingQuestion })] }), _jsx("div", { className: css.filler, "aria-hidden": true })] }), _jsxs("div", { className: `${css.aside} ${state.asideOpen ? '' : css.asideCollapsed}`, children: [state.asideOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.asideResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": ASIDE_WIDTH.min, "aria-valuemax": ASIDE_WIDTH.max, "aria-valuenow": asideWidth, tabIndex: 0, onPointerDown: startAsideResize, onPointerMove: moveAsideResize, onPointerUp: finishAsideResize, onPointerCancel: finishAsideResize, onKeyDown: resizeAsideWithKeyboard, onDoubleClick: () => { resizeAside(ASIDE_WIDTH.default, true); } }))
-                                    : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext })] })] })), state.view === 'library' || state.view === 'learning'
-                ? (_jsx(ResourceLibraryHome, { navigation: navigation, cwd: cwd, sessionId: sessionId, onOpenWorkspace: openWorkspace }))
-                : null, state.view === 'settings'
+                                    : null, _jsx(Aside, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext, onOpenSubagentConversation: openSubagentConversation })] })] })), state.view === 'settings'
                 ? (_jsx(SettingsBoundary, { resetKey: state.settingsSection, t: t, onBack: () => { navigation.show('session'); }, children: _jsx(SettingsSurface, { navigation: navigation, sessionId: sessionId }) }))
                 : null, state.paletteOpen
                 ? (_jsx(CommandPalette, { navigation: navigation, onNewTask: newTask, onOpenWorkspace: openWorkspace }))
@@ -488,6 +502,8 @@ export function Workbench({ navigation }) {
                         setBrowsing(false);
                         void adoptWorkspace(path);
                     }, onCancel: () => { setBrowsing(false); } }))
-                : null] }));
+                : null, fullSubagentConversation === undefined
+                ? null
+                : (_jsx(SubagentConversationDialog, { parentSessionId: fullSubagentConversation.parentSessionId, entry: fullSubagentConversation.entry, navigation: navigation, onClose: closeSubagentConversation }))] }));
 }
 //# sourceMappingURL=Workbench.js.map

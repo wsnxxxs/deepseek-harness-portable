@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-/** DCode's Cluster workbench: durable roster, task DAG, worktrees, and gates. */
+/** DCode's Cluster workbench: durable roster and shared task board. */
 import { useCallback, useEffect, useState } from 'react';
 import { IconCheckOutline14, IconChevronRightOutline14, IconPlusOutline16, IconRefreshOutline14, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useAsync } from "../state/hooks.js";
@@ -26,13 +26,6 @@ function taskStatusKey(status) {
         case 'deleted': return 'cluster.task.completed';
     }
 }
-function verdictKey(verdict) {
-    switch (verdict) {
-        case 'pass': return 'cluster.verdict.pass';
-        case 'fail': return 'cluster.verdict.fail';
-        case 'blocked': return 'cluster.verdict.blocked';
-    }
-}
 function csvItems(value) {
     return [...new Set(value.split(',').map(item => item.trim()).filter(Boolean))];
 }
@@ -55,26 +48,8 @@ function mutationError(result) {
         return result.value.error.message;
     return undefined;
 }
-function memberTree(members, leadId) {
-    const output = [];
-    const visited = new Set();
-    const visit = (member, depth) => {
-        if (visited.has(member.id))
-            return;
-        visited.add(member.id);
-        output.push({ member, depth });
-        for (const child of members) {
-            if (child.role === 'teammate' && (child.parentId ?? leadId) === member.id)
-                visit(child, depth + 1);
-        }
-    };
-    for (const member of members) {
-        if (member.role === 'lead' || member.parentId === undefined)
-            visit(member, 0);
-    }
-    for (const member of members)
-        visit(member, 0);
-    return output;
+function memberTree(members) {
+    return members.map(member => ({ member, depth: member.role === 'lead' ? 0 : 1 }));
 }
 /** Cluster mode's durable orchestration inspector. */
 export function ClusterPanel({ sessionId }) {
@@ -170,7 +145,7 @@ export function ClusterPanel({ sessionId }) {
     const openMember = useCallback(async (member) => {
         if (member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning')
             return;
-        const parentSessionId = member.parentId ?? leadId;
+        const parentSessionId = leadId;
         if (parentSessionId === undefined)
             return;
         try {
@@ -195,21 +170,20 @@ export function ClusterPanel({ sessionId }) {
     const view = loaded.value;
     const members = view?.members ?? [];
     const tasks = view?.tasks ?? [];
-    const gates = view?.gates ?? [];
     const running = members.filter(member => member.status === 'running').length;
     const completed = tasks.filter(task => task.status === 'completed').length;
-    const rows = memberTree(members, leadId);
+    const rows = memberTree(members);
     return (_jsxs("section", { className: css.section, "data-cluster-panel": true, children: [_jsxs("div", { className: css.sectionHeader, children: [_jsxs("button", { type: "button", className: css.sectionToggle, "aria-expanded": open, onClick: () => { setOpen(value => !value); }, children: [_jsx(IconChevronRightOutline14, { className: open ? css.chevronOpen : undefined }), _jsx(IconUserOutline16, {}), _jsx("span", { className: ui.grow, children: t('cluster.title') }), running === 0 ? null : _jsx("span", { className: css.runningPill, children: t('cluster.running', { count: running }) }), _jsx(Pill, { children: members.length })] }), _jsx("button", { type: "button", className: css.refreshButton, "aria-label": t('cluster.refresh'), title: t('cluster.refresh'), onClick: () => { loaded.reload(); }, children: _jsx(IconRefreshOutline14, {}) })] }), open
-                ? (_jsxs("div", { className: css.content, children: [_jsxs("div", { className: css.summary, children: [_jsxs("span", { children: [_jsx("strong", { children: members.length }), " ", t('cluster.members')] }), _jsxs("span", { children: [_jsxs("strong", { children: [completed, "/", tasks.length] }), " ", t('cluster.taskProgress')] }), _jsxs("span", { children: [_jsx("strong", { children: gates.length }), " ", t('cluster.gates')] })] }), operationError !== undefined && _jsxs("div", { className: css.error, role: "alert", children: [_jsx(IconWarningOutline16, {}), operationError] }), loaded.error !== undefined && _jsxs("div", { className: css.error, role: "alert", children: [_jsx(IconWarningOutline16, {}), loaded.error] }), loaded.loading && view === undefined
+                ? (_jsxs("div", { className: css.content, children: [_jsxs("div", { className: css.summary, children: [_jsxs("span", { children: [_jsx("strong", { children: members.length }), " ", t('cluster.members')] }), _jsxs("span", { children: [_jsxs("strong", { children: [completed, "/", tasks.length] }), " ", t('cluster.taskProgress')] })] }), operationError !== undefined && _jsxs("div", { className: css.error, role: "alert", children: [_jsx(IconWarningOutline16, {}), operationError] }), loaded.error !== undefined && _jsxs("div", { className: css.error, role: "alert", children: [_jsx(IconWarningOutline16, {}), loaded.error] }), loaded.loading && view === undefined
                             ? _jsxs(EmptyState, { children: [_jsx(Spinner, { size: "sm" }), " ", t('cluster.loading')] })
                             : view === undefined
                                 ? _jsx(EmptyState, { children: t('cluster.empty') })
                                 : (_jsxs(_Fragment, { children: [_jsxs("section", { className: css.subsection, children: [_jsxs("header", { className: css.subsectionHeader, children: [_jsx("span", { children: t('cluster.roster') }), _jsx(Pill, { children: members.length })] }), _jsx("div", { className: css.memberList, children: rows.map(({ member, depth }) => {
-                                                        const canOpen = member.role !== 'lead' && member.status !== 'failed' && member.status !== 'provisioning';
-                                                        const role = member.role === 'lead' ? t('cluster.roleLead') : member.agentRole ?? t('cluster.roleTeammate');
-                                                        return (_jsxs("button", { type: "button", className: css.memberRow, style: { paddingLeft: `${8 + depth * 14}px` }, disabled: !canOpen, onClick: () => { void openMember(member); }, title: canOpen ? t('cluster.openMember') : undefined, children: [_jsx("span", { className: css.statusDot, "data-status": member.status, "aria-hidden": true }), _jsxs("span", { className: css.memberCopy, children: [_jsx("span", { className: css.memberName, children: member.name }), _jsxs("span", { className: css.memberMeta, children: [role, " \u00B7 ", t(memberStatusKey(member.status)), member.model === undefined ? '' : ` · ${member.model}`] }), member.isolation === 'worktree'
-                                                                            ? _jsxs("span", { className: css.memberMeta, children: [t('cluster.worktree'), member.branchName === undefined ? '' : ` · ${member.branchName}`] })
-                                                                            : _jsx("span", { className: css.memberMeta, children: t('cluster.shared') }), member.workspacePath === undefined ? null : _jsx("span", { className: css.memberPath, title: member.workspacePath, children: member.workspacePath }), member.diagnostics.map(diagnostic => _jsx("span", { className: css.diagnostic, children: diagnostic }, diagnostic))] }), canOpen ? _jsx(IconChevronRightOutline14, { className: css.rowChevron }) : null] }, member.id));
+                                                        const canOpen = member.role !== 'lead'
+                                                            && member.status !== 'failed'
+                                                            && member.status !== 'provisioning';
+                                                        const role = member.role === 'lead' ? t('cluster.roleLead') : t('cluster.roleTeammate');
+                                                        return (_jsxs("button", { type: "button", className: css.memberRow, style: { paddingLeft: `${8 + depth * 14}px` }, disabled: !canOpen, onClick: () => { void openMember(member); }, title: canOpen ? t('cluster.openMember') : undefined, children: [_jsx("span", { className: css.statusDot, "data-status": member.status, "aria-hidden": true }), _jsxs("span", { className: css.memberCopy, children: [_jsx("span", { className: css.memberName, children: member.name }), _jsxs("span", { className: css.memberMeta, children: [role, " \u00B7 ", t(memberStatusKey(member.status)), member.model === undefined ? '' : ` · ${member.model}`] }), member.diagnostics.map(diagnostic => _jsx("span", { className: css.diagnostic, children: diagnostic }, diagnostic))] }), canOpen ? _jsx(IconChevronRightOutline14, { className: css.rowChevron }) : null] }, member.id));
                                                     }) })] }), _jsxs("section", { className: css.subsection, children: [_jsxs("div", { className: css.subsectionHeader, children: [_jsx("span", { children: t('cluster.tasks') }), _jsx("span", { className: ui.grow }), _jsxs("button", { type: "button", className: css.addButton, onClick: () => { setCreating(value => !value); }, children: [_jsx(IconPlusOutline16, { size: 13 }), " ", t('cluster.addTask')] })] }), creating && (_jsx(TaskForm, { draft: draft, setDraft: setDraft, pending: busyTask === 'create', onSave: event => { void createTask(event); }, onCancel: () => { setCreating(false); }, t: t })), tasks.length === 0 && !creating && _jsx(EmptyState, { children: t('cluster.noTasks') }), _jsx("div", { className: css.taskList, children: tasks.map(task => editing === task.id
                                                         ? (_jsx(TaskForm, { draft: editDraft, setDraft: setEditDraft, pending: busyTask === task.id, onSave: event => {
                                                                 event.preventDefault();
@@ -226,9 +200,7 @@ export function ClusterPanel({ sessionId }) {
                                                                     action,
                                                                     ...owner === undefined || owner === '' ? {} : { owner },
                                                                 });
-                                                            }, t: t }, task.id))) })] }), _jsxs("section", { className: css.subsection, children: [_jsxs("header", { className: css.subsectionHeader, children: [_jsx("span", { children: t('cluster.governance') }), _jsx(Pill, { children: gates.length })] }), gates.length === 0
-                                                    ? _jsx(EmptyState, { children: t('cluster.noGates') })
-                                                    : _jsx("div", { className: css.gateList, children: gates.slice().reverse().map(report => _jsx(GateCard, { report: report, t: t }, report.id)) })] })] }))] }))
+                                                            }, t: t }, task.id))) })] })] }))] }))
                 : null] }));
 }
 function TaskForm({ draft, setDraft, pending, onSave, onCancel, t, editMode = false, }) {
@@ -244,8 +216,5 @@ function TaskCard({ task, assignable, busy, onEdit, onAction, t, }) {
                         : null, task.status === 'completed'
                         ? _jsx("button", { type: "button", className: css.taskAction, disabled: busy, onClick: () => { onAction('reopen'); }, children: t('cluster.reopen') })
                         : null, _jsx("button", { type: "button", className: css.dangerAction, disabled: busy, onClick: () => { onAction('delete'); }, children: t('cluster.delete') })] })] }));
-}
-function GateCard({ report, t }) {
-    return (_jsxs("article", { className: css.gateCard, "data-verdict": report.verdict, children: [_jsxs("div", { className: css.gateHeading, children: [_jsx("strong", { children: report.gate }), _jsx("span", { className: css.verdict, children: t(verdictKey(report.verdict)) })] }), _jsxs("div", { className: css.gateMeta, children: [report.actorName, " \u00B7 ", report.role, report.taskId === undefined ? '' : ` · ${report.taskId}`] }), _jsx("p", { className: css.gateEvidence, children: report.evidence }), report.note === undefined ? null : _jsxs("p", { className: css.gateNote, children: [t('cluster.note'), ": ", report.note] })] }));
 }
 //# sourceMappingURL=ClusterPanel.js.map

@@ -18,7 +18,7 @@ import type { TopicVault } from './topic-vault.ts';
 /** Paths mentioned in one block of text, in order, without duplicates. */
 export declare function parseFileMentions(text: string): readonly string[];
 interface SessionLike {
-    readonly events: readonly {
+    snapshotEvents(): readonly {
         type: string;
         data: unknown;
     }[];

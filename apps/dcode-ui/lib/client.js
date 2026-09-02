@@ -9,7 +9,6 @@ window.__ModuleLoader__.load({
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let react_dom = require("react-dom");
-		let _dsh_portable_interactive_learning_client = require("@dsh-portable/interactive-learning/client");
 		//#region ../../node_modules/.pnpm/zod@4.4.3/node_modules/zod/v4/core/core.js
 		var _a$1;
 		function $constructor(name, initializer, params) {
@@ -4139,7 +4138,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				"id": intersection(string(), unknown()).readonly(),
 				"name": string().readonly(),
 				"role": union([literal("lead"), literal("teammate")]).readonly(),
-				"parentId": intersection(string(), unknown()).readonly().optional(),
 				"status": union([
 					literal("running"),
 					literal("failed"),
@@ -4151,11 +4149,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				"provider": string().readonly().optional(),
 				"context": union([literal("fresh"), literal("fork")]).readonly().optional(),
 				"model": string().readonly().optional(),
-				"diagnostics": array(string()).readonly(),
-				"agentRole": string().readonly().optional(),
-				"isolation": union([literal("shared"), literal("worktree")]).readonly().optional(),
-				"workspacePath": string().readonly().optional(),
-				"branchName": string().readonly().optional()
+				"diagnostics": array(string()).readonly()
 			})).readonly(),
 			"tasks": array(object({
 				"id": intersection(string(), unknown()).readonly(),
@@ -4173,34 +4167,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				"ownerName": string().readonly().optional(),
 				"ready": boolean().readonly(),
 				"writeScopeWarnings": array(string()).readonly()
-			})).readonly(),
-			"gates": array(object({
-				"id": string().readonly(),
-				"gate": union([
-					literal("G0"),
-					literal("G1"),
-					literal("G2"),
-					literal("G3.5"),
-					literal("G4"),
-					literal("G5"),
-					literal("G6"),
-					literal("G7"),
-					literal("sweep"),
-					literal("goal-check")
-				]).readonly(),
-				"taskId": intersection(string(), unknown()).readonly().optional(),
-				"actorId": intersection(string(), unknown()).readonly(),
-				"actorName": string().readonly(),
-				"role": string().readonly(),
-				"verdict": union([
-					literal("blocked"),
-					literal("pass"),
-					literal("fail")
-				]).readonly(),
-				"evidence": string().readonly(),
-				"note": string().readonly().optional(),
-				"recordedAt": number().readonly()
-			})).readonly().optional()
+			})).readonly()
 		});
 		const TYPERT_REMOTE = {
 			package: "@deepseek-ai/dsh-experimental-agent-team",
@@ -4243,7 +4210,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					},
 					sourceLocation: {
 						"file": "packages/experimental/agent-team/src/index.ts",
-						"line": 298,
+						"line": 257,
 						"column": 3
 					}
 				},
@@ -4285,7 +4252,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					},
 					sourceLocation: {
 						"file": "packages/experimental/agent-team/src/index.ts",
-						"line": 309,
+						"line": 268,
 						"column": 3
 					}
 				},
@@ -4318,7 +4285,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					},
 					sourceLocation: {
 						"file": "packages/experimental/agent-team/src/index.ts",
-						"line": 281,
+						"line": 243,
 						"column": 3
 					}
 				}
@@ -4993,11 +4960,21 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		* @module @dsh-portable/dcode-ui/client/state/runtime
 		*/
 		const EMPTY_LIST = [];
+		const EMPTY_CHAT_NODE_SOURCE = {
+			getSnapshot: () => void 0,
+			subscribe: () => () => {}
+		};
+		const EMPTY_CHAT_NODE_PROCESS_SOURCE = {
+			getSnapshot: () => void 0,
+			subscribe: () => () => {}
+		};
 		/** Stable empty Chat value used while the Conversation target is starting. */
 		const EMPTY_CHAT_SNAPSHOT = {
 			order: EMPTY_LIST,
 			nodes: {
 				get: () => void 0,
+				source: () => EMPTY_CHAT_NODE_SOURCE,
+				processSource: () => EMPTY_CHAT_NODE_PROCESS_SOURCE,
 				values: () => EMPTY_LIST
 			},
 			locations: {
@@ -5178,8 +5155,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"nav.openWorkspace": "Open workspace",
 			"nav.skills": "Skills",
 			"nav.plugins": "Plugins",
-			"nav.library": "Resource library",
-			"nav.learning": "Resource library",
+			"nav.learning": "Learning mode",
 			"nav.settings": "Settings",
 			"nav.commandPalette": "Command palette",
 			"nav.noTasks": "No tasks yet",
@@ -5266,6 +5242,19 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"readiness.inlineModel": "Select a model before sending.",
 			"readiness.inlineCredential": "This model provider needs an API key before sending.",
 			"chat.thinking": "Thinking",
+			"chat.activity.toolCalls.one": "{count} tool call",
+			"chat.activity.toolCalls.many": "{count} tool calls",
+			"chat.activity.messages.one": "{count} message",
+			"chat.activity.messages.many": "{count} messages",
+			"chat.activity.subagents.one": "{count} subagent",
+			"chat.activity.subagents.many": "{count} subagents",
+			"chat.activity.separator": " · ",
+			"chat.activity.thinking": "Thinking",
+			"chat.activity.message": "Message",
+			"chat.activity.toolCall": "Tool call",
+			"chat.activity.contextInjection": "Context injection",
+			"chat.activity.contextRecall": "Session recall",
+			"chat.activity.thoughtForAWhile": "Thought for a while",
 			"chat.reasoning": "Reasoning",
 			"chat.reasoningChars": "{count} chars",
 			"chat.running": "Running",
@@ -5285,7 +5274,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"chat.context": "Context",
 			"chat.command": "Command",
 			"chat.compaction": "Context compacted",
-			"chat.loadOlder": "Load earlier messages",
 			"chat.loading": "Loading conversation…",
 			"chat.retry": "Retrying model request",
 			"chat.maxTokens": "Reached the output limit for this turn",
@@ -5324,17 +5312,28 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"chat.turnNavigation.bookmarked": "Bookmarked",
 			"chat.image.open": "Open image",
 			"chat.image.close": "Close image",
+			"duration.compactSeconds": "{seconds}s",
+			"duration.compactMinutes": "{minutes}m{seconds}s",
+			"stats.counts": "{turns} turns · {steps} steps",
+			"stats.llm": "LLM {duration}",
+			"stats.toolCall": "Tool call {duration}",
+			"stats.ttftAverage": "TTFT avg {duration}",
+			"stats.tokensPerSecond": "{throughput} tok/s",
+			"stats.cacheHit": "Cache hit {percent}%",
+			"stats.tokens": "Input {input} tok · Output {output} tok",
 			"context.aria": "{percent} of context used",
 			"context.used": "Context used",
-			"context.system": "System",
+			"context.system": "System prompt",
 			"context.tools": "Tools",
-			"context.messages": "Messages",
+			"context.messages": "Conversation",
 			"context.tokens": "~{used} / {total}",
 			"composer.dropFiles": "Release to add context attachments",
 			"composer.dropFilesHint": "Images and files will be attached to this message",
 			"composer.pasteAttachment": "Attachment added from clipboard",
 			"changes.title": "File changes",
-			"changes.count": "{count} files changed",
+			"changes.count": "Edited {count} files",
+			"changes.showMoreFiles": "Show {count} more files",
+			"changes.showLessFiles": "Show fewer files",
 			"changes.undo": "Undo",
 			"changes.undoing": "Undoing…",
 			"changes.undone": "Reverted {count} files",
@@ -5421,7 +5420,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"agents.diagnostic": "Unavailable: {reason}",
 			"agents.refresh": "Refresh agents",
 			"agents.open": "Open agent conversation",
-			"agents.openFull": "Open full conversation",
+			"agents.openFull": "View full session",
 			"agents.copyLog": "Copy log",
 			"agents.copied": "Copied",
 			"agents.back": "Back to Inspector",
@@ -5602,69 +5601,17 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"directory.contents": "Directory contents",
 			"directory.empty": "This directory is empty.",
 			"directory.open": "Open",
-			"library.title": "Resource library",
-			"library.railSubtitle": "Your sources, notes and knowledge",
-			"library.eyebrow": "Knowledge workspace",
-			"library.subtitle": "Keep source materials, notes and knowledge cards together, then use them in conversations or learning.",
-			"library.overview": "Overview",
-			"library.materials": "All materials",
-			"library.learning": "Learning mode",
-			"library.spaces": "Resource spaces",
-			"library.selectedSpace": "Current space",
-			"library.chooseSpace": "Choose a resource space",
-			"library.statsLabel": "Resource library summary",
-			"library.sources": "Sources",
-			"library.sourcesHint": "Documents and other imported material",
-			"library.notes": "Notes",
-			"library.notesHint": "Saved explanations and captures",
-			"library.concepts": "Knowledge cards",
-			"library.conceptsHint": "Confirmed ideas to revisit",
-			"library.due": "Due to review",
-			"library.dueHint": "Cards ready for a quick review",
-			"library.spacesBody": "Each workspace keeps its own sources and saved knowledge.",
-			"library.spaceStats": "{sources} sources · {notes} notes · {concepts} cards",
-			"library.learningCalloutTitle": "Learn from what you keep",
-			"library.learningCalloutBody": "Use a selected resource space as the starting point for a guided session.",
-			"library.openLearning": "Open learning mode",
-			"library.emptyTitle": "Your resource library is empty",
-			"library.emptyBody": "Open a workspace and attach a PDF, Markdown, DOCX, PPTX or text file in a conversation. The library will keep the parsed copy here.",
-			"library.addMaterial": "Add material",
-			"library.starting": "Starting…",
-			"library.noSpaceTitle": "No resource space selected",
-			"library.noSpaceBody": "Choose a resource space or start a session in a workspace to add your first material.",
-			"library.materialToolbarBody": "Browse the saved content for {path}.",
-			"library.loadFailed": "Resource spaces could not be loaded",
-			"library.loadFailedBody": "The library could not read your workspace index. Retry to refresh the list.",
-			"library.retry": "Retry",
-			"library.error": "The resource library could not be displayed.",
-			"library.loading": "Loading resource spaces…",
-			"library.needsWorkspace": "Open a workspace before starting a learning session.",
-			"library.learningEyebrow": "Use your knowledge",
-			"library.learningBody": "Turn a source into a guided session, capture notes, and review confirmed concepts.",
-			"library.learningContext": "Working from {name}",
-			"library.current": "Current learning sessions",
-			"library.currentBody": "Pick up a guided session without losing the resource space you were using.",
-			"library.currentNone": "No learning sessions yet. Choose a starting point below.",
-			"library.noPath": "Workspace not available",
 			"learning.title": "Learning",
-			"learning.subtitle": "Concepts, materials and notes, backed by the same learning engine the official interface uses.",
+			"learning.subtitle": "A focused space for explanations, questions and material study.",
 			"learning.concept": "Learn a concept",
 			"learning.conceptBody": "Start a guided session on one idea, with checkpoints and recall cards.",
 			"learning.problem": "Work through a problem",
 			"learning.problemBody": "Bring a question and work toward the answer with guidance.",
 			"learning.material": "Study material",
-			"learning.materialBody": "Ingest a document into the vault and learn from its own sections.",
+			"learning.materialBody": "Attach a document and learn from its own sections.",
 			"learning.current": "Current learning session",
 			"learning.currentNone": "No learning session is open.",
-			"learning.notes": "Notes",
-			"learning.library": "Material library",
-			"learning.cards": "Concept cards",
-			"learning.visuals": "Visuals",
-			"learning.open": "Open",
-			"learning.start": "Start",
 			"learning.needsWorkspace": "Open a workspace before starting a learning session.",
-			"learning.loading": "Loading learning content…",
-			"learning.error": "Learning content could not be loaded: {error}",
 			"settings.title": "Settings",
 			"settings.group.basics": "Basics",
 			"settings.group.agent": "Agent capabilities",
@@ -5674,6 +5621,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.pluginsNav": "Plugins",
 			"settings.about": "About",
 			"settings.aboutBody": "Review the DCode client identity and build metadata.",
+			"settings.archivedChats": "Archived chats",
+			"settings.archivedChatsBody": "Manage archived conversations. Restore one to return it to the sidebar, or delete it permanently.",
+			"settings.archivedChatsEmpty": "No archived conversations.",
+			"settings.archivedChatsRestore": "Restore",
+			"settings.archivedChatsDelete": "Delete permanently",
+			"settings.archivedChatsDeleteTitle": "Delete archived conversation?",
+			"settings.archivedChatsDeleteBody": "This permanently deletes the conversation and cannot be undone.",
 			"settings.aboutProduct": "DCode",
 			"settings.aboutDescription": "A focused coding workbench for DeepSeek Harness.",
 			"settings.aboutVersion": "Client version",
@@ -5692,7 +5646,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.browser": "Browser control",
 			"settings.computer": "Computer control",
 			"settings.memory": "Memory",
-			"settings.subagents": "Subagents",
 			"settings.plugins": "Plugin configuration",
 			"settings.mcp": "MCP servers",
 			"settings.skills": "Skills",
@@ -5707,7 +5660,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.mode.minimalBody": "A focused tool set for quick, persistent terminal work.",
 			"settings.mode.standardBody": "The full coding Agent with planning, search, skills, goals, and subagents.",
 			"settings.mode.ptcBody": "Standard coding capabilities plus the PTC tool execution path.",
-			"settings.mode.crewBody": "Recursive multi-Agent orchestration for large searches and batch work in one go.",
+			"settings.mode.crewBody": "Lead-led named teammates, a shared task board, and multi-wave parallel work for large searches and batch tasks.",
 			"settings.mode.customBody": "A user-authored Agent composition from the preset roster.",
 			"settings.agentWorkflowControls": "Agent workflow",
 			"settings.agentWorkflowControlsBody": "These controls apply to new work and to the live loop where the current session supports it.",
@@ -5937,7 +5890,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.commandsEmpty": "No commands are available.",
 			"settings.inventoryEmpty": "No installed plugins are available.",
 			"settings.presetsEmpty": "No Agent presets are available.",
-			"settings.subagentsEmpty": "No subagent configurations are available.",
 			"settings.namespaceEmpty": "This namespace has no configurable fields.",
 			"settings.usageTurns": "Recorded turns",
 			"usageCard.title": "Usage statistics",
@@ -5989,12 +5941,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.discovery.reviewed": "Reviewed",
 			"plugins.discovery.compatible": "Compatible here",
 			"plugins.discovery.explore": "Explore all",
-			"plugins.filters": "Marketplace filters",
-			"plugins.filter.all": "All",
-			"plugins.filter.category": "Category",
-			"plugins.filter.review": "Review status",
-			"plugins.filter.compatibility": "Platform compatibility",
-			"plugins.filter.maintenance": "Maintenance",
 			"plugins.featured": "Featured",
 			"plugins.featuredSource": "Curated by {source}",
 			"plugins.category.interface": "Interface",
@@ -6015,7 +5961,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.loading": "Loading…",
 			"plugins.syncFailed": "Sync failed: {error}",
 			"plugins.emptyMarket": "The marketplace returned no plugins.",
-			"plugins.emptyFiltered": "No plugin matches this view and its filters.",
 			"plugins.emptySearch": "No plugin matches “{query}”.",
 			"plugins.stars": "{count} stars",
 			"plugins.openRepository": "Open repository",
@@ -6025,8 +5970,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.translateOriginal": "Original",
 			"plugins.translateFailed": "Translation failed: {error}",
 			"plugins.translateEmpty": "No translation came back.",
-			"plugins.reviewed": "Reviewed by Portable",
-			"plugins.unreviewed": "Not verified by Portable",
 			"plugins.reviewOpen": "Installation details",
 			"plugins.review.contract": "DSH contract",
 			"plugins.review.platform": "Platforms",
@@ -6155,8 +6098,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"nav.openWorkspace": "打开工作区",
 			"nav.skills": "技能",
 			"nav.plugins": "插件",
-			"nav.library": "资料库",
-			"nav.learning": "资料库",
+			"nav.learning": "学习模式",
 			"nav.settings": "设置",
 			"nav.commandPalette": "命令面板",
 			"nav.noTasks": "还没有任务",
@@ -6243,6 +6185,19 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"readiness.inlineModel": "发送前请先选择模型。",
 			"readiness.inlineCredential": "当前模型提供商需要 API Key 才能发送。",
 			"chat.thinking": "思考中",
+			"chat.activity.toolCalls.one": "{count} 次工具调用",
+			"chat.activity.toolCalls.many": "{count} 次工具调用",
+			"chat.activity.messages.one": "{count} 条消息",
+			"chat.activity.messages.many": "{count} 条消息",
+			"chat.activity.subagents.one": "{count} 个 subagent",
+			"chat.activity.subagents.many": "{count} 个 subagent",
+			"chat.activity.separator": " · ",
+			"chat.activity.thinking": "思考",
+			"chat.activity.message": "消息",
+			"chat.activity.toolCall": "工具调用",
+			"chat.activity.contextInjection": "上下文注入",
+			"chat.activity.contextRecall": "跨会话召回",
+			"chat.activity.thoughtForAWhile": "思考了一会儿",
 			"chat.reasoning": "推理过程",
 			"chat.reasoningChars": "{count} 字符",
 			"chat.running": "正在运行",
@@ -6262,7 +6217,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"chat.context": "上下文",
 			"chat.command": "命令",
 			"chat.compaction": "上下文已压缩",
-			"chat.loadOlder": "加载更早的消息",
 			"chat.loading": "正在加载会话…",
 			"chat.retry": "正在重试模型请求",
 			"chat.maxTokens": "本回合达到输出上限",
@@ -6301,17 +6255,28 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"chat.turnNavigation.bookmarked": "已收藏",
 			"chat.image.open": "打开图片",
 			"chat.image.close": "关闭图片",
+			"duration.compactSeconds": "{seconds}秒",
+			"duration.compactMinutes": "{minutes}分{seconds}秒",
+			"stats.counts": "{turns} 轮 · {steps} 步",
+			"stats.llm": "LLM {duration}",
+			"stats.toolCall": "工具调用 {duration}",
+			"stats.ttftAverage": "首 token 平均 {duration}",
+			"stats.tokensPerSecond": "{throughput} tok/s",
+			"stats.cacheHit": "缓存命中 {percent}%",
+			"stats.tokens": "输入 {input} tok · 输出 {output} tok",
 			"context.aria": "已使用上下文 {percent}",
-			"context.used": "上下文用量",
-			"context.system": "系统",
+			"context.used": "上下文已用",
+			"context.system": "系统提示词",
 			"context.tools": "工具",
-			"context.messages": "消息",
+			"context.messages": "对话消息",
 			"context.tokens": "约 {used} / {total}",
 			"composer.dropFiles": "释放以添加上下文附件",
 			"composer.dropFilesHint": "图片和文件将附加到这条消息",
 			"composer.pasteAttachment": "已从剪贴板添加附件",
 			"changes.title": "文件变更",
-			"changes.count": "{count} 个文件已更改",
+			"changes.count": "已编辑 {count} 个文件",
+			"changes.showMoreFiles": "再显示 {count} 个文件",
+			"changes.showLessFiles": "收起文件列表",
 			"changes.undo": "撤销",
 			"changes.undoing": "正在撤销…",
 			"changes.undone": "已还原 {count} 个文件",
@@ -6398,7 +6363,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"agents.diagnostic": "不可用：{reason}",
 			"agents.refresh": "刷新 Agent",
 			"agents.open": "打开 Agent 对话",
-			"agents.openFull": "打开完整对话",
+			"agents.openFull": "查看完整会话",
 			"agents.copyLog": "复制日志",
 			"agents.copied": "已复制",
 			"agents.back": "返回检视器",
@@ -6410,7 +6375,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.refresh": "刷新集群状态",
 			"cluster.loading": "正在加载集群状态…",
 			"cluster.empty": "当前任务暂无集群状态。",
-			"cluster.roster": "Agent 层级",
+			"cluster.roster": "Agent 成员",
 			"cluster.members": "个成员",
 			"cluster.running": "{count} 个运行中",
 			"cluster.tasks": "共享任务板",
@@ -6579,69 +6544,17 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"directory.contents": "目录内容",
 			"directory.empty": "此目录为空。",
 			"directory.open": "打开",
-			"library.title": "资料库",
-			"library.railSubtitle": "材料、笔记与知识",
-			"library.eyebrow": "知识工作区",
-			"library.subtitle": "集中管理材料、笔记和知识卡片，再回到对话或学习模式中继续使用。",
-			"library.overview": "概览",
-			"library.materials": "全部资料",
-			"library.learning": "学习模式",
-			"library.spaces": "资料空间",
-			"library.selectedSpace": "当前空间",
-			"library.chooseSpace": "选择资料空间",
-			"library.statsLabel": "资料库概览",
-			"library.sources": "材料",
-			"library.sourcesHint": "已导入的文档与资料",
-			"library.notes": "笔记",
-			"library.notesHint": "保存的解释与摘录",
-			"library.concepts": "知识卡片",
-			"library.conceptsHint": "已确认、可回看的内容",
-			"library.due": "待复习",
-			"library.dueHint": "现在可以复习的卡片",
-			"library.spacesBody": "每个工作区保留自己的材料和知识内容。",
-			"library.spaceStats": "{sources} 份材料 · {notes} 条笔记 · {concepts} 张卡片",
-			"library.learningCalloutTitle": "从已有资料开始学习",
-			"library.learningCalloutBody": "以选定的资料空间为起点，开启引导式学习。",
-			"library.openLearning": "进入学习模式",
-			"library.emptyTitle": "资料库还是空的",
-			"library.emptyBody": "打开工作区后，在对话中附加 PDF、Markdown、DOCX、PPTX 或文本文件，解析内容会保存在这里。",
-			"library.addMaterial": "添加资料",
-			"library.starting": "正在启动…",
-			"library.noSpaceTitle": "还没有选定资料空间",
-			"library.noSpaceBody": "选择一个资料空间，或先在工作区开始会话来添加第一份资料。",
-			"library.materialToolbarBody": "浏览保存在 {path} 中的资料。",
-			"library.loadFailed": "资料空间读取失败",
-			"library.loadFailedBody": "暂时无法读取工作区索引，重试后会重新加载。",
-			"library.retry": "重试",
-			"library.error": "资料库暂时无法显示。",
-			"library.loading": "正在加载资料空间…",
-			"library.needsWorkspace": "先打开工作区，再开始学习会话。",
-			"library.learningEyebrow": "使用你的资料",
-			"library.learningBody": "将已有资料转成引导式学习，保存笔记并复习已确认的知识。",
-			"library.learningContext": "当前基于：{name}",
-			"library.current": "当前学习会话",
-			"library.currentBody": "继续已有的学习会话，不会丢失所用的资料空间。",
-			"library.currentNone": "还没有学习会话，请从下方选择一种开始方式。",
-			"library.noPath": "工作区不可用",
 			"learning.title": "学习模式",
-			"learning.subtitle": "概念、材料与笔记，由官方版使用的同一套学习引擎驱动。",
+			"learning.subtitle": "围绕概念、疑惑和材料进行引导式学习。",
 			"learning.concept": "概念学习",
 			"learning.conceptBody": "围绕一个概念开始引导式学习，包含检查点与回忆卡片。",
 			"learning.problem": "问题学习",
 			"learning.problemBody": "带着问题进入，在引导下逐步找到答案。",
 			"learning.material": "材料学习",
-			"learning.materialBody": "把文档导入资料库，按它自己的章节结构学习。",
+			"learning.materialBody": "附上一份材料，按它自己的章节结构学习。",
 			"learning.current": "当前学习会话",
 			"learning.currentNone": "当前没有进行中的学习会话。",
-			"learning.notes": "学习笔记",
-			"learning.library": "基础材料库",
-			"learning.cards": "概念卡片",
-			"learning.visuals": "可视化内容",
-			"learning.open": "打开",
-			"learning.start": "开始",
 			"learning.needsWorkspace": "先打开工作区，再开始学习会话。",
-			"learning.loading": "正在加载学习内容…",
-			"learning.error": "学习内容加载失败：{error}",
 			"settings.title": "设置",
 			"settings.group.basics": "基础设置",
 			"settings.group.agent": "Agent 能力",
@@ -6651,6 +6564,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.pluginsNav": "插件",
 			"settings.about": "关于",
 			"settings.aboutBody": "查看 DCode 客户端标识与构建信息。",
+			"settings.archivedChats": "已归档对话",
+			"settings.archivedChatsBody": "管理已归档的对话。恢复后会重新显示在侧边栏，也可以永久删除。",
+			"settings.archivedChatsEmpty": "暂无已归档对话。",
+			"settings.archivedChatsRestore": "恢复",
+			"settings.archivedChatsDelete": "永久删除",
+			"settings.archivedChatsDeleteTitle": "删除已归档对话？",
+			"settings.archivedChatsDeleteBody": "此操作会永久删除对话，且无法撤销。",
 			"settings.aboutProduct": "DCode",
 			"settings.aboutDescription": "面向 DeepSeek Harness 的专注型编码工作台。",
 			"settings.aboutVersion": "客户端版本",
@@ -6669,22 +6589,21 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.browser": "浏览器控制",
 			"settings.computer": "电脑控制",
 			"settings.memory": "记忆",
-			"settings.subagents": "子智能体",
 			"settings.plugins": "插件配置",
 			"settings.mcp": "MCP 服务器",
 			"settings.skills": "技能",
 			"settings.commands": "命令",
 			"settings.usage": "使用统计",
 			"settings.agentWorkflow": "智能能体与工作流",
-			"settings.agentWorkflowBody": "选择 Agent 组合，并调整 DSH 如何接收、协作、重试和压缩任务。",
+			"settings.agentWorkflowBody": "选择 Agent 组合，并调整 DSH 的任务处理方式，包括任务接收，以及协作、重试和压缩。",
 			"settings.agentWorkflowModes": "Agent 模式",
 			"settings.agentWorkflowModesTitle": "模式",
 			"settings.agentWorkflowSettingUnavailable": "当前运行时不提供此设置。",
 			"settings.modeActive": "当前使用",
 			"settings.mode.minimalBody": "聚焦核心工具，适合快速、持续的终端工作。",
-			"settings.mode.standardBody": "完整编码 Agent，包含计划、搜索、技能、目标和子智能体。",
+			"settings.mode.standardBody": "完整编码 Agent，包含计划、搜索和技能，并支持目标和子智能体。",
 			"settings.mode.ptcBody": "在标准编码能力上增加 PTC 工具执行路径。",
-			"settings.mode.crewBody": "递归组织多个 Agent，海量检索、批处理等工作一步完成。",
+			"settings.mode.crewBody": "由主 Agent 统一调度具名队友和共享任务板，支持多轮并行协作，适合大型检索与批处理。",
 			"settings.mode.customBody": "来自预设列表的用户自定义 Agent 组合。",
 			"settings.agentWorkflowControls": "Agent 工作流",
 			"settings.agentWorkflowControlsBody": "这些选项作用于新任务；当前会话支持的项目也会实时应用。",
@@ -6717,7 +6636,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.agentWorkflowPromptBody": "当前预设是系统提示词和角色专属指令的来源。",
 			"settings.agentWorkflowTools": "工具编排",
 			"settings.agentWorkflowToolsBody": "能力由当前组合挂载，并继续由 DSH 负责生命周期。",
-			"settings.agentWorkflowToolsCluster": "团队工具 + 治理",
+			"settings.agentWorkflowToolsCluster": "团队工具",
 			"settings.agentWorkflowToolsStandard": "核心工具 + 工作流",
 			"settings.agentPresets": "Agent 预设",
 			"settings.theme": "界面主题",
@@ -6914,7 +6833,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.commandsEmpty": "当前没有可用命令。",
 			"settings.inventoryEmpty": "当前没有可用的已安装插件。",
 			"settings.presetsEmpty": "当前没有可用的 Agent 预设。",
-			"settings.subagentsEmpty": "当前没有可用的子智能体配置。",
 			"settings.namespaceEmpty": "此命名空间没有可配置字段。",
 			"settings.usageTurns": "已记录回合",
 			"usageCard.title": "用量统计",
@@ -6966,12 +6884,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.discovery.reviewed": "已审阅",
 			"plugins.discovery.compatible": "与当前平台兼容",
 			"plugins.discovery.explore": "探索全部",
-			"plugins.filters": "插件市场筛选",
-			"plugins.filter.all": "全部",
-			"plugins.filter.category": "类别",
-			"plugins.filter.review": "审阅状态",
-			"plugins.filter.compatibility": "平台兼容性",
-			"plugins.filter.maintenance": "维护状态",
 			"plugins.featured": "精选",
 			"plugins.featuredSource": "精选来源：{source}",
 			"plugins.category.interface": "界面增强",
@@ -6992,7 +6904,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.loading": "加载中…",
 			"plugins.syncFailed": "同步失败：{error}",
 			"plugins.emptyMarket": "插件市场没有返回任何插件。",
-			"plugins.emptyFiltered": "当前分区与筛选条件下没有插件。",
 			"plugins.emptySearch": "没有匹配“{query}”的插件。",
 			"plugins.stars": "{count} 星标",
 			"plugins.openRepository": "打开仓库",
@@ -7002,8 +6913,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.translateOriginal": "原文",
 			"plugins.translateFailed": "翻译失败：{error}",
 			"plugins.translateEmpty": "没有返回翻译内容。",
-			"plugins.reviewed": "Portable 已审阅",
-			"plugins.unreviewed": "Portable 未验证",
 			"plugins.reviewOpen": "查看安装信息",
 			"plugins.review.contract": "DSH 契约",
 			"plugins.review.platform": "平台",
@@ -7016,10 +6925,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.review.unknownPlatform": "未验证",
 			"plugins.review.unknownRuntime": "未验证；安装前请先查看 README、package.json 与安装脚本。",
 			"plugins.review.unknownEgress": "未验证联网或图片外发行为。",
-			"plugins.review.unknownActivation": "未验证工具、提示词、daemon 的激活与卸载行为。",
+			"plugins.review.unknownActivation": "工具和提示词的激活与卸载行为，以及 daemon 的激活与卸载行为尚未验证。",
 			"plugins.review.unknownIssues": "Portable 尚无该仓库的审阅记录。",
 			"plugins.review.unknownVerified": "未验证",
-			"plugins.review.warning": "未验证的插件可能改变 Agent 的工具、提示词、网络访问与本机进程。安装前请自行核查仓库。",
+			"plugins.review.warning": "未验证的插件可能改变 Agent 的工具和提示词，也可能影响网络访问与本机进程。安装前请自行核查仓库。",
 			"plugins.review.note": "只有下方按钮会真正开始安装。",
 			"plugins.install": "安装",
 			"plugins.confirmInstall": "确认安装",
@@ -7066,7 +6975,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"plugins.version": "v{version}",
 			"plugins.versionUnknown": "版本未知",
 			"plugins.latestVersion": "最新 v{version}",
-			"plugins.restartNote": "启用、停用、更新与卸载均需重启 harness 后生效。",
+			"plugins.restartNote": "启用或停用、更新或卸载后，都要重启 harness 才会生效。",
 			"plugins.actionDone": "已执行，重启 harness 后生效。",
 			"plugins.actionFailed": "操作失败：{error}",
 			"plugins.selfUpdate": "插件市场有新版本：v{current} → v{latest}。",
@@ -7170,13 +7079,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\tokens.module.css.mjs
-		const css$31 = "[data-dcode-scope]{--zx-font-size-base:var(--dsh-content-font-size,14px);--zx-text-micro:calc(var(--zx-font-size-base) - 3px);--zx-text-xs:calc(var(--zx-font-size-base) - 2px);--zx-text-sm:calc(var(--zx-font-size-base) - 1px);--zx-text-md:var(--zx-font-size-base);--zx-text-lg:calc(var(--zx-font-size-base) + 2px);--zx-text-xl:calc(var(--zx-font-size-base) + 6px);--zx-text-2xl:calc(var(--zx-font-size-base) + 12px);--zx-leading-tight:1.35;--zx-leading-snug:1.4;--zx-leading-body:1.65;--zx-leading-code:1.55;--zx-space-1:4px;--zx-space-2:6px;--zx-space-3:8px;--zx-space-4:12px;--zx-space-5:16px;--zx-space-6:20px;--zx-space-7:28px;--zx-radius-sm:6px;--zx-radius-md:8px;--zx-radius-lg:12px;--zx-radius-xl:14px;--zx-radius-2xl:18px;--zx-radius-dialog:20px;--zx-radius-pill:999px;--zx-control-xs:26px;--zx-control-sm:28px;--zx-control-md:30px;--zx-control-lg:34px;--zx-control-2xs:20px;--zx-control-xl:44px;--zx-spinner-md:12px;--zx-spinner-sm:10px;--zx-scrollbar-size:8px;--zx-weight-normal:400;--zx-weight-medium:500;--zx-weight-semibold:600;--zx-opacity-disabled:.45;--zx-surface-1-alpha:4.5%;--zx-surface-2-alpha:7.5%;--zx-surface-elevated-alpha:11%;--zx-acrylic-surface-0-alpha:76%;--zx-acrylic-surface-1-alpha:82%;--zx-acrylic-surface-2-alpha:88%;--zx-acrylic-surface-elevated-alpha:94%;--zx-bg-surface-0:var(--dsw-alias-bg-base,#0d0d0f);--zx-bg-surface-1:color-mix(in srgb, var(--zx-label) var(--zx-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, var(--zx-label) var(--zx-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, var(--zx-label) var(--zx-surface-elevated-alpha), transparent);--zx-bg-app:var(--zx-bg-surface-0);--zx-bg-panel:var(--zx-bg-surface-1);--zx-bg-card:var(--zx-bg-surface-2);--zx-bg-overlay:var(--zx-bg-surface-elevated);--zx-bg-raised:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 6%, transparent);--zx-bg-hover:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 8%, transparent);--zx-bg-active:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 12%, transparent);--zx-border:color-mix(in srgb, var(--zx-label) 11%, transparent);--zx-border-subtle:color-mix(in srgb, var(--zx-label) 8%, transparent);--zx-border-hairline:.5px solid var(--zx-border-subtle);--zx-border-soft:var(--zx-border-subtle);--zx-border-control:color-mix(in srgb, var(--zx-label) 38%, transparent);--zx-label:var(--dsw-alias-label-primary,#f2f2f4);--zx-label-secondary:var(--dsw-alias-label-secondary,#b7b8be);--zx-label-muted:color-mix(in srgb, var(--dsw-alias-label-secondary,#a9aab0) 78%, transparent);--zx-label-tertiary:color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));--zx-label-faint:color-mix(in srgb, var(--zx-label-secondary) 74%, var(--zx-bg-surface-0));--zx-label-decor:var(--zx-label-faint);--zx-accent:var(--dsw-alias-brand-primary,#4c8dff);--zx-on-accent:var(--dsw-alias-bg-base,#0d0d0f);--zx-accent-soft:color-mix(in srgb, var(--dsw-alias-brand-primary,#4c8dff) 18%, transparent);--zx-on-accent-soft:#8ab4ff;--zx-success:var(--dsw-alias-state-success-primary,#3fb950);--zx-warn:var(--dsw-alias-state-warn-primary,#d29922);--zx-error:var(--dsw-alias-state-error-primary,#f85149);--zx-added:var(--dsw-alias-state-success-primary,#3fb950);--zx-removed:var(--dsw-alias-state-error-primary,#f85149);--zx-ansi-0:#7d8698;--zx-ansi-1:#e06c75;--zx-ansi-2:#98c379;--zx-ansi-3:#e5c07b;--zx-ansi-4:#61afef;--zx-ansi-5:#c678dd;--zx-ansi-6:#56b6c2;--zx-ansi-7:#cbd0d8;--zx-ansi-8:#8b93a1;--zx-ansi-9:#ff7b86;--zx-ansi-10:#b3e08e;--zx-ansi-11:#f2d08a;--zx-ansi-12:#82c4ff;--zx-ansi-13:#d99ae8;--zx-ansi-14:#74d0dc;--zx-ansi-15:#f5f7fa;--zx-ansi-fg:var(--zx-label);--zx-ansi-bg:var(--zx-bg-card);--zx-scrim:#00000075;--zx-focus-ring:0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);--zx-shadow-floating:0 2px 8px #0000002e, 0 12px 32px #00000047;--zx-shadow-card:0 6px 18px #0000002e, 0 1px 3px #0003;--zx-shadow-popover:0 2px 8px #0000002e, 0 12px 32px #00000047;--zx-shadow-panel:var(--zx-shadow-floating);--zx-shadow-dialog:0 18px 44px #00000057, 0 4px 12px #0003;--zx-shadow-focus:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);--zx-shadow-inset-top:inset 0 1px 0 0 #ffffff0f;--zx-z-base:0;--zx-z-sticky:10;--zx-z-scrim:20;--zx-z-drawer:30;--zx-z-popover:40;--zx-z-modal:60;--zx-z-dialog:80;--zx-z-menu:90;--zx-z-tooltip:100;--zx-font-ui:-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", system-ui, sans-serif;--zx-font-mono:ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace;--zx-motion-fast:.12s cubic-bezier(.2, 0, .2, 1);--zx-motion:.18s cubic-bezier(.2, 0, .2, 1);--zx-glass-filter:blur(16px) saturate(140%);--zx-rail-width:240px;--zx-aside-width:320px;--zx-topbar-height:44px;--zx-reading-width:760px;--dsw-specific-menu:var(--zx-bg-overlay);--dsw-alias-border-inverted:var(--zx-border);--dsw-alias-interactive-bg-hover:var(--zx-bg-hover);--dsw-alias-interactive-bg-hover-solid:var(--zx-bg-hover);--dsw-alias-bg-module-platform:var(--zx-bg-card);--dsw-shadow-lv3:var(--zx-shadow-panel)}[data-dcode-scope][data-dcode-scheme=light]{--zx-bg-surface-0:var(--dsw-alias-bg-base,#f8f9fb);--zx-bg-surface-1:color-mix(in srgb, #fff var(--zx-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, #fff var(--zx-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, #fff var(--zx-surface-elevated-alpha), transparent);--zx-acrylic-surface-0-alpha:68%;--zx-acrylic-surface-1-alpha:74%;--zx-acrylic-surface-2-alpha:80%;--zx-acrylic-surface-elevated-alpha:86%;--zx-bg-raised:color-mix(in srgb, var(--zx-label) 4%, transparent);--zx-bg-hover:color-mix(in srgb, var(--zx-label) 5.5%, transparent);--zx-bg-active:color-mix(in srgb, var(--zx-label) 9.5%, transparent);--zx-border:color-mix(in srgb, var(--zx-label) 10%, transparent);--zx-border-subtle:color-mix(in srgb, var(--zx-label) 6.5%, transparent);--zx-border-soft:var(--zx-border-subtle);--zx-border-control:color-mix(in srgb, var(--zx-label) 14%, transparent);--zx-label:var(--dsw-alias-label-primary,#1c2024);--zx-label-secondary:var(--dsw-alias-label-secondary,#525866);--zx-label-muted:color-mix(in srgb, var(--dsw-alias-label-secondary,#525866) 88%, transparent);--zx-label-tertiary:color-mix(in srgb, var(--zx-label-secondary) 92%, var(--zx-bg-surface-0));--zx-label-faint:color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));--zx-label-decor:var(--zx-label-faint);--zx-accent:var(--dsw-alias-brand-primary,#2563eb);--zx-on-accent:#fff;--zx-accent-soft:color-mix(in srgb, var(--dsw-alias-brand-primary,#2563eb) 12%, transparent);--zx-on-accent-soft:#1a45b0;--zx-focus-ring:0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);--zx-success:var(--dsw-alias-state-success-primary,#1a7f37);--zx-warn:var(--dsw-alias-state-warn-primary,#9a6700);--zx-error:var(--dsw-alias-state-error-primary,#cf222e);--zx-added:var(--dsw-alias-state-success-primary,#1a7f37);--zx-removed:var(--dsw-alias-state-error-primary,#cf222e);--zx-shadow-floating:0 4px 16px #0f172a14, 0 1px 3px #0f172a0a;--zx-shadow-card:0 1px 3px #0f172a0a, 0 1px 2px #0f172a05;--zx-shadow-popover:0 4px 16px #0f172a14, 0 1px 3px #0f172a0a;--zx-shadow-panel:var(--zx-shadow-floating);--zx-shadow-dialog:0 20px 48px #0f172a24, 0 4px 12px #0f172a0f;--zx-shadow-inset-top:inset 0 1px 0 0 #fffc;--zx-ansi-0:#24292f;--zx-ansi-1:#cf222e;--zx-ansi-2:#116329;--zx-ansi-3:#7d4e00;--zx-ansi-4:#0550ae;--zx-ansi-5:#8250df;--zx-ansi-6:#0b6b73;--zx-ansi-7:#57606a;--zx-ansi-8:#616a75;--zx-ansi-9:#a40e26;--zx-ansi-10:#0d5620;--zx-ansi-11:#6b4600;--zx-ansi-12:#0a4a9e;--zx-ansi-13:#6f42c1;--zx-ansi-14:#0a5c63;--zx-ansi-15:#5b6470;--zx-ansi-fg:var(--zx-label);--zx-ansi-bg:var(--zx-bg-card);--zx-scrim:#0f172a3d}html[data-dcode-acrylic],html[data-dcode-acrylic] body,html[data-dcode-acrylic] #OIyMBW_root,html[data-dcode-acrylic] #OIyMBW_app,html[data-dcode-acrylic] #OIyMBW___next,html[data-dcode-acrylic] [data-reactroot]{background:0 0!important}[data-dcode-scope][data-dcode-acrylic]{--zx-bg-surface-0:color-mix(in srgb, var(--dsw-alias-bg-base,#0d0d0f) var(--zx-acrylic-surface-0-alpha), transparent);--zx-bg-surface-1:color-mix(in srgb, var(--dsw-alias-bg-base,#141418) var(--zx-acrylic-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, var(--dsw-alias-bg-base,#1b1b22) var(--zx-acrylic-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, var(--dsw-alias-bg-base,#22222b) var(--zx-acrylic-surface-elevated-alpha), transparent)}[data-dcode-scope][data-dcode-scheme=light][data-dcode-acrylic]{--zx-bg-surface-0:color-mix(in srgb, var(--dsw-alias-bg-base,#f8f9fb) var(--zx-acrylic-surface-0-alpha), transparent);--zx-bg-surface-1:color-mix(in srgb, #fff var(--zx-acrylic-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, #fff var(--zx-acrylic-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, #fff var(--zx-acrylic-surface-elevated-alpha), transparent)}@media (prefers-reduced-motion:reduce){[data-dcode-scope] *,[data-dcode-scope] :before,[data-dcode-scope] :after{scroll-behavior:auto!important;transition-duration:.001ms!important;animation-duration:.001ms!important;animation-iteration-count:1!important}}";
-		const tagId$30 = "@dsh-portable/dcode-ui/tokens.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$30) + "]") === null) {
+		const css$33 = "[data-dcode-scope]{--zx-font-size-base:var(--dsh-content-font-size,14px);--zx-text-micro:calc(var(--zx-font-size-base) - 3px);--zx-text-xs:calc(var(--zx-font-size-base) - 2px);--zx-text-sm:calc(var(--zx-font-size-base) - 1px);--zx-text-md:var(--zx-font-size-base);--zx-text-lg:calc(var(--zx-font-size-base) + 2px);--zx-text-xl:calc(var(--zx-font-size-base) + 6px);--zx-text-2xl:calc(var(--zx-font-size-base) + 12px);--zx-leading-tight:1.35;--zx-leading-snug:1.4;--zx-leading-body:1.65;--zx-leading-code:1.55;--zx-space-1:4px;--zx-space-2:6px;--zx-space-3:8px;--zx-space-4:12px;--zx-space-5:16px;--zx-space-6:20px;--zx-space-7:28px;--zx-radius-sm:6px;--zx-radius-md:8px;--zx-radius-lg:12px;--zx-radius-xl:14px;--zx-radius-2xl:18px;--zx-radius-dialog:20px;--zx-radius-pill:999px;--zx-control-xs:26px;--zx-control-sm:28px;--zx-control-md:30px;--zx-control-lg:34px;--zx-control-2xs:20px;--zx-control-xl:44px;--zx-spinner-md:12px;--zx-spinner-sm:10px;--zx-scrollbar-size:8px;--zx-weight-normal:400;--zx-weight-medium:500;--zx-weight-semibold:600;--zx-opacity-disabled:.45;--zx-surface-1-alpha:4.5%;--zx-surface-2-alpha:7.5%;--zx-surface-elevated-alpha:11%;--zx-acrylic-surface-0-alpha:76%;--zx-acrylic-surface-1-alpha:82%;--zx-acrylic-surface-2-alpha:88%;--zx-acrylic-surface-elevated-alpha:94%;--zx-bg-surface-0:var(--dsw-alias-bg-base,#0d0d0f);--zx-bg-surface-1:color-mix(in srgb, var(--zx-label) var(--zx-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, var(--zx-label) var(--zx-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, var(--zx-label) var(--zx-surface-elevated-alpha), transparent);--zx-bg-app:var(--zx-bg-surface-0);--zx-bg-panel:var(--zx-bg-surface-1);--zx-bg-card:var(--zx-bg-surface-2);--zx-bg-overlay:var(--zx-bg-surface-elevated);--zx-bg-raised:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 6%, transparent);--zx-bg-hover:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 8%, transparent);--zx-bg-active:color-mix(in srgb, var(--dsw-alias-label-primary,#f2f2f3) 12%, transparent);--zx-border:color-mix(in srgb, var(--zx-label) 11%, transparent);--zx-border-subtle:color-mix(in srgb, var(--zx-label) 8%, transparent);--zx-border-hairline:.5px solid var(--zx-border-subtle);--zx-border-soft:var(--zx-border-subtle);--zx-border-control:color-mix(in srgb, var(--zx-label) 38%, transparent);--zx-label:var(--dsw-alias-label-primary,#f2f2f4);--zx-label-secondary:var(--dsw-alias-label-secondary,#b7b8be);--zx-label-muted:color-mix(in srgb, var(--dsw-alias-label-secondary,#a9aab0) 78%, transparent);--zx-label-tertiary:color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));--zx-label-faint:color-mix(in srgb, var(--zx-label-secondary) 74%, var(--zx-bg-surface-0));--zx-label-decor:var(--zx-label-faint);--zx-accent:var(--dsw-alias-brand-primary,#4c8dff);--zx-on-accent:var(--dsw-alias-bg-base,#0d0d0f);--zx-accent-soft:color-mix(in srgb, var(--dsw-alias-brand-primary,#4c8dff) 18%, transparent);--zx-on-accent-soft:#8ab4ff;--zx-success:var(--dsw-alias-state-success-primary,#3fb950);--zx-warn:var(--dsw-alias-state-warn-primary,#d29922);--zx-error:var(--dsw-alias-state-error-primary,#f85149);--zx-added:var(--dsw-alias-state-success-primary,#3fb950);--zx-removed:var(--dsw-alias-state-error-primary,#f85149);--zx-ansi-0:#7d8698;--zx-ansi-1:#e06c75;--zx-ansi-2:#98c379;--zx-ansi-3:#e5c07b;--zx-ansi-4:#61afef;--zx-ansi-5:#c678dd;--zx-ansi-6:#56b6c2;--zx-ansi-7:#cbd0d8;--zx-ansi-8:#8b93a1;--zx-ansi-9:#ff7b86;--zx-ansi-10:#b3e08e;--zx-ansi-11:#f2d08a;--zx-ansi-12:#82c4ff;--zx-ansi-13:#d99ae8;--zx-ansi-14:#74d0dc;--zx-ansi-15:#f5f7fa;--zx-ansi-fg:var(--zx-label);--zx-ansi-bg:var(--zx-bg-card);--zx-scrim:#00000075;--zx-focus-ring:0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);--zx-shadow-floating:0 2px 8px #0000002e, 0 12px 32px #00000047;--zx-shadow-card:0 6px 18px #0000002e, 0 1px 3px #0003;--zx-shadow-popover:0 2px 8px #0000002e, 0 12px 32px #00000047;--zx-shadow-panel:var(--zx-shadow-floating);--zx-shadow-dialog:0 18px 44px #00000057, 0 4px 12px #0003;--zx-shadow-focus:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent);--zx-shadow-inset-top:inset 0 1px 0 0 #ffffff0f;--zx-z-base:0;--zx-z-sticky:10;--zx-z-scrim:20;--zx-z-drawer:30;--zx-z-popover:40;--zx-z-modal:60;--zx-z-dialog:80;--zx-z-menu:90;--zx-z-tooltip:100;--zx-font-ui:-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", system-ui, sans-serif;--zx-font-mono:ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace;--zx-motion-fast:.12s cubic-bezier(.2, 0, .2, 1);--zx-motion:.18s cubic-bezier(.2, 0, .2, 1);--zx-glass-filter:blur(16px) saturate(140%);--zx-rail-width:240px;--zx-aside-width:320px;--zx-topbar-height:44px;--zx-reading-width:760px;--dsw-specific-menu:var(--zx-bg-overlay);--dsw-alias-border-inverted:var(--zx-border);--dsw-alias-interactive-bg-hover:var(--zx-bg-hover);--dsw-alias-interactive-bg-hover-solid:var(--zx-bg-hover);--dsw-alias-bg-module-platform:var(--zx-bg-card);--dsw-shadow-lv3:var(--zx-shadow-panel)}[data-dcode-scope][data-dcode-scheme=light]{--zx-bg-surface-0:var(--dsw-alias-bg-base,#f8f9fb);--zx-bg-surface-1:color-mix(in srgb, #fff var(--zx-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, #fff var(--zx-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, #fff var(--zx-surface-elevated-alpha), transparent);--zx-acrylic-surface-0-alpha:68%;--zx-acrylic-surface-1-alpha:74%;--zx-acrylic-surface-2-alpha:80%;--zx-acrylic-surface-elevated-alpha:86%;--zx-bg-raised:color-mix(in srgb, var(--zx-label) 4%, transparent);--zx-bg-hover:color-mix(in srgb, var(--zx-label) 5.5%, transparent);--zx-bg-active:color-mix(in srgb, var(--zx-label) 9.5%, transparent);--zx-border:color-mix(in srgb, var(--zx-label) 10%, transparent);--zx-border-subtle:color-mix(in srgb, var(--zx-label) 6.5%, transparent);--zx-border-soft:var(--zx-border-subtle);--zx-border-control:color-mix(in srgb, var(--zx-label) 14%, transparent);--zx-label:var(--dsw-alias-label-primary,#1c2024);--zx-label-secondary:var(--dsw-alias-label-secondary,#525866);--zx-label-muted:color-mix(in srgb, var(--dsw-alias-label-secondary,#525866) 88%, transparent);--zx-label-tertiary:color-mix(in srgb, var(--zx-label-secondary) 92%, var(--zx-bg-surface-0));--zx-label-faint:color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));--zx-label-decor:var(--zx-label-faint);--zx-accent:var(--dsw-alias-brand-primary,#2563eb);--zx-on-accent:#fff;--zx-accent-soft:color-mix(in srgb, var(--dsw-alias-brand-primary,#2563eb) 12%, transparent);--zx-on-accent-soft:#1a45b0;--zx-focus-ring:0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);--zx-success:var(--dsw-alias-state-success-primary,#1a7f37);--zx-warn:var(--dsw-alias-state-warn-primary,#9a6700);--zx-error:var(--dsw-alias-state-error-primary,#cf222e);--zx-added:var(--dsw-alias-state-success-primary,#1a7f37);--zx-removed:var(--dsw-alias-state-error-primary,#cf222e);--zx-shadow-floating:0 4px 16px #0f172a14, 0 1px 3px #0f172a0a;--zx-shadow-card:0 1px 3px #0f172a0a, 0 1px 2px #0f172a05;--zx-shadow-popover:0 4px 16px #0f172a14, 0 1px 3px #0f172a0a;--zx-shadow-panel:var(--zx-shadow-floating);--zx-shadow-dialog:0 20px 48px #0f172a24, 0 4px 12px #0f172a0f;--zx-shadow-inset-top:inset 0 1px 0 0 #fffc;--zx-ansi-0:#24292f;--zx-ansi-1:#cf222e;--zx-ansi-2:#116329;--zx-ansi-3:#7d4e00;--zx-ansi-4:#0550ae;--zx-ansi-5:#8250df;--zx-ansi-6:#0b6b73;--zx-ansi-7:#57606a;--zx-ansi-8:#616a75;--zx-ansi-9:#a40e26;--zx-ansi-10:#0d5620;--zx-ansi-11:#6b4600;--zx-ansi-12:#0a4a9e;--zx-ansi-13:#6f42c1;--zx-ansi-14:#0a5c63;--zx-ansi-15:#5b6470;--zx-ansi-fg:var(--zx-label);--zx-ansi-bg:var(--zx-bg-card);--zx-scrim:#0f172a3d}html[data-dcode-acrylic],html[data-dcode-acrylic] body,html[data-dcode-acrylic] #OIyMBW_root,html[data-dcode-acrylic] #OIyMBW_app,html[data-dcode-acrylic] #OIyMBW___next,html[data-dcode-acrylic] [data-reactroot]{background:0 0!important}[data-dcode-scope][data-dcode-acrylic]{--zx-bg-surface-0:color-mix(in srgb, var(--dsw-alias-bg-base,#0d0d0f) var(--zx-acrylic-surface-0-alpha), transparent);--zx-bg-surface-1:color-mix(in srgb, var(--dsw-alias-bg-base,#141418) var(--zx-acrylic-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, var(--dsw-alias-bg-base,#1b1b22) var(--zx-acrylic-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, var(--dsw-alias-bg-base,#22222b) var(--zx-acrylic-surface-elevated-alpha), transparent)}[data-dcode-scope][data-dcode-scheme=light][data-dcode-acrylic]{--zx-bg-surface-0:color-mix(in srgb, var(--dsw-alias-bg-base,#f8f9fb) var(--zx-acrylic-surface-0-alpha), transparent);--zx-bg-surface-1:color-mix(in srgb, #fff var(--zx-acrylic-surface-1-alpha), transparent);--zx-bg-surface-2:color-mix(in srgb, #fff var(--zx-acrylic-surface-2-alpha), transparent);--zx-bg-surface-elevated:color-mix(in srgb, #fff var(--zx-acrylic-surface-elevated-alpha), transparent)}@media (prefers-reduced-motion:reduce){[data-dcode-scope] *,[data-dcode-scope] :before,[data-dcode-scope] :after{scroll-behavior:auto!important;transition-duration:.001ms!important;animation-duration:.001ms!important;animation-iteration-count:1!important}}";
+		const tagId$32 = "@dsh-portable/dcode-ui/tokens.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$32) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$30;
-			tag.textContent = css$31;
+			tag.dataset.pluginCss = tagId$32;
+			tag.textContent = css$33;
 			document.head.appendChild(tag);
 		}
 		//#endregion
@@ -7553,13 +7462,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ThemeSwitch.module.css.mjs
-		const css$30 = ".RDEw3W_group{border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);align-items:stretch;gap:2px;padding:2px;display:inline-flex}.RDEw3W_segment{align-items:center;gap:var(--zx-space-2);min-height:26px;padding:0 var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);white-space:nowrap;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:0;display:inline-flex}.RDEw3W_segment:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.RDEw3W_segment:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.RDEw3W_segment:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.RDEw3W_segmentActive{background:var(--zx-bg-card);color:var(--zx-label);box-shadow:var(--zx-shadow-card)}.RDEw3W_glyph{width:16px;height:16px;line-height:1;display:inline-flex}.RDEw3W_label{font-size:var(--zx-text-xs)}";
-		const tagId$29 = "@dsh-portable/dcode-ui/ThemeSwitch.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$29) + "]") === null) {
+		const css$32 = ".RDEw3W_group{border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);align-items:stretch;gap:2px;padding:2px;display:inline-flex}.RDEw3W_segment{align-items:center;gap:var(--zx-space-2);min-height:26px;padding:0 var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);white-space:nowrap;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:0;display:inline-flex}.RDEw3W_segment:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.RDEw3W_segment:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.RDEw3W_segment:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.RDEw3W_segmentActive{background:var(--zx-bg-card);color:var(--zx-label);box-shadow:var(--zx-shadow-card)}.RDEw3W_glyph{width:16px;height:16px;line-height:1;display:inline-flex}.RDEw3W_label{font-size:var(--zx-text-xs)}";
+		const tagId$31 = "@dsh-portable/dcode-ui/ThemeSwitch.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$31) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$29;
-			tag.textContent = css$30;
+			tag.dataset.pluginCss = tagId$31;
+			tag.textContent = css$32;
 			document.head.appendChild(tag);
 		}
 		var ThemeSwitch_module_css_default = {
@@ -7901,13 +7810,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ui.module.css.mjs
-		const css$29 = ".rmlmSW_card{border:var(--zx-border-hairline);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card), var(--zx-shadow-inset-top);overflow:hidden}.rmlmSW_cardHeader{align-items:center;gap:var(--zx-space-3);min-height:var(--zx-control-lg);padding:var(--zx-space-3) var(--zx-space-4);font-weight:var(--zx-weight-medium);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);box-shadow:var(--zx-shadow-inset-top);transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);display:flex}.rmlmSW_cardHeader:where(button):active:not(:disabled){transform:scale(.995)}.rmlmSW_cardBody{padding:var(--zx-space-4)}.rmlmSW_sectionTitle{justify-content:space-between;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);color:var(--zx-label-secondary);letter-spacing:.02em;display:flex}.rmlmSW_iconButton{justify-content:center;align-items:center;gap:var(--zx-space-2);min-width:var(--zx-control-xs);height:var(--zx-control-xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.rmlmSW_tooltipTarget{position:relative}.rmlmSW_tooltipTarget:after{z-index:var(--zx-z-tooltip);width:max-content;max-width:min(240px, calc(100vw - var(--zx-space-3) * 2));box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-panel);color:var(--zx-label);content:attr(data-tooltip);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-normal);line-height:var(--zx-leading-tight);pointer-events:none;opacity:0;transition:opacity var(--zx-motion-fast), transform var(--zx-motion-fast), visibility var(--zx-motion-fast);visibility:hidden;overflow-wrap:anywhere;text-align:left;white-space:normal;padding:5px 8px;position:absolute;top:calc(100% + 6px);left:50%;transform:translate(-50%,-2px)}.rmlmSW_tooltipTarget:hover:after,.rmlmSW_tooltipTarget:focus-visible:after{opacity:1;visibility:visible;transform:translate(-50%)}.rmlmSW_tooltipTarget[data-tooltip-align=right]:after{left:auto;right:0;transform:translateY(-2px)}.rmlmSW_tooltipTarget[data-tooltip-align=right]:hover:after,.rmlmSW_tooltipTarget[data-tooltip-align=right]:focus-visible:after{transform:translateY(0)}.rmlmSW_iconButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.rmlmSW_iconButton:active:not(:disabled){transform:scale(.94)}.rmlmSW_iconButton:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.rmlmSW_iconButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_iconButtonActive{background:var(--zx-bg-active);color:var(--zx-label)}.rmlmSW_button{justify-content:center;align-items:center;gap:var(--zx-space-2);height:var(--zx-control-sm);padding:0 var(--zx-space-4);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);display:inline-flex}.rmlmSW_button:hover:not(:disabled){background:var(--zx-bg-hover)}.rmlmSW_button:active:not(:disabled){transform:scale(.98)}.rmlmSW_button:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.rmlmSW_button:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_buttonPrimary{background:var(--zx-accent);color:var(--zx-on-accent);border-color:#0000}.rmlmSW_buttonPrimary:hover:not(:disabled){background:color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label))}.rmlmSW_pill{align-items:center;gap:var(--zx-space-1);height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;display:inline-flex}.rmlmSW_added{color:var(--zx-added)}.rmlmSW_removed{color:var(--zx-removed)}.rmlmSW_muted{color:var(--zx-label-muted)}.rmlmSW_mono{font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.rmlmSW_truncate{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.rmlmSW_empty{justify-content:center;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-7) var(--zx-space-5);color:var(--zx-label-muted);font-size:var(--zx-text-xs);text-align:center;flex-direction:column;display:flex}.rmlmSW_popoverAnchor{display:inline-flex;position:relative}.rmlmSW_popover{z-index:var(--zx-z-popover);min-width:min(200px, calc(100vw - var(--zx-space-4) * 2));max-width:min(340px, calc(100vw - var(--zx-space-4) * 2));max-height:min(60vh, calc(100dvh - var(--zx-space-4) * 2));box-sizing:border-box;padding:var(--zx-space-1);border:var(--zx-border-hairline);border-radius:var(--zx-radius-2xl);background:var(--zx-bg-overlay);background:color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);box-shadow:var(--zx-shadow-popover), var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);position:absolute;overflow:hidden auto}[data-dcode-acrylic] .rmlmSW_card{backdrop-filter:var(--zx-glass-filter)}.rmlmSW_popoverUp{bottom:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverDown{top:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverRight{left:auto;right:0}@media (width<=480px){.rmlmSW_popover{min-width:min(180px, calc(100vw - var(--zx-space-3) * 2));max-width:calc(100vw - var(--zx-space-3) * 2)}}.rmlmSW_menuItem{align-items:center;gap:var(--zx-space-3);width:100%;min-height:36px;padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-pill);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:0;display:flex}.rmlmSW_menuItem:hover{background:var(--zx-bg-hover)}.rmlmSW_menuItem:active:not(:disabled){transform:scale(.985)}.rmlmSW_menuItem:disabled{cursor:default;color:var(--zx-label-secondary)}.rmlmSW_menuItem:disabled:hover{background:0 0}.rmlmSW_menuItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_menuItemActive{background:var(--zx-bg-active)}.rmlmSW_menuItemDanger{color:var(--zx-error)}.rmlmSW_menuIcon{width:18px;height:18px;color:var(--zx-label-secondary);flex:none;justify-content:center;align-items:center;display:inline-flex}.rmlmSW_menuIcon svg{width:18px;height:18px}.rmlmSW_menuContent{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.rmlmSW_menuLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro)}.rmlmSW_menuDetail{color:var(--zx-label-muted);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;margin-top:2px;line-height:1.4;display:block;overflow:hidden}.rmlmSW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent}.rmlmSW_scroll::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.rmlmSW_scroll::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}.rmlmSW_grow{flex:1;min-width:0}.rmlmSW_spinner{width:var(--zx-spinner-md);height:var(--zx-spinner-md);border:1.5px solid var(--zx-border);border-top-color:var(--zx-label-secondary);border-radius:50%;animation:.7s linear infinite rmlmSW_zx-spin;display:inline-block}.rmlmSW_spinnerSmall{width:var(--zx-spinner-sm);height:var(--zx-spinner-sm)}.rmlmSW_shimmerActive{isolation:isolate;position:relative;overflow:hidden}.rmlmSW_shimmerActive:after{z-index:1;border-radius:inherit;background:color-mix(in srgb, var(--zx-label) 14%, transparent);content:\"\";pointer-events:none;will-change:transform;animation:2.8s cubic-bezier(.22,.68,.32,1) infinite rmlmSW_zx-shimmer;position:absolute;inset:0;transform:translate(-120%);-webkit-mask-image:linear-gradient(108deg,#0000 20%,#000 42% 58%,#0000 80%);mask-image:linear-gradient(108deg,#0000 20%,#000 42% 58%,#0000 80%)}.rmlmSW_visuallyHidden{clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}@keyframes rmlmSW_zx-spin{to{transform:rotate(360deg)}}@keyframes rmlmSW_zx-shimmer{0%,12%{opacity:.16;transform:translate(-120%)}46%{opacity:.72;transform:translate(120%)}58%,to{opacity:.12;transform:translate(120%)}}@media (prefers-reduced-motion:reduce){.rmlmSW_spinner{animation-duration:2s}.rmlmSW_shimmerActive:after{opacity:.08;will-change:auto;animation:none;transform:none}}.rmlmSW_mirrored{transform:scaleX(-1)}";
-		const tagId$28 = "@dsh-portable/dcode-ui/ui.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$28) + "]") === null) {
+		const css$31 = ".rmlmSW_card{border:var(--zx-border-hairline);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card), var(--zx-shadow-inset-top);overflow:hidden}.rmlmSW_cardHeader{align-items:center;gap:var(--zx-space-3);min-height:var(--zx-control-lg);padding:var(--zx-space-3) var(--zx-space-4);font-weight:var(--zx-weight-medium);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);box-shadow:var(--zx-shadow-inset-top);transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);display:flex}.rmlmSW_cardHeader:where(button):active:not(:disabled){transform:scale(.995)}.rmlmSW_cardBody{padding:var(--zx-space-4)}.rmlmSW_sectionTitle{justify-content:space-between;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-2);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);color:var(--zx-label-secondary);letter-spacing:.02em;display:flex}.rmlmSW_iconButton{justify-content:center;align-items:center;gap:var(--zx-space-2);min-width:var(--zx-control-xs);height:var(--zx-control-xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.rmlmSW_tooltipTarget{position:relative}.rmlmSW_tooltipTarget:after{z-index:var(--zx-z-tooltip);width:max-content;max-width:min(240px, calc(100vw - var(--zx-space-3) * 2));box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-panel);color:var(--zx-label);content:attr(data-tooltip);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-normal);line-height:var(--zx-leading-tight);pointer-events:none;opacity:0;transition:opacity var(--zx-motion-fast), transform var(--zx-motion-fast), visibility var(--zx-motion-fast);visibility:hidden;overflow-wrap:anywhere;text-align:left;white-space:normal;padding:5px 8px;position:absolute;top:calc(100% + 6px);left:50%;transform:translate(-50%,-2px)}.rmlmSW_tooltipTarget:hover:after,.rmlmSW_tooltipTarget:focus-visible:after{opacity:1;visibility:visible;transform:translate(-50%)}.rmlmSW_tooltipTarget[data-tooltip-align=right]:after{left:auto;right:0;transform:translateY(-2px)}.rmlmSW_tooltipTarget[data-tooltip-align=right]:hover:after,.rmlmSW_tooltipTarget[data-tooltip-align=right]:focus-visible:after{transform:translateY(0)}.rmlmSW_iconButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.rmlmSW_iconButton:active:not(:disabled){transform:scale(.94)}.rmlmSW_iconButton:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.rmlmSW_iconButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_iconButtonActive{background:var(--zx-bg-active);color:var(--zx-label)}.rmlmSW_button{justify-content:center;align-items:center;gap:var(--zx-space-2);height:var(--zx-control-sm);padding:0 var(--zx-space-4);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);display:inline-flex}.rmlmSW_button:hover:not(:disabled){background:var(--zx-bg-hover)}.rmlmSW_button:active:not(:disabled){transform:scale(.98)}.rmlmSW_button:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.rmlmSW_button:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_buttonPrimary{background:var(--zx-accent);color:var(--zx-on-accent);border-color:#0000}.rmlmSW_buttonPrimary:hover:not(:disabled){background:color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label))}.rmlmSW_pill{align-items:center;gap:var(--zx-space-1);height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;display:inline-flex}.rmlmSW_added{color:var(--zx-added)}.rmlmSW_removed{color:var(--zx-removed)}.rmlmSW_muted{color:var(--zx-label-muted)}.rmlmSW_mono{font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.rmlmSW_truncate{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.rmlmSW_empty{justify-content:center;align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-7) var(--zx-space-5);color:var(--zx-label-muted);font-size:var(--zx-text-xs);text-align:center;flex-direction:column;display:flex}.rmlmSW_popoverAnchor{display:inline-flex;position:relative}.rmlmSW_popover{z-index:var(--zx-z-popover);min-width:min(200px, calc(100vw - var(--zx-space-4) * 2));max-width:min(340px, calc(100vw - var(--zx-space-4) * 2));max-height:min(60vh, calc(100dvh - var(--zx-space-4) * 2));box-sizing:border-box;padding:var(--zx-space-1);border:var(--zx-border-hairline);border-radius:var(--zx-radius-2xl);background:var(--zx-bg-overlay);background:color-mix(in srgb, var(--zx-bg-overlay) 68%, transparent);box-shadow:var(--zx-shadow-popover), var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);position:absolute;overflow:hidden auto}[data-dcode-acrylic] .rmlmSW_card{backdrop-filter:var(--zx-glass-filter)}.rmlmSW_popoverUp{bottom:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverDown{top:calc(100% + var(--zx-space-2));left:0}.rmlmSW_popoverRight{left:auto;right:0}@media (width<=480px){.rmlmSW_popover{min-width:min(180px, calc(100vw - var(--zx-space-3) * 2));max-width:calc(100vw - var(--zx-space-3) * 2)}}.rmlmSW_menuItem{align-items:center;gap:var(--zx-space-3);width:100%;min-height:36px;padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-pill);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:0;display:flex}.rmlmSW_menuItem:hover{background:var(--zx-bg-hover)}.rmlmSW_menuItem:active:not(:disabled){transform:scale(.985)}.rmlmSW_menuItem:disabled{cursor:default;color:var(--zx-label-secondary)}.rmlmSW_menuItem:disabled:hover{background:0 0}.rmlmSW_menuItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.rmlmSW_menuItemActive{background:var(--zx-bg-active)}.rmlmSW_menuItemDanger{color:var(--zx-error)}.rmlmSW_menuIcon{width:18px;height:18px;color:var(--zx-label-secondary);flex:none;justify-content:center;align-items:center;display:inline-flex}.rmlmSW_menuIcon svg{width:18px;height:18px}.rmlmSW_menuContent{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.rmlmSW_menuLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro)}.rmlmSW_menuDetail{color:var(--zx-label-muted);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;margin-top:2px;line-height:1.4;display:block;overflow:hidden}.rmlmSW_scroll{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent}.rmlmSW_scroll::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.rmlmSW_scroll::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}.rmlmSW_grow{flex:1;min-width:0}.rmlmSW_spinner{width:var(--zx-spinner-md);height:var(--zx-spinner-md);border:1.5px solid var(--zx-border);border-top-color:var(--zx-label-secondary);border-radius:50%;animation:.7s linear infinite rmlmSW_zx-spin;display:inline-block}.rmlmSW_spinnerSmall{width:var(--zx-spinner-sm);height:var(--zx-spinner-sm)}.rmlmSW_shimmerActive{isolation:isolate;position:relative;overflow:hidden}.rmlmSW_shimmerActive:after{z-index:1;border-radius:inherit;background:color-mix(in srgb, var(--zx-label) 14%, transparent);content:\"\";pointer-events:none;will-change:transform;animation:2.8s cubic-bezier(.22,.68,.32,1) infinite rmlmSW_zx-shimmer;position:absolute;inset:0;transform:translate(-120%);-webkit-mask-image:linear-gradient(108deg,#0000 20%,#000 42% 58%,#0000 80%);mask-image:linear-gradient(108deg,#0000 20%,#000 42% 58%,#0000 80%)}.rmlmSW_visuallyHidden{clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}@keyframes rmlmSW_zx-spin{to{transform:rotate(360deg)}}@keyframes rmlmSW_zx-shimmer{0%,12%{opacity:.16;transform:translate(-120%)}46%{opacity:.72;transform:translate(120%)}58%,to{opacity:.12;transform:translate(120%)}}@media (prefers-reduced-motion:reduce){.rmlmSW_spinner{animation-duration:2s}.rmlmSW_shimmerActive:after{opacity:.08;will-change:auto;animation:none;transform:none}}.rmlmSW_mirrored{transform:scaleX(-1)}";
+		const tagId$30 = "@dsh-portable/dcode-ui/ui.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$30) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$28;
-			tag.textContent = css$29;
+			tag.dataset.pluginCss = tagId$30;
+			tag.textContent = css$31;
 			document.head.appendChild(tag);
 		}
 		var ui_module_css_default = {
@@ -8220,13 +8129,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\TopBar.module.css.mjs
-		const css$28 = ".yomJZG_bar{align-items:center;gap:var(--zx-space-2);height:var(--zx-topbar-height);padding:0 var(--zx-space-4);border-bottom:1px solid var(--zx-border-soft);background:var(--zx-bg-app);-webkit-app-region:drag;flex:none;display:flex}[data-dcode-acrylic] .yomJZG_bar{backdrop-filter:var(--zx-glass-filter)}.yomJZG_bar>*{-webkit-app-region:no-drag}.yomJZG_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:var(--zx-text-sm);font-weight:var(--zx-weight-medium);color:var(--zx-label);flex:1;overflow:hidden}.yomJZG_titleMuted{color:var(--zx-label-muted);font-weight:var(--zx-weight-normal)}.yomJZG_chip{align-items:center;gap:var(--zx-space-2);max-width:220px;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;display:inline-flex}.yomJZG_chip:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_chip:focus-visible,.yomJZG_workspaceTrigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_workspaceTrigger{min-width:0;max-width:220px;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-secondary);white-space:nowrap;justify-content:flex-start}.yomJZG_workspaceTrigger:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_chip:disabled{cursor:default}.yomJZG_chipLabel{text-overflow:ellipsis;min-width:0;overflow:hidden}.yomJZG_divider{width:1px;height:18px;margin:0 var(--zx-space-1);background:var(--zx-border-soft)}.yomJZG_dirty{color:var(--zx-warn)}.yomJZG_contextHint{align-items:center;gap:var(--zx-space-2);min-width:0;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 10%, transparent);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;border:0;display:inline-flex}.yomJZG_contextHint:hover{background:color-mix(in srgb, var(--zx-accent) 16%, transparent);color:var(--zx-label)}.yomJZG_contextHint:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_contextDot{background:currentColor;border-radius:50%;flex:none;width:6px;height:6px}.yomJZG_contextLabel{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.yomJZG_actions{align-items:center;gap:var(--zx-space-1);flex:none;display:inline-flex}.yomJZG_shareButton{justify-content:center;align-items:center;gap:var(--zx-space-2);height:var(--zx-control-sm);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.yomJZG_shareButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_shareButton:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.yomJZG_shareButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_shareSuccess{color:var(--zx-success)}.yomJZG_shareError{color:var(--zx-error)}.yomJZG_layoutGroup{background:0 0;border:0;justify-content:center;align-items:center;gap:2px;padding:0;display:inline-flex}.yomJZG_layoutGroup>button{width:28px;min-width:28px;height:var(--zx-control-sm);padding:0}.yomJZG_layoutButton{border-radius:var(--zx-radius-pill)}.yomJZG_layoutButton[aria-pressed=true]{color:var(--zx-label-secondary);background:0 0}.yomJZG_layoutButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}[data-dcode-layout=compact] .yomJZG_chipLabel,[data-dcode-layout=compact] .yomJZG_shareLabel,[data-dcode-layout=compact] .yomJZG_contextLabel{display:none}[data-dcode-layout=compact] .yomJZG_contextHint,[data-dcode-layout=compact] .yomJZG_chip,[data-dcode-layout=compact] .yomJZG_workspaceTrigger{padding:0 var(--zx-space-2)}";
-		const tagId$27 = "@dsh-portable/dcode-ui/TopBar.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$27) + "]") === null) {
+		const css$30 = ".yomJZG_bar{align-items:center;gap:var(--zx-space-2);height:var(--zx-topbar-height);padding:0 var(--zx-space-4);border-bottom:1px solid var(--zx-border-soft);background:var(--zx-bg-app);-webkit-app-region:drag;flex:none;display:flex}[data-dcode-acrylic] .yomJZG_bar{backdrop-filter:var(--zx-glass-filter)}.yomJZG_bar>*{-webkit-app-region:no-drag}.yomJZG_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:var(--zx-text-sm);font-weight:var(--zx-weight-medium);color:var(--zx-label);flex:1;overflow:hidden}.yomJZG_titleMuted{color:var(--zx-label-muted);font-weight:var(--zx-weight-normal)}.yomJZG_chip{align-items:center;gap:var(--zx-space-2);max-width:220px;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;display:inline-flex}.yomJZG_chip:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_chip:focus-visible,.yomJZG_workspaceTrigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_workspaceTrigger{min-width:0;max-width:220px;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-secondary);white-space:nowrap;justify-content:flex-start}.yomJZG_workspaceTrigger:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_chip:disabled{cursor:default}.yomJZG_chipLabel{text-overflow:ellipsis;min-width:0;overflow:hidden}.yomJZG_divider{width:1px;height:18px;margin:0 var(--zx-space-1);background:var(--zx-border-soft)}.yomJZG_dirty{color:var(--zx-warn)}.yomJZG_contextHint{align-items:center;gap:var(--zx-space-2);min-width:0;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 10%, transparent);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;border:0;display:inline-flex}.yomJZG_contextHint:hover{background:color-mix(in srgb, var(--zx-accent) 16%, transparent);color:var(--zx-label)}.yomJZG_contextHint:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_contextDot{background:currentColor;border-radius:50%;flex:none;width:6px;height:6px}.yomJZG_contextLabel{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.yomJZG_actions{align-items:center;gap:var(--zx-space-1);flex:none;display:inline-flex}.yomJZG_shareButton{justify-content:center;align-items:center;gap:var(--zx-space-2);height:var(--zx-control-sm);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;white-space:nowrap;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:1px solid #0000;display:inline-flex}.yomJZG_shareButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.yomJZG_shareButton:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.yomJZG_shareButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.yomJZG_shareSuccess{color:var(--zx-success)}.yomJZG_shareError{color:var(--zx-error)}.yomJZG_layoutGroup{background:0 0;border:0;justify-content:center;align-items:center;gap:2px;padding:0;display:inline-flex}.yomJZG_layoutGroup>button{width:28px;min-width:28px;height:var(--zx-control-sm);padding:0}.yomJZG_layoutButton{border-radius:var(--zx-radius-pill)}.yomJZG_layoutButton[aria-pressed=true]{color:var(--zx-label-secondary);background:0 0}.yomJZG_layoutButton:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}[data-dcode-layout=compact] .yomJZG_chipLabel,[data-dcode-layout=compact] .yomJZG_shareLabel,[data-dcode-layout=compact] .yomJZG_contextLabel{display:none}[data-dcode-layout=compact] .yomJZG_contextHint,[data-dcode-layout=compact] .yomJZG_chip,[data-dcode-layout=compact] .yomJZG_workspaceTrigger{padding:0 var(--zx-space-2)}";
+		const tagId$29 = "@dsh-portable/dcode-ui/TopBar.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$29) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$27;
-			tag.textContent = css$28;
+			tag.dataset.pluginCss = tagId$29;
+			tag.textContent = css$30;
 			document.head.appendChild(tag);
 		}
 		var TopBar_module_css_default = {
@@ -8314,13 +8223,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\AgentIdentity.module.css.mjs
-		const css$27 = "._2ko2Tq_trigger{border:1px solid color-mix(in srgb, var(--zx-accent) 20%, var(--zx-border-soft));border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-bg-card) 74%, transparent);min-width:0;max-width:190px;height:32px;color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;backdrop-filter:var(--zx-glass-filter);transition:background var(--zx-motion-fast), border-color var(--zx-motion-fast), transform var(--zx-motion-fast);align-items:center;gap:7px;padding:0 9px 0 5px;display:inline-flex}._2ko2Tq_trigger:hover{border-color:color-mix(in srgb, var(--zx-accent) 38%, var(--zx-border-soft));background:color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-card))}._2ko2Tq_trigger:active{transform:scale(.985)}._2ko2Tq_trigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._2ko2Tq_avatar{background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 80%, white), var(--zx-accent));width:22px;height:22px;color:var(--zx-on-accent);box-shadow:0 4px 12px color-mix(in srgb, var(--zx-accent) 22%, transparent);border-radius:8px;flex:none;place-items:center;display:grid}._2ko2Tq_avatar svg{width:14px;height:14px}._2ko2Tq_copy{flex-direction:column;min-width:0;line-height:1.08;display:flex}._2ko2Tq_kicker{color:var(--zx-label-tertiary);letter-spacing:.08em;text-transform:uppercase;font-size:9px}._2ko2Tq_name{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}@media (width<=720px){._2ko2Tq_copy{display:none}._2ko2Tq_trigger{justify-content:center;width:32px;padding:0}}";
-		const tagId$26 = "@dsh-portable/dcode-ui/AgentIdentity.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$26) + "]") === null) {
+		const css$29 = "._2ko2Tq_trigger{border:1px solid color-mix(in srgb, var(--zx-accent) 20%, var(--zx-border-soft));border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-bg-card) 74%, transparent);min-width:0;max-width:190px;height:32px;color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;backdrop-filter:var(--zx-glass-filter);transition:background var(--zx-motion-fast), border-color var(--zx-motion-fast), transform var(--zx-motion-fast);align-items:center;gap:7px;padding:0 9px 0 5px;display:inline-flex}._2ko2Tq_trigger:hover{border-color:color-mix(in srgb, var(--zx-accent) 38%, var(--zx-border-soft));background:color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-card))}._2ko2Tq_trigger:active{transform:scale(.985)}._2ko2Tq_trigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._2ko2Tq_avatar{background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 80%, white), var(--zx-accent));width:22px;height:22px;color:var(--zx-on-accent);box-shadow:0 4px 12px color-mix(in srgb, var(--zx-accent) 22%, transparent);border-radius:8px;flex:none;place-items:center;display:grid}._2ko2Tq_avatar svg{width:14px;height:14px}._2ko2Tq_copy{flex-direction:column;min-width:0;line-height:1.08;display:flex}._2ko2Tq_kicker{color:var(--zx-label-tertiary);letter-spacing:.08em;text-transform:uppercase;font-size:9px}._2ko2Tq_name{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}@media (width<=720px){._2ko2Tq_copy{display:none}._2ko2Tq_trigger{justify-content:center;width:32px;padding:0}}";
+		const tagId$28 = "@dsh-portable/dcode-ui/AgentIdentity.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$28) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$26;
-			tag.textContent = css$27;
+			tag.dataset.pluginCss = tagId$28;
+			tag.textContent = css$29;
 			document.head.appendChild(tag);
 		}
 		var AgentIdentity_module_css_default = {
@@ -8551,13 +8460,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\LeftRail.module.css.mjs
-		const css$26 = ".Pf74oW_rail{height:100%;min-width:var(--zx-rail-width);flex-direction:column;display:flex;overflow:hidden}.Pf74oW_top{padding:var(--zx-space-2) var(--zx-space-3);-webkit-app-region:drag;flex-direction:column;gap:2px;display:flex}.Pf74oW_top>*{-webkit-app-region:no-drag}.Pf74oW_brand{align-items:center;gap:var(--zx-space-2);min-height:38px;padding:0 var(--zx-space-2);display:flex}.Pf74oW_brandMark{border:1px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 76%, white), var(--zx-accent));width:26px;height:26px;color:var(--zx-on-accent);box-shadow:0 5px 18px color-mix(in srgb, var(--zx-accent) 22%, transparent);border-radius:9px;flex:none;place-items:center;display:grid}.Pf74oW_brandMark svg{width:16px;height:16px}.Pf74oW_brandCopy{flex-direction:column;min-width:0;line-height:1.15;display:flex}.Pf74oW_brandCopy strong{color:var(--zx-label);font-size:var(--zx-text-sm);letter-spacing:.01em}.Pf74oW_brandCopy span{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.Pf74oW_searchField{align-items:center;gap:var(--zx-space-2);height:var(--zx-control-xs);margin:var(--zx-space-1) var(--zx-space-1) 0;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label-tertiary);border:1px solid #0000;display:flex}.Pf74oW_searchField:focus-within{border-color:var(--zx-border-control);box-shadow:var(--zx-focus-ring);color:var(--zx-label-muted)}.Pf74oW_searchInput{min-width:0;color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);background:0 0;border:0;outline:0;flex:1}.Pf74oW_searchInput::-webkit-search-cancel-button{cursor:pointer}.Pf74oW_searchInput::placeholder,.Pf74oW_searchShortcut{color:var(--zx-label-tertiary)}.Pf74oW_searchShortcut{font-size:var(--zx-text-micro);flex:none}.Pf74oW_action{align-items:center;gap:var(--zx-space-3);width:100%;height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.Pf74oW_action:hover{background:var(--zx-bg-hover)}.Pf74oW_action:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_actionActive{background:var(--zx-bg-active)}.Pf74oW_shortcut{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.Pf74oW_tree{min-height:0;padding:0 var(--zx-space-3) var(--zx-space-3);flex:1;overflow:hidden auto}.Pf74oW_treeActions{padding-top:var(--zx-space-2);flex-direction:column;gap:2px;display:flex}.Pf74oW_sectionLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.06em;text-transform:uppercase}.Pf74oW_treeDivider{height:1px;margin:var(--zx-space-3) var(--zx-space-3) 0;background:var(--zx-border-soft)}.Pf74oW_group{margin-top:var(--zx-space-3)}.Pf74oW_groupHeaderShell{border-radius:var(--zx-radius-sm);min-width:0;transition:background var(--zx-motion-fast);align-items:center;display:flex}.Pf74oW_groupHeader{align-items:center;gap:var(--zx-space-2);width:auto;min-width:0;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.Pf74oW_groupHeader:hover{color:var(--zx-label-secondary)}.Pf74oW_groupHeaderShell:hover,.Pf74oW_groupHeaderShell:focus-within{background:var(--zx-bg-raised)}.Pf74oW_groupActions{margin-right:var(--zx-space-1);flex:none;align-items:center;display:inline-flex}.Pf74oW_groupAction{opacity:0;pointer-events:none;color:var(--zx-label-tertiary);transition:opacity var(--zx-motion-fast)}.Pf74oW_groupAction:hover:not(:disabled),.Pf74oW_groupAction[aria-expanded=true]{color:var(--zx-label);background:0 0}.Pf74oW_groupHeaderShell:hover .Pf74oW_groupAction,.Pf74oW_groupHeaderShell:focus-within .Pf74oW_groupAction{opacity:1;pointer-events:auto}.Pf74oW_groupName{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.Pf74oW_branchBadge{align-items:center;gap:var(--zx-space-1);min-width:0;max-width:42%;padding:1px var(--zx-space-2);border:1px solid var(--zx-border-soft);background:var(--zx-bg-raised);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);border-radius:999px;flex:none;display:inline-flex}.Pf74oW_branchName{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.Pf74oW_gitDot{border-radius:50%;flex:none;width:6px;height:6px}.Pf74oW_gitDotClean{background:var(--zx-success)}.Pf74oW_gitDotDirty{background:var(--zx-warn)}.Pf74oW_rowShell{border-radius:var(--zx-radius-md);min-width:0;transition:background var(--zx-motion-fast), box-shadow var(--zx-motion-fast);align-items:center;display:flex}.Pf74oW_rowShell:hover,.Pf74oW_rowShell:focus-within{background:var(--zx-bg-raised)}.Pf74oW_rowShellActive{background:color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-active));box-shadow:inset 0 1px #ffffff1a}.Pf74oW_row{align-items:center;gap:var(--zx-space-2);width:auto;min-width:0;min-height:var(--zx-control-sm);padding:var(--zx-space-1) var(--zx-space-3) var(--zx-space-1) var(--zx-space-5);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.Pf74oW_row:hover{color:var(--zx-label)}.Pf74oW_row:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_rowShellActive .Pf74oW_row{color:var(--zx-label)}.Pf74oW_rowMenu{margin-right:var(--zx-space-1);opacity:0;pointer-events:none;color:var(--zx-label-tertiary);transition:opacity var(--zx-motion-fast), transform var(--zx-motion-fast);flex:none;transform:translate(3px)}.Pf74oW_rowMenu:hover:not(:disabled),.Pf74oW_rowMenu[aria-expanded=true]{color:var(--zx-label);background:0 0}.Pf74oW_rowShell:hover .Pf74oW_rowMenu,.Pf74oW_rowShell:focus-within .Pf74oW_rowMenu{opacity:1;pointer-events:auto;transform:translate(0)}.Pf74oW_rowTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.Pf74oW_rowAvatar{background:color-mix(in srgb, var(--zx-label) 8%, transparent);width:24px;height:24px;color:var(--zx-label-muted);border-radius:8px;flex:none;place-items:center;display:grid;position:relative}.Pf74oW_rowAvatar svg{width:14px;height:14px}.Pf74oW_rowPresence{border:2px solid var(--zx-bg-panel);background:var(--zx-label-tertiary);border-radius:50%;width:7px;height:7px;position:absolute;bottom:-1px;right:-1px}.Pf74oW_rowPresence.Pf74oW_dotRunning,.Pf74oW_rowPresence.Pf74oW_dotDone{width:7px;height:7px}.Pf74oW_rowCopy{flex-direction:column;flex:1;gap:1px;min-width:0;display:flex}.Pf74oW_rowSubtitle{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.Pf74oW_rowTime{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.Pf74oW_dot{border-radius:50%;flex:none;width:6px;height:6px}.Pf74oW_dotRunning{background:var(--zx-accent);box-shadow:0 0 0 0 color-mix(in srgb, var(--zx-accent) 45%, transparent);animation:1.6s ease-in-out infinite Pf74oW_zx-shimmer-pulse}.Pf74oW_dotDone{background:var(--zx-success)}@keyframes Pf74oW_zx-shimmer-pulse{0%,to{opacity:.65;box-shadow:0 0 0 0 color-mix(in srgb, var(--zx-accent) 0%, transparent)}50%{opacity:1;box-shadow:0 0 0 4px color-mix(in srgb, var(--zx-accent) 22%, transparent)}}@media (prefers-reduced-motion:reduce){.Pf74oW_dotRunning{animation:none}}.Pf74oW_foot{padding:var(--zx-space-3);border-top:1px solid var(--zx-border-soft);display:block}.Pf74oW_settingsTrigger{align-items:center;gap:var(--zx-space-3);width:100%;height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.Pf74oW_settingsTrigger:hover{background:var(--zx-bg-hover)}.Pf74oW_settingsTrigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_settingsTriggerActive{background:var(--zx-bg-active)}.Pf74oW_settingsTrigger svg{flex:none;width:16px;height:16px}.Pf74oW_deleteConfirm{color:var(--zx-error)}.Pf74oW_workspaceInput{width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-3);box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm)}.Pf74oW_workspaceInput:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_workspaceError{margin-top:var(--zx-space-3);color:var(--zx-error);font-size:var(--zx-text-xs)}.Pf74oW_workspaceStatus{color:var(--zx-label-muted);font-size:var(--zx-text-xs)}";
-		const tagId$25 = "@dsh-portable/dcode-ui/LeftRail.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$25) + "]") === null) {
+		const css$28 = ".Pf74oW_rail{height:100%;min-width:var(--zx-rail-width);flex-direction:column;display:flex;overflow:hidden}.Pf74oW_top{padding:var(--zx-space-2) var(--zx-space-3);-webkit-app-region:drag;flex-direction:column;gap:2px;display:flex}.Pf74oW_top>*{-webkit-app-region:no-drag}.Pf74oW_brand{align-items:center;gap:var(--zx-space-2);min-height:38px;padding:0 var(--zx-space-2);display:flex}.Pf74oW_brandMark{border:1px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 76%, white), var(--zx-accent));width:26px;height:26px;color:var(--zx-on-accent);box-shadow:0 5px 18px color-mix(in srgb, var(--zx-accent) 22%, transparent);border-radius:9px;flex:none;place-items:center;display:grid}.Pf74oW_brandMark svg{width:16px;height:16px}.Pf74oW_brandCopy{flex-direction:column;min-width:0;line-height:1.15;display:flex}.Pf74oW_brandCopy strong{color:var(--zx-label);font-size:var(--zx-text-sm);letter-spacing:.01em}.Pf74oW_brandCopy span{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.Pf74oW_searchField{align-items:center;gap:var(--zx-space-2);height:var(--zx-control-xs);margin:var(--zx-space-1) var(--zx-space-1) 0;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label-tertiary);border:1px solid #0000;display:flex}.Pf74oW_searchField:focus-within{border-color:var(--zx-border-control);box-shadow:var(--zx-focus-ring);color:var(--zx-label-muted)}.Pf74oW_searchInput{min-width:0;color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);background:0 0;border:0;outline:0;flex:1}.Pf74oW_searchInput::-webkit-search-cancel-button{cursor:pointer}.Pf74oW_searchInput::placeholder,.Pf74oW_searchShortcut{color:var(--zx-label-tertiary)}.Pf74oW_searchShortcut{font-size:var(--zx-text-micro);flex:none}.Pf74oW_action{align-items:center;gap:var(--zx-space-3);width:100%;height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.Pf74oW_action:hover{background:var(--zx-bg-hover)}.Pf74oW_action:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_actionActive{background:var(--zx-bg-active)}.Pf74oW_shortcut{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.Pf74oW_tree{min-height:0;padding:0 var(--zx-space-3) var(--zx-space-3);flex:1;overflow:hidden auto}.Pf74oW_treeActions{padding-top:var(--zx-space-2);flex-direction:column;gap:2px;display:flex}.Pf74oW_sectionLabel{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.06em;text-transform:uppercase}.Pf74oW_treeDivider{height:1px;margin:var(--zx-space-3) var(--zx-space-3) 0;background:var(--zx-border-soft)}.Pf74oW_group{margin-top:var(--zx-space-3)}.Pf74oW_groupHeaderShell{border-radius:var(--zx-radius-sm);min-width:0;transition:background var(--zx-motion-fast);align-items:center;display:flex}.Pf74oW_groupHeader{align-items:center;gap:var(--zx-space-2);width:auto;min-width:0;height:var(--zx-control-xs);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.Pf74oW_groupHeader:hover{color:var(--zx-label-secondary)}.Pf74oW_groupHeaderShell:hover,.Pf74oW_groupHeaderShell:focus-within{background:var(--zx-bg-raised)}.Pf74oW_groupActions{margin-right:var(--zx-space-1);flex:none;align-items:center;display:inline-flex}.Pf74oW_groupAction{opacity:0;pointer-events:none;color:var(--zx-label-tertiary);transition:opacity var(--zx-motion-fast)}.Pf74oW_groupAction:hover:not(:disabled),.Pf74oW_groupAction[aria-expanded=true]{color:var(--zx-label);background:0 0}.Pf74oW_groupHeaderShell:hover .Pf74oW_groupAction,.Pf74oW_groupHeaderShell:focus-within .Pf74oW_groupAction{opacity:1;pointer-events:auto}.Pf74oW_groupName{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.Pf74oW_branchBadge{align-items:center;gap:var(--zx-space-1);min-width:0;max-width:42%;padding:1px var(--zx-space-2);border:1px solid var(--zx-border-soft);background:var(--zx-bg-raised);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);border-radius:999px;flex:none;display:inline-flex}.Pf74oW_branchName{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.Pf74oW_gitDot{border-radius:50%;flex:none;width:6px;height:6px}.Pf74oW_gitDotClean{background:var(--zx-success)}.Pf74oW_gitDotDirty{background:var(--zx-warn)}.Pf74oW_rowShell{border-radius:var(--zx-radius-md);min-width:0;transition:background var(--zx-motion-fast), box-shadow var(--zx-motion-fast);align-items:center;display:flex}.Pf74oW_rowShell:hover,.Pf74oW_rowShell:focus-within{background:var(--zx-bg-raised)}.Pf74oW_rowShellActive{background:color-mix(in srgb, var(--zx-accent) 10%, var(--zx-bg-active));box-shadow:inset 0 1px #ffffff1a}.Pf74oW_row{align-items:center;gap:var(--zx-space-2);width:auto;min-width:0;min-height:var(--zx-control-sm);padding:var(--zx-space-1) var(--zx-space-3) var(--zx-space-1) var(--zx-space-5);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.Pf74oW_row:hover{color:var(--zx-label)}.Pf74oW_row:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_rowShellActive .Pf74oW_row{color:var(--zx-label)}.Pf74oW_rowMenu{margin-right:var(--zx-space-1);opacity:0;pointer-events:none;color:var(--zx-label-tertiary);transition:opacity var(--zx-motion-fast), transform var(--zx-motion-fast);flex:none;transform:translate(3px)}.Pf74oW_rowMenu:hover:not(:disabled),.Pf74oW_rowMenu[aria-expanded=true]{color:var(--zx-label);background:0 0}.Pf74oW_rowShell:hover .Pf74oW_rowMenu,.Pf74oW_rowShell:focus-within .Pf74oW_rowMenu{opacity:1;pointer-events:auto;transform:translate(0)}.Pf74oW_rowTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.Pf74oW_rowAvatar{background:color-mix(in srgb, var(--zx-label) 8%, transparent);width:24px;height:24px;color:var(--zx-label-muted);border-radius:8px;flex:none;place-items:center;display:grid;position:relative}.Pf74oW_rowAvatar svg{width:14px;height:14px}.Pf74oW_rowPresence{border:2px solid var(--zx-bg-panel);background:var(--zx-label-tertiary);border-radius:50%;width:7px;height:7px;position:absolute;bottom:-1px;right:-1px}.Pf74oW_rowPresence.Pf74oW_dotRunning,.Pf74oW_rowPresence.Pf74oW_dotDone{width:7px;height:7px}.Pf74oW_rowCopy{flex-direction:column;flex:1;gap:1px;min-width:0;display:flex}.Pf74oW_rowSubtitle{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.Pf74oW_rowTime{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.Pf74oW_dot{border-radius:50%;flex:none;width:6px;height:6px}.Pf74oW_dotRunning{background:var(--zx-accent);box-shadow:0 0 0 0 color-mix(in srgb, var(--zx-accent) 45%, transparent);animation:1.6s ease-in-out infinite Pf74oW_zx-shimmer-pulse}.Pf74oW_dotDone{background:var(--zx-success)}@keyframes Pf74oW_zx-shimmer-pulse{0%,to{opacity:.65;box-shadow:0 0 0 0 color-mix(in srgb, var(--zx-accent) 0%, transparent)}50%{opacity:1;box-shadow:0 0 0 4px color-mix(in srgb, var(--zx-accent) 22%, transparent)}}@media (prefers-reduced-motion:reduce){.Pf74oW_dotRunning{animation:none}}.Pf74oW_foot{padding:var(--zx-space-3);border-top:1px solid var(--zx-border-soft);display:block}.Pf74oW_settingsTrigger{align-items:center;gap:var(--zx-space-3);width:100%;height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.Pf74oW_settingsTrigger:hover{background:var(--zx-bg-hover)}.Pf74oW_settingsTrigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_settingsTriggerActive{background:var(--zx-bg-active)}.Pf74oW_settingsTrigger svg{flex:none;width:16px;height:16px}.Pf74oW_deleteConfirm{color:var(--zx-error)}.Pf74oW_workspaceInput{width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-3);box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm)}.Pf74oW_workspaceInput:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.Pf74oW_workspaceError{margin-top:var(--zx-space-3);color:var(--zx-error);font-size:var(--zx-text-xs)}.Pf74oW_workspaceStatus{color:var(--zx-label-muted);font-size:var(--zx-text-xs)}";
+		const tagId$27 = "@dsh-portable/dcode-ui/LeftRail.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$27) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$25;
-			tag.textContent = css$26;
+			tag.dataset.pluginCss = tagId$27;
+			tag.textContent = css$28;
 			document.head.appendChild(tag);
 		}
 		var LeftRail_module_css_default = {
@@ -8687,17 +8596,27 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					align: "end",
 					triggerClassName: LeftRail_module_css_default.rowMenu,
 					trigger: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEllipsisOutline16, {}),
-					rows: [{
-						id: "rename",
-						label: t("common.edit"),
-						icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {}),
-						onSelect: props.onRename
-					}, {
-						id: "archive",
-						label: t("session.archive"),
-						icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconArchiveOutline20, { size: 16 }),
-						onSelect: props.onArchive
-					}]
+					rows: [
+						{
+							id: "rename",
+							label: t("common.edit"),
+							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {}),
+							onSelect: props.onRename
+						},
+						{
+							id: "archive",
+							label: t("session.archive"),
+							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconArchiveOutline20, { size: 16 }),
+							onSelect: props.onArchive
+						},
+						{
+							id: "delete",
+							label: t("session.delete"),
+							icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {}),
+							danger: true,
+							onSelect: props.onDelete
+						}
+					]
 				})]
 			});
 		}
@@ -8797,6 +8716,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const [removeTarget, setRemoveTarget] = (0, react.useState)();
 			const [removing, setRemoving] = (0, react.useState)(false);
 			const [removeError, setRemoveError] = (0, react.useState)();
+			const [deleteTarget, setDeleteTarget] = (0, react.useState)();
+			const [deleting, setDeleting] = (0, react.useState)(false);
+			const [deleteError, setDeleteError] = (0, react.useState)();
 			const toggleGroup = (0, react.useCallback)((id) => {
 				setCollapsed((previous) => {
 					const next = new Set(previous);
@@ -8947,6 +8869,34 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				removeTarget,
 				runtime
 			]);
+			const openDelete = (0, react.useCallback)((session) => {
+				setDeleteTarget(session);
+				setDeleteError(void 0);
+			}, []);
+			const closeDelete = (0, react.useCallback)(() => {
+				if (deleting) return;
+				setDeleteTarget(void 0);
+				setDeleteError(void 0);
+			}, [deleting]);
+			const confirmDelete = (0, react.useCallback)(() => {
+				const target = deleteTarget;
+				if (target === void 0 || deleting) return;
+				setDeleting(true);
+				setDeleteError(void 0);
+				runtime.sessions.delete(target.id).then(() => {
+					if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear();
+					setDeleteTarget(void 0);
+				}).catch((cause) => {
+					setDeleteError(cause instanceof Error ? cause.message : t("session.deleteFailed", { error: String(cause) }));
+				}).finally(() => {
+					setDeleting(false);
+				});
+			}, [
+				deleteTarget,
+				deleting,
+				runtime,
+				t
+			]);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
 				className: LeftRail_module_css_default.rail,
 				"aria-label": t("app.title"),
@@ -9039,13 +8989,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 									})]
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
-									className: `${LeftRail_module_css_default.action} ${state.view === "library" || state.view === "learning" ? LeftRail_module_css_default.actionActive : ""}`,
+									className: `${LeftRail_module_css_default.action} ${state.view === "learning" ? LeftRail_module_css_default.actionActive : ""}`,
 									onClick: () => {
-										navigation.show("library");
+										navigation.show("learning");
 									},
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, {}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSparkle16, {}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: ui.grow,
-										children: t("nav.library")
+										children: t("nav.learning")
 									})]
 								})]
 							}),
@@ -9085,7 +9035,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 										openSessionRename(session);
 									},
 									onArchive: () => {
-										runtime.navigation?.archiveSession(session.id);
+										runtime.workspaces.archiveSession(session.id);
+									},
+									onDelete: () => {
+										openDelete(session);
 									}
 								}, session.id))]
 							}, group.workspaceId)), filteredUngrouped.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -9107,7 +9060,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 										openSessionRename(session);
 									},
 									onArchive: () => {
-										runtime.navigation?.archiveSession(session.id);
+										runtime.workspaces.archiveSession(session.id);
+									},
+									onDelete: () => {
+										openDelete(session);
 									}
 								}, session.id))]
 							})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("nav.noTasks") })
@@ -9229,6 +9185,34 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							role: "alert",
 							children: removeError
 						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)(FocusingModal, {
+						open: deleteTarget !== void 0,
+						onClose: closeDelete,
+						title: t("session.deleteTitle"),
+						closeLabel: t("common.close"),
+						description: t("session.deleteBody"),
+						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							variant: "outline",
+							disabled: deleting,
+							onClick: closeDelete,
+							children: t("common.cancel")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							variant: "outline",
+							className: LeftRail_module_css_default.deleteConfirm,
+							disabled: deleting,
+							onClick: confirmDelete,
+							children: deleting ? t("common.saving") : t("session.delete")
+						})] }),
+						children: [deleting ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: LeftRail_module_css_default.workspaceStatus,
+							role: "status",
+							children: t("common.saving")
+						}) : null, deleteError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: LeftRail_module_css_default.workspaceError,
+							role: "alert",
+							children: deleteError
+						})]
 					})
 				]
 			});
@@ -9310,13 +9294,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\git\GitPanel.module.css.mjs
-		const css$25 = ".gHyypa_panel{gap:var(--zx-space-3);flex-direction:column;display:flex}.gHyypa_head{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);display:flex}.gHyypa_summary{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);font-size:var(--zx-text-xs);color:var(--zx-label);display:flex}.gHyypa_summaryLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.gHyypa_pending{padding:var(--zx-space-1) var(--zx-space-2);border-radius:var(--zx-radius-sm);background:var(--zx-bg-active);color:var(--zx-accent);font-size:var(--zx-text-micro)}.gHyypa_branchRow{align-items:center;gap:var(--zx-space-2);min-width:0;font-size:var(--zx-text-xs);color:var(--zx-label-secondary);white-space:nowrap;display:flex}.gHyypa_workspaceRow{align-items:center;gap:var(--zx-space-2);min-width:0;max-width:100%;padding:var(--zx-space-1) 0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);white-space:nowrap;display:flex}.gHyypa_workspaceRow:hover:not(:disabled){color:var(--zx-label)}.gHyypa_workspaceRow>span,.gHyypa_branchRow>span{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.gHyypa_fileGroups{gap:var(--zx-space-2);flex-direction:column;display:flex}.gHyypa_fileToolbar{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}.gHyypa_searchBox{flex:1;align-items:center;min-width:0;display:flex;position:relative}.gHyypa_searchIcon{z-index:1;pointer-events:none;color:var(--zx-label-tertiary);display:flex;position:absolute;left:8px}.gHyypa_searchBox input,.gHyypa_statusFilter select{box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);min-height:30px;color:var(--zx-label);font:inherit;font-size:var(--zx-text-micro)}.gHyypa_searchBox input{width:100%;min-width:0;padding:0 8px 0 29px}.gHyypa_searchBox input:focus,.gHyypa_statusFilter select:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_statusFilter{align-items:center;gap:var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex:none;display:flex}.gHyypa_statusFilter select{max-width:132px;padding:0 5px}.gHyypa_fileGroup{gap:var(--zx-space-1);flex-direction:column;min-width:0;display:flex}.gHyypa_groupHead{padding:0 var(--zx-space-1);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-medium);letter-spacing:.03em;text-transform:uppercase;justify-content:space-between;align-items:center;display:flex}.gHyypa_groupCount{margin-left:var(--zx-space-1);color:var(--zx-label-tertiary);font-variant-numeric:tabular-nums}.gHyypa_groupAction{min-height:22px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-accent);font:inherit;font-size:var(--zx-text-micro);text-transform:none;cursor:pointer;background:0 0;border:0}.gHyypa_groupAction:hover:not(:disabled){background:var(--zx-bg-hover)}.gHyypa_groupAction:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.gHyypa_groupAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_files{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);overflow:hidden}.gHyypa_treeViewport{overscroll-behavior:contain;scrollbar-gutter:stable;overflow-y:auto}.gHyypa_treeCanvas{min-width:0;position:relative}.gHyypa_virtualRow{border-bottom:1px solid var(--zx-border-subtle);box-sizing:border-box;position:absolute;top:0;left:0;right:0}.gHyypa_directory{align-items:center;gap:var(--zx-space-1);width:100%;height:100%;padding-right:var(--zx-space-2);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;text-align:left;background:0 0;border:0;display:flex}.gHyypa_directoryChevron{width:14px;color:var(--zx-label-decor);flex:none;display:flex}.gHyypa_directoryIcon,.gHyypa_fileIcon{color:var(--zx-label-tertiary);flex:none;display:flex}.gHyypa_directory:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.gHyypa_directory:focus-visible{box-shadow:inset 0 0 0 2px var(--zx-accent);outline:none}.gHyypa_directoryCount{color:var(--zx-label-faint);font-variant-numeric:tabular-nums;flex:none}.gHyypa_file{width:100%;height:100%;color:var(--zx-label);box-sizing:border-box;background:0 0;align-items:center;display:flex}.gHyypa_fileOpen{align-items:center;gap:var(--zx-space-2);min-width:0;height:100%;padding:0 var(--zx-space-2) 0 var(--zx-space-3);color:inherit;font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;flex:1;display:flex}.gHyypa_fileAction{width:28px;height:100%;color:var(--zx-accent);font:inherit;font-size:var(--zx-text-md);cursor:pointer;background:0 0;border:0;flex:none;padding:0}.gHyypa_fileAction:hover:not(:disabled){background:var(--zx-bg-active)}.gHyypa_fileAction:disabled{color:var(--zx-label-faint);cursor:default}.gHyypa_file:hover{background:var(--zx-bg-hover)}.gHyypa_fileOpen:focus-visible,.gHyypa_fileAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_fileActive{background:var(--zx-bg-active);box-shadow:inset 2px 0 0 var(--zx-accent)}.gHyypa_code{border-radius:var(--zx-radius-pill);min-width:18px;height:18px;color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);text-align:center;border:1px solid;flex:none;padding:0 4px;line-height:16px}.gHyypa_codeAdded{color:var(--zx-added)}.gHyypa_codeRemoved{color:var(--zx-removed)}.gHyypa_codeUntracked{color:var(--zx-warn)}.gHyypa_path{text-overflow:ellipsis;white-space:nowrap;text-align:left;min-width:0;font-family:var(--zx-font-mono);display:block;overflow:hidden}.gHyypa_pathText{flex-direction:column;flex:1;min-width:0;line-height:1.15;display:flex}.gHyypa_pathDetail{min-width:0;color:var(--zx-label-faint);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}.gHyypa_lineBadge{align-items:center;gap:var(--zx-space-1);min-height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;display:inline-flex}.gHyypa_badgeAdded{color:var(--zx-added)}.gHyypa_badgeRemoved{color:var(--zx-removed)}.gHyypa_suggest{border-radius:var(--zx-radius-pill);font:inherit;cursor:pointer;background:0 0;border:0}.gHyypa_suggest:hover{color:var(--zx-label);background:var(--zx-bg-hover)}.gHyypa_commit{gap:var(--zx-space-2);flex-direction:column;display:flex}.gHyypa_commitSummary,.gHyypa_commitBlocked{color:var(--zx-label-secondary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.gHyypa_commitBlocked{color:var(--zx-warn)}.gHyypa_commitInputRow{display:flex;position:relative}.gHyypa_commitInputRow .gHyypa_input{padding-right:36px}.gHyypa_suggest{width:26px;height:26px;color:var(--zx-accent);position:absolute;top:5px;right:5px}.gHyypa_suggest:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.gHyypa_input{width:100%;min-height:30px;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);resize:vertical;box-sizing:border-box}.gHyypa_input:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);overflow-wrap:anywhere}.gHyypa_noteError{color:var(--zx-error)}.gHyypa_actions{align-items:center;gap:var(--zx-space-2);display:flex}";
-		const tagId$24 = "@dsh-portable/dcode-ui/GitPanel.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$24) + "]") === null) {
+		const css$27 = ".gHyypa_panel{gap:var(--zx-space-3);flex-direction:column;display:flex}.gHyypa_head{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);display:flex}.gHyypa_summary{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);font-size:var(--zx-text-xs);color:var(--zx-label);display:flex}.gHyypa_summaryLabel{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.gHyypa_pending{padding:var(--zx-space-1) var(--zx-space-2);border-radius:var(--zx-radius-sm);background:var(--zx-bg-active);color:var(--zx-accent);font-size:var(--zx-text-micro)}.gHyypa_branchRow{align-items:center;gap:var(--zx-space-2);min-width:0;font-size:var(--zx-text-xs);color:var(--zx-label-secondary);white-space:nowrap;display:flex}.gHyypa_workspaceRow{align-items:center;gap:var(--zx-space-2);min-width:0;max-width:100%;padding:var(--zx-space-1) 0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);white-space:nowrap;display:flex}.gHyypa_workspaceRow:hover:not(:disabled){color:var(--zx-label)}.gHyypa_workspaceRow>span,.gHyypa_branchRow>span{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.gHyypa_fileGroups{gap:var(--zx-space-2);flex-direction:column;display:flex}.gHyypa_fileToolbar{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}.gHyypa_searchBox{flex:1;align-items:center;min-width:0;display:flex;position:relative}.gHyypa_searchIcon{z-index:1;pointer-events:none;color:var(--zx-label-tertiary);display:flex;position:absolute;left:8px}.gHyypa_searchBox input,.gHyypa_statusFilter select{box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);min-height:30px;color:var(--zx-label);font:inherit;font-size:var(--zx-text-micro)}.gHyypa_searchBox input{width:100%;min-width:0;padding:0 8px 0 29px}.gHyypa_searchBox input:focus,.gHyypa_statusFilter select:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_statusFilter{align-items:center;gap:var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex:none;display:flex}.gHyypa_statusFilter select{max-width:132px;padding:0 5px}.gHyypa_fileGroup{gap:var(--zx-space-1);flex-direction:column;min-width:0;display:flex}.gHyypa_groupHead{padding:0 var(--zx-space-1);color:var(--zx-label-secondary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-medium);letter-spacing:.03em;text-transform:uppercase;justify-content:space-between;align-items:center;display:flex}.gHyypa_groupCount{margin-left:var(--zx-space-1);color:var(--zx-label-tertiary);font-variant-numeric:tabular-nums}.gHyypa_groupAction{min-height:22px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-accent);font:inherit;font-size:var(--zx-text-micro);text-transform:none;cursor:pointer;background:0 0;border:0}.gHyypa_groupAction:hover:not(:disabled){background:var(--zx-bg-hover)}.gHyypa_groupAction:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.gHyypa_groupAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_files{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);overflow:hidden}.gHyypa_treeViewport{overscroll-behavior:contain;scrollbar-gutter:stable;overflow-y:auto}.gHyypa_treeCanvas{min-width:0;position:relative}.gHyypa_virtualRow{border-bottom:1px solid var(--zx-border-subtle);box-sizing:border-box;position:absolute;top:0;left:0;right:0}.gHyypa_directory{align-items:center;gap:var(--zx-space-1);width:100%;height:100%;padding-right:var(--zx-space-2);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;text-align:left;background:0 0;border:0;display:flex}.gHyypa_directoryChevron{width:14px;color:var(--zx-label-decor);flex:none;display:flex}.gHyypa_directoryIcon,.gHyypa_fileIcon{color:var(--zx-label-tertiary);flex:none;display:flex}.gHyypa_directory:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.gHyypa_directory:focus-visible{box-shadow:inset 0 0 0 2px var(--zx-accent);outline:none}.gHyypa_directoryCount{color:var(--zx-label-faint);font-variant-numeric:tabular-nums;flex:none}.gHyypa_file{width:100%;height:100%;color:var(--zx-label);box-sizing:border-box;background:0 0;align-items:center;display:flex}.gHyypa_fileOpen{align-items:center;gap:var(--zx-space-2);min-width:0;height:100%;padding:0 var(--zx-space-2) 0 var(--zx-space-3);color:inherit;font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;flex:1;display:flex}.gHyypa_fileAction{width:28px;height:100%;color:var(--zx-accent);font:inherit;font-size:var(--zx-text-md);cursor:pointer;background:0 0;border:0;flex:none;padding:0}.gHyypa_fileAction:hover:not(:disabled){background:var(--zx-bg-active)}.gHyypa_fileAction:disabled{color:var(--zx-label-faint);cursor:default}.gHyypa_file:hover{background:var(--zx-bg-hover)}.gHyypa_fileOpen:focus-visible,.gHyypa_fileAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_fileActive{background:var(--zx-bg-active);box-shadow:inset 2px 0 0 var(--zx-accent)}.gHyypa_code{border-radius:var(--zx-radius-pill);min-width:18px;height:18px;color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);text-align:center;border:1px solid;flex:none;padding:0 4px;line-height:16px}.gHyypa_codeAdded{color:var(--zx-added)}.gHyypa_codeRemoved{color:var(--zx-removed)}.gHyypa_codeUntracked{color:var(--zx-warn)}.gHyypa_path{text-overflow:ellipsis;white-space:nowrap;text-align:left;min-width:0;font-family:var(--zx-font-mono);display:block;overflow:hidden}.gHyypa_pathText{flex-direction:column;flex:1;min-width:0;line-height:1.15;display:flex}.gHyypa_pathDetail{min-width:0;color:var(--zx-label-faint);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;display:block;overflow:hidden}.gHyypa_lineBadge{align-items:center;gap:var(--zx-space-1);min-height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;display:inline-flex}.gHyypa_badgeAdded{color:var(--zx-added)}.gHyypa_badgeRemoved{color:var(--zx-removed)}.gHyypa_suggest{border-radius:var(--zx-radius-pill);font:inherit;cursor:pointer;background:0 0;border:0}.gHyypa_suggest:hover{color:var(--zx-label);background:var(--zx-bg-hover)}.gHyypa_commit{gap:var(--zx-space-2);flex-direction:column;display:flex}.gHyypa_commitSummary,.gHyypa_commitBlocked{color:var(--zx-label-secondary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.gHyypa_commitBlocked{color:var(--zx-warn)}.gHyypa_commitInputRow{display:flex;position:relative}.gHyypa_commitInputRow .gHyypa_input{padding-right:36px}.gHyypa_suggest{width:26px;height:26px;color:var(--zx-accent);position:absolute;top:5px;right:5px}.gHyypa_suggest:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.gHyypa_input{width:100%;min-height:30px;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);resize:vertical;box-sizing:border-box}.gHyypa_input:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}.gHyypa_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);overflow-wrap:anywhere}.gHyypa_noteError{color:var(--zx-error)}.gHyypa_actions{align-items:center;gap:var(--zx-space-2);display:flex}";
+		const tagId$26 = "@dsh-portable/dcode-ui/GitPanel.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$26) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$24;
-			tag.textContent = css$25;
+			tag.dataset.pluginCss = tagId$26;
+			tag.textContent = css$27;
 			document.head.appendChild(tag);
 		}
 		var GitPanel_module_css_default = {
@@ -10001,13 +9985,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\git\DiffViewer.module.css.mjs
-		const css$24 = ".CAvRJW_viewer{gap:var(--zx-space-2);flex-direction:column;min-height:0;display:flex}.CAvRJW_head{align-items:center;gap:var(--zx-space-2);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);display:flex}.CAvRJW_reviewBar{justify-content:space-between;align-items:center;gap:var(--zx-space-2);display:flex}.CAvRJW_modeSwitch{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);padding:2px;display:inline-flex}.CAvRJW_modeSwitch button,.CAvRJW_hunkActions button{border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;background:0 0;border:0}.CAvRJW_modeSwitch button{padding:3px 8px}.CAvRJW_modeSwitch button:hover,.CAvRJW_hunkActions button:hover{color:var(--zx-label);background:var(--zx-bg-hover)}.CAvRJW_modeSwitch .CAvRJW_modeActive{color:var(--zx-label);background:var(--zx-bg-active)}.CAvRJW_breadcrumbs{white-space:nowrap;min-width:0;font-family:var(--zx-font-mono);color:var(--zx-label-muted);flex:1;align-items:center;display:flex;overflow:hidden}.CAvRJW_crumb{text-overflow:ellipsis;align-items:center;min-width:0;display:inline-flex;overflow:hidden}.CAvRJW_crumb:not(:last-child){flex:0 auto}.CAvRJW_crumb:last-child{flex:none;max-width:55%}.CAvRJW_separator{padding:0 var(--zx-space-1);color:var(--zx-label-decor);flex:none}.CAvRJW_fileName{text-overflow:ellipsis;color:var(--zx-label);font-weight:var(--zx-weight-medium);overflow:hidden}.CAvRJW_diffSummary{align-items:center;gap:var(--zx-space-1);min-height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none;display:inline-flex}.CAvRJW_summaryAdded{color:var(--zx-added)}.CAvRJW_summaryRemoved{color:var(--zx-removed)}.CAvRJW_body{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);max-height:60vh;font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;line-height:1.6;position:relative;overflow:auto}.CAvRJW_modeBody{animation:.18s cubic-bezier(.2,.78,.2,1) CAvRJW_diffModeIn}@keyframes CAvRJW_diffModeIn{0%{opacity:.55;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){.CAvRJW_modeBody{animation:none}}.CAvRJW_body::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.CAvRJW_body::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.CAvRJW_line{white-space:pre;align-items:baseline;min-width:max-content;display:flex}.CAvRJW_gutter{z-index:var(--zx-z-base);gap:var(--zx-space-3);padding:0 var(--zx-space-3);background:var(--zx-bg-card);border-right:1px solid var(--zx-border-soft);flex:none;display:flex;position:sticky;left:0}.CAvRJW_lineNo{text-align:right;min-width:3.5ch;color:var(--zx-label-secondary);font-variant-numeric:tabular-nums;user-select:none}.CAvRJW_sign{width:2ch;padding-left:var(--zx-space-2);color:var(--zx-label-tertiary);user-select:none;flex:none}.CAvRJW_text{min-width:0;padding-right:var(--zx-space-3);flex:1}.CAvRJW_added{background:color-mix(in srgb, var(--zx-added) 18%, transparent);box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-added) 82%, transparent)}.CAvRJW_added .CAvRJW_sign,.CAvRJW_added .CAvRJW_text{color:var(--zx-label)}.CAvRJW_added .CAvRJW_sign{color:var(--zx-added);font-weight:var(--zx-weight-semibold)}.CAvRJW_added .CAvRJW_gutter{background:color-mix(in srgb, var(--zx-added) 12%, var(--zx-bg-card))}.CAvRJW_removed{background:color-mix(in srgb, var(--zx-removed) 18%, transparent);box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-removed) 82%, transparent)}.CAvRJW_removed .CAvRJW_sign,.CAvRJW_removed .CAvRJW_text{color:var(--zx-label)}.CAvRJW_removed .CAvRJW_sign{color:var(--zx-removed);font-weight:var(--zx-weight-semibold)}.CAvRJW_removed .CAvRJW_gutter{background:color-mix(in srgb, var(--zx-removed) 12%, var(--zx-bg-card))}.CAvRJW_hunk{z-index:var(--zx-z-sticky);gap:var(--zx-space-3);padding:2px var(--zx-space-3);background:var(--zx-bg-panel);border-top:1px solid var(--zx-border-soft);border-bottom:1px solid var(--zx-border-soft);position:sticky;top:0}.CAvRJW_hunkBlock{display:contents}.CAvRJW_hunkActions{right:var(--zx-space-2);align-items:center;gap:var(--zx-space-1);padding-left:var(--zx-space-2);background:var(--zx-bg-panel);margin-left:auto;display:inline-flex;position:sticky}.CAvRJW_hunkActions button:disabled{opacity:.5;cursor:wait}.CAvRJW_splitBody{min-width:0}.CAvRJW_splitGrid{min-width:640px}.CAvRJW_splitPair{grid-template-columns:minmax(0,1fr) minmax(0,1fr);display:grid}.CAvRJW_splitLine{border-right:1px solid var(--zx-border-soft);white-space:pre;min-width:0;min-height:1.6em;display:flex}.CAvRJW_splitNo{min-width:4.5ch;padding:0 var(--zx-space-2);border-right:1px solid var(--zx-border-soft);background:var(--zx-bg-card);color:var(--zx-label-secondary);text-align:right;user-select:none;flex:none;position:sticky;left:0}.CAvRJW_splitText{padding:0 var(--zx-space-2)}.CAvRJW_errorNote{color:var(--zx-error);font-size:var(--zx-text-micro);margin:0}.CAvRJW_line.CAvRJW_hunk:first-child{border-top:0}.CAvRJW_range{color:var(--zx-accent);font-variant-numeric:tabular-nums;flex:none}.CAvRJW_section{text-overflow:ellipsis;min-width:0;color:var(--zx-label-muted);overflow:hidden}.CAvRJW_meta{color:var(--zx-label-tertiary);font-style:italic}.CAvRJW_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro)}";
-		const tagId$23 = "@dsh-portable/dcode-ui/DiffViewer.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$23) + "]") === null) {
+		const css$26 = ".CAvRJW_viewer{gap:var(--zx-space-2);flex-direction:column;min-height:0;display:flex}.CAvRJW_head{align-items:center;gap:var(--zx-space-2);font-size:var(--zx-text-xs);color:var(--zx-label-secondary);display:flex}.CAvRJW_reviewBar{justify-content:space-between;align-items:center;gap:var(--zx-space-2);display:flex}.CAvRJW_modeSwitch{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);padding:2px;display:inline-flex}.CAvRJW_modeSwitch button,.CAvRJW_hunkActions button{border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;background:0 0;border:0}.CAvRJW_modeSwitch button{padding:3px 8px}.CAvRJW_modeSwitch button:hover,.CAvRJW_hunkActions button:hover{color:var(--zx-label);background:var(--zx-bg-hover)}.CAvRJW_modeSwitch .CAvRJW_modeActive{color:var(--zx-label);background:var(--zx-bg-active)}.CAvRJW_breadcrumbs{white-space:nowrap;min-width:0;font-family:var(--zx-font-mono);color:var(--zx-label-muted);flex:1;align-items:center;display:flex;overflow:hidden}.CAvRJW_crumb{text-overflow:ellipsis;align-items:center;min-width:0;display:inline-flex;overflow:hidden}.CAvRJW_crumb:not(:last-child){flex:0 auto}.CAvRJW_crumb:last-child{flex:none;max-width:55%}.CAvRJW_separator{padding:0 var(--zx-space-1);color:var(--zx-label-decor);flex:none}.CAvRJW_fileName{text-overflow:ellipsis;color:var(--zx-label);font-weight:var(--zx-weight-medium);overflow:hidden}.CAvRJW_diffSummary{align-items:center;gap:var(--zx-space-1);min-height:var(--zx-control-2xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);background:var(--zx-bg-raised);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none;display:inline-flex}.CAvRJW_summaryAdded{color:var(--zx-added)}.CAvRJW_summaryRemoved{color:var(--zx-removed)}.CAvRJW_body{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);max-height:60vh;font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;line-height:1.6;position:relative;overflow:auto}.CAvRJW_modeBody{animation:.18s cubic-bezier(.2,.78,.2,1) CAvRJW_diffModeIn}@keyframes CAvRJW_diffModeIn{0%{opacity:.55;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){.CAvRJW_modeBody{animation:none}}.CAvRJW_body::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.CAvRJW_body::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.CAvRJW_line{white-space:pre;align-items:baseline;min-width:max-content;display:flex}.CAvRJW_gutter{z-index:var(--zx-z-base);gap:var(--zx-space-3);padding:0 var(--zx-space-3);background:var(--zx-bg-card);border-right:1px solid var(--zx-border-soft);flex:none;display:flex;position:sticky;left:0}.CAvRJW_lineNo{text-align:right;min-width:3.5ch;color:var(--zx-label-secondary);font-variant-numeric:tabular-nums;user-select:none}.CAvRJW_sign{width:2ch;padding-left:var(--zx-space-2);color:var(--zx-label-tertiary);user-select:none;flex:none}.CAvRJW_text{min-width:0;padding-right:var(--zx-space-3);flex:1}.CAvRJW_added{background:color-mix(in srgb, var(--zx-added) 18%, transparent);box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-added) 82%, transparent)}.CAvRJW_added .CAvRJW_sign,.CAvRJW_added .CAvRJW_text{color:var(--zx-label)}.CAvRJW_added .CAvRJW_sign{color:var(--zx-added);font-weight:var(--zx-weight-semibold)}.CAvRJW_added .CAvRJW_gutter{background:color-mix(in srgb, var(--zx-added) 12%, var(--zx-bg-card))}.CAvRJW_removed{background:color-mix(in srgb, var(--zx-removed) 18%, transparent);box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-removed) 82%, transparent)}.CAvRJW_removed .CAvRJW_sign,.CAvRJW_removed .CAvRJW_text{color:var(--zx-label)}.CAvRJW_removed .CAvRJW_sign{color:var(--zx-removed);font-weight:var(--zx-weight-semibold)}.CAvRJW_removed .CAvRJW_gutter{background:color-mix(in srgb, var(--zx-removed) 12%, var(--zx-bg-card))}.CAvRJW_hunk{z-index:var(--zx-z-sticky);gap:var(--zx-space-3);padding:2px var(--zx-space-3);background:var(--zx-bg-panel);border-top:1px solid var(--zx-border-soft);border-bottom:1px solid var(--zx-border-soft);position:sticky;top:0}.CAvRJW_hunkBlock{display:contents}.CAvRJW_hunkActions{right:var(--zx-space-2);align-items:center;gap:var(--zx-space-1);padding-left:var(--zx-space-2);background:var(--zx-bg-panel);margin-left:auto;display:inline-flex;position:sticky}.CAvRJW_hunkActions button:disabled{opacity:.5;cursor:wait}.CAvRJW_splitBody{min-width:0}.CAvRJW_splitGrid{min-width:640px}.CAvRJW_splitPair{grid-template-columns:minmax(0,1fr) minmax(0,1fr);display:grid}.CAvRJW_splitLine{border-right:1px solid var(--zx-border-soft);white-space:pre;min-width:0;min-height:1.6em;display:flex}.CAvRJW_splitNo{min-width:4.5ch;padding:0 var(--zx-space-2);border-right:1px solid var(--zx-border-soft);background:var(--zx-bg-card);color:var(--zx-label-secondary);text-align:right;user-select:none;flex:none;position:sticky;left:0}.CAvRJW_splitText{padding:0 var(--zx-space-2)}.CAvRJW_errorNote{color:var(--zx-error);font-size:var(--zx-text-micro);margin:0}.CAvRJW_line.CAvRJW_hunk:first-child{border-top:0}.CAvRJW_range{color:var(--zx-accent);font-variant-numeric:tabular-nums;flex:none}.CAvRJW_section{text-overflow:ellipsis;min-width:0;color:var(--zx-label-muted);overflow:hidden}.CAvRJW_meta{color:var(--zx-label-tertiary);font-style:italic}.CAvRJW_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro)}";
+		const tagId$25 = "@dsh-portable/dcode-ui/DiffViewer.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$25) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$23;
-			tag.textContent = css$24;
+			tag.dataset.pluginCss = tagId$25;
+			tag.textContent = css$26;
 			document.head.appendChild(tag);
 		}
 		var DiffViewer_module_css_default = {
@@ -10302,6 +10286,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region src/client/chat/tools.ts
+		/** Whether a tool row represents a delegated subagent. */
+		function isSubagentTool(name) {
+			return name === "subagent" || name.startsWith("subagent_");
+		}
 		/** Tools that change files on disk. */
 		const MUTATING = /* @__PURE__ */ new Set([
 			"write",
@@ -10558,65 +10546,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					deletions: 0
 				};
 			}
-		}
-		/** An error anywhere in a ToolCallBlock tree must remain visually explicit. */
-		function hasToolError(block) {
-			if ("isError" in block && block.isError) return true;
-			return block.subCalls.some(hasToolError);
-		}
-		/** Whether a result is safe to hide inside a lightweight activity disclosure. */
-		function aggregatableActivity(node) {
-			if (node.kind !== "tool-result" || hasToolError(node)) return false;
-			const summary = summarizeTool(node.call?.name ?? "", node.call?.argsRaw);
-			return !summary.mutating && (summary.kind === "read" || summary.kind === "search" || summary.kind === "web" || summary.kind === "memory");
-		}
-		/**
-		* Collapse consecutive successful read/search results into transcript groups.
-		* A single action stays as an ordinary ToolCard; consecutive exploration is
-		* folded by default, and errors always break a run.
-		*/
-		function aggregateToolActivity(nodes) {
-			const items = [];
-			let run = [];
-			const flush = () => {
-				if (run.length < 2) {
-					items.push(...run);
-					run = [];
-					return;
-				}
-				let readCount = 0;
-				let searchCount = 0;
-				let memoryCount = 0;
-				const files = /* @__PURE__ */ new Set();
-				const durations = run.map(toolDurationMs);
-				for (const block of run) {
-					const kind = summarizeTool(block.call?.name ?? "", block.call?.argsRaw).kind;
-					for (const path of summarizeTool(block.call?.name ?? "", block.call?.argsRaw).files) files.add(path);
-					if (kind === "read") readCount += 1;
-					if (kind === "search" || kind === "web") searchCount += 1;
-					if (kind === "memory") memoryCount += 1;
-				}
-				items.push({
-					kind: "tool-activity",
-					blocks: run,
-					readCount,
-					searchCount,
-					memoryCount,
-					fileCount: files.size === 0 ? run.length : files.size,
-					durationMs: durations.every((value) => value !== void 0) ? durations.reduce((total, value) => total + value, 0) : void 0
-				});
-				run = [];
-			};
-			for (const node of nodes) {
-				if (aggregatableActivity(node)) {
-					run.push(node);
-					continue;
-				}
-				flush();
-				items.push(node);
-			}
-			flush();
-			return items;
 		}
 		/**
 		* Flatten a tool result's content blocks into displayable text.
@@ -11074,13 +11003,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\chat\AnsiOutput.module.css.mjs
-		const css$23 = ".LDWigW_output{max-height:420px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);line-height:var(--zx-leading-code);tab-size:4;scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;margin:0;overflow:auto}.LDWigW_output::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.LDWigW_output::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.LDWigW_wrap{white-space:pre-wrap;overflow-wrap:anywhere}.LDWigW_nowrap{white-space:pre}.LDWigW_truncated{color:var(--zx-label-tertiary);font-style:italic}.LDWigW_toolbar{align-items:center;gap:var(--zx-space-1);margin-left:auto;display:inline-flex}.LDWigW_action{min-height:var(--zx-control-xs);border-radius:var(--zx-radius-sm);padding:2px var(--zx-space-2);color:var(--zx-label-tertiary);font:inherit;font-size:var(--zx-text-micro);text-transform:none;letter-spacing:0;cursor:pointer;background:0 0;border:0}.LDWigW_action:hover{background:var(--zx-bg-hover);color:var(--zx-label-secondary)}.LDWigW_action:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.LDWigW_actionOn{background:var(--zx-bg-active);color:var(--zx-label-secondary)}";
-		const tagId$22 = "@dsh-portable/dcode-ui/AnsiOutput.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$22) + "]") === null) {
+		const css$25 = ".LDWigW_output{max-height:420px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);line-height:var(--zx-leading-code);tab-size:4;scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;margin:0;overflow:auto}.LDWigW_output::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.LDWigW_output::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.LDWigW_wrap{white-space:pre-wrap;overflow-wrap:anywhere}.LDWigW_nowrap{white-space:pre}.LDWigW_truncated{color:var(--zx-label-tertiary);font-style:italic}.LDWigW_toolbar{align-items:center;gap:var(--zx-space-1);margin-left:auto;display:inline-flex}.LDWigW_action{min-height:var(--zx-control-xs);border-radius:var(--zx-radius-sm);padding:2px var(--zx-space-2);color:var(--zx-label-tertiary);font:inherit;font-size:var(--zx-text-micro);text-transform:none;letter-spacing:0;cursor:pointer;background:0 0;border:0}.LDWigW_action:hover{background:var(--zx-bg-hover);color:var(--zx-label-secondary)}.LDWigW_action:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.LDWigW_actionOn{background:var(--zx-bg-active);color:var(--zx-label-secondary)}";
+		const tagId$24 = "@dsh-portable/dcode-ui/AnsiOutput.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$24) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$22;
-			tag.textContent = css$23;
+			tag.dataset.pluginCss = tagId$24;
+			tag.textContent = css$25;
 			document.head.appendChild(tag);
 		}
 		var AnsiOutput_module_css_default = {
@@ -11174,14 +11103,35 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			});
 		}
 		//#endregion
+		//#region ../../vendor/deepseek-harness/packages/util/brand/lib/index.js
+		/**
+		* Apply a compile-time number brand without changing the value.
+		* @param value - number admitted by the domain that owns the target brand.
+		* @returns the same number with the requested compile-time brand.
+		*/
+		function brandNumber(value) {
+			return value;
+		}
+		//#endregion
+		//#region ../../vendor/deepseek-harness/packages/core/session/lib/types/types.js
+		/**
+		* Admit a numeric value as an existing Session event position.
+		* @param value - non-negative safe integer admitted by the owning log operation.
+		* @returns the same number with the Session-sequence brand.
+		*/
+		function SessionSeq(value) {
+			if (!Number.isSafeInteger(value) || value < 0 || Object.is(value, -0)) throw new TypeError(`SessionSeq must be a non-negative safe integer, got ${String(value)}`);
+			return brandNumber(value);
+		}
+		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\MessageNavRail.module.css.mjs
-		const css$22 = ".MkpdVa_slot{z-index:var(--zx-z-sticky);pointer-events:none;height:0;position:sticky;top:0}.MkpdVa_rail{top:min(45vh,380px);right:var(--zx-space-3);pointer-events:auto;box-sizing:border-box;justify-content:center;width:28px;height:min(48vh,420px);min-height:120px;padding:8px 0;display:flex;position:absolute;transform:translateY(-50%)}.MkpdVa_line{background:color-mix(in srgb, var(--zx-label) 12%, transparent);border-radius:1px;width:2px;position:absolute;top:8px;bottom:8px;left:50%;transform:translate(-50%)}.MkpdVa_dotPosition{top:var(--message-nav-position);justify-content:center;align-items:center;width:24px;height:24px;display:flex;position:absolute;left:50%;transform:translate(-50%,-50%)}.MkpdVa_dot{border:1.5px solid color-mix(in srgb, var(--zx-label) 35%, transparent);background:var(--dsw-alias-bg-base,var(--zx-bg-surface-0,#0d0d0f));cursor:pointer;width:8px;height:8px;transition:transform var(--zx-motion-fast), border-color var(--zx-motion-fast), background-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast);border-radius:50%;padding:0;position:relative}.MkpdVa_dot:before{content:\"\";border-radius:50%;position:absolute;inset:-8px}.MkpdVa_dot>span{display:none}.MkpdVa_dot_change,.MkpdVa_dot_plan,.MkpdVa_dot_error{border-width:1.5px;width:16px;height:16px}.MkpdVa_dot_change>span,.MkpdVa_dot_plan>span,.MkpdVa_dot_error>span{font-size:9px;font-weight:var(--zx-weight-bold,700);place-items:center;line-height:1;display:grid}.MkpdVa_dot_change{border-color:var(--zx-success);color:var(--zx-success);background:color-mix(in srgb, var(--zx-success) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot_plan{border-color:var(--zx-accent);color:var(--zx-accent);background:color-mix(in srgb, var(--zx-accent) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot_error{border-color:var(--zx-error);color:var(--zx-error);background:color-mix(in srgb, var(--zx-error) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot:hover,.MkpdVa_dot:focus-visible{border-color:var(--zx-accent);background:color-mix(in srgb, var(--zx-accent) 25%, var(--zx-bg-surface-0,#0d0d0f));z-index:2;transform:scale(1.3)}.MkpdVa_dot:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.MkpdVa_dotActive{border-color:var(--zx-accent);background:var(--zx-accent);color:var(--zx-on-accent,#0d0d0f);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 25%, transparent), 0 2px 8px color-mix(in srgb, var(--zx-accent) 45%, transparent);z-index:2;transform:scale(1.35)}.MkpdVa_dotActive>span{color:var(--zx-on-accent,#0d0d0f)}.MkpdVa_dotBookmarked{border-color:var(--zx-warn);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-warn) 25%, transparent)}.MkpdVa_bookmark{border-radius:var(--zx-radius-sm);width:22px;height:22px;color:var(--zx-label-muted);cursor:pointer;opacity:0;transition:color var(--zx-motion-fast), opacity var(--zx-motion-fast), transform var(--zx-motion-fast), background var(--zx-motion-fast);background:0 0;border:0;place-items:center;padding:0;font-size:13px;line-height:1;display:grid;position:absolute;top:50%;left:calc(100% + 2px);transform:translateY(-50%)scale(.85)}.MkpdVa_dotPosition:hover .MkpdVa_bookmark,.MkpdVa_bookmark:focus-visible,.MkpdVa_bookmarkActive{opacity:1;transform:translateY(-50%)scale(1)}.MkpdVa_bookmark:hover{background:color-mix(in srgb, var(--zx-label) 10%, transparent);color:var(--zx-warn)}.MkpdVa_bookmarkActive{color:var(--zx-warn);text-shadow:0 0 8px color-mix(in srgb, var(--zx-warn) 60%, transparent)}.MkpdVa_bookmark:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.MkpdVa_tooltip{z-index:var(--zx-z-tooltip,100);top:clamp(24px, var(--message-nav-position), calc(100% - 24px));right:calc(100% + var(--zx-space-3));box-sizing:border-box;width:min(340px,100cqw - 48px);min-width:240px;max-width:calc(100vw - 80px);padding:var(--zx-space-3) var(--zx-space-4);border:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));border-radius:var(--zx-radius-lg);background-color:var(--dsw-alias-bg-elevated,var(--zx-bg-surface-0,#16161a));background-image:linear-gradient(to bottom, color-mix(in srgb, var(--zx-label) 5%, transparent), transparent);backdrop-filter:var(--zx-glass-filter,blur(20px));box-shadow:var(--zx-shadow-dialog,0 10px 30px #0006);color:var(--zx-label);pointer-events:none;animation:MkpdVa_tooltip-in var(--zx-motion-fast) cubic-bezier(.16, 1, .3, 1);position:absolute;transform:translateY(-50%)}.MkpdVa_tooltip:after{content:\"\";background:var(--dsw-alias-bg-elevated,var(--zx-bg-surface-0,#16161a));border-right:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));border-top:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));width:8px;height:8px;position:absolute;top:50%;right:-5px;transform:translateY(-50%)rotate(45deg)}.MkpdVa_tooltipHeader{justify-content:space-between;align-items:center;gap:var(--zx-space-2);margin-bottom:var(--zx-space-2);display:flex}.MkpdVa_tooltipBadgeGroup{align-items:center;gap:var(--zx-space-2);display:flex}.MkpdVa_tooltipTurnBadge{border-radius:var(--zx-radius-sm);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-semibold);color:var(--zx-label);background:color-mix(in srgb, var(--zx-label) 10%, transparent);letter-spacing:.02em;align-items:center;padding:2px 7px;display:inline-flex}.MkpdVa_tooltipMarkerBadge{border-radius:var(--zx-radius-sm);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-medium);align-items:center;gap:4px;padding:2px 7px;line-height:1.2;display:inline-flex}.MkpdVa_markerIcon{font-size:10px}.MkpdVa_marker_change{background:color-mix(in srgb, var(--zx-success) 16%, transparent);color:var(--zx-success);border:1px solid color-mix(in srgb, var(--zx-success) 30%, transparent)}.MkpdVa_marker_plan{background:color-mix(in srgb, var(--zx-accent) 16%, transparent);color:var(--zx-accent);border:1px solid color-mix(in srgb, var(--zx-accent) 30%, transparent)}.MkpdVa_marker_error{background:color-mix(in srgb, var(--zx-error) 16%, transparent);color:var(--zx-error);border:1px solid color-mix(in srgb, var(--zx-error) 30%, transparent)}.MkpdVa_marker_message{background:color-mix(in srgb, var(--zx-label) 8%, transparent);color:var(--zx-label-secondary);border:1px solid var(--zx-border-subtle)}.MkpdVa_tooltipTime{font-size:var(--zx-text-micro);color:var(--zx-label-muted);font-variant-numeric:tabular-nums;white-space:nowrap}.MkpdVa_tooltipPrompt{margin:var(--zx-space-1) 0 var(--zx-space-2);color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-snug,1.45);-webkit-line-clamp:3;text-overflow:ellipsis;white-space:normal;word-break:break-word;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.MkpdVa_tooltipFooter{justify-content:space-between;align-items:center;gap:var(--zx-space-2);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-subtle);font-size:var(--zx-text-micro);color:var(--zx-label-muted);display:flex}.MkpdVa_tooltipHint{color:var(--zx-label-muted);align-items:center;gap:4px;display:inline-flex}.MkpdVa_tooltipBookmarkedBadge{color:var(--zx-warn);font-weight:var(--zx-weight-medium);align-items:center;gap:3px;display:inline-flex}@keyframes MkpdVa_tooltip-in{0%{opacity:0;transform:translateY(-50%)translate(6px)}to{opacity:1;transform:translateY(-50%)translate(0)}}[data-dcode-layout=compact] .MkpdVa_slot{display:none}@container (width<=720px){.MkpdVa_slot{display:none}}@media (prefers-reduced-motion:reduce){.MkpdVa_dot{transition:none}.MkpdVa_tooltip{animation:none}}";
-		const tagId$21 = "@dsh-portable/dcode-ui/MessageNavRail.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$21) + "]") === null) {
+		const css$24 = ".MkpdVa_slot{z-index:var(--zx-z-sticky);pointer-events:none;height:0;position:sticky;top:0}.MkpdVa_rail{top:min(45vh,380px);right:var(--zx-space-3);pointer-events:auto;box-sizing:border-box;justify-content:center;width:28px;height:min(48vh,420px);min-height:120px;padding:8px 0;display:flex;position:absolute;transform:translateY(-50%)}.MkpdVa_line{background:color-mix(in srgb, var(--zx-label) 12%, transparent);border-radius:1px;width:2px;position:absolute;top:8px;bottom:8px;left:50%;transform:translate(-50%)}.MkpdVa_dotPosition{top:var(--message-nav-position);justify-content:center;align-items:center;width:24px;height:24px;display:flex;position:absolute;left:50%;transform:translate(-50%,-50%)}.MkpdVa_dot{border:1.5px solid color-mix(in srgb, var(--zx-label) 35%, transparent);background:var(--dsw-alias-bg-base,var(--zx-bg-surface-0,#0d0d0f));cursor:pointer;width:8px;height:8px;transition:transform var(--zx-motion-fast), border-color var(--zx-motion-fast), background-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast);border-radius:50%;padding:0;position:relative}.MkpdVa_dot:before{content:\"\";border-radius:50%;position:absolute;inset:-8px}.MkpdVa_dot>span{display:none}.MkpdVa_dot_change,.MkpdVa_dot_plan,.MkpdVa_dot_error{border-width:1.5px;width:16px;height:16px}.MkpdVa_dot_change>span,.MkpdVa_dot_plan>span,.MkpdVa_dot_error>span{font-size:9px;font-weight:var(--zx-weight-bold,700);place-items:center;line-height:1;display:grid}.MkpdVa_dot_change{border-color:var(--zx-success);color:var(--zx-success);background:color-mix(in srgb, var(--zx-success) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot_plan{border-color:var(--zx-accent);color:var(--zx-accent);background:color-mix(in srgb, var(--zx-accent) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot_error{border-color:var(--zx-error);color:var(--zx-error);background:color-mix(in srgb, var(--zx-error) 14%, var(--zx-bg-surface-0,#0d0d0f))}.MkpdVa_dot:hover,.MkpdVa_dot:focus-visible{border-color:var(--zx-accent);background:color-mix(in srgb, var(--zx-accent) 25%, var(--zx-bg-surface-0,#0d0d0f));z-index:2;transform:scale(1.3)}.MkpdVa_dot:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.MkpdVa_dotActive{border-color:var(--zx-accent);background:var(--zx-accent);color:var(--zx-on-accent,#0d0d0f);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 25%, transparent), 0 2px 8px color-mix(in srgb, var(--zx-accent) 45%, transparent);z-index:2;transform:scale(1.35)}.MkpdVa_dotActive>span{color:var(--zx-on-accent,#0d0d0f)}.MkpdVa_dotBookmarked{border-color:var(--zx-warn);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-warn) 25%, transparent)}.MkpdVa_bookmark{border-radius:var(--zx-radius-sm);width:22px;height:22px;color:var(--zx-label-muted);cursor:pointer;opacity:0;transition:color var(--zx-motion-fast), opacity var(--zx-motion-fast), transform var(--zx-motion-fast), background var(--zx-motion-fast);background:0 0;border:0;place-items:center;padding:0;font-size:13px;line-height:1;display:grid;position:absolute;top:50%;left:calc(100% + 2px);transform:translateY(-50%)scale(.85)}.MkpdVa_dotPosition:hover .MkpdVa_bookmark,.MkpdVa_bookmark:focus-visible,.MkpdVa_bookmarkActive{opacity:1;transform:translateY(-50%)scale(1)}.MkpdVa_bookmark:hover{background:color-mix(in srgb, var(--zx-label) 10%, transparent);color:var(--zx-warn)}.MkpdVa_bookmarkActive{color:var(--zx-warn);text-shadow:0 0 8px color-mix(in srgb, var(--zx-warn) 60%, transparent)}.MkpdVa_bookmark:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.MkpdVa_tooltip{z-index:var(--zx-z-tooltip,100);top:clamp(24px, var(--message-nav-position), calc(100% - 24px));right:calc(100% + var(--zx-space-3));box-sizing:border-box;width:min(340px,100cqw - 48px);min-width:240px;max-width:calc(100vw - 80px);padding:var(--zx-space-3) var(--zx-space-4);border:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));border-radius:var(--zx-radius-lg);background-color:var(--dsw-alias-bg-elevated,var(--zx-bg-surface-0,#16161a));background-image:linear-gradient(to bottom, color-mix(in srgb, var(--zx-label) 5%, transparent), transparent);backdrop-filter:var(--zx-glass-filter,blur(20px));box-shadow:var(--zx-shadow-dialog,0 10px 30px #0006);color:var(--zx-label);pointer-events:none;animation:MkpdVa_tooltip-in var(--zx-motion-fast) cubic-bezier(.16, 1, .3, 1);position:absolute;transform:translateY(-50%)}.MkpdVa_tooltip:after{content:\"\";background:var(--dsw-alias-bg-elevated,var(--zx-bg-surface-0,#16161a));border-right:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));border-top:1px solid var(--zx-border-control,color-mix(in srgb, var(--zx-label) 18%, transparent));width:8px;height:8px;position:absolute;top:50%;right:-5px;transform:translateY(-50%)rotate(45deg)}.MkpdVa_tooltipHeader{justify-content:space-between;align-items:center;gap:var(--zx-space-2);margin-bottom:var(--zx-space-2);display:flex}.MkpdVa_tooltipBadgeGroup{align-items:center;gap:var(--zx-space-2);display:flex}.MkpdVa_tooltipTurnBadge{border-radius:var(--zx-radius-sm);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-semibold);color:var(--zx-label);background:color-mix(in srgb, var(--zx-label) 10%, transparent);letter-spacing:.02em;align-items:center;padding:2px 7px;display:inline-flex}.MkpdVa_tooltipMarkerBadge{border-radius:var(--zx-radius-sm);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-medium);align-items:center;gap:4px;padding:2px 7px;line-height:1.2;display:inline-flex}.MkpdVa_markerIcon{font-size:10px}.MkpdVa_marker_change{background:color-mix(in srgb, var(--zx-success) 16%, transparent);color:var(--zx-success);border:1px solid color-mix(in srgb, var(--zx-success) 30%, transparent)}.MkpdVa_marker_plan{background:color-mix(in srgb, var(--zx-accent) 16%, transparent);color:var(--zx-accent);border:1px solid color-mix(in srgb, var(--zx-accent) 30%, transparent)}.MkpdVa_marker_error{background:color-mix(in srgb, var(--zx-error) 16%, transparent);color:var(--zx-error);border:1px solid color-mix(in srgb, var(--zx-error) 30%, transparent)}.MkpdVa_marker_message{background:color-mix(in srgb, var(--zx-label) 8%, transparent);color:var(--zx-label-secondary);border:1px solid var(--zx-border-subtle)}.MkpdVa_tooltipTime{font-size:var(--zx-text-micro);color:var(--zx-label-muted);font-variant-numeric:tabular-nums;white-space:nowrap}.MkpdVa_tooltipPrompt{margin:var(--zx-space-1) 0 var(--zx-space-2);color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-snug,1.45);-webkit-line-clamp:3;text-overflow:ellipsis;white-space:normal;word-break:break-word;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.MkpdVa_tooltipFooter{justify-content:space-between;align-items:center;gap:var(--zx-space-2);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-subtle);font-size:var(--zx-text-micro);color:var(--zx-label-muted);display:flex}.MkpdVa_tooltipHint{color:var(--zx-label-muted);align-items:center;gap:4px;display:inline-flex}.MkpdVa_tooltipBookmarkedBadge{color:var(--zx-warn);font-weight:var(--zx-weight-medium);align-items:center;gap:3px;display:inline-flex}@keyframes MkpdVa_tooltip-in{0%{opacity:0;transform:translateY(-50%)translate(6px)}to{opacity:1;transform:translateY(-50%)translate(0)}}[data-dcode-layout=compact] .MkpdVa_slot{display:none}@container (width<=720px){.MkpdVa_slot{display:none}}@media (prefers-reduced-motion:reduce){.MkpdVa_dot{transition:none}.MkpdVa_tooltip{animation:none}}";
+		const tagId$23 = "@dsh-portable/dcode-ui/MessageNavRail.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$23) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$21;
-			tag.textContent = css$22;
+			tag.dataset.pluginCss = tagId$23;
+			tag.textContent = css$24;
 			document.head.appendChild(tag);
 		}
 		var MessageNavRail_module_css_default = {
@@ -11434,16 +11384,19 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		const MessageNavRail = (0, react.memo)(MessageNavRailView);
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\chat\ToolCard.module.css.mjs
-		const css$21 = "._l8RgW_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);overflow:hidden}._l8RgW_cardEmphasized{border-color:color-mix(in srgb, var(--zx-accent) 28%, var(--zx-border-soft));box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-accent) 66%, transparent)}._l8RgW_head{align-items:center;gap:var(--zx-space-2);width:100%;display:flex}._l8RgW_headMain{align-items:center;gap:var(--zx-space-3);min-width:0;font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;flex:1;padding:0;display:flex}._l8RgW_headMain:focus-visible{box-shadow:var(--zx-focus-ring);border-radius:var(--zx-radius-sm,4px);outline:none}._l8RgW_head:hover{background:var(--zx-bg-hover)}._l8RgW_head:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._l8RgW_glyph{width:16px;height:16px;color:var(--zx-label-muted);flex:none;place-items:center;display:grid;position:relative}._l8RgW_runningGlyph:before{content:\"\";background:var(--zx-accent);border-radius:50%;width:5px;height:5px;position:absolute;left:-8px}._l8RgW_verb{color:var(--zx-label-secondary);flex:none}._l8RgW_detail{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);color:var(--zx-label);flex:1;overflow:hidden}._l8RgW_duration{color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;transition:color var(--zx-motion-fast), opacity var(--zx-motion-fast);flex:none}._l8RgW_changes{font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none;gap:6px;display:inline-flex}._l8RgW_additions{color:var(--zx-success)}._l8RgW_deletions,._l8RgW_error{color:var(--zx-error)}._l8RgW_chevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none}._l8RgW_chevronOpen{transform:rotate(90deg)}._l8RgW_disclosure{opacity:0;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.2,.78,.2,1),opacity .18s;display:grid}._l8RgW_disclosureOpen{opacity:1;grid-template-rows:1fr}._l8RgW_disclosureClip{min-height:0;overflow:hidden}._l8RgW_body{border-top:1px solid var(--zx-border-soft);padding:var(--zx-space-3);gap:var(--zx-space-3);flex-direction:column;display:flex}._l8RgW_toolbarDuration{color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}._l8RgW_bodyRow{align-items:center;gap:var(--zx-space-2);display:flex}._l8RgW_bodyLabel{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-transform:uppercase;letter-spacing:.04em}._l8RgW_output{max-height:420px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);line-height:var(--zx-leading-code);white-space:pre-wrap;overflow-wrap:anywhere;margin:0;overflow:auto}._l8RgW_children{gap:var(--zx-space-2);padding-left:var(--zx-space-4);border-left:1px solid var(--zx-border-soft);flex-direction:column;display:flex}._l8RgW_group{gap:var(--zx-space-2);flex-direction:column;display:flex}@media (prefers-reduced-motion:reduce){._l8RgW_disclosure{transition:none}}";
-		const tagId$20 = "@dsh-portable/dcode-ui/ToolCard.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$20) + "]") === null) {
+		const css$23 = "._l8RgW_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);overflow:hidden}._l8RgW_cardEmphasized{border-color:color-mix(in srgb, var(--zx-accent) 28%, var(--zx-border-soft));box-shadow:inset 3px 0 0 color-mix(in srgb, var(--zx-accent) 66%, transparent)}._l8RgW_activityCard{box-shadow:none;background:0 0;border:0;border-radius:0;overflow:visible}._l8RgW_head{align-items:center;gap:var(--zx-space-2);width:100%;display:flex}._l8RgW_headMain{align-items:center;gap:var(--zx-space-3);min-width:0;font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;flex:1;padding:0;display:flex}._l8RgW_headMain:focus-visible{box-shadow:var(--zx-focus-ring);border-radius:var(--zx-radius-sm,4px);outline:none}._l8RgW_head:hover{background:var(--zx-bg-hover)}._l8RgW_activityHead{min-height:30px;box-shadow:none;font-weight:inherit;background:0 0;padding:0}._l8RgW_activityHead:hover{background:0 0}._l8RgW_activityCard ._l8RgW_headMain{gap:var(--zx-space-2)}._l8RgW_head:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._l8RgW_glyph{width:16px;height:16px;color:var(--zx-label-muted);flex:none;place-items:center;display:grid;position:relative}._l8RgW_runningGlyph:before{content:\"\";background:var(--zx-accent);border-radius:50%;width:5px;height:5px;position:absolute;left:-8px}._l8RgW_verb{color:var(--zx-label-secondary);flex:none}._l8RgW_detail{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);color:var(--zx-label);flex:1;overflow:hidden}._l8RgW_activityName{color:var(--zx-label-secondary);flex:none}._l8RgW_activityName:before,._l8RgW_activityCard ._l8RgW_detail:not(:empty):before{content:\"·\";margin:0 var(--zx-space-2);color:var(--zx-label-decor)}._l8RgW_activityCard ._l8RgW_detail{font-family:inherit;font-size:var(--zx-text-xs);color:var(--zx-label-tertiary)}._l8RgW_duration{color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;transition:color var(--zx-motion-fast), opacity var(--zx-motion-fast);flex:none}._l8RgW_changes{font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none;gap:6px;display:inline-flex}._l8RgW_additions{color:var(--zx-success)}._l8RgW_deletions,._l8RgW_error{color:var(--zx-error)}._l8RgW_chevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none}._l8RgW_chevronOpen{transform:rotate(90deg)}._l8RgW_disclosure{opacity:0;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.2,.78,.2,1),opacity .18s;display:grid}._l8RgW_disclosureOpen{opacity:1;grid-template-rows:1fr}._l8RgW_disclosureClip{min-height:0;overflow:hidden}._l8RgW_body{border-top:1px solid var(--zx-border-soft);padding:var(--zx-space-3);gap:var(--zx-space-3);flex-direction:column;display:flex}._l8RgW_activityCard ._l8RgW_disclosure{padding-left:calc(16px + var(--zx-space-2))}._l8RgW_activityCard ._l8RgW_body{margin:var(--zx-space-1) 0 var(--zx-space-2);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1)}._l8RgW_toolbarDuration{color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}._l8RgW_bodyRow{align-items:center;gap:var(--zx-space-2);display:flex}._l8RgW_bodyLabel{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-transform:uppercase;letter-spacing:.04em}._l8RgW_output{max-height:420px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs);line-height:var(--zx-leading-code);white-space:pre-wrap;overflow-wrap:anywhere;margin:0;overflow:auto}._l8RgW_children{gap:var(--zx-space-2);padding-left:var(--zx-space-4);border-left:1px solid var(--zx-border-soft);flex-direction:column;display:flex}._l8RgW_activityCard+._l8RgW_children{margin-left:calc(16px + var(--zx-space-2))}._l8RgW_group{gap:var(--zx-space-2);flex-direction:column;display:flex}@media (prefers-reduced-motion:reduce){._l8RgW_disclosure{transition:none}}";
+		const tagId$22 = "@dsh-portable/dcode-ui/ToolCard.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$22) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$20;
-			tag.textContent = css$21;
+			tag.dataset.pluginCss = tagId$22;
+			tag.textContent = css$23;
 			document.head.appendChild(tag);
 		}
 		var ToolCard_module_css_default = {
+			"activityCard": "_l8RgW_activityCard",
+			"activityHead": "_l8RgW_activityHead",
+			"activityName": "_l8RgW_activityName",
 			"additions": "_l8RgW_additions",
 			"body": "_l8RgW_body",
 			"bodyLabel": "_l8RgW_bodyLabel",
@@ -11503,13 +11456,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			return "isError" in block;
 		}
 		/** A compact, expandable tool-execution card. */
-		function ToolCard({ block }) {
+		function ToolCard({ block, activity = false }) {
 			const t = useT();
 			const settled = isSettled(block);
 			const name = settled ? block.call?.name ?? "tool" : block.name;
 			const argsRaw = settled ? block.call?.argsRaw : block.argsRaw;
 			const summary = summarizeTool(name, argsRaw);
-			const [open, setOpen] = (0, react.useState)(() => settled && (block.isError || summary.mutating));
+			const [open, setOpen] = (0, react.useState)(() => !activity && settled && (block.isError || summary.mutating));
 			const contentId = (0, react.useId)();
 			const [wrap, setWrap] = (0, react.useState)(true);
 			const startedAt = (0, react.useRef)(block.time);
@@ -11535,10 +11488,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: ToolCard_module_css_default.group,
 				"data-tool-call-id": block.callId,
+				"data-tool-view": activity ? "activity" : "card",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: `${ToolCard_module_css_default.card} ${emphasized ? ToolCard_module_css_default.cardEmphasized : ""}`,
+					className: `${ToolCard_module_css_default.card} ${activity ? ToolCard_module_css_default.activityCard : ""} ${emphasized ? ToolCard_module_css_default.cardEmphasized : ""}`,
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: `${ToolCard_module_css_default.head} ${ui.cardHeader} ${shimmerActive(!settled)}`,
+						className: `${ToolCard_module_css_default.head} ${activity ? ToolCard_module_css_default.activityHead : ""} ${ui.cardHeader} ${shimmerActive(!settled)}`,
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
 							className: ToolCard_module_css_default.headMain,
@@ -11555,11 +11509,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: `${ToolCard_module_css_default.verb} ${failed ? ToolCard_module_css_default.error : ""}`,
-									children: verb
+									children: activity ? t("chat.activity.toolCall") : verb
 								}),
+								activity ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: ToolCard_module_css_default.activityName,
+									children: name
+								}) : null,
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: ToolCard_module_css_default.detail,
-									children: summary.detail === "" ? name : summary.detail
+									children: summary.detail === "" ? activity ? "" : name : summary.detail
 								}),
 								changes === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 									className: ToolCard_module_css_default.changes,
@@ -11629,30 +11587,41 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					})]
 				}), block.subCalls.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: ToolCard_module_css_default.children,
-					children: block.subCalls.map((child) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, { block: child }, child.callId))
+					children: block.subCalls.map((child) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, {
+						block: child,
+						activity
+					}, child.callId))
 				})]
 			});
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\chat\FileChanges.module.css.mjs
-		const css$20 = ".TDoHoq_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);overflow:hidden}.TDoHoq_head{align-items:center;gap:var(--zx-space-3);display:flex}.TDoHoq_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-weight:var(--zx-weight-medium);flex:1;overflow:hidden}.TDoHoq_undo{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);white-space:nowrap;cursor:pointer;background:0 0;border:0;display:inline-flex}.TDoHoq_undo:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.TDoHoq_undo:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.TDoHoq_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:30px;padding:var(--zx-space-1) var(--zx-space-4);border:0;border-top:1px solid var(--zx-border-soft);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;display:flex}.TDoHoq_row:hover{background:var(--zx-bg-hover)}.TDoHoq_row:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.TDoHoq_path{text-overflow:ellipsis;white-space:nowrap;text-align:left;min-width:0;font-family:var(--zx-font-mono);direction:rtl;flex:1;overflow:hidden}.TDoHoq_dir{color:var(--zx-label-tertiary)}.TDoHoq_note{padding:var(--zx-space-2) var(--zx-space-4) var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);margin:0}.TDoHoq_noteError{color:var(--zx-error)}";
-		const tagId$19 = "@dsh-portable/dcode-ui/FileChanges.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$19) + "]") === null) {
+		const css$22 = ".TDoHoq_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);overflow:hidden}.TDoHoq_head{align-items:center;gap:var(--zx-space-3);min-height:0;display:flex}.TDoHoq_titleIcon,.TDoHoq_moreIcon{border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:var(--zx-bg-raised);color:var(--zx-label-muted);flex:none;place-items:center;display:grid}.TDoHoq_titleIcon{width:28px;height:28px}.TDoHoq_titleCopy{flex-direction:column;flex:1;align-items:flex-start;gap:2px;min-width:0;display:flex}.TDoHoq_title{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-weight:var(--zx-weight-medium);overflow:hidden}.TDoHoq_stats{min-height:16px;line-height:1}.TDoHoq_undo{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xs);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);white-space:nowrap;cursor:pointer;background:0 0;border:0;display:inline-flex}.TDoHoq_undo:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.TDoHoq_undo:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.TDoHoq_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:32px;padding:0 var(--zx-space-4);border:0;border-top:1px solid var(--zx-border-soft);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;display:flex}.TDoHoq_row:hover{background:var(--zx-bg-hover)}.TDoHoq_row:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.TDoHoq_more{align-items:center;gap:var(--zx-space-3);width:100%;min-height:36px;padding:0 var(--zx-space-4);border:0;border-top:1px solid var(--zx-border-soft);background:color-mix(in srgb, var(--zx-bg-raised) 68%, transparent);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;display:flex}.TDoHoq_more:hover{background:var(--zx-bg-hover)}.TDoHoq_more:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.TDoHoq_moreIcon{width:24px;height:24px}.TDoHoq_moreLabel{flex:1;min-width:0}.TDoHoq_moreChevron{color:var(--zx-label-muted);transition:transform var(--zx-motion-fast);flex:none}.TDoHoq_moreChevronOpen{transform:rotate(180deg)}.TDoHoq_path{text-overflow:ellipsis;white-space:nowrap;text-align:left;min-width:0;font-family:var(--zx-font-mono);direction:rtl;flex:1;overflow:hidden}.TDoHoq_dir{color:var(--zx-label-tertiary)}.TDoHoq_note{padding:var(--zx-space-2) var(--zx-space-4) var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);margin:0}.TDoHoq_noteError{color:var(--zx-error)}";
+		const tagId$21 = "@dsh-portable/dcode-ui/FileChanges.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$21) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$19;
-			tag.textContent = css$20;
+			tag.dataset.pluginCss = tagId$21;
+			tag.textContent = css$22;
 			document.head.appendChild(tag);
 		}
 		var FileChanges_module_css_default = {
 			"card": "TDoHoq_card",
 			"dir": "TDoHoq_dir",
 			"head": "TDoHoq_head",
+			"more": "TDoHoq_more",
+			"moreChevron": "TDoHoq_moreChevron",
+			"moreChevronOpen": "TDoHoq_moreChevronOpen",
+			"moreIcon": "TDoHoq_moreIcon",
+			"moreLabel": "TDoHoq_moreLabel",
 			"note": "TDoHoq_note",
 			"noteError": "TDoHoq_noteError",
 			"path": "TDoHoq_path",
 			"row": "TDoHoq_row",
+			"stats": "TDoHoq_stats",
 			"title": "TDoHoq_title",
+			"titleCopy": "TDoHoq_titleCopy",
+			"titleIcon": "TDoHoq_titleIcon",
 			"undo": "TDoHoq_undo"
 		};
 		//#endregion
@@ -11660,16 +11629,18 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		/**
 		* The file-change summary card that closes a turn.
 		*
-		* It lists exactly the paths that turn's settled write/edit calls touched,
+		* It previews the paths that turn's settled write/edit calls touched,
 		* annotates each with the line counts from the working-tree status, opens the
 		* diff viewer on click, and offers the one destructive action the workbench
-		* has: undoing that turn's edits.
+		* has: undoing that turn's edits. Longer lists stay compact until expanded.
 		*
 		* Undo is deliberately narrow. It restores tracked files from HEAD and moves
 		* untracked ones into `.dsh/dcode-undo/<timestamp>/` rather than deleting
 		* them, so a mistaken undo is recoverable from the operator's own directory.
 		* @module @dsh-portable/dcode-ui/client/chat/FileChanges
 		*/
+		/** Keep the completed-turn summary short while leaving every file one click away. */
+		const DEFAULT_VISIBLE_PATHS = 3;
 		/** Split a path into its directory prefix and file name for two-tone display. */
 		function splitPath(path) {
 			const normalized = path.split("\\").join("/");
@@ -11711,10 +11682,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
 			const runtime = useRuntime();
 			const t = useT();
+			const moreFilesId = (0, react.useId)();
 			const [undoing, setUndoing] = (0, react.useState)(false);
 			const [note, setNote] = (0, react.useState)(void 0);
 			const [confirmingUndo, setConfirmingUndo] = (0, react.useState)(false);
 			const [acknowledgedUndo, setAcknowledgedUndo] = (0, react.useState)(false);
+			const [showAll, setShowAll] = (0, react.useState)(false);
 			const gitPath = (0, react.useCallback)((path) => repoRelative(path, cwd, status?.root), [cwd, status?.root]);
 			const totals = (0, react.useMemo)(() => paths.reduce((sum, path) => {
 				const counts = countsFor(status, gitPath(path));
@@ -11730,6 +11703,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				status,
 				gitPath
 			]);
+			const hiddenCount = Math.max(paths.length - DEFAULT_VISIBLE_PATHS, 0);
+			const visiblePaths = showAll ? paths : paths.slice(0, DEFAULT_VISIBLE_PATHS);
 			const undo = (0, react.useCallback)(() => {
 				if (cwd === void 0) return;
 				setUndoing(true);
@@ -11773,12 +11748,22 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						className: `${FileChanges_module_css_default.head} ${ui.cardHeader}`,
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: FileChanges_module_css_default.title,
-								children: t("changes.count", { count: paths.length })
+								className: FileChanges_module_css_default.titleIcon,
+								"aria-hidden": true,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {})
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DiffCount, {
-								insertions: totals.insertions,
-								deletions: totals.deletions
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: FileChanges_module_css_default.titleCopy,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: FileChanges_module_css_default.title,
+									children: t("changes.count", { count: paths.length })
+								}), totals.insertions === 0 && totals.deletions === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: FileChanges_module_css_default.stats,
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DiffCount, {
+										insertions: totals.insertions,
+										deletions: totals.deletions
+									})
+								})]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 								type: "button",
@@ -11793,33 +11778,62 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							})
 						]
 					}),
-					paths.map((path) => {
-						const { dir, name } = splitPath(path);
-						const target = gitPath(path);
-						const counts = countsFor(status, target);
-						return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-							type: "button",
-							className: FileChanges_module_css_default.row,
-							onClick: () => {
-								onOpenDiff(target);
-							},
-							title: path,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: FileChanges_module_css_default.path,
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("bdi", { children: [dir === "" ? "" : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: FileChanges_module_css_default.dir,
-										children: dir
-									}), name] })
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DiffCount, {
-									insertions: counts.insertions,
-									deletions: counts.deletions
-								})
-							]
-						}, path);
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						id: moreFilesId,
+						className: FileChanges_module_css_default.rows,
+						children: visiblePaths.map((path) => {
+							const { dir, name } = splitPath(path);
+							const target = gitPath(path);
+							const counts = countsFor(status, target);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								type: "button",
+								className: FileChanges_module_css_default.row,
+								onClick: () => {
+									onOpenDiff(target);
+								},
+								title: path,
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: FileChanges_module_css_default.path,
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("bdi", { children: [dir === "" ? "" : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: FileChanges_module_css_default.dir,
+											children: dir
+										}), name] })
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DiffCount, {
+										insertions: counts.insertions,
+										deletions: counts.deletions
+									})
+								]
+							}, path);
+						})
 					}),
+					hiddenCount > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: FileChanges_module_css_default.more,
+						"aria-expanded": showAll,
+						"aria-controls": moreFilesId,
+						onClick: () => {
+							setShowAll((value) => !value);
+						},
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: FileChanges_module_css_default.moreIcon,
+								"aria-hidden": true,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {})
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: FileChanges_module_css_default.moreLabel,
+								children: showAll ? t("changes.showLessFiles") : t("changes.showMoreFiles", { count: hiddenCount })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: `${FileChanges_module_css_default.moreChevron} ${showAll ? FileChanges_module_css_default.moreChevronOpen : ""}`,
+								"aria-hidden": true,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, {})
+							})
+						]
+					}) : null,
 					note === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: `${FileChanges_module_css_default.note} ${note.kind === "error" ? FileChanges_module_css_default.noteError : ""}`,
 						role: note.kind === "error" ? "alert" : "status",
@@ -11852,13 +11866,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\chat\PlanPreview.module.css.mjs
-		const css$19 = "._7qcpQq_wrapper{gap:var(--zx-space-3);flex-direction:column;width:100%;min-width:0;display:flex}._7qcpQq_card{border:1px solid var(--zx-border-soft);background:color-mix(in srgb, var(--zx-bg-card) 90%, transparent);width:100%;min-width:0;max-height:min(460px,58vh);backdrop-filter:var(--zx-glass-filter);box-shadow:var(--zx-shadow-card), var(--zx-shadow-inset-top);border-radius:15px;flex-direction:column;display:flex;position:relative;overflow:hidden}._7qcpQq_header{align-items:center;gap:var(--zx-space-2);min-height:44px;padding:0 var(--zx-space-4);color:var(--zx-label-secondary);flex:none;display:flex}._7qcpQq_kickerIcon{color:var(--zx-label-muted);place-items:center;display:grid}._7qcpQq_kicker{font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium)}._7qcpQq_expandButton{width:var(--zx-control-sm);height:var(--zx-control-sm);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:0;place-items:center;margin-left:auto;padding:0;display:grid}._7qcpQq_expandButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._7qcpQq_expandButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._7qcpQq_expandButton svg{transition:transform var(--zx-motion-fast)}._7qcpQq_expandIconOpen{transform:rotate(180deg)}._7qcpQq_previewRegion{min-height:0;position:relative;overflow:hidden}._7qcpQq_body{max-height:300px;padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-5);transition:max-height .22s;overflow:hidden}._7qcpQq_bodyExpanded{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;max-height:none;overflow:auto}._7qcpQq_title{margin:0 0 var(--zx-space-4);color:var(--zx-label);font-size:21px;font-weight:var(--zx-weight-semibold);letter-spacing:-.02em;overflow-wrap:anywhere;line-height:1.28}._7qcpQq_markdown{min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body)}._7qcpQq_markdown h1,._7qcpQq_markdown h2,._7qcpQq_markdown h3{color:var(--zx-label);font-weight:var(--zx-weight-semibold);letter-spacing:-.01em}._7qcpQq_markdown h1,._7qcpQq_markdown h2{margin:20px 0 8px;font-size:16px;line-height:1.35}._7qcpQq_markdown h3{margin:16px 0 8px;font-size:14px;line-height:1.4}._7qcpQq_markdown p{margin:9px 0}._7qcpQq_markdown ul,._7qcpQq_markdown ol{margin:8px 0 12px;padding-left:20px}._7qcpQq_markdown li{margin:5px 0;padding-left:2px}._7qcpQq_markdown li::marker{color:var(--zx-label-secondary)}._7qcpQq_markdown code{border:1px solid color-mix(in srgb, var(--zx-border-control) 70%, transparent);background:var(--zx-bg-raised);color:var(--zx-label-secondary);border-radius:5px}._7qcpQq_markdown pre{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);max-width:100%;padding:var(--zx-space-3);overflow:auto}._7qcpQq_markdown blockquote{border-left-color:var(--zx-border-control);color:var(--zx-label-muted)}._7qcpQq_fade{background:linear-gradient(to bottom, color-mix(in srgb, var(--zx-bg-card) 0%, transparent), var(--zx-bg-card) 90%);pointer-events:none;height:58px;position:absolute;bottom:0;left:0;right:0}._7qcpQq_preparing{align-items:center;gap:var(--zx-space-2);padding:var(--zx-space-2) 0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);display:flex}._7qcpQq_preparingDot{background:var(--zx-label-muted);border-radius:50%;width:6px;height:6px;animation:1.4s ease-in-out infinite _7qcpQq_plan-preview-pulse}._7qcpQq_footer{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);flex-direction:column;flex:none;display:flex}._7qcpQq_actions{justify-content:flex-end;align-items:center;gap:var(--zx-space-2);display:flex}._7qcpQq_modifyButton,._7qcpQq_executeButton{height:32px;min-height:32px;padding-right:var(--zx-space-3);padding-left:var(--zx-space-3);font-size:var(--zx-text-xs)}._7qcpQq_modifyButton svg,._7qcpQq_executeButton svg{width:14px;height:14px}._7qcpQq_editor{gap:var(--zx-space-2);flex-direction:column;display:flex}._7qcpQq_editorInput{box-sizing:border-box;width:100%;min-height:54px;padding:var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-lg);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);resize:vertical;outline:none}._7qcpQq_editorInput:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring)}._7qcpQq_editorActions{justify-content:flex-end;gap:var(--zx-space-2);display:flex}._7qcpQq_error{color:var(--zx-error);font-size:var(--zx-text-micro);line-height:1.4}._7qcpQq_status{align-items:center;gap:var(--zx-space-3);min-height:22px;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:1.4;display:flex}._7qcpQq_statusMark{width:24px;height:22px;color:var(--zx-label);justify-content:center;align-items:center;display:inline-flex}._7qcpQq_visuallyHidden{clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}@keyframes _7qcpQq_plan-preview-pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){._7qcpQq_body,._7qcpQq_expandButton svg{transition:none}._7qcpQq_preparingDot{animation:none}}@container (width<=640px){._7qcpQq_body{padding-right:var(--zx-space-4);padding-left:var(--zx-space-4)}._7qcpQq_title{font-size:19px}._7qcpQq_actions,._7qcpQq_editorActions{flex-wrap:wrap}}";
-		const tagId$18 = "@dsh-portable/dcode-ui/PlanPreview.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$18) + "]") === null) {
+		const css$21 = "._7qcpQq_wrapper{gap:var(--zx-space-3);flex-direction:column;width:100%;min-width:0;display:flex}._7qcpQq_card{border:1px solid var(--zx-border-soft);background:color-mix(in srgb, var(--zx-bg-card) 90%, transparent);width:100%;min-width:0;max-height:min(460px,58vh);backdrop-filter:var(--zx-glass-filter);box-shadow:var(--zx-shadow-card), var(--zx-shadow-inset-top);border-radius:15px;flex-direction:column;display:flex;position:relative;overflow:hidden}._7qcpQq_header{align-items:center;gap:var(--zx-space-2);min-height:44px;padding:0 var(--zx-space-4);color:var(--zx-label-secondary);flex:none;display:flex}._7qcpQq_kickerIcon{color:var(--zx-label-muted);place-items:center;display:grid}._7qcpQq_kicker{font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium)}._7qcpQq_expandButton{width:var(--zx-control-sm);height:var(--zx-control-sm);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:0;place-items:center;margin-left:auto;padding:0;display:grid}._7qcpQq_expandButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._7qcpQq_expandButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}._7qcpQq_expandButton svg{transition:transform var(--zx-motion-fast)}._7qcpQq_expandIconOpen{transform:rotate(180deg)}._7qcpQq_previewRegion{min-height:0;position:relative;overflow:hidden}._7qcpQq_body{max-height:300px;padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-5);transition:max-height .22s;overflow:hidden}._7qcpQq_bodyExpanded{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;max-height:none;overflow:auto}._7qcpQq_title{margin:0 0 var(--zx-space-4);color:var(--zx-label);font-size:21px;font-weight:var(--zx-weight-semibold);letter-spacing:-.02em;overflow-wrap:anywhere;line-height:1.28}._7qcpQq_markdown{min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body)}._7qcpQq_markdown h1,._7qcpQq_markdown h2,._7qcpQq_markdown h3{color:var(--zx-label);font-weight:var(--zx-weight-semibold);letter-spacing:-.01em}._7qcpQq_markdown h1,._7qcpQq_markdown h2{margin:20px 0 8px;font-size:16px;line-height:1.35}._7qcpQq_markdown h3{margin:16px 0 8px;font-size:14px;line-height:1.4}._7qcpQq_markdown p{margin:9px 0}._7qcpQq_markdown ul,._7qcpQq_markdown ol{margin:8px 0 12px;padding-left:20px}._7qcpQq_markdown li{margin:5px 0;padding-left:2px}._7qcpQq_markdown li::marker{color:var(--zx-label-secondary)}._7qcpQq_markdown code{border:1px solid color-mix(in srgb, var(--zx-border-control) 70%, transparent);background:var(--zx-bg-raised);color:var(--zx-label-secondary);border-radius:5px}._7qcpQq_markdown pre{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);max-width:100%;padding:var(--zx-space-3);overflow:auto}._7qcpQq_markdown blockquote{border-left-color:var(--zx-border-control);color:var(--zx-label-muted)}._7qcpQq_fade{background:linear-gradient(to bottom, color-mix(in srgb, var(--zx-bg-card) 0%, transparent), var(--zx-bg-card) 90%);pointer-events:none;height:58px;position:absolute;bottom:0;left:0;right:0}._7qcpQq_preparing{align-items:center;gap:var(--zx-space-2);padding:var(--zx-space-2) 0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);display:flex}._7qcpQq_preparingDot{background:var(--zx-label-muted);border-radius:50%;width:6px;height:6px;animation:1.4s ease-in-out infinite _7qcpQq_plan-preview-pulse}._7qcpQq_footer{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);flex-direction:column;flex:none;display:flex}._7qcpQq_actions{justify-content:flex-end;align-items:center;gap:var(--zx-space-2);display:flex}._7qcpQq_modifyButton,._7qcpQq_executeButton{height:32px;min-height:32px;padding-right:var(--zx-space-3);padding-left:var(--zx-space-3);font-size:var(--zx-text-xs)}._7qcpQq_modifyButton svg,._7qcpQq_executeButton svg{width:14px;height:14px}._7qcpQq_editor{gap:var(--zx-space-2);flex-direction:column;display:flex}._7qcpQq_editorInput{box-sizing:border-box;width:100%;min-height:54px;padding:var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-lg);background:var(--zx-bg-raised);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);resize:vertical;outline:none}._7qcpQq_editorInput:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring)}._7qcpQq_editorActions{justify-content:flex-end;gap:var(--zx-space-2);display:flex}._7qcpQq_error{color:var(--zx-error);font-size:var(--zx-text-micro);line-height:1.4}._7qcpQq_status{align-items:center;gap:var(--zx-space-3);min-height:22px;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:1.4;display:flex}._7qcpQq_statusMark{width:24px;height:22px;color:var(--zx-label);justify-content:center;align-items:center;display:inline-flex}._7qcpQq_visuallyHidden{clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}@keyframes _7qcpQq_plan-preview-pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){._7qcpQq_body,._7qcpQq_expandButton svg{transition:none}._7qcpQq_preparingDot{animation:none}}@container (width<=640px){._7qcpQq_body{padding-right:var(--zx-space-4);padding-left:var(--zx-space-4)}._7qcpQq_title{font-size:19px}._7qcpQq_actions,._7qcpQq_editorActions{flex-wrap:wrap}}";
+		const tagId$20 = "@dsh-portable/dcode-ui/PlanPreview.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$20) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$18;
-			tag.textContent = css$19;
+			tag.dataset.pluginCss = tagId$20;
+			tag.textContent = css$21;
 			document.head.appendChild(tag);
 		}
 		var PlanPreview_module_css_default = {
@@ -12240,17 +12254,29 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\chat\Transcript.module.css.mjs
-		const css$18 = ".KYRGnq_scroller{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;flex-direction:column;flex:1 1 0;min-height:0;scroll-padding-bottom:clamp(120px,24vh,280px);display:flex;overflow:hidden auto}.KYRGnq_scroller::-webkit-scrollbar{width:var(--zx-scrollbar-size)}.KYRGnq_scroller::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.KYRGnq_loadingState{justify-content:center;align-items:center;gap:var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-sm);flex:1;display:flex}.KYRGnq_flow{--zx-flow-gutter:var(--zx-space-5);gap:var(--zx-space-5);width:min(var(--zx-reading-width), calc(100% - var(--zx-flow-gutter) * 2));padding:var(--zx-space-6) var(--zx-flow-gutter) max(clamp(var(--zx-space-6), 8vh, 96px), var(--zx-transcript-plan-clearance,0px));flex-direction:column;flex:none;margin:0 auto;display:flex}@container (width<=720px){.KYRGnq_flow{--zx-flow-gutter:var(--zx-space-4);padding-top:var(--zx-space-5);padding-bottom:max(clamp(var(--zx-space-5), 8vh, 72px), var(--zx-transcript-plan-clearance,0px))}}.KYRGnq_turn{gap:var(--zx-space-5);flex-direction:column;scroll-margin-top:64px;display:flex}.KYRGnq_user{max-width:86%;padding:var(--zx-space-3) var(--zx-space-4);border-radius:var(--zx-radius-2xl);background:var(--zx-bg-card);color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #0000;align-self:flex-end}.KYRGnq_messageAttachments{gap:var(--zx-space-2);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.KYRGnq_messageImage{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);object-fit:contain;background:var(--zx-bg-panel);width:auto;max-width:min(360px,100%);max-height:260px;display:block}.KYRGnq_attachmentPlaceholder{max-width:220px;min-height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);font-size:var(--zx-text-xs);align-items:center;display:inline-flex}.KYRGnq_fileAttachment{align-items:center;gap:var(--zx-space-2);max-width:260px;min-height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;display:inline-flex}.KYRGnq_fileAttachment>span{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.KYRGnq_fileAttachment:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_fileAttachment:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.KYRGnq_fileAttachment:focus-visible,.KYRGnq_queueAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_steering{border-left:3px solid var(--zx-warn);background:color-mix(in srgb, var(--zx-warn) 4%, var(--zx-bg-card))}.KYRGnq_queuedPrompt{border-left:3px solid var(--zx-accent)}.KYRGnq_turnLeadHighlight{animation:1.6s ease-out KYRGnq_turn-lead-highlight}@keyframes KYRGnq_turn-lead-highlight{0%,30%{border-color:color-mix(in srgb, var(--zx-accent) 70%, var(--zx-border-soft))}}.KYRGnq_queueRow{align-items:center;gap:var(--zx-space-2) var(--zx-space-3);flex-wrap:wrap;display:flex}.KYRGnq_queuePreview{text-overflow:ellipsis;white-space:nowrap;flex:160px;min-width:0;overflow:hidden}.KYRGnq_queueEditor{min-width:160px;height:var(--zx-control-sm);padding:0 var(--zx-space-2);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);outline:none;flex:160px}.KYRGnq_queueEditor:focus{border-color:var(--zx-accent)}.KYRGnq_queueActions{flex:none;align-items:center;gap:2px;display:inline-flex}.KYRGnq_queueAction{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-pill);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;place-items:center;padding:0;display:grid}.KYRGnq_queueAction:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_queueAction:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.KYRGnq_queueError{color:var(--zx-error);font-size:var(--zx-text-micro);flex:1 0 100%}.KYRGnq_assistant{font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);color:var(--zx-label);overflow-wrap:anywhere}.KYRGnq_proposalBlock{gap:var(--zx-space-3);flex-direction:column;width:100%;min-width:0;display:flex}.KYRGnq_messageActions{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-sm);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.KYRGnq_messageAction{width:var(--zx-control-sm);height:var(--zx-control-sm);min-height:var(--zx-control-sm);padding:0}.KYRGnq_messageActionGroup{align-items:center;gap:2px;display:inline-flex}.KYRGnq_branchActionGroup{padding-left:var(--zx-space-2);border-left:1px solid var(--zx-border-soft)}.KYRGnq_actionError{color:var(--zx-error);font-size:var(--zx-text-micro);flex-basis:100%}.KYRGnq_noteEditor{gap:var(--zx-space-2);flex-direction:column;flex-basis:100%;display:flex}.KYRGnq_noteInput{box-sizing:border-box;width:100%;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-strong,var(--zx-border));border-radius:var(--zx-radius-sm,6px);background:var(--zx-surface-1,var(--zx-bg));color:var(--zx-label);font-family:inherit;font-size:var(--zx-text-sm);resize:vertical}.KYRGnq_noteActions{gap:var(--zx-space-2);align-items:center;display:flex}.KYRGnq_branchToast{z-index:var(--zx-z-tooltip);right:var(--zx-space-5);bottom:var(--zx-space-5);padding:var(--zx-space-2) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-success) 40%, var(--zx-border-soft));border-radius:var(--zx-radius-pill);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-popover);color:var(--zx-label);font-size:var(--zx-text-xs);pointer-events:none;animation:KYRGnq_branch-toast-in var(--zx-motion);position:fixed}@keyframes KYRGnq_branch-toast-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.KYRGnq_imageButton{border-radius:var(--zx-radius-md);cursor:zoom-in;background:0 0;border:0;max-width:100%;padding:0;display:inline-flex}.KYRGnq_imageButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_lightboxBackdrop{z-index:var(--zx-z-dialog);padding:var(--zx-space-6);background:var(--zx-scrim);place-items:center;display:grid;position:fixed;inset:0}.KYRGnq_lightbox{max-width:min(92vw,1200px);max-height:92vh;padding:var(--zx-space-3);border:1px solid var(--zx-border);border-radius:var(--zx-radius-lg);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-dialog);place-items:center;display:grid;position:relative}.KYRGnq_lightbox:focus-visible{box-shadow:var(--zx-shadow-dialog), var(--zx-focus-ring);outline:none}.KYRGnq_lightboxImage{max-width:calc(92vw - var(--zx-space-6));max-height:calc(92vh - var(--zx-space-6));object-fit:contain;display:block}.KYRGnq_lightboxClose{top:var(--zx-space-2);right:var(--zx-space-2);z-index:var(--zx-z-menu);width:var(--zx-control-xl);height:var(--zx-control-xl);border-radius:var(--zx-radius-pill);background:var(--zx-bg-hover);color:var(--zx-label);cursor:pointer;border:0;place-items:center;padding:0;display:grid;position:absolute}.KYRGnq_lightboxClose:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_assistant pre{max-width:100%;overflow-x:auto}.KYRGnq_blockGap{gap:var(--zx-space-4);flex-direction:column;display:flex}.KYRGnq_reasoning{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);padding:var(--zx-space-2) var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.KYRGnq_reasoningStreaming,.KYRGnq_reasoning:has(.KYRGnq_reasoningDisclosureOpen){width:100%}.KYRGnq_reasoningHead{align-items:center;gap:var(--zx-space-2);width:100%;color:var(--zx-label-muted);font:inherit;cursor:pointer;background:0 0;border:0;padding:0;display:flex}.KYRGnq_reasoningHead:disabled{cursor:default}.KYRGnq_reasoningIcon{color:var(--zx-label-muted);place-items:center;display:grid}.KYRGnq_reasoningTitle{text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums;min-width:0;overflow:hidden}.KYRGnq_reasoningChevron,.KYRGnq_toolActivityChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none}.KYRGnq_reasoningChevronOpen,.KYRGnq_toolActivityChevronOpen{transform:rotate(90deg)}.KYRGnq_reasoningBody{padding:var(--zx-space-3) 0 var(--zx-space-2);border-top:1px solid var(--zx-border-soft);color:var(--zx-label-secondary)}.KYRGnq_reasoningBody pre{max-width:100%;overflow-x:auto}.KYRGnq_reasoningDisclosure{width:min(100%, var(--zx-reading-width));opacity:0;transition:grid-template-rows var(--zx-motion), opacity var(--zx-motion-fast);grid-template-rows:0fr;display:grid}.KYRGnq_reasoningDisclosure>.KYRGnq_reasoningBody{min-height:0;overflow:hidden}.KYRGnq_reasoningDisclosureOpen{opacity:1;grid-template-rows:1fr}.KYRGnq_reasoningHead:hover{color:var(--zx-label-secondary)}.KYRGnq_toolActivity{border-radius:var(--zx-radius-md)}.KYRGnq_toolActivityHead{align-items:center;gap:var(--zx-space-2);border-radius:var(--zx-radius-md);width:100%;min-height:30px;padding:var(--zx-space-2) var(--zx-space-3);background:color-mix(in srgb, var(--zx-bg-card) 65%, transparent);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;border:0;display:flex}.KYRGnq_toolActivityHead:hover{background:var(--zx-bg-hover);color:var(--zx-label-secondary)}.KYRGnq_toolActivityHead:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_toolActivityIcon{color:var(--zx-label-muted);place-items:center;display:grid}.KYRGnq_toolActivitySummary{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.KYRGnq_toolActivityDuration{color:var(--zx-label-decor);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);flex:none;margin-left:auto}.KYRGnq_toolActivityItems{gap:var(--zx-space-2);margin-top:var(--zx-space-2);padding-left:var(--zx-space-4);border-left:1px solid var(--zx-border-soft);flex-direction:column;display:flex}.KYRGnq_toolActivityDisclosure{opacity:0;transition:grid-template-rows .28s cubic-bezier(.2, .78, .2, 1), opacity var(--zx-motion-fast);grid-template-rows:0fr;display:grid}.KYRGnq_toolActivityDisclosureOpen{opacity:1;grid-template-rows:1fr}.KYRGnq_toolActivityClip{min-height:0;overflow:hidden}.KYRGnq_notice{align-items:center;gap:var(--zx-space-2);padding:var(--zx-space-1) 0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-tight);background:0 0;border:0;display:flex}.KYRGnq_noticeError{color:var(--zx-error)}.KYRGnq_noticeWarn{color:var(--zx-warn)}.KYRGnq_divider{align-items:center;gap:var(--zx-space-3);color:var(--zx-label-decor);font-size:var(--zx-text-micro);display:flex}.KYRGnq_divider:before,.KYRGnq_divider:after{content:\"\";background:var(--zx-border-soft);flex:1;height:1px}.KYRGnq_stats{align-items:center;gap:var(--zx-space-3);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;display:flex}.KYRGnq_loadOlder{align-self:center}.KYRGnq_hero{justify-content:center;align-items:center;gap:var(--zx-space-4);padding:var(--zx-space-7);text-align:center;flex-direction:column;flex:1;display:flex;position:relative;overflow:hidden}.KYRGnq_heroBlank{padding-bottom:calc(var(--zx-space-6) + var(--zx-space-4));justify-content:flex-end}.KYRGnq_heroGreeting{color:var(--zx-label);letter-spacing:-.02em;grid-area:1/2;font-size:26px;font-weight:500;line-height:32px}.KYRGnq_heroHeadline{grid-template-columns:34px auto;justify-content:center;align-items:center;column-gap:10px;display:grid}.KYRGnq_heroFishHitbox{grid-area:1/1;justify-content:center;align-items:center;display:inline-flex}.KYRGnq_heroFish{color:var(--dsw-alias-label-primary,var(--zx-label))}.KYRGnq_streamingDot{background:var(--zx-accent);border-radius:50%;width:7px;height:7px;margin-left:4px;animation:1s steps(2,start) infinite KYRGnq_zx-blink;display:inline-block}.KYRGnq_scrollLatest{right:var(--zx-space-5);bottom:var(--zx-space-5);z-index:var(--zx-z-sticky);align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-sm);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-popover);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;animation:KYRGnq_scroll-latest-in var(--zx-motion-fast);display:inline-flex;position:fixed}.KYRGnq_scrollLatest:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_scrollLatest:focus-visible{box-shadow:var(--zx-shadow-popover), var(--zx-focus-ring);outline:none}.KYRGnq_scrollLatestIcon{transform:rotate(90deg)}@keyframes KYRGnq_scroll-latest-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes KYRGnq_zx-blink{50%{opacity:.2}}@media (prefers-reduced-motion:reduce){.KYRGnq_streamingDot,.KYRGnq_scrollLatest,.KYRGnq_turnLeadHighlight,.KYRGnq_branchToast{animation:none}}";
-		const tagId$17 = "@dsh-portable/dcode-ui/Transcript.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$17) + "]") === null) {
+		const css$20 = ".KYRGnq_scroller{scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;flex-direction:column;flex:1 1 0;min-height:0;scroll-padding-bottom:clamp(120px,24vh,280px);display:flex;overflow:hidden auto}.KYRGnq_scroller::-webkit-scrollbar{width:var(--zx-scrollbar-size)}.KYRGnq_scroller::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.KYRGnq_loadingState{justify-content:center;align-items:center;gap:var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-sm);flex:1;display:flex}.KYRGnq_flow{--zx-flow-gutter:var(--zx-space-5);gap:var(--zx-space-5);width:min(var(--zx-reading-width), calc(100% - var(--zx-flow-gutter) * 2));padding:var(--zx-space-6) var(--zx-flow-gutter) max(clamp(var(--zx-space-6), 8vh, 96px), var(--zx-transcript-plan-clearance,0px));flex-direction:column;flex:none;margin:0 auto;display:flex}@container (width<=720px){.KYRGnq_flow{--zx-flow-gutter:var(--zx-space-4);padding-top:var(--zx-space-5);padding-bottom:max(clamp(var(--zx-space-5), 8vh, 72px), var(--zx-transcript-plan-clearance,0px))}}.KYRGnq_turn{gap:var(--zx-space-5);flex-direction:column;scroll-margin-top:64px;display:flex}.KYRGnq_user{max-width:86%;padding:var(--zx-space-3) var(--zx-space-4);border-radius:var(--zx-radius-2xl);background:var(--zx-bg-card);color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #0000;align-self:flex-end}.KYRGnq_messageAttachments{gap:var(--zx-space-2);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.KYRGnq_messageImage{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);object-fit:contain;background:var(--zx-bg-panel);width:auto;max-width:min(360px,100%);max-height:260px;display:block}.KYRGnq_attachmentPlaceholder{max-width:220px;min-height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);font-size:var(--zx-text-xs);align-items:center;display:inline-flex}.KYRGnq_fileAttachment{align-items:center;gap:var(--zx-space-2);max-width:260px;min-height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-panel);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;display:inline-flex}.KYRGnq_fileAttachment>span{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.KYRGnq_fileAttachment:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_fileAttachment:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.KYRGnq_fileAttachment:focus-visible,.KYRGnq_queueAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_steering{border-left:3px solid var(--zx-warn);background:color-mix(in srgb, var(--zx-warn) 4%, var(--zx-bg-card))}.KYRGnq_queuedPrompt{border-left:3px solid var(--zx-accent)}.KYRGnq_turnLeadHighlight{animation:1.6s ease-out KYRGnq_turn-lead-highlight}@keyframes KYRGnq_turn-lead-highlight{0%,30%{border-color:color-mix(in srgb, var(--zx-accent) 70%, var(--zx-border-soft))}}.KYRGnq_queueRow{align-items:center;gap:var(--zx-space-2) var(--zx-space-3);flex-wrap:wrap;display:flex}.KYRGnq_queuePreview{text-overflow:ellipsis;white-space:nowrap;flex:160px;min-width:0;overflow:hidden}.KYRGnq_queueEditor{min-width:160px;height:var(--zx-control-sm);padding:0 var(--zx-space-2);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);outline:none;flex:160px}.KYRGnq_queueEditor:focus{border-color:var(--zx-accent)}.KYRGnq_queueActions{flex:none;align-items:center;gap:2px;display:inline-flex}.KYRGnq_queueAction{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-pill);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;place-items:center;padding:0;display:grid}.KYRGnq_queueAction:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_queueAction:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.KYRGnq_queueError{color:var(--zx-error);font-size:var(--zx-text-micro);flex:1 0 100%}.KYRGnq_assistant{font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);color:var(--zx-label);overflow-wrap:anywhere}.KYRGnq_proposalBlock{gap:var(--zx-space-3);flex-direction:column;width:100%;min-width:0;display:flex}.KYRGnq_messageActions{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-sm);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.KYRGnq_messageAction{width:var(--zx-control-sm);height:var(--zx-control-sm);min-height:var(--zx-control-sm);padding:0}.KYRGnq_messageActionGroup{align-items:center;gap:2px;display:inline-flex}.KYRGnq_branchActionGroup{padding-left:var(--zx-space-2);border-left:1px solid var(--zx-border-soft)}.KYRGnq_actionError{color:var(--zx-error);font-size:var(--zx-text-micro);flex-basis:100%}.KYRGnq_noteEditor{gap:var(--zx-space-2);flex-direction:column;flex-basis:100%;display:flex}.KYRGnq_noteInput{box-sizing:border-box;width:100%;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-strong,var(--zx-border));border-radius:var(--zx-radius-sm,6px);background:var(--zx-surface-1,var(--zx-bg));color:var(--zx-label);font-family:inherit;font-size:var(--zx-text-sm);resize:vertical}.KYRGnq_noteActions{gap:var(--zx-space-2);align-items:center;display:flex}.KYRGnq_branchToast{z-index:var(--zx-z-tooltip);right:var(--zx-space-5);bottom:var(--zx-space-5);padding:var(--zx-space-2) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-success) 40%, var(--zx-border-soft));border-radius:var(--zx-radius-pill);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-popover);color:var(--zx-label);font-size:var(--zx-text-xs);pointer-events:none;animation:KYRGnq_branch-toast-in var(--zx-motion);position:fixed}@keyframes KYRGnq_branch-toast-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.KYRGnq_imageButton{border-radius:var(--zx-radius-md);cursor:zoom-in;background:0 0;border:0;max-width:100%;padding:0;display:inline-flex}.KYRGnq_imageButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_lightboxBackdrop{z-index:var(--zx-z-dialog);padding:var(--zx-space-6);background:var(--zx-scrim);place-items:center;display:grid;position:fixed;inset:0}.KYRGnq_lightbox{max-width:min(92vw,1200px);max-height:92vh;padding:var(--zx-space-3);border:1px solid var(--zx-border);border-radius:var(--zx-radius-lg);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-dialog);place-items:center;display:grid;position:relative}.KYRGnq_lightbox:focus-visible{box-shadow:var(--zx-shadow-dialog), var(--zx-focus-ring);outline:none}.KYRGnq_lightboxImage{max-width:calc(92vw - var(--zx-space-6));max-height:calc(92vh - var(--zx-space-6));object-fit:contain;display:block}.KYRGnq_lightboxClose{top:var(--zx-space-2);right:var(--zx-space-2);z-index:var(--zx-z-menu);width:var(--zx-control-xl);height:var(--zx-control-xl);border-radius:var(--zx-radius-pill);background:var(--zx-bg-hover);color:var(--zx-label);cursor:pointer;border:0;place-items:center;padding:0;display:grid;position:absolute}.KYRGnq_lightboxClose:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_assistant pre{max-width:100%;overflow-x:auto}.KYRGnq_blockGap{gap:var(--zx-space-4);flex-direction:column;display:flex}.KYRGnq_reasoning{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);padding:var(--zx-space-2) var(--zx-space-3);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.KYRGnq_reasoningStreaming,.KYRGnq_reasoning:has(.KYRGnq_reasoningDisclosureOpen){width:100%}.KYRGnq_reasoningHead{align-items:center;gap:var(--zx-space-2);width:100%;color:var(--zx-label-muted);font:inherit;cursor:pointer;background:0 0;border:0;padding:0;display:flex}.KYRGnq_reasoningIcon{color:var(--zx-label-muted);place-items:center;display:grid}.KYRGnq_reasoningTitle{text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums;min-width:0;overflow:hidden}.KYRGnq_reasoningChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none}.KYRGnq_reasoningChevronOpen{transform:rotate(90deg)}.KYRGnq_reasoningBody{padding:var(--zx-space-3) 0 var(--zx-space-2);border-top:1px solid var(--zx-border-soft);color:var(--zx-label-secondary)}.KYRGnq_reasoningBody pre{max-width:100%;overflow-x:auto}.KYRGnq_reasoningDisclosure{width:min(100%, var(--zx-reading-width));opacity:0;transition:grid-template-rows var(--zx-motion), opacity var(--zx-motion-fast);grid-template-rows:0fr;display:grid}.KYRGnq_reasoningDisclosure>.KYRGnq_reasoningBody{min-height:0;overflow:hidden}.KYRGnq_reasoningDisclosureOpen{opacity:1;grid-template-rows:1fr}.KYRGnq_reasoningHead:hover{color:var(--zx-label-secondary)}.KYRGnq_turnActivity{width:100%;color:var(--zx-label-secondary)}.KYRGnq_turnActivityHead{align-items:center;gap:var(--zx-space-3);width:100%;min-height:33px;padding:0 0 var(--zx-space-2);border:0;border-bottom:1px solid var(--zx-border-soft);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;display:flex}.KYRGnq_turnActivityHead:hover{color:var(--zx-label-secondary)}.KYRGnq_turnActivityHead:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.KYRGnq_turnActivitySummary{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.KYRGnq_turnActivityChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none;margin-left:auto}.KYRGnq_turnActivityChevronOpen{transform:rotate(90deg)}.KYRGnq_turnActivityDisclosure{opacity:0;transition:grid-template-rows .28s cubic-bezier(.2, .78, .2, 1), opacity var(--zx-motion-fast);grid-template-rows:0fr;display:grid}.KYRGnq_turnActivityDisclosureOpen{opacity:1;grid-template-rows:1fr}.KYRGnq_turnActivityItems{gap:var(--zx-space-1);min-height:0;padding:var(--zx-space-2) 0 0;flex-direction:column;display:flex;overflow:hidden}.KYRGnq_activityMessage{padding:var(--zx-space-2) 0;color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);overflow-wrap:anywhere}.KYRGnq_activityMessage p{margin:0}.KYRGnq_activityMessage p+p{margin-top:var(--zx-space-2)}.KYRGnq_activityContextRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;min-height:30px;padding:var(--zx-space-1) 0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);display:flex}.KYRGnq_activityItem{flex-direction:column;min-width:0;display:flex}.KYRGnq_activityRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;min-height:30px;padding:var(--zx-space-1) 0;color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.KYRGnq_activityRow:hover{color:var(--zx-label)}.KYRGnq_activityRow:focus-visible{box-shadow:var(--zx-focus-ring);border-radius:var(--zx-radius-sm);outline:none}.KYRGnq_activityRowIcon{color:var(--zx-label-decor);flex:none;place-items:center;display:grid}.KYRGnq_activityRowLabel{color:var(--zx-label-secondary);flex:none}.KYRGnq_activityRowPreview{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--zx-label-tertiary);overflow:hidden}.KYRGnq_activityRowPreview:before{content:\"·\";margin:0 var(--zx-space-2);color:var(--zx-label-decor)}.KYRGnq_activityRowChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none;margin-left:auto}.KYRGnq_activityRowChevronOpen{transform:rotate(90deg)}.KYRGnq_activityDisclosure{padding-left:calc(16px + var(--zx-space-2));opacity:0;transition:grid-template-rows .26s cubic-bezier(.2, .78, .2, 1), opacity var(--zx-motion-fast);grid-template-rows:0fr;display:grid}.KYRGnq_activityDisclosureOpen{opacity:1;grid-template-rows:1fr}.KYRGnq_activityDetail{min-height:0;padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);color:var(--zx-label-secondary);line-height:var(--zx-leading-body);overflow:hidden}.KYRGnq_activityDetail pre{max-width:100%;overflow-x:auto}.KYRGnq_notice{align-items:center;gap:var(--zx-space-2);padding:var(--zx-space-1) 0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-tight);background:0 0;border:0;display:flex}.KYRGnq_noticeError{color:var(--zx-error)}.KYRGnq_noticeWarn{color:var(--zx-warn)}.KYRGnq_divider{align-items:center;gap:var(--zx-space-3);color:var(--zx-label-decor);font-size:var(--zx-text-micro);display:flex}.KYRGnq_divider:before,.KYRGnq_divider:after{content:\"\";background:var(--zx-border-soft);flex:1;height:1px}.KYRGnq_stats{align-items:center;gap:var(--zx-space-3);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;display:flex}.KYRGnq_hero{justify-content:center;align-items:center;gap:var(--zx-space-4);padding:var(--zx-space-7);text-align:center;flex-direction:column;flex:1;display:flex;position:relative;overflow:hidden}.KYRGnq_heroBlank{padding-bottom:calc(var(--zx-space-6) + var(--zx-space-4));justify-content:flex-end}.KYRGnq_heroGreeting{color:var(--zx-label);letter-spacing:-.02em;grid-area:1/2;font-size:26px;font-weight:500;line-height:32px}.KYRGnq_heroHeadline{grid-template-columns:34px auto;justify-content:center;align-items:center;column-gap:10px;display:grid}.KYRGnq_heroFishHitbox{grid-area:1/1;justify-content:center;align-items:center;display:inline-flex}.KYRGnq_heroFish{color:var(--dsw-alias-label-primary,var(--zx-label))}.KYRGnq_streamingDot{background:var(--zx-accent);border-radius:50%;width:7px;height:7px;margin-left:4px;animation:1s steps(2,start) infinite KYRGnq_zx-blink;display:inline-block}.KYRGnq_scrollLatest{right:var(--zx-space-5);bottom:var(--zx-space-5);z-index:var(--zx-z-sticky);align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-sm);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-popover);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;animation:KYRGnq_scroll-latest-in var(--zx-motion-fast);display:inline-flex;position:fixed}.KYRGnq_scrollLatest:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.KYRGnq_scrollLatest:focus-visible{box-shadow:var(--zx-shadow-popover), var(--zx-focus-ring);outline:none}.KYRGnq_scrollLatestIcon{transform:rotate(90deg)}@keyframes KYRGnq_scroll-latest-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes KYRGnq_zx-blink{50%{opacity:.2}}@media (prefers-reduced-motion:reduce){.KYRGnq_streamingDot,.KYRGnq_scrollLatest,.KYRGnq_turnLeadHighlight,.KYRGnq_branchToast{animation:none}}";
+		const tagId$19 = "@dsh-portable/dcode-ui/Transcript.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$19) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$17;
-			tag.textContent = css$18;
+			tag.dataset.pluginCss = tagId$19;
+			tag.textContent = css$20;
 			document.head.appendChild(tag);
 		}
 		var Transcript_module_css_default = {
 			"actionError": "KYRGnq_actionError",
+			"activityContextRow": "KYRGnq_activityContextRow",
+			"activityDetail": "KYRGnq_activityDetail",
+			"activityDisclosure": "KYRGnq_activityDisclosure",
+			"activityDisclosureOpen": "KYRGnq_activityDisclosureOpen",
+			"activityItem": "KYRGnq_activityItem",
+			"activityMessage": "KYRGnq_activityMessage",
+			"activityRow": "KYRGnq_activityRow",
+			"activityRowChevron": "KYRGnq_activityRowChevron",
+			"activityRowChevronOpen": "KYRGnq_activityRowChevronOpen",
+			"activityRowIcon": "KYRGnq_activityRowIcon",
+			"activityRowLabel": "KYRGnq_activityRowLabel",
+			"activityRowPreview": "KYRGnq_activityRowPreview",
 			"assistant": "KYRGnq_assistant",
 			"attachmentPlaceholder": "KYRGnq_attachmentPlaceholder",
 			"blockGap": "KYRGnq_blockGap",
@@ -12271,7 +12297,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"lightboxBackdrop": "KYRGnq_lightboxBackdrop",
 			"lightboxClose": "KYRGnq_lightboxClose",
 			"lightboxImage": "KYRGnq_lightboxImage",
-			"loadOlder": "KYRGnq_loadOlder",
 			"loadingState": "KYRGnq_loadingState",
 			"messageAction": "KYRGnq_messageAction",
 			"messageActionGroup": "KYRGnq_messageActionGroup",
@@ -12309,19 +12334,16 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"stats": "KYRGnq_stats",
 			"steering": "KYRGnq_steering",
 			"streamingDot": "KYRGnq_streamingDot",
-			"toolActivity": "KYRGnq_toolActivity",
-			"toolActivityChevron": "KYRGnq_toolActivityChevron",
-			"toolActivityChevronOpen": "KYRGnq_toolActivityChevronOpen",
-			"toolActivityClip": "KYRGnq_toolActivityClip",
-			"toolActivityDisclosure": "KYRGnq_toolActivityDisclosure",
-			"toolActivityDisclosureOpen": "KYRGnq_toolActivityDisclosureOpen",
-			"toolActivityDuration": "KYRGnq_toolActivityDuration",
-			"toolActivityHead": "KYRGnq_toolActivityHead",
-			"toolActivityIcon": "KYRGnq_toolActivityIcon",
-			"toolActivityItems": "KYRGnq_toolActivityItems",
-			"toolActivitySummary": "KYRGnq_toolActivitySummary",
 			"turn": "KYRGnq_turn",
 			"turn-lead-highlight": "KYRGnq_turn-lead-highlight",
+			"turnActivity": "KYRGnq_turnActivity",
+			"turnActivityChevron": "KYRGnq_turnActivityChevron",
+			"turnActivityChevronOpen": "KYRGnq_turnActivityChevronOpen",
+			"turnActivityDisclosure": "KYRGnq_turnActivityDisclosure",
+			"turnActivityDisclosureOpen": "KYRGnq_turnActivityDisclosureOpen",
+			"turnActivityHead": "KYRGnq_turnActivityHead",
+			"turnActivityItems": "KYRGnq_turnActivityItems",
+			"turnActivitySummary": "KYRGnq_turnActivitySummary",
 			"turnLeadHighlight": "KYRGnq_turnLeadHighlight",
 			"user": "KYRGnq_user",
 			"zx-blink": "KYRGnq_zx-blink"
@@ -12334,7 +12356,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		* Nodes come from the Chat target the official UI assembles — the very same
 		* `ConversationNode` stream, projections and streaming partial — so a session
 		* opened in one surface and continued in the other shows one history. What
-		* differs is the presentation: a compact tool card per call, a file-change
+		* differs is the presentation: a turn-level process disclosure, a file-change
 		* summary closing each turn, and a reading column instead of a full-width
 		* flow.
 		* @module @dsh-portable/dcode-ui/client/chat/Transcript
@@ -12391,10 +12413,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			if (count < 1e6) return `${(count / 1e3).toFixed(count < 1e4 ? 1 : 0)}k`;
 			return `${(count / 1e6).toFixed(1)}m`;
 		}
-		/** Running reasoning stays visible; completed reasoning folds into a one-line row. */
+		/** Reasoning details stay behind a one-line row until the operator opens them. */
 		function Reasoning(props) {
 			const t = useT();
-			const [open, setOpen] = (0, react.useState)(props.streaming);
+			const [open, setOpen] = (0, react.useState)(false);
 			const panelId = (0, react.useId)();
 			const startedAt = (0, react.useRef)(Date.now());
 			const [elapsed, setElapsed] = (0, react.useState)(0);
@@ -12409,9 +12431,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					window.clearInterval(timer);
 				};
 			}, [props.streaming]);
-			(0, react.useEffect)(() => {
-				if (props.streaming) setOpen(true);
-			}, [props.streaming]);
 			const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1e3));
 			const title = props.streaming ? t("chat.thinkingProgress", { seconds }) : props.tokenCount === void 0 ? t("chat.thoughtFor", { seconds }) : `${t("chat.thoughtFor", { seconds })} · ${t("chat.tokens", { count: compactTokens(props.tokenCount) })}`;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -12421,7 +12440,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					className: Transcript_module_css_default.reasoningHead,
 					"aria-expanded": open,
 					"aria-controls": panelId,
-					disabled: props.streaming,
 					onClick: () => {
 						setOpen((value) => !value);
 					},
@@ -12435,7 +12453,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							className: Transcript_module_css_default.reasoningTitle,
 							children: title
 						}),
-						props.streaming ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: `${Transcript_module_css_default.reasoningChevron} ${open ? Transcript_module_css_default.reasoningChevronOpen : ""}` })
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: `${Transcript_module_css_default.reasoningChevron} ${open ? Transcript_module_css_default.reasoningChevronOpen : ""}` })
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: `${Transcript_module_css_default.reasoningDisclosure} ${open ? Transcript_module_css_default.reasoningDisclosureOpen : ""}`,
@@ -12482,21 +12500,90 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				})
 			});
 		}
-		/** A compact disclosure for a consecutive run of successful read/search calls. */
-		function ToolActivityGroup(props) {
-			const t = useT();
+		function hasAssistantAnswer(node) {
+			if (node.blocks.some((block) => block.kind === "tool-call")) return false;
+			return node.blocks.some((block) => block.kind === "text" && block.text.trim() !== "" || block.kind === "image");
+		}
+		function turnNodeNumber(node) {
+			return "turn" in node && typeof node.turn === "number" ? node.turn : void 0;
+		}
+		/** Build one turn's process rows while keeping the final answer separate. */
+		function buildTurnActivity(turn, runningCalls) {
+			const items = [];
+			let finalAssistant;
+			for (let index = turn.length - 1; index >= 0; index -= 1) {
+				const node = turn[index];
+				if (node?.kind === "assistant" && hasAssistantAnswer(node)) {
+					finalAssistant = node;
+					break;
+				}
+			}
+			let messageCount = 0;
+			let toolCallCount = 0;
+			let subagentCount = 0;
+			for (const node of turn) {
+				if (node.kind === "context") {
+					items.push({
+						kind: "context",
+						key: `context:${String(node.seq)}`,
+						node
+					});
+					continue;
+				}
+				if (node.kind === "assistant") {
+					if (node.seq !== finalAssistant?.seq) {
+						if (node.blocks.some((block) => block.kind === "text" && block.text.trim() !== "")) messageCount += 1;
+					}
+					for (const [blockIndex, block] of node.blocks.entries()) if (block.kind === "reasoning" && block.text.trim() !== "") items.push({
+						kind: "reasoning",
+						key: `reasoning:${String(node.seq)}:${String(blockIndex)}`,
+						text: block.text
+					});
+					else if (node.seq !== finalAssistant?.seq && block.kind === "text" && block.text.trim() !== "") items.push({
+						kind: "message",
+						key: `message:${String(node.seq)}:${String(blockIndex)}`,
+						text: block.text
+					});
+					continue;
+				}
+				if (node.kind !== "tool-result") continue;
+				if (isSubagentTool(node.call?.name ?? "tool")) subagentCount += 1;
+				else toolCallCount += 1;
+				items.push({
+					kind: "tool",
+					key: `tool:${node.callId}`,
+					block: node
+				});
+			}
+			for (const call of runningCalls) {
+				if (isSubagentTool(call.name)) subagentCount += 1;
+				else toolCallCount += 1;
+				items.push({
+					kind: "tool",
+					key: `running:${call.callId}`,
+					block: call
+				});
+			}
+			return {
+				items,
+				finalAssistant,
+				messageCount,
+				toolCallCount,
+				subagentCount
+			};
+		}
+		function activityPreview(text) {
+			const singleLine = text.replace(/\s+/g, " ").trim();
+			return singleLine.length > 180 ? `${singleLine.slice(0, 179)}…` : singleLine;
+		}
+		function ActivityTextRow(props) {
 			const [open, setOpen] = (0, react.useState)(false);
 			const contentId = (0, react.useId)();
-			const summary = [
-				props.group.memoryCount === 0 ? void 0 : t(props.group.memoryCount === 1 ? "chat.toolActivity.memoryOne" : "chat.toolActivity.memoryMany", { count: props.group.memoryCount }),
-				props.group.readCount === 0 ? void 0 : t(props.group.readCount === 1 ? "chat.toolActivity.readOne" : "chat.toolActivity.readMany", { count: props.group.readCount }),
-				props.group.searchCount === 0 ? void 0 : t(props.group.searchCount === 1 ? "chat.toolActivity.searchOne" : "chat.toolActivity.searchMany", { count: props.group.searchCount })
-			].filter((part) => part !== void 0).join(" · ");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: Transcript_module_css_default.toolActivity,
+				className: Transcript_module_css_default.activityItem,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 					type: "button",
-					className: Transcript_module_css_default.toolActivityHead,
+					className: Transcript_module_css_default.activityRow,
 					"aria-expanded": open,
 					"aria-controls": contentId,
 					onClick: () => {
@@ -12504,29 +12591,124 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					},
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: Transcript_module_css_default.toolActivityIcon,
+							className: Transcript_module_css_default.activityRowIcon,
 							"aria-hidden": true,
-							children: props.group.memoryCount > 0 && props.group.readCount === 0 && props.group.searchCount === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSparkle16, {}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSearchOutline16, {})
+							children: props.icon === "thinking" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconThinkOutline14, {}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSparkle16, {})
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: Transcript_module_css_default.toolActivitySummary,
-							children: summary
+							className: Transcript_module_css_default.activityRowLabel,
+							children: props.label
 						}),
-						props.group.durationMs === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-							className: Transcript_module_css_default.toolActivityDuration,
-							children: ["· ", formatToolDuration(props.group.durationMs)]
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: Transcript_module_css_default.activityRowPreview,
+							children: activityPreview(props.text)
 						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: `${Transcript_module_css_default.toolActivityChevron} ${open ? Transcript_module_css_default.toolActivityChevronOpen : ""}` })
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: `${Transcript_module_css_default.activityRowChevron} ${open ? Transcript_module_css_default.activityRowChevronOpen : ""}` })
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: `${Transcript_module_css_default.toolActivityDisclosure} ${open ? Transcript_module_css_default.toolActivityDisclosureOpen : ""}`,
+					className: `${Transcript_module_css_default.activityDisclosure} ${open ? Transcript_module_css_default.activityDisclosureOpen : ""}`,
 					"aria-hidden": !open,
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: Transcript_module_css_default.toolActivityClip,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: Transcript_module_css_default.toolActivityItems,
-							id: contentId,
-							children: props.group.blocks.map((block) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, { block }, block.callId))
+						className: Transcript_module_css_default.activityDetail,
+						id: contentId,
+						role: "region",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+							text: props.text,
+							streaming: props.streaming === true,
+							labels: props.labels
+						})
+					})
+				})]
+			});
+		}
+		/** Progress messages are output-like rows, not another disclosure layer. */
+		function ActivityMessageRow(props) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: Transcript_module_css_default.activityMessage,
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MarkdownText, {
+					text: props.text,
+					streaming: false,
+					labels: props.labels
+				})
+			});
+		}
+		/** A context source keeps the same compact, one-line rhythm as activity rows. */
+		function ActivityContextRow(props) {
+			const t = useT();
+			const source = props.node.provenance.label;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: Transcript_module_css_default.activityContextRow,
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: Transcript_module_css_default.activityRowIcon,
+						"aria-hidden": true,
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconContextInjectionOutline16, { size: 14 })
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: Transcript_module_css_default.activityRowLabel,
+						children: t(props.node.provenance.role === "recall" ? "chat.activity.contextRecall" : "chat.activity.contextInjection")
+					}),
+					source === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: Transcript_module_css_default.activityRowPreview,
+						children: source
+					})
+				]
+			});
+		}
+		/** One turn's process summary. Completed summaries start closed. */
+		function TurnActivity(props) {
+			const t = useT();
+			const [open, setOpen] = (0, react.useState)(false);
+			const wasRunning = (0, react.useRef)(props.running);
+			const contentId = (0, react.useId)();
+			(0, react.useEffect)(() => {
+				if (!props.running && wasRunning.current) setOpen(false);
+				wasRunning.current = props.running;
+			}, [props.running]);
+			const summaryParts = [];
+			if (props.data.toolCallCount > 0) summaryParts.push(t(props.data.toolCallCount === 1 ? "chat.activity.toolCalls.one" : "chat.activity.toolCalls.many", { count: props.data.toolCallCount }));
+			if (props.data.messageCount > 0) summaryParts.push(t(props.data.messageCount === 1 ? "chat.activity.messages.one" : "chat.activity.messages.many", { count: props.data.messageCount }));
+			if (props.data.subagentCount > 0) summaryParts.push(t(props.data.subagentCount === 1 ? "chat.activity.subagents.one" : "chat.activity.subagents.many", { count: props.data.subagentCount }));
+			const summary = summaryParts.length === 0 ? t("chat.activity.thoughtForAWhile") : summaryParts.join(t("chat.activity.separator"));
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: Transcript_module_css_default.turnActivity,
+				"data-turn-activity": true,
+				"data-activity-open": open || void 0,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: Transcript_module_css_default.turnActivityHead,
+					"aria-expanded": open,
+					"aria-controls": contentId,
+					onClick: () => {
+						setOpen((value) => !value);
+					},
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: Transcript_module_css_default.turnActivitySummary,
+						children: summary
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: `${Transcript_module_css_default.turnActivityChevron} ${open ? Transcript_module_css_default.turnActivityChevronOpen : ""}` })]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: `${Transcript_module_css_default.turnActivityDisclosure} ${open ? Transcript_module_css_default.turnActivityDisclosureOpen : ""}`,
+					"aria-hidden": !open,
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: Transcript_module_css_default.turnActivityItems,
+						id: contentId,
+						children: props.data.items.map((item) => {
+							if (item.kind === "context") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityContextRow, { node: item.node }, item.key);
+							if (item.kind === "tool") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, {
+								block: item.block,
+								activity: true
+							}, item.key);
+							if (item.kind === "message") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityMessageRow, {
+								text: item.text,
+								labels: props.labels
+							}, item.key);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ActivityTextRow, {
+								icon: "thinking",
+								label: t("chat.activity.thinking"),
+								text: item.text,
+								labels: props.labels,
+								streaming: false
+							}, item.key);
 						})
 					})
 				})]
@@ -12568,7 +12750,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				alt: props.attachment.name ?? "image"
 			});
 		}
-		/** Render official alpha.3 image attachments without changing the DCode layout. */
+		/** Render official alpha.4 image attachments without changing the DCode layout. */
 		function MessageAttachments(props) {
 			const images = [...props.images ?? []];
 			for (const block of props.content ?? []) {
@@ -12642,13 +12824,16 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							})
 						}, index);
 					}
-					if (block.kind === "reasoning") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Reasoning, {
-						text: block.text,
-						streaming: props.streaming,
-						durationMs: props.durationMs,
-						tokenCount: props.tokenCount,
-						labels: props.labels
-					}, index);
+					if (block.kind === "reasoning") {
+						if (props.showReasoning === false) return null;
+						return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Reasoning, {
+							text: block.text,
+							streaming: props.streaming,
+							durationMs: props.durationMs,
+							tokenCount: props.tokenCount,
+							labels: props.labels
+						}, index);
+					}
 					if (block.kind === "image") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MessageAttachments, {
 						sessionId: props.sessionId,
 						images: [block.attachment]
@@ -12922,7 +13107,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						streaming: false,
 						labels: props.labels,
 						durationMs: assistantDurationMs(node),
-						tokenCount: assistantTokenCount(node)
+						tokenCount: assistantTokenCount(node),
+						showReasoning: props.showReasoning
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AssistantActions, {
 						sessionId: props.sessionId,
@@ -12964,6 +13150,40 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				});
 				default: return null;
 			}
+		}
+		/** Render a turn with one process owner between the prompt and final answer. */
+		function TurnView(props) {
+			const data = (0, react.useMemo)(() => buildTurnActivity(props.turn, props.runningCalls), [props.runningCalls, props.turn]);
+			const firstHumanSeq = props.turn.find((node) => node.kind === "user" || node.kind === "steering")?.seq;
+			const finalAssistantSeq = data.finalAssistant?.seq;
+			const rows = [];
+			let activityInserted = false;
+			const insertActivity = () => {
+				if (activityInserted || data.items.length === 0) return;
+				activityInserted = true;
+				rows.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)(TurnActivity, {
+					data,
+					labels: props.labels,
+					running: props.running
+				}, "turn-activity"));
+			};
+			for (const node of props.turn) {
+				if (node.kind === "context" || node.kind === "assistant" || node.kind === "tool-result") insertActivity();
+				if (node.kind === "context") continue;
+				if (node.kind === "tool-result") continue;
+				if (node.kind === "assistant" && node.seq !== finalAssistantSeq) continue;
+				rows.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Node$1, {
+					sessionId: props.sessionId,
+					node,
+					labels: props.labels,
+					feedback: props.feedback,
+					highlighted: props.highlighted && node.seq === firstHumanSeq,
+					showReasoning: data.items.length > 0 && node.seq === finalAssistantSeq ? false : void 0,
+					onBranched: props.onBranched
+				}, `${node.kind}:${String(node.seq)}`));
+			}
+			insertActivity();
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: rows });
 		}
 		/** Queue controls mirror the host queue verbs instead of treating queued text as static output. */
 		function QueuedMessageRow(props) {
@@ -13142,6 +13362,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const scrollerRef = (0, react.useRef)(null);
 			const pinnedRef = (0, react.useRef)(true);
 			const highlightTimerRef = (0, react.useRef)(void 0);
+			const historyLoadSessionRef = (0, react.useRef)(void 0);
 			const [highlightedTurn, setHighlightedTurn] = (0, react.useState)(void 0);
 			const [branchCreated, setBranchCreated] = (0, react.useState)(false);
 			const [showScrollLatest, setShowScrollLatest] = (0, react.useState)(false);
@@ -13172,7 +13393,29 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const partial = chat?.legacy.partial ?? null;
 			const runningCalls = chat?.legacy.runningCalls ?? [];
 			const turns = (0, react.useMemo)(() => splitTurns(nodes), [nodes]);
+			const nodeLessLastTurnNumber = !(turns.length > 0 && turns[turns.length - 1].some((node) => turnNodeNumber(node) !== void 0)) ? runningCalls[0]?.turn : void 0;
+			const loadedTurnNumbers = (0, react.useMemo)(() => new Set([...turns.flatMap((turn) => turn.map(turnNodeNumber).filter((number) => number !== void 0)), nodeLessLastTurnNumber].filter((number) => number !== void 0)), [nodeLessLastTurnNumber, turns]);
 			const queued = (0, react.useMemo)(() => (session?.queue ?? []).filter((item) => item.placement !== "context"), [session?.queue]);
+			(0, react.useEffect)(() => {
+				if (sessionId === void 0 || session?.openState !== "open") {
+					historyLoadSessionRef.current = void 0;
+					return;
+				}
+				if (session.hasMore !== true) {
+					historyLoadSessionRef.current = void 0;
+					return;
+				}
+				if (historyLoadSessionRef.current === sessionId) return;
+				const face = runtime.binding(sessionId)?.session;
+				if (face === void 0) return;
+				historyLoadSessionRef.current = sessionId;
+				face.loadThrough(SessionSeq(0));
+			}, [
+				runtime,
+				session?.hasMore,
+				session?.openState,
+				sessionId
+			]);
 			const navigateToTurn = (0, react.useCallback)((index) => {
 				pinnedRef.current = false;
 				setHighlightedTurn(index);
@@ -13262,34 +13505,25 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								role: "alert",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconWarningOutline16, {}), t("chat.feedback.failed", { error: feedback.error })]
 							}),
-							session?.hasMore === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
-								className: Transcript_module_css_default.loadOlder,
-								disabled: session.loadingOlder,
-								onClick: () => {
-									runtime.binding(sessionId)?.session.loadOlder();
-								},
-								children: session.loadingOlder ? t("chat.loading") : t("chat.loadOlder")
-							}) : null,
 							turns.map((turn, turnIndex) => {
 								const paths = changedPaths(turn);
-								const items = aggregateToolActivity(turn);
 								const last = turnIndex === turns.length - 1;
-								const firstUserIndex = items.findIndex((item) => item.kind === "user" || item.kind === "steering");
+								const turnNumber = turn.map(turnNodeNumber).find((number) => number !== void 0) ?? (last ? nodeLessLastTurnNumber : void 0);
+								const turnRunningCalls = turnNumber === void 0 ? [] : runningCalls.filter((call) => call.turn === turnNumber);
 								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: Transcript_module_css_default.turn,
 									"data-turn-index": turnIndex,
-									children: [items.map((item, itemIndex) => {
-										if (item.kind === "tool-activity") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolActivityGroup, { group: item }, `tool-activity:${item.blocks[0]?.callId ?? "empty"}`);
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Node$1, {
-											sessionId,
-											node: item,
-											labels,
-											feedback,
-											highlighted: highlightedTurn === turnIndex && itemIndex === firstUserIndex,
-											onBranched: () => {
-												setBranchCreated(true);
-											}
-										}, `${item.kind}:${String(item.seq)}`);
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(TurnView, {
+										sessionId,
+										turn,
+										runningCalls: turnRunningCalls,
+										labels,
+										feedback,
+										highlighted: highlightedTurn === turnIndex,
+										running: last && session?.running === true,
+										onBranched: () => {
+											setBranchCreated(true);
+										}
 									}), paths.length > 0 && (!last || session?.running !== true) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FileChanges, {
 										paths,
 										cwd,
@@ -13301,7 +13535,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 									}) : null]
 								}, turn[0]?.seq ?? turnIndex);
 							}),
-							runningCalls.map((call) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, { block: call }, call.callId)),
+							runningCalls.filter((call) => !loadedTurnNumbers.has(call.turn)).map((call) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolCard, { block: call }, call.callId)),
 							partial === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AssistantBlocks, {
 								sessionId,
 								blocks: partial.blocks,
@@ -13344,13 +13578,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\AgentInspector.module.css.mjs
-		const css$17 = ".sE381G_section{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 68%, transparent);min-width:0;box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex;overflow:hidden}.sE381G_sectionHeader{align-items:center;min-width:0;display:flex}.sE381G_sectionToggle{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:40px;padding:0 var(--zx-space-3);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.sE381G_sectionToggle:hover{background:color-mix(in srgb, var(--zx-label) 5%, transparent);color:var(--zx-label)}.sE381G_sectionToggle:focus-visible,.sE381G_agentRow:focus-visible,.sE381G_backButton:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}.sE381G_sectionToggle svg:first-child{color:var(--zx-label-tertiary);transition:transform var(--zx-motion-fast);flex:none}.sE381G_chevronOpen{transform:rotate(90deg)}.sE381G_agentDuration{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.sE381G_refreshButton{margin-right:var(--zx-space-1);flex:none}.sE381G_agentList{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.sE381G_agentRow{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:42px;padding:var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.sE381G_agentRow:hover,.sE381G_agentRowActive{background:color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-hover));color:var(--zx-label)}.sE381G_agentCopy,.sE381G_detailTitleCopy{flex-direction:column;min-width:0;display:flex}.sE381G_agentCopy{flex:1}.sE381G_agentName{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.sE381G_agentMeta,.sE381G_detailTitleCopy>span{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.sE381G_runningPill{border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 12%, transparent);color:var(--zx-accent);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;padding:2px 6px}.sE381G_agentStatus{flex:none;place-items:center;width:20px;height:20px;display:grid}.sE381G_agentStatusRunning{color:var(--zx-accent)}.sE381G_agentStatusIdle{color:var(--zx-success)}.sE381G_agentRow:has(.sE381G_agentStatus svg[data-error]) .sE381G_agentStatus{color:var(--zx-error)}.sE381G_rowChevron{color:var(--zx-label-decor);flex:none}.sE381G_diagnosticRow{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2);color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}.sE381G_detail{gap:var(--zx-space-3);flex-direction:column;min-width:0;display:flex}.sE381G_detailHeader,.sE381G_detailHeading{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}.sE381G_backButton{align-items:center;gap:var(--zx-space-1);min-height:28px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;display:inline-flex}.sE381G_backButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.sE381G_detailStatus{color:var(--zx-success);font-size:var(--zx-text-micro);align-items:center;gap:5px;margin-left:auto;display:inline-flex}.sE381G_detailStatus[data-running]{color:var(--zx-accent)}.sE381G_detailAvatar{background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 80%, white), var(--zx-accent));width:32px;height:32px;color:var(--zx-on-accent);border-radius:10px;flex:none;place-items:center;display:grid}.sE381G_detailTitleCopy{flex:1}.sE381G_detailTitleCopy h3{color:var(--zx-label);font-size:var(--zx-text-sm);font-weight:var(--zx-weight-semibold);margin:0}.sE381G_taskBubble{padding:var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-accent) 17%, var(--zx-border-soft));border-radius:var(--zx-radius-lg) var(--zx-radius-lg) var(--zx-radius-lg) 4px;background:color-mix(in srgb, var(--zx-accent) 7%, var(--zx-bg-card));color:var(--zx-label);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);flex-direction:column;gap:4px;display:flex}.sE381G_taskLabel{color:var(--zx-accent);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.04em;text-transform:uppercase}.sE381G_detailError{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 10%, transparent);color:var(--zx-error);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);display:flex}.sE381G_childTranscript{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-app) 72%, transparent);min-height:180px;max-height:360px;overflow:hidden}.sE381G_detail>.button{align-self:stretch}@media (width<=620px){.sE381G_agentDuration{display:none}}";
-		const tagId$16 = "@dsh-portable/dcode-ui/AgentInspector.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$16) + "]") === null) {
+		const css$19 = ".sE381G_section{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 68%, transparent);min-width:0;box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex;overflow:hidden}.sE381G_sectionHeader{align-items:center;min-width:0;display:flex}.sE381G_sectionToggle{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:40px;padding:0 var(--zx-space-3);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.sE381G_sectionToggle:hover{background:color-mix(in srgb, var(--zx-label) 5%, transparent);color:var(--zx-label)}.sE381G_sectionToggle:focus-visible,.sE381G_agentRow:focus-visible,.sE381G_backButton:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}.sE381G_sectionToggle svg:first-child{color:var(--zx-label-tertiary);transition:transform var(--zx-motion-fast);flex:none}.sE381G_chevronOpen{transform:rotate(90deg)}.sE381G_agentDuration{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.sE381G_refreshButton{margin-right:var(--zx-space-1);flex:none}.sE381G_agentList{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.sE381G_agentRow{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:42px;padding:var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.sE381G_agentRow:hover,.sE381G_agentRowActive{background:color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-hover));color:var(--zx-label)}.sE381G_agentCopy,.sE381G_detailTitleCopy{flex-direction:column;min-width:0;display:flex}.sE381G_agentCopy{flex:1}.sE381G_agentName{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.sE381G_agentMeta,.sE381G_detailTitleCopy>span{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.sE381G_runningPill{border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 12%, transparent);color:var(--zx-accent);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;padding:2px 6px}.sE381G_agentStatus{flex:none;place-items:center;width:20px;height:20px;display:grid}.sE381G_agentStatusRunning{color:var(--zx-accent)}.sE381G_agentStatusIdle{color:var(--zx-success)}.sE381G_agentRow:has(.sE381G_agentStatus svg[data-error]) .sE381G_agentStatus{color:var(--zx-error)}.sE381G_rowChevron{color:var(--zx-label-decor);flex:none}.sE381G_diagnosticRow{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2);color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}.sE381G_detail{gap:var(--zx-space-3);flex-direction:column;min-width:0;display:flex}.sE381G_detailHeader,.sE381G_detailHeading{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}.sE381G_backButton{align-items:center;gap:var(--zx-space-1);min-height:28px;padding:0 var(--zx-space-2);border-radius:var(--zx-radius-pill);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;display:inline-flex}.sE381G_backButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.sE381G_detailStatus{color:var(--zx-success);font-size:var(--zx-text-micro);align-items:center;gap:5px;margin-left:auto;display:inline-flex}.sE381G_detailStatus[data-running]{color:var(--zx-accent)}.sE381G_detailAvatar{background:linear-gradient(145deg, color-mix(in srgb, var(--zx-accent) 80%, white), var(--zx-accent));width:32px;height:32px;color:var(--zx-on-accent);border-radius:10px;flex:none;place-items:center;display:grid}.sE381G_detailTitleCopy{flex:1}.sE381G_detailTitleCopy h3{color:var(--zx-label);font-size:var(--zx-text-sm);font-weight:var(--zx-weight-semibold);margin:0}.sE381G_taskBubble{padding:var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-accent) 17%, var(--zx-border-soft));border-radius:var(--zx-radius-lg) var(--zx-radius-lg) var(--zx-radius-lg) 4px;background:color-mix(in srgb, var(--zx-accent) 7%, var(--zx-bg-card));color:var(--zx-label);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);flex-direction:column;gap:4px;display:flex}.sE381G_taskLabel{color:var(--zx-accent);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.04em;text-transform:uppercase}.sE381G_detailError{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 10%, transparent);color:var(--zx-error);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);display:flex}.sE381G_childTranscript{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-app) 72%, transparent);min-height:180px;max-height:360px;overflow:hidden}.sE381G_childTranscript>.empty{box-sizing:border-box;min-height:180px}.sE381G_conversationOverlay{z-index:var(--zx-z-dialog);box-sizing:border-box;justify-content:center;align-items:center;padding:20px;display:flex;position:absolute;inset:0}.sE381G_conversationMask{background:var(--zx-scrim);backdrop-filter:blur(5px);border:0;position:absolute;inset:0}.sE381G_conversationPanel{z-index:1;border:1px solid var(--zx-border);border-radius:var(--zx-radius-dialog);background:var(--zx-bg-overlay);width:min(960px,100%);max-width:100%;height:min(760px,100%);max-height:100%;box-shadow:var(--zx-shadow-dialog);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex;position:relative;overflow:hidden}.sE381G_conversationHeader{justify-content:space-between;align-items:center;gap:var(--zx-space-3);min-height:76px;padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-4) var(--zx-space-6);box-sizing:border-box;border-bottom:1px solid var(--zx-border-soft);flex:none;display:flex}.sE381G_conversationTitleCopy{flex-direction:column;gap:3px;min-width:0;display:flex}.sE381G_conversationEyebrow{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro)}.sE381G_conversationTitleCopy h2{color:var(--zx-label);font-size:var(--zx-text-lg);font-weight:var(--zx-weight-semibold);text-overflow:ellipsis;white-space:nowrap;margin:0;overflow:hidden}.sE381G_conversationMeta{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);display:inline-flex}.sE381G_conversationActions{align-items:center;gap:var(--zx-space-2);flex:none;display:flex}.sE381G_conversationClose{border-radius:var(--zx-radius-md);width:28px;height:28px;color:var(--zx-label-secondary);cursor:pointer;background:0 0;border:0;justify-content:center;align-items:center;padding:0;display:inline-flex}.sE381G_conversationClose:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.sE381G_conversationClose:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.sE381G_conversationBody{background:color-mix(in srgb, var(--zx-bg-app) 42%, transparent);flex:1;min-height:0;display:flex;overflow:hidden}.sE381G_conversationBody>.empty{flex:1}@media (width<=620px){.sE381G_agentDuration{display:none}.sE381G_conversationOverlay{padding:12px}.sE381G_conversationPanel{border-radius:var(--zx-radius-xl);height:100%}.sE381G_conversationHeader{padding-inline:var(--zx-space-4)}}.sE381G_detail>.button{align-self:stretch}";
+		const tagId$18 = "@dsh-portable/dcode-ui/AgentInspector.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$18) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$16;
-			tag.textContent = css$17;
+			tag.dataset.pluginCss = tagId$18;
+			tag.textContent = css$19;
 			document.head.appendChild(tag);
 		}
 		var AgentInspector_module_css_default = {
@@ -13367,6 +13601,16 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"backButton": "sE381G_backButton",
 			"chevronOpen": "sE381G_chevronOpen",
 			"childTranscript": "sE381G_childTranscript",
+			"conversationActions": "sE381G_conversationActions",
+			"conversationBody": "sE381G_conversationBody",
+			"conversationClose": "sE381G_conversationClose",
+			"conversationEyebrow": "sE381G_conversationEyebrow",
+			"conversationHeader": "sE381G_conversationHeader",
+			"conversationMask": "sE381G_conversationMask",
+			"conversationMeta": "sE381G_conversationMeta",
+			"conversationOverlay": "sE381G_conversationOverlay",
+			"conversationPanel": "sE381G_conversationPanel",
+			"conversationTitleCopy": "sE381G_conversationTitleCopy",
 			"detail": "sE381G_detail",
 			"detailAvatar": "sE381G_detailAvatar",
 			"detailError": "sE381G_detailError",
@@ -13550,9 +13794,113 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			}
 			return fallback;
 		}
-		/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
-		function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack }) {
+		/** Centered full-session reader opened over the workbench. */
+		function SubagentConversationDialog({ parentSessionId, entry, navigation, onClose }) {
 			const runtime = useRuntime();
+			const t = useT();
+			const list = useSessionList();
+			const session = useSessionSnapshot(entry.id);
+			const chat = useChatSnapshot(entry.id);
+			const blank = useConversationBlank(entry.id);
+			const panelRef = (0, react.useRef)(null);
+			const closeRef = (0, react.useRef)(null);
+			const titleId = (0, react.useId)();
+			const address = (0, react.useMemo)(() => ({
+				parentSessionId,
+				childSessionId: entry.id,
+				mode: entry.mode
+			}), [
+				entry.id,
+				entry.mode,
+				parentSessionId
+			]);
+			const [openFailure, setOpenFailure] = (0, react.useState)();
+			const parentCwd = list.byId[parentSessionId]?.cwd;
+			const cwd = list.byId[entry.id]?.cwd ?? parentCwd;
+			const running = entry.activity === "running" || session?.running === true;
+			const log = (0, react.useMemo)(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry]);
+			const transcriptReady = session?.openState === "open" && chat !== void 0;
+			const transcriptError = openFailure ?? (session?.openState === "error" ? session.openError?.message ?? t("common.error") : void 0);
+			useModalFocus(true, panelRef, {
+				initialFocusRef: closeRef,
+				onClose
+			});
+			(0, react.useLayoutEffect)(() => {
+				setOpenFailure(void 0);
+				try {
+					runtime.sessions.openSubagent(address);
+				} catch (cause) {
+					setOpenFailure(cause instanceof Error ? cause.message : String(cause));
+				}
+			}, [address, runtime]);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: AgentInspector_module_css_default.conversationOverlay,
+				role: "presentation",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: AgentInspector_module_css_default.conversationMask,
+					"aria-hidden": "true",
+					onClick: onClose
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					ref: panelRef,
+					className: AgentInspector_module_css_default.conversationPanel,
+					role: "dialog",
+					"aria-modal": "true",
+					"aria-labelledby": titleId,
+					tabIndex: -1,
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
+						className: AgentInspector_module_css_default.conversationHeader,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: AgentInspector_module_css_default.conversationTitleCopy,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: AgentInspector_module_css_default.conversationEyebrow,
+									children: t("agents.openFull")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+									id: titleId,
+									children: entryLabel(entry)
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									className: AgentInspector_module_css_default.conversationMeta,
+									children: [
+										running ? t("agents.running") : t("agents.inactive"),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											"aria-hidden": true,
+											children: "·"
+										}),
+										entry.mode === "continuable" ? t("agents.continuable") : t("agents.oneShot")
+									]
+								})
+							]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: AgentInspector_module_css_default.conversationActions,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(CopyButton, {
+								text: log,
+								label: t("agents.copyLog"),
+								copiedLabel: t("agents.copied")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								ref: closeRef,
+								type: "button",
+								className: AgentInspector_module_css_default.conversationClose,
+								onClick: onClose,
+								"aria-label": t("common.close"),
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, {})
+							})]
+						})]
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: AgentInspector_module_css_default.conversationBody,
+						children: transcriptError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: transcriptError }) : !transcriptReady ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(EmptyState, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, { size: "md" }), t("chat.loading")] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Transcript, {
+							navigation,
+							sessionId: entry.id,
+							cwd,
+							blank
+						})
+					})]
+				})]
+			});
+		}
+		/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
+		function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, onOpenFull }) {
 			const t = useT();
 			const list = useSessionList();
 			const session = useSessionSnapshot(entry.id);
@@ -13564,11 +13912,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const timing = useProjectionValue(entry.id, "subagentTiming");
 			const running = entry.activity === "running" || session?.running === true;
 			const duration = elapsedMs(timing, running ? "running" : "inactive", now);
-			const address = {
-				parentSessionId,
-				childSessionId: entry.id,
-				mode: entry.mode
-			};
 			(0, react.useEffect)(() => {
 				if (!running) return void 0;
 				const timer = window.setInterval(() => {
@@ -13578,12 +13921,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					window.clearInterval(timer);
 				};
 			}, [running]);
-			const openFull = (0, react.useCallback)(() => {
-				runtime.sessions.openSubagent(address);
-			}, [address, runtime]);
 			const log = (0, react.useMemo)(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry]);
 			const task = (0, react.useMemo)(() => childTask(chat?.legacy.nodes ?? [], entryLabel(entry)), [chat?.legacy.nodes, entry]);
 			const error = session?.lastAgentError;
+			const transcriptError = session?.openState === "error" ? session.openError?.message ?? t("common.error") : void 0;
+			const transcriptReady = session?.openState === "open" && chat !== void 0;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: AgentInspector_module_css_default.detail,
 				children: [
@@ -13631,9 +13973,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						role: "alert",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconWarningOutline16, {}), error]
 					}),
-					runtime.binding(entry.id) === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("agents.noTranscript") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: AgentInspector_module_css_default.childTranscript,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Transcript, {
+						children: transcriptError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: transcriptError }) : !transcriptReady ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(EmptyState, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, { size: "sm" }), t("chat.loading")] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Transcript, {
 							navigation,
 							sessionId: entry.id,
 							cwd,
@@ -13643,7 +13985,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 						primary: true,
-						onClick: openFull,
+						onClick: onOpenFull,
 						children: t("agents.openFull")
 					})
 				]
@@ -13656,8 +13998,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$17) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$15;
-			tag.textContent = css$16;
+			tag.dataset.pluginCss = tagId$17;
+			tag.textContent = css$18;
 			document.head.appendChild(tag);
 		}
 		var ClusterPanel_module_css_default = {
@@ -13673,7 +14015,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"memberList": "_Xg0Wq_memberList",
 			"memberMeta": "_Xg0Wq_memberMeta",
 			"memberName": "_Xg0Wq_memberName",
-			"memberPath": "_Xg0Wq_memberPath",
 			"memberRow": "_Xg0Wq_memberRow",
 			"ownerControl": "_Xg0Wq_ownerControl",
 			"primaryAction": "_Xg0Wq_primaryAction",
@@ -13697,7 +14038,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"taskList": "_Xg0Wq_taskList",
 			"taskMeta": "_Xg0Wq_taskMeta",
 			"taskStatus": "_Xg0Wq_taskStatus",
-			"verdict": "_Xg0Wq_verdict",
 			"warning": "_Xg0Wq_warning"
 		};
 		//#endregion
@@ -13875,10 +14215,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const view = loaded.value;
 			const members = view?.members ?? [];
 			const tasks = view?.tasks ?? [];
-			const gates = view?.gates ?? [];
 			const running = members.filter((member) => member.status === "running").length;
 			const completed = tasks.filter((task) => task.status === "completed").length;
-			const rows = memberTree(members, leadId);
+			const rows = memberTree(members);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: ClusterPanel_module_css_default.section,
 				"data-cluster-panel": true,
@@ -13919,20 +14258,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: ClusterPanel_module_css_default.summary,
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: members.length }),
-									" ",
-									t("cluster.members")
-								] }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("strong", { children: [
-										completed,
-										"/",
-										tasks.length
-									] }),
-									" ",
-									t("cluster.taskProgress")
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: members.length }),
+								" ",
+								t("cluster.members")
+							] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("strong", { children: [
+									completed,
+									"/",
+									tasks.length
 								] }),
 								" ",
 								t("cluster.taskProgress")
@@ -13952,63 +14286,127 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, { size: "sm" }),
 							" ",
 							t("cluster.loading")
-						] }) : view === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("cluster.empty") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-								className: ClusterPanel_module_css_default.subsection,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
+						] }) : view === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("cluster.empty") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: ClusterPanel_module_css_default.subsection,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
+								className: ClusterPanel_module_css_default.subsectionHeader,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.roster") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, { children: members.length })]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: ClusterPanel_module_css_default.memberList,
+								children: rows.map(({ member, depth }) => {
+									const canOpen = member.role !== "lead" && member.status !== "failed" && member.status !== "provisioning";
+									const role = member.role === "lead" ? t("cluster.roleLead") : t("cluster.roleTeammate");
+									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: ClusterPanel_module_css_default.memberRow,
+										style: { paddingLeft: `${8 + depth * 14}px` },
+										disabled: !canOpen,
+										onClick: () => {
+											openMember(member);
+										},
+										title: canOpen ? t("cluster.openMember") : void 0,
+										children: [
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: ClusterPanel_module_css_default.statusDot,
+												"data-status": member.status,
+												"aria-hidden": true
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+												className: ClusterPanel_module_css_default.memberCopy,
+												children: [
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: ClusterPanel_module_css_default.memberName,
+														children: member.name
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+														className: ClusterPanel_module_css_default.memberMeta,
+														children: [
+															role,
+															" · ",
+															t(memberStatusKey(member.status)),
+															member.model === void 0 ? "" : ` · ${member.model}`
+														]
+													}),
+													member.diagnostics.map((diagnostic) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: ClusterPanel_module_css_default.diagnostic,
+														children: diagnostic
+													}, diagnostic))
+												]
+											}),
+											canOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: ClusterPanel_module_css_default.rowChevron }) : null
+										]
+									}, member.id);
+								})
+							})]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: ClusterPanel_module_css_default.subsection,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: ClusterPanel_module_css_default.subsectionHeader,
 									children: [
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.tasks") }),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: ui.grow }),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 											type: "button",
-											className: ClusterPanel_module_css_default.memberRow,
-											style: { paddingLeft: `${8 + depth * 14}px` },
-											disabled: !canOpen,
+											className: ClusterPanel_module_css_default.addButton,
 											onClick: () => {
-												openMember(member);
+												setCreating((value) => !value);
 											},
-											title: canOpen ? t("cluster.openMember") : void 0,
 											children: [
 												/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, { size: 13 }),
 												" ",
 												t("cluster.addTask")
 											]
-										}, member.id);
-									})
-								})]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-								className: ClusterPanel_module_css_default.subsection,
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: ClusterPanel_module_css_default.subsectionHeader,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.tasks") }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: ui.grow }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												className: ClusterPanel_module_css_default.addButton,
-												onClick: () => {
-													setCreating((value) => !value);
-												},
-												children: [
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, { size: 13 }),
-													" ",
-													t("cluster.addTask")
-												]
-											})
-										]
-									}),
-									creating && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskForm, {
-										draft,
-										setDraft,
-										pending: busyTask === "create",
+										})
+									]
+								}),
+								creating && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskForm, {
+									draft,
+									setDraft,
+									pending: busyTask === "create",
+									onSave: (event) => {
+										createTask(event);
+									},
+									onCancel: () => {
+										setCreating(false);
+									},
+									t
+								}),
+								tasks.length === 0 && !creating && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("cluster.noTasks") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: ClusterPanel_module_css_default.taskList,
+									children: tasks.map((task) => editing === task.id ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskForm, {
+										draft: editDraft,
+										setDraft: setEditDraft,
+										pending: busyTask === task.id,
 										onSave: (event) => {
-											createTask(event);
+											event.preventDefault();
+											updateTask(task, {
+												action: "edit",
+												subject: editDraft.subject.trim(),
+												description: editDraft.description.trim(),
+												writeScopes: csvItems(editDraft.scopes)
+											}).then((updated) => {
+												if (updated !== void 0) setEditing(void 0);
+											});
 										},
 										onCancel: () => {
-											setCreating(false);
+											setEditing(void 0);
+										},
+										t,
+										editMode: true
+									}, task.id) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskCard, {
+										task,
+										assignable: members.filter((member) => member.status !== "failed" && member.status !== "provisioning"),
+										busy: busyTask === task.id,
+										onEdit: () => {
+											beginEdit(task);
+										},
+										onAction: (action, owner) => {
+											updateTask(task, {
+												action,
+												...owner === void 0 || owner === "" ? {} : { owner }
+											});
 										},
 										t
 									}, task.id))
@@ -14204,13 +14602,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\Aside.module.css.mjs
-		const css$15 = ".eKmfWW_aside{flex-direction:column;min-width:0;height:100%;display:flex;overflow:hidden}.eKmfWW_header{flex:none}.eKmfWW_headerClose{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.eKmfWW_headerClose:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.eKmfWW_headerClose:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.eKmfWW_headerTitle{flex:1;min-width:0}.eKmfWW_tabs{margin:0 var(--zx-space-3);padding:0 var(--zx-space-1);border-bottom:1px solid var(--zx-border-soft);flex:none;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:0;display:grid;position:relative}.eKmfWW_tab{z-index:1;min-width:0;height:var(--zx-control-sm);padding:0 var(--zx-space-1);border-radius:var(--zx-radius-sm) var(--zx-radius-sm) 0 0;color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;position:relative}.eKmfWW_tab:hover{background:var(--zx-bg-hover);color:var(--zx-label-secondary)}.eKmfWW_tabActive{color:var(--zx-label)}.eKmfWW_tabIndicator{z-index:2;border-radius:var(--zx-radius-pill) var(--zx-radius-pill) 0 0;background:var(--zx-accent);pointer-events:none;width:33.3333%;height:2px;transition:transform var(--zx-motion);position:absolute;bottom:-1px;left:0}.eKmfWW_body{min-height:0;padding:var(--zx-space-4) var(--zx-space-3) var(--zx-space-6);gap:var(--zx-space-6);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;flex-direction:column;flex:1;display:flex;overflow:hidden auto}.eKmfWW_reviewLayout{gap:var(--zx-space-3);grid-template-columns:minmax(150px,.42fr) minmax(0,1fr);min-height:0;display:grid}.eKmfWW_reviewLayout>:only-child{grid-column:1/-1}.eKmfWW_commandOutputSection{flex:1;min-height:0}.eKmfWW_commandList{gap:var(--zx-space-2);flex-direction:column;display:flex}.eKmfWW_commandEntry{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);overflow:hidden}.eKmfWW_commandEntry[data-status=failed]{border-color:color-mix(in srgb, var(--zx-error) 36%, var(--zx-border-soft))}.eKmfWW_commandEntryHead{align-items:stretch;min-width:0;display:flex}.eKmfWW_commandLocate{align-items:center;gap:var(--zx-space-2);min-width:0;padding:var(--zx-space-2) var(--zx-space-3);color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.eKmfWW_commandLocate:hover,.eKmfWW_commandExpand:hover{background:var(--zx-bg-hover)}.eKmfWW_commandLocate:focus-visible,.eKmfWW_commandExpand:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}.eKmfWW_commandStatusIcon{width:18px;color:var(--zx-success);flex:none;justify-content:center;align-items:center;display:inline-flex}.eKmfWW_commandEntry[data-status=failed] .eKmfWW_commandStatusIcon{color:var(--zx-error)}.eKmfWW_commandIdentity{flex-direction:column;gap:2px;min-width:0;display:flex}.eKmfWW_commandText,.eKmfWW_commandSummary{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.eKmfWW_commandText{color:var(--zx-label);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.eKmfWW_commandSummary{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro)}.eKmfWW_commandExpand{width:var(--zx-control-sm);color:var(--zx-label-tertiary);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;display:inline-flex}.eKmfWW_commandExpand svg{transition:transform var(--zx-motion)}.eKmfWW_commandChevronOpen{transform:rotate(90deg)}.eKmfWW_commandMeta{align-items:center;gap:var(--zx-space-2);padding:0 var(--zx-space-3) var(--zx-space-2) calc(var(--zx-space-3) + 26px);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex-wrap:wrap;display:flex}.eKmfWW_commandMeta>span+span:before{margin-right:var(--zx-space-2);color:var(--zx-label-decor);content:\"·\"}.eKmfWW_commandStatusText{color:var(--zx-success);font-weight:var(--zx-weight-medium)}.eKmfWW_commandEntry[data-status=running] .eKmfWW_commandStatusText{color:var(--zx-label-secondary)}.eKmfWW_commandEntry[data-status=failed] .eKmfWW_commandStatusText,.eKmfWW_commandFailedOutput{color:var(--zx-error)}.eKmfWW_commandBody{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);border-top:1px solid var(--zx-border-soft);flex-direction:column;display:flex}.eKmfWW_commandOutputHead{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);display:flex}@media (width<=620px){.eKmfWW_reviewLayout{grid-template-columns:1fr}}.eKmfWW_body::-webkit-scrollbar{width:var(--zx-scrollbar-size)}.eKmfWW_body::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.eKmfWW_section{gap:var(--zx-space-2);padding:var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-border-soft) 86%, transparent);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 62%, transparent);box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex}.eKmfWW_sectionHead{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);display:flex}.eKmfWW_goal{gap:var(--zx-space-3);padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);display:flex}.eKmfWW_goalText{min-width:0;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);color:var(--zx-label);overflow-wrap:anywhere;flex:1}.eKmfWW_goalMeta{margin-top:var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.eKmfWW_step{align-items:flex-start;gap:var(--zx-space-3);padding:var(--zx-space-1) 0;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);color:var(--zx-label-secondary);display:flex}.eKmfWW_stepDone{color:var(--zx-label-tertiary);text-decoration:line-through;text-decoration-color:var(--zx-border)}.eKmfWW_stepActive{color:var(--zx-label)}.eKmfWW_stepMark{color:var(--zx-label-decor);flex:none;margin-top:2px}.eKmfWW_stepMarkDone{color:var(--zx-success)}.eKmfWW_stepProgress,.eKmfWW_stepPending{border-radius:50%;width:12px;height:12px;margin:2px;display:block}.eKmfWW_stepProgress{border:1.5px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);border-top-color:var(--zx-accent);animation:.7s linear infinite eKmfWW_zx-step-spin}.eKmfWW_stepPending{border:1px solid var(--zx-label-tertiary)}@keyframes eKmfWW_zx-step-spin{to{transform:rotate(360deg)}}.eKmfWW_goalInput{box-sizing:border-box;width:100%;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-strong,var(--zx-border));border-radius:var(--zx-radius-sm,6px);background:var(--zx-surface-1,var(--zx-bg));color:var(--zx-label);font-family:inherit;font-size:var(--zx-text-sm);resize:vertical}.eKmfWW_goalActions{gap:var(--zx-space-2);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.eKmfWW_goalError{margin-top:var(--zx-space-2);color:var(--zx-error);font-size:var(--zx-text-micro)}@media (prefers-reduced-motion:reduce){.eKmfWW_tabIndicator,.eKmfWW_stepProgress,.eKmfWW_commandExpand svg{transition:none;animation:none}}";
-		const tagId$14 = "@dsh-portable/dcode-ui/Aside.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$14) + "]") === null) {
+		const css$17 = ".eKmfWW_aside{flex-direction:column;min-width:0;height:100%;display:flex;overflow:hidden}.eKmfWW_header{flex:none}.eKmfWW_headerClose{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.eKmfWW_headerClose:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.eKmfWW_headerClose:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.eKmfWW_headerTitle{flex:1;min-width:0}.eKmfWW_tabs{margin:0 var(--zx-space-3);padding:0 var(--zx-space-1);border-bottom:1px solid var(--zx-border-soft);flex:none;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:0;display:grid;position:relative}.eKmfWW_tab{z-index:1;min-width:0;height:var(--zx-control-sm);padding:0 var(--zx-space-1);border-radius:var(--zx-radius-sm) var(--zx-radius-sm) 0 0;color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;position:relative}.eKmfWW_tab:hover{background:var(--zx-bg-hover);color:var(--zx-label-secondary)}.eKmfWW_tabActive{color:var(--zx-label)}.eKmfWW_tabIndicator{z-index:2;border-radius:var(--zx-radius-pill) var(--zx-radius-pill) 0 0;background:var(--zx-accent);pointer-events:none;width:33.3333%;height:2px;transition:transform var(--zx-motion);position:absolute;bottom:-1px;left:0}.eKmfWW_body{min-height:0;padding:var(--zx-space-4) var(--zx-space-3) var(--zx-space-6);gap:var(--zx-space-6);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;flex-direction:column;flex:1;display:flex;overflow:hidden auto}.eKmfWW_reviewLayout{gap:var(--zx-space-3);grid-template-columns:minmax(150px,.42fr) minmax(0,1fr);min-height:0;display:grid}.eKmfWW_reviewLayout>:only-child{grid-column:1/-1}.eKmfWW_commandOutputSection{flex:1;min-height:0}.eKmfWW_commandList{gap:var(--zx-space-2);flex-direction:column;display:flex}.eKmfWW_commandEntry{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);overflow:hidden}.eKmfWW_commandEntry[data-status=failed]{border-color:color-mix(in srgb, var(--zx-error) 36%, var(--zx-border-soft))}.eKmfWW_commandEntryHead{align-items:stretch;min-width:0;display:flex}.eKmfWW_commandLocate{align-items:center;gap:var(--zx-space-2);min-width:0;padding:var(--zx-space-2) var(--zx-space-3);color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}.eKmfWW_commandLocate:hover,.eKmfWW_commandExpand:hover{background:var(--zx-bg-hover)}.eKmfWW_commandLocate:focus-visible,.eKmfWW_commandExpand:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}.eKmfWW_commandStatusIcon{width:18px;color:var(--zx-success);flex:none;justify-content:center;align-items:center;display:inline-flex}.eKmfWW_commandEntry[data-status=failed] .eKmfWW_commandStatusIcon{color:var(--zx-error)}.eKmfWW_commandIdentity{flex-direction:column;gap:2px;min-width:0;display:flex}.eKmfWW_commandText,.eKmfWW_commandSummary{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.eKmfWW_commandText{color:var(--zx-label);font-family:var(--zx-font-mono);font-size:var(--zx-text-xs)}.eKmfWW_commandSummary{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro)}.eKmfWW_commandExpand{width:var(--zx-control-sm);color:var(--zx-label-tertiary);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;display:inline-flex}.eKmfWW_commandExpand svg{transition:transform var(--zx-motion)}.eKmfWW_commandChevronOpen{transform:rotate(90deg)}.eKmfWW_commandMeta{align-items:center;gap:var(--zx-space-2);padding:0 var(--zx-space-3) var(--zx-space-2) calc(var(--zx-space-3) + 26px);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex-wrap:wrap;display:flex}.eKmfWW_commandMeta>span+span:before{margin-right:var(--zx-space-2);color:var(--zx-label-decor);content:\"·\"}.eKmfWW_commandStatusText{color:var(--zx-success);font-weight:var(--zx-weight-medium)}.eKmfWW_commandEntry[data-status=running] .eKmfWW_commandStatusText{color:var(--zx-label-secondary)}.eKmfWW_commandEntry[data-status=failed] .eKmfWW_commandStatusText,.eKmfWW_commandFailedOutput{color:var(--zx-error)}.eKmfWW_commandBody{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3) var(--zx-space-3);border-top:1px solid var(--zx-border-soft);flex-direction:column;display:flex}.eKmfWW_commandOutputHead{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);display:flex}@media (width<=620px){.eKmfWW_reviewLayout{grid-template-columns:1fr}}.eKmfWW_body::-webkit-scrollbar{width:var(--zx-scrollbar-size)}.eKmfWW_body::-webkit-scrollbar-thumb{background:var(--zx-border);border-radius:var(--zx-radius-pill);background-clip:padding-box;border:3px solid #0000}.eKmfWW_section{gap:var(--zx-space-2);padding:var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-border-soft) 86%, transparent);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 62%, transparent);box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex}.eKmfWW_sectionHead{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);display:flex}.eKmfWW_goal{gap:var(--zx-space-3);padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);display:flex}.eKmfWW_goalText{min-width:0;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);color:var(--zx-label);overflow-wrap:anywhere;flex:1}.eKmfWW_goalMeta{margin-top:var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums}.eKmfWW_step{align-items:flex-start;gap:var(--zx-space-3);padding:var(--zx-space-1) 0;font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);color:var(--zx-label-secondary);display:flex}.eKmfWW_stepDone{color:var(--zx-label-tertiary);text-decoration:line-through;text-decoration-color:var(--zx-border)}.eKmfWW_stepActive{color:var(--zx-label)}.eKmfWW_stepMark{color:var(--zx-label-decor);flex:none;margin-top:2px}.eKmfWW_stepMarkDone{color:var(--zx-success)}.eKmfWW_stepProgress,.eKmfWW_stepPending{border-radius:50%;width:12px;height:12px;margin:2px;display:block}.eKmfWW_stepProgress{border:1.5px solid color-mix(in srgb, var(--zx-accent) 28%, transparent);border-top-color:var(--zx-accent);animation:.7s linear infinite eKmfWW_zx-step-spin}.eKmfWW_stepPending{border:1px solid var(--zx-label-tertiary)}@keyframes eKmfWW_zx-step-spin{to{transform:rotate(360deg)}}.eKmfWW_goalInput{box-sizing:border-box;width:100%;padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-strong,var(--zx-border));border-radius:var(--zx-radius-sm,6px);background:var(--zx-surface-1,var(--zx-bg));color:var(--zx-label);font-family:inherit;font-size:var(--zx-text-sm);resize:vertical}.eKmfWW_goalActions{gap:var(--zx-space-2);margin-top:var(--zx-space-2);flex-wrap:wrap;display:flex}.eKmfWW_goalError{margin-top:var(--zx-space-2);color:var(--zx-error);font-size:var(--zx-text-micro)}@media (prefers-reduced-motion:reduce){.eKmfWW_tabIndicator,.eKmfWW_stepProgress,.eKmfWW_commandExpand svg{transition:none;animation:none}}";
+		const tagId$16 = "@dsh-portable/dcode-ui/Aside.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$16) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$14;
-			tag.textContent = css$15;
+			tag.dataset.pluginCss = tagId$16;
+			tag.textContent = css$17;
 			document.head.appendChild(tag);
 		}
 		var Aside_module_css_default = {
@@ -14650,7 +15048,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			});
 		}
 		/** The docked preview sidebar with its content views. */
-		function Aside({ navigation, sessionId, cwd, context }) {
+		function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConversation }) {
 			const runtime = useRuntime();
 			const t = useT();
 			const state = useNavigation(navigation);
@@ -14776,6 +15174,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								navigation,
 								onBack: () => {
 									setSelectedSubagent(void 0);
+								},
+								onOpenFull: () => {
+									onOpenSubagentConversation(sessionId, selectedSubagent);
 								}
 							}) : null
 						]
@@ -14785,13 +15186,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\SummaryCard.module.css.mjs
-		const css$14 = ".X_PnOW_card{--summary-trigger-offset:30px;z-index:var(--zx-z-popover);top:calc(var(--zx-topbar-height) + var(--zx-space-2));right:calc(var(--zx-space-4) + var(--summary-trigger-offset));width:min(320px, calc(100% - var(--zx-space-4) * 2 - var(--summary-trigger-offset)));max-width:calc(100vw - var(--zx-space-4) * 2);max-height:calc(100% - var(--zx-topbar-height) - var(--zx-space-5));box-sizing:border-box;border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:color-mix(in srgb, var(--zx-bg-card) 94%, transparent);box-shadow:var(--zx-shadow-panel), inset 0 1px 0 color-mix(in srgb, var(--zx-label) 7%, transparent);backdrop-filter:blur(20px)saturate(130%);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;animation:X_PnOW_cardIn var(--zx-motion-fast) ease-out;flex-direction:column;display:flex;position:absolute;overflow:hidden auto}.X_PnOW_card::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.X_PnOW_card::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}@keyframes X_PnOW_cardIn{0%{opacity:0;transform:translateY(-6px)}}[data-dcode-layout=compact] .X_PnOW_card{width:auto;max-width:none;max-height:min(72dvh, calc(100% - var(--zx-topbar-height) - var(--zx-space-4)));padding-bottom:env(safe-area-inset-bottom,0px);border-radius:var(--zx-radius-2xl) var(--zx-radius-2xl) 0 0;border-bottom:0;border-left:0;border-right:0;animation-name:X_PnOW_sheetIn;inset:auto 0 0}@keyframes X_PnOW_sheetIn{0%{opacity:0;transform:translateY(24px)}}.X_PnOW_header{flex:none}.X_PnOW_title{flex:1;min-width:0}.X_PnOW_close{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.X_PnOW_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.X_PnOW_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rows{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.X_PnOW_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_rowAction{cursor:pointer}.X_PnOW_rowAction:hover{background:var(--zx-bg-hover)}.X_PnOW_rowAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rowIcon{color:var(--zx-label-muted);flex:none;display:inline-flex}.X_PnOW_rowLabel{color:var(--zx-label);flex:none}.X_PnOW_rowValue{align-items:center;gap:var(--zx-space-2);min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);flex:1;justify-content:flex-end;display:flex}.X_PnOW_rowChevron{color:var(--zx-label-tertiary);flex:none;display:inline-flex}.X_PnOW_truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_counts{gap:var(--zx-space-2);font-variant-numeric:tabular-nums;display:inline-flex}.X_PnOW_added{color:var(--zx-success)}.X_PnOW_removed{color:var(--zx-error)}.X_PnOW_muted{color:var(--zx-label-muted)}.X_PnOW_empty{padding:0 var(--zx-space-4) var(--zx-space-4);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);margin:0}.X_PnOW_trace{margin:0 var(--zx-space-2) var(--zx-space-2);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-soft)}.X_PnOW_traceHeader{align-items:center;gap:var(--zx-space-2);min-width:0;padding:0 var(--zx-space-2) var(--zx-space-1);color:var(--zx-label-muted);font-size:var(--zx-text-micro);display:flex}.X_PnOW_traceTitle{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-weight:var(--zx-weight-semibold);flex:none;display:inline-flex}.X_PnOW_traceStats{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.X_PnOW_traceList{flex-direction:column;gap:1px;max-height:180px;margin:0;padding:0;list-style:none;display:flex;overflow:hidden auto}.X_PnOW_traceItem{min-width:0}.X_PnOW_traceRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;padding:4px var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_traceDot{background:var(--zx-label-tertiary);border-radius:50%;flex:0 0 5px;width:5px;height:5px}.X_PnOW_traceItem[data-status=running] .X_PnOW_traceDot{background:var(--zx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent)}.X_PnOW_traceItem[data-status=done] .X_PnOW_traceDot{background:var(--zx-success)}.X_PnOW_traceItem[data-status=failed] .X_PnOW_traceDot{background:var(--zx-error)}.X_PnOW_traceLabel{min-width:0;color:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_traceDetail{max-width:42%;color:var(--zx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;flex:none;overflow:hidden}@media (prefers-reduced-motion:reduce){.X_PnOW_card{animation:none}}";
-		const tagId$13 = "@dsh-portable/dcode-ui/SummaryCard.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$13) + "]") === null) {
+		const css$16 = ".X_PnOW_card{--summary-trigger-offset:30px;z-index:var(--zx-z-popover);top:calc(var(--zx-topbar-height) + var(--zx-space-2));right:calc(var(--zx-space-4) + var(--summary-trigger-offset));width:min(320px, calc(100% - var(--zx-space-4) * 2 - var(--summary-trigger-offset)));max-width:calc(100vw - var(--zx-space-4) * 2);max-height:calc(100% - var(--zx-topbar-height) - var(--zx-space-5));box-sizing:border-box;border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-xl);background:color-mix(in srgb, var(--zx-bg-card) 94%, transparent);box-shadow:var(--zx-shadow-panel), inset 0 1px 0 color-mix(in srgb, var(--zx-label) 7%, transparent);backdrop-filter:blur(20px)saturate(130%);scrollbar-width:thin;scrollbar-color:var(--zx-border) transparent;animation:X_PnOW_cardIn var(--zx-motion-fast) ease-out;flex-direction:column;display:flex;position:absolute;overflow:hidden auto}.X_PnOW_card::-webkit-scrollbar{width:var(--zx-scrollbar-size);height:var(--zx-scrollbar-size)}.X_PnOW_card::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:var(--zx-border);background-clip:padding-box;border:2px solid #0000}@keyframes X_PnOW_cardIn{0%{opacity:0;transform:translateY(-6px)}}[data-dcode-layout=compact] .X_PnOW_card{width:auto;max-width:none;max-height:min(72dvh, calc(100% - var(--zx-topbar-height) - var(--zx-space-4)));padding-bottom:env(safe-area-inset-bottom,0px);border-radius:var(--zx-radius-2xl) var(--zx-radius-2xl) 0 0;border-bottom:0;border-left:0;border-right:0;animation-name:X_PnOW_sheetIn;inset:auto 0 0}@keyframes X_PnOW_sheetIn{0%{opacity:0;transform:translateY(24px)}}.X_PnOW_header{flex:none}.X_PnOW_title{flex:1;min-width:0}.X_PnOW_close{width:26px;height:var(--zx-control-xs);border-radius:var(--zx-radius-md);color:var(--zx-label-muted);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.X_PnOW_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.X_PnOW_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rows{padding:0 var(--zx-space-2) var(--zx-space-2);flex-direction:column;display:flex}.X_PnOW_row{align-items:center;gap:var(--zx-space-3);width:100%;min-height:var(--zx-control-lg);padding:0 var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_rowAction{cursor:pointer}.X_PnOW_rowAction:hover{background:var(--zx-bg-hover)}.X_PnOW_rowAction:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.X_PnOW_rowIcon{color:var(--zx-label-muted);flex:none;display:inline-flex}.X_PnOW_rowLabel{color:var(--zx-label);flex:none}.X_PnOW_rowValue{align-items:center;gap:var(--zx-space-2);min-width:0;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);flex:1;justify-content:flex-end;display:flex}.X_PnOW_rowChevron{color:var(--zx-label-tertiary);flex:none;display:inline-flex}.X_PnOW_truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_counts{gap:var(--zx-space-2);font-variant-numeric:tabular-nums;display:inline-flex}.X_PnOW_added{color:var(--zx-success)}.X_PnOW_removed{color:var(--zx-error)}.X_PnOW_muted{color:var(--zx-label-muted)}.X_PnOW_empty{padding:0 var(--zx-space-4) var(--zx-space-4);color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);margin:0}.X_PnOW_trace{margin:0 var(--zx-space-2) var(--zx-space-2);padding-top:var(--zx-space-2);border-top:1px solid var(--zx-border-soft)}.X_PnOW_traceHeader{align-items:center;gap:var(--zx-space-2);min-width:0;padding:0 var(--zx-space-2) var(--zx-space-1);color:var(--zx-label-muted);font-size:var(--zx-text-micro);display:flex}.X_PnOW_traceTitle{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-secondary);font-weight:var(--zx-weight-semibold);flex:none;display:inline-flex}.X_PnOW_traceStats{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.X_PnOW_traceList{flex-direction:column;gap:1px;max-height:180px;margin:0;padding:0;list-style:none;display:flex;overflow:hidden auto}.X_PnOW_traceItem{min-width:0}.X_PnOW_traceRow{align-items:center;gap:var(--zx-space-2);width:100%;min-width:0;padding:4px var(--zx-space-2);border-radius:var(--zx-radius-sm);color:var(--zx-label-muted);font:inherit;font-size:var(--zx-text-micro);text-align:left;box-sizing:border-box;background:0 0;border:0;display:flex}.X_PnOW_traceDot{background:var(--zx-label-tertiary);border-radius:50%;flex:0 0 5px;width:5px;height:5px}.X_PnOW_traceItem[data-status=running] .X_PnOW_traceDot{background:var(--zx-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--zx-accent) 16%, transparent)}.X_PnOW_traceItem[data-status=done] .X_PnOW_traceDot{background:var(--zx-success)}.X_PnOW_traceItem[data-status=failed] .X_PnOW_traceDot{background:var(--zx-error)}.X_PnOW_traceLabel{min-width:0;color:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.X_PnOW_traceDetail{max-width:42%;color:var(--zx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;flex:none;overflow:hidden}@media (prefers-reduced-motion:reduce){.X_PnOW_card{animation:none}}";
+		const tagId$15 = "@dsh-portable/dcode-ui/SummaryCard.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$15) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$13;
-			tag.textContent = css$14;
+			tag.dataset.pluginCss = tagId$15;
+			tag.textContent = css$16;
 			document.head.appendChild(tag);
 		}
 		var SummaryCard_module_css_default = {
@@ -15157,14 +15558,180 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			});
 		}
 		//#endregion
-		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ModelSelect.module.css.mjs
-		const css$13 = "._04Uq0W_root{min-width:0;position:relative}._04Uq0W_trigger{border-radius:var(--zx-radius-pill,24px);min-width:0;max-width:min(360px,45cqw);height:28px;color:var(--dsw-alias-label-secondary,var(--zx-label-secondary));cursor:pointer;transition:background var(--zx-motion-fast,.12s ease), color var(--zx-motion-fast,.12s ease);background:0 0;border:none;outline:none;align-items:center;gap:4px;padding:0 4px 0 8px;font-size:13px;font-weight:500;line-height:20px;display:flex}._04Uq0W_trigger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_trigger:focus-visible{box-shadow:0 0 0 2px var(--dsw-alias-border-l3,var(--zx-border-control))}._04Uq0W_trigger:disabled{color:var(--dsw-alias-label-dimmed,var(--zx-label-tertiary));cursor:default}._04Uq0W_triggerLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--dsw-alias-label-primary,var(--zx-label));overflow:hidden}._04Uq0W_triggerEffort{color:var(--dsw-alias-label-caption,var(--zx-label-tertiary));flex:none}._04Uq0W_chevron{color:var(--dsw-alias-label-caption,var(--zx-label-muted));flex:none;transition:transform .12s}._04Uq0W_chevronOpen{transform:rotate(180deg)}._04Uq0W_menu{z-index:20;border:1px solid var(--dsw-alias-border-inverted,var(--zx-border));background:var(--dsw-specific-menu,var(--zx-bg-overlay));width:max-content;min-width:min(240px,100vw - 32px);max-width:min(420px,100vw - 32px);max-height:min(360px,100vh - 96px);box-shadow:var(--dsw-shadow-lv3,var(--zx-shadow-popover));color:var(--dsw-alias-label-primary,var(--zx-label));backdrop-filter:var(--zx-glass-filter,blur(18px));--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2,var(--zx-bg-surface-elevated));--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2,var(--zx-bg-hover));border-radius:12px;flex-direction:column;padding:4px;animation:.15s cubic-bezier(.2,.8,.2,1) _04Uq0W_menuIn;display:flex;position:absolute;bottom:calc(100% + 8px);right:0;overflow:hidden}@keyframes _04Uq0W_menuIn{0%{opacity:0;transform:translateY(4px)scale(.99)}to{opacity:1;transform:translateY(0)scale(1)}}._04Uq0W_status,._04Uq0W_empty{color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));padding:10px;font-size:13px;line-height:20px}._04Uq0W_error,._04Uq0W_warning{background:var(--dsw-alias-interactive-bg-hover-danger,color-mix(in srgb, var(--zx-error,#f43f5e) 15%, transparent));color:var(--dsw-alias-state-error-primary,var(--zx-error,#f43f5e));border-radius:8px;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;padding:7px 8px;font-size:12px;line-height:18px;display:flex}._04Uq0W_warning{background:var(--dsw-alias-bg-module-platform,color-mix(in srgb, var(--zx-warn,#eab308) 15%, transparent));color:var(--dsw-alias-state-warn-label,var(--zx-warn,#eab308))}._04Uq0W_retry{color:inherit;font:inherit;cursor:pointer;background:0 0;border:none;flex:none;padding:0;font-weight:600}._04Uq0W_groups{min-height:0;overflow-y:auto}._04Uq0W_group+._04Uq0W_group{margin-top:4px}._04Uq0W_groupTitle{z-index:1;background:var(--dsw-specific-menu,var(--zx-bg-overlay));color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));padding:5px 8px 3px;font-size:12px;font-weight:500;line-height:18px;position:sticky;top:0}._04Uq0W_option{box-sizing:border-box;width:auto;min-width:100%;min-height:38px;color:inherit;text-align:left;cursor:pointer;background:0 0;border:none;border-radius:10px;outline:none;align-items:center;gap:8px;padding:6px 8px;display:flex}._04Uq0W_option:hover:not(:disabled),._04Uq0W_option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_selected{background:0 0}._04Uq0W_option:disabled{color:var(--dsw-alias-label-dimmed,var(--zx-label-tertiary));cursor:default}._04Uq0W_optionCopy{flex-direction:column;flex:1;min-width:0;display:flex}._04Uq0W_modelName{color:inherit;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:500;line-height:20px;overflow:hidden}._04Uq0W_check{color:var(--dsw-alias-label-primary,var(--zx-label));flex:0 0 18px;place-items:center;display:grid}._04Uq0W_cell{box-sizing:border-box;width:auto;min-width:100%;height:40px;color:var(--dsw-alias-label-primary,var(--zx-label));cursor:pointer;text-align:left;background:0 0;border:none;border-radius:10px;align-items:center;gap:8px;padding:0 10px;font-size:14px;line-height:22px;display:flex}._04Uq0W_cell:hover{background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_cellLabel{white-space:nowrap;flex:none}._04Uq0W_cellValue{text-overflow:ellipsis;white-space:nowrap;text-align:right;min-width:0;color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));flex:auto;overflow:hidden}._04Uq0W_cellChevron{color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));flex:none}";
-		const tagId$12 = "@dsh-portable/dcode-ui/ModelSelect.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$12) + "]") === null) {
+		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ContextMeter.module.css.mjs
+		const css$15 = ".l88znq_root{display:inline-flex;position:relative}.l88znq_trigger{width:var(--zx-control-sm);height:var(--zx-control-sm);border-radius:var(--zx-radius-pill);color:var(--zx-label-secondary);cursor:pointer;background:0 0;border:0;place-items:center;padding:0;display:grid}.l88znq_trigger:hover{background:var(--zx-bg-hover)}.l88znq_trigger:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.l88znq_track,.l88znq_fill{fill:none;stroke-width:2px}.l88znq_track{stroke:var(--zx-border)}.l88znq_fill{stroke:var(--zx-label-secondary);stroke-linecap:round}.l88znq_panel{right:0;bottom:calc(100% + var(--zx-space-2));z-index:var(--zx-z-popover);width:min(264px, calc(100vw - var(--zx-space-4) * 2));max-width:calc(100vw - var(--zx-space-4) * 2);max-height:calc(100dvh - var(--zx-space-4) * 2);box-sizing:border-box;padding:var(--zx-space-4);border:1px solid var(--zx-border);border-radius:var(--zx-radius-lg);background:var(--zx-bg-overlay);box-shadow:var(--zx-shadow-popover);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);position:absolute;overflow:hidden auto}.l88znq_header,.l88znq_row{align-items:center;gap:var(--zx-space-2);display:flex}.l88znq_header b{color:var(--zx-label);font-weight:var(--zx-weight-medium)}.l88znq_figures{color:var(--zx-label);font-variant-numeric:tabular-nums;margin-left:auto}.l88znq_bar{height:4px;margin:var(--zx-space-3) 0;border-radius:var(--zx-radius-pill);background:var(--zx-bg-hover);gap:1px;display:flex;overflow:hidden}.l88znq_segment{background:var(--zx-label-secondary);min-width:2px;height:100%}.l88znq_system,.l88znq_swatch.l88znq_system{background:#8b9bb8}.l88znq_tools,.l88znq_swatch.l88znq_tools{background:#a78bfa}.l88znq_messages,.l88znq_swatch.l88znq_messages{background:#5aa7ff}.l88znq_rows{margin:0}.l88znq_row{justify-content:space-between;padding:2px 0}.l88znq_row dt,.l88znq_row dd{margin:0}.l88znq_swatch{width:8px;height:8px;margin-right:var(--zx-space-2);vertical-align:baseline;border-radius:2px;display:inline-block}.l88znq_row dd{color:var(--zx-label);font-variant-numeric:tabular-nums}";
+		const tagId$14 = "@dsh-portable/dcode-ui/ContextMeter.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$14) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
-			tag.dataset.pluginCss = tagId$12;
-			tag.textContent = css$13;
+			tag.dataset.pluginCss = tagId$14;
+			tag.textContent = css$15;
+			document.head.appendChild(tag);
+		}
+		var ContextMeter_module_css_default = {
+			"bar": "l88znq_bar",
+			"figures": "l88znq_figures",
+			"fill": "l88znq_fill",
+			"header": "l88znq_header",
+			"messages": "l88znq_messages",
+			"panel": "l88znq_panel",
+			"root": "l88znq_root",
+			"row": "l88znq_row",
+			"rows": "l88znq_rows",
+			"segment": "l88znq_segment",
+			"swatch": "l88znq_swatch",
+			"system": "l88znq_system",
+			"tools": "l88znq_tools",
+			"track": "l88znq_track",
+			"trigger": "l88znq_trigger"
+		};
+		//#endregion
+		//#region src/client/shell/ContextMeter.tsx
+		function formatTokens$1(value) {
+			if (value < 1e3) return String(Math.round(value));
+			if (value < 1e6) return `${String(Math.round(value / 100) / 10)}K`;
+			return `${String(Math.round(value / 1e5) / 10)}M`;
+		}
+		/** Compact context usage affordance beside the composer send control. */
+		function ContextMeter({ sessionId }) {
+			const t = useT();
+			const pressure = useProjectionValue(sessionId, "contextPressure");
+			const breakdown = useProjectionValue(sessionId, "contextBreakdown");
+			const [open, setOpen] = (0, react.useState)(false);
+			const rootRef = (0, react.useRef)(null);
+			const panelRef = (0, react.useRef)(null);
+			const panelId = (0, react.useId)();
+			const titleId = (0, react.useId)();
+			const used = pressure?.projectedTokens ?? pressure?.pressureTokens;
+			const capacity = pressure?.contextWindow;
+			const percent = used === void 0 || capacity === void 0 || capacity <= 0 ? void 0 : Math.min(100, Math.round(used / capacity * 100));
+			useModalFocus(open, panelRef, { onClose: () => {
+				setOpen(false);
+			} });
+			(0, react.useEffect)(() => {
+				if (!open) return void 0;
+				const onPointerDown = (event) => {
+					if (event.target instanceof Node && rootRef.current?.contains(event.target) === true) return;
+					setOpen(false);
+				};
+				document.addEventListener("pointerdown", onPointerDown);
+				return () => {
+					document.removeEventListener("pointerdown", onPointerDown);
+				};
+			}, [open]);
+			(0, react.useEffect)(() => {
+				if (percent === void 0 && open) setOpen(false);
+			}, [open, percent]);
+			if (percent === void 0 || used === void 0 || capacity === void 0) return null;
+			const label = t("context.aria", { percent: `${String(percent)}%` });
+			const totalBreakdown = breakdown === void 0 ? 0 : breakdown.systemTokens + breakdown.toolsTokens + breakdown.messageTokens;
+			const rows = breakdown === void 0 || totalBreakdown === 0 ? [] : [
+				{
+					key: "context.system",
+					value: breakdown.systemTokens,
+					className: ContextMeter_module_css_default.system
+				},
+				{
+					key: "context.tools",
+					value: breakdown.toolsTokens,
+					className: ContextMeter_module_css_default.tools
+				},
+				{
+					key: "context.messages",
+					value: breakdown.messageTokens,
+					className: ContextMeter_module_css_default.messages
+				}
+			];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				ref: rootRef,
+				className: ContextMeter_module_css_default.root,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: ContextMeter_module_css_default.trigger,
+					"aria-label": label,
+					"aria-haspopup": "dialog",
+					"aria-expanded": open,
+					"aria-controls": open ? panelId : void 0,
+					onClick: () => {
+						setOpen((value) => !value);
+					},
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+						viewBox: "0 0 14 14",
+						width: "14",
+						height: "14",
+						"aria-hidden": true,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+							className: ContextMeter_module_css_default.track,
+							cx: "7",
+							cy: "7",
+							r: "5.5"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+							className: ContextMeter_module_css_default.fill,
+							cx: "7",
+							cy: "7",
+							r: "5.5",
+							strokeDasharray: `${String(2 * Math.PI * 5.5 * percent / 100)} ${String(2 * Math.PI * 5.5)}`,
+							transform: "rotate(-90 7 7)"
+						})]
+					})
+				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					ref: panelRef,
+					id: panelId,
+					className: ContextMeter_module_css_default.panel,
+					role: "dialog",
+					"aria-modal": "true",
+					"aria-labelledby": titleId,
+					tabIndex: -1,
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: ContextMeter_module_css_default.header,
+							id: titleId,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("context.used") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("b", { children: [percent, "%"] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: ContextMeter_module_css_default.figures,
+									children: t("context.tokens", {
+										used: formatTokens$1(used),
+										total: formatTokens$1(capacity)
+									})
+								})
+							]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: ContextMeter_module_css_default.bar,
+							"aria-hidden": true,
+							children: rows.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: ContextMeter_module_css_default.segment,
+								style: { width: `${String(percent)}%` }
+							}) : rows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: `${ContextMeter_module_css_default.segment} ${row.className}`,
+								style: { width: `${String(percent * row.value / totalBreakdown)}%` }
+							}, row.key))
+						}),
+						rows.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("dl", {
+							className: ContextMeter_module_css_default.rows,
+							children: rows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: ContextMeter_module_css_default.row,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dt", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: `${ContextMeter_module_css_default.swatch} ${row.className}`,
+									"aria-hidden": true
+								}), t(row.key)] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("dd", { children: ["~", formatTokens$1(row.value)] })]
+							}, row.key))
+						})
+					]
+				}) : null]
+			});
+		}
+		//#endregion
+		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ModelSelect.module.css.mjs
+		const css$14 = "._04Uq0W_root{min-width:0;position:relative}._04Uq0W_trigger{border-radius:var(--zx-radius-pill,24px);min-width:0;max-width:min(360px,45cqw);height:28px;color:var(--dsw-alias-label-secondary,var(--zx-label-secondary));cursor:pointer;transition:background var(--zx-motion-fast,.12s ease), color var(--zx-motion-fast,.12s ease);background:0 0;border:none;outline:none;align-items:center;gap:4px;padding:0 4px 0 8px;font-size:13px;font-weight:500;line-height:20px;display:flex}._04Uq0W_trigger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_trigger:focus-visible{box-shadow:0 0 0 2px var(--dsw-alias-border-l3,var(--zx-border-control))}._04Uq0W_trigger:disabled{color:var(--dsw-alias-label-dimmed,var(--zx-label-tertiary));cursor:default}._04Uq0W_triggerLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--dsw-alias-label-primary,var(--zx-label));overflow:hidden}._04Uq0W_triggerEffort{color:var(--dsw-alias-label-caption,var(--zx-label-tertiary));flex:none}._04Uq0W_chevron{color:var(--dsw-alias-label-caption,var(--zx-label-muted));flex:none;transition:transform .12s}._04Uq0W_chevronOpen{transform:rotate(180deg)}._04Uq0W_menu{z-index:20;border:1px solid var(--dsw-alias-border-inverted,var(--zx-border));background:var(--dsw-specific-menu,var(--zx-bg-overlay));width:max-content;min-width:min(240px,100vw - 32px);max-width:min(420px,100vw - 32px);max-height:min(360px,100vh - 96px);box-shadow:var(--dsw-shadow-lv3,var(--zx-shadow-popover));color:var(--dsw-alias-label-primary,var(--zx-label));backdrop-filter:var(--zx-glass-filter,blur(18px));--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2,var(--zx-bg-surface-elevated));--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2,var(--zx-bg-hover));border-radius:12px;flex-direction:column;padding:4px;animation:.15s cubic-bezier(.2,.8,.2,1) _04Uq0W_menuIn;display:flex;position:absolute;bottom:calc(100% + 8px);right:0;overflow:hidden}@keyframes _04Uq0W_menuIn{0%{opacity:0;transform:translateY(4px)scale(.99)}to{opacity:1;transform:translateY(0)scale(1)}}._04Uq0W_status,._04Uq0W_empty{color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));padding:10px;font-size:13px;line-height:20px}._04Uq0W_error,._04Uq0W_warning{background:var(--dsw-alias-interactive-bg-hover-danger,color-mix(in srgb, var(--zx-error,#f43f5e) 15%, transparent));color:var(--dsw-alias-state-error-primary,var(--zx-error,#f43f5e));border-radius:8px;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;padding:7px 8px;font-size:12px;line-height:18px;display:flex}._04Uq0W_warning{background:var(--dsw-alias-bg-module-platform,color-mix(in srgb, var(--zx-warn,#eab308) 15%, transparent));color:var(--dsw-alias-state-warn-label,var(--zx-warn,#eab308))}._04Uq0W_retry{color:inherit;font:inherit;cursor:pointer;background:0 0;border:none;flex:none;padding:0;font-weight:600}._04Uq0W_groups{min-height:0;overflow-y:auto}._04Uq0W_group+._04Uq0W_group{margin-top:4px}._04Uq0W_groupTitle{z-index:1;background:var(--dsw-specific-menu,var(--zx-bg-overlay));color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));padding:5px 8px 3px;font-size:12px;font-weight:500;line-height:18px;position:sticky;top:0}._04Uq0W_option{box-sizing:border-box;width:auto;min-width:100%;min-height:38px;color:inherit;text-align:left;cursor:pointer;background:0 0;border:none;border-radius:10px;outline:none;align-items:center;gap:8px;padding:6px 8px;display:flex}._04Uq0W_option:hover:not(:disabled),._04Uq0W_option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_selected{background:0 0}._04Uq0W_option:disabled{color:var(--dsw-alias-label-dimmed,var(--zx-label-tertiary));cursor:default}._04Uq0W_optionCopy{flex-direction:column;flex:1;min-width:0;display:flex}._04Uq0W_modelName{color:inherit;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:500;line-height:20px;overflow:hidden}._04Uq0W_check{color:var(--dsw-alias-label-primary,var(--zx-label));flex:0 0 18px;place-items:center;display:grid}._04Uq0W_cell{box-sizing:border-box;width:auto;min-width:100%;height:40px;color:var(--dsw-alias-label-primary,var(--zx-label));cursor:pointer;text-align:left;background:0 0;border:none;border-radius:10px;align-items:center;gap:8px;padding:0 10px;font-size:14px;line-height:22px;display:flex}._04Uq0W_cell:hover{background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}._04Uq0W_cellLabel{white-space:nowrap;flex:none}._04Uq0W_cellValue{text-overflow:ellipsis;white-space:nowrap;text-align:right;min-width:0;color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));flex:auto;overflow:hidden}._04Uq0W_cellChevron{color:var(--dsw-alias-label-tertiary,var(--zx-label-tertiary));flex:none}";
+		const tagId$13 = "@dsh-portable/dcode-ui/ModelSelect.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$13) + "]") === null) {
+			const tag = document.createElement("style");
+			tag.dataset.plugin = "@dsh-portable/dcode-ui";
+			tag.dataset.pluginCss = tagId$13;
+			tag.textContent = css$14;
 			document.head.appendChild(tag);
 		}
 		var ModelSelect_module_css_default = {
@@ -15540,6 +16107,166 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			});
 		});
 		//#endregion
+		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\SessionStatsLine.module.css.mjs
+		const css$13 = ".EaWfGW_root{width:min(var(--zx-reading-width), 100%);box-sizing:border-box;max-width:100%;padding:var(--zx-space-1) var(--zx-space-4) 0;color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap;text-overflow:ellipsis;margin:0 auto;display:block;overflow:hidden}.EaWfGW_sep{margin:0 var(--zx-space-2);color:var(--zx-label-faint)}";
+		const tagId$12 = "@dsh-portable/dcode-ui/SessionStatsLine.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$12) + "]") === null) {
+			const tag = document.createElement("style");
+			tag.dataset.plugin = "@dsh-portable/dcode-ui";
+			tag.dataset.pluginCss = tagId$12;
+			tag.textContent = css$13;
+			document.head.appendChild(tag);
+		}
+		var SessionStatsLine_module_css_default = {
+			"root": "EaWfGW_root",
+			"sep": "EaWfGW_sep"
+		};
+		//#endregion
+		//#region src/client/shell/SessionStatsLine.tsx
+		const EMPTY_NODES = [];
+		function nonNegative(value) {
+			return value === void 0 ? 0 : Math.max(0, value);
+		}
+		function outputTokensOf(usage) {
+			if (typeof usage !== "object" || usage === null) return null;
+			const value = usage.outputTokens;
+			return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+		}
+		/** Window fallback for hosts that do not expose the durable sessionStats row. */
+		function deriveStats(nodes) {
+			const turns = /* @__PURE__ */ new Set();
+			let steps = 0;
+			let llmMs = 0;
+			let toolMs = 0;
+			let ttftMs = 0;
+			let ttftSteps = 0;
+			let decodeMs = 0;
+			let decodeTokens = 0;
+			for (const node of nodes) {
+				if (node.kind === "tool-result") {
+					if (typeof node.callTime === "number") toolMs += Math.max(0, node.time - node.callTime);
+					continue;
+				}
+				if (node.kind !== "assistant") continue;
+				turns.add(node.turn);
+				steps += 1;
+				if (node.timing !== void 0 && node.timing.stepStartTime !== null) llmMs += Math.max(0, node.timing.completedTime - node.timing.stepStartTime);
+				const ttft = node.timing !== void 0 && node.timing.stepStartTime !== null && node.timing.firstTokenTime !== null ? Math.max(0, node.timing.firstTokenTime - node.timing.stepStartTime) : null;
+				if (ttft !== null) {
+					ttftMs += ttft;
+					ttftSteps += 1;
+				}
+				const decode = node.timing !== void 0 && node.timing.firstTokenTime !== null ? Math.max(0, node.timing.completedTime - node.timing.firstTokenTime) : null;
+				const outputTokens = outputTokensOf(node.usage);
+				if (decode !== null && outputTokens !== null) {
+					decodeMs += decode;
+					decodeTokens += outputTokens;
+				}
+			}
+			return {
+				turns: turns.size,
+				steps,
+				llmMs,
+				toolMs,
+				ttftMs,
+				ttftSteps,
+				decodeMs,
+				decodeTokens
+			};
+		}
+		function formatTokens(value) {
+			const scaled = (candidate) => candidate >= 100 ? String(Math.round(candidate)) : String(Math.round(candidate * 10) / 10);
+			if (value < 1e3) return String(Math.round(value));
+			if (value < 1e6) return `${scaled(value / 1e3)}K`;
+			return `${scaled(value / 1e6)}M`;
+		}
+		function formatDuration(ms, t) {
+			const seconds = ms / 1e3;
+			if (seconds < 60) return t("duration.compactSeconds", { seconds: Math.round(seconds * 10) / 10 });
+			const whole = Math.round(seconds);
+			return t("duration.compactMinutes", {
+				minutes: Math.floor(whole / 60),
+				seconds: whole % 60
+			});
+		}
+		function formatTokensPerSecond(tokensPerSecond) {
+			const value = Math.max(0, tokensPerSecond);
+			return value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10);
+		}
+		function billedInputTokens(usage) {
+			return nonNegative(usage.uncachedInputTokens) + nonNegative(usage.cacheReadTokens) + nonNegative(usage.cacheWriteTokens);
+		}
+		function cacheHitPercent(usage) {
+			const input = billedInputTokens(usage);
+			if (input === 0) return null;
+			if (nonNegative(usage.cacheReadTokens) >= input) return "100";
+			const percent = nonNegative(usage.cacheReadTokens) / input * 100;
+			const rounded = Math.round(percent);
+			return rounded < 100 ? String(rounded) : String(Math.floor(percent * 10) / 10);
+		}
+		function projectedStats(value, fallback) {
+			if (value === void 0) return fallback;
+			return {
+				turns: nonNegative(value.turns),
+				steps: nonNegative(value.steps),
+				llmMs: nonNegative(value.llmMs),
+				toolMs: nonNegative(value.toolMs),
+				ttftMs: nonNegative(value.ttftMs),
+				ttftSteps: nonNegative(value.ttftSteps),
+				decodeMs: nonNegative(value.decodeMs),
+				decodeTokens: nonNegative(value.decodeTokens)
+			};
+		}
+		/** Session-level timing and token totals, kept visually quiet beneath the composer. */
+		function SessionStatsLine({ sessionId }) {
+			const t = useT();
+			const chat = useChatSnapshot(sessionId);
+			const usage = useProjectionValue(sessionId, "tokenUsage");
+			const projected = useProjectionValue(sessionId, "sessionStats");
+			const nodes = chat?.legacy.nodes ?? EMPTY_NODES;
+			const fallback = (0, react.useMemo)(() => deriveStats(nodes), [nodes]);
+			const stats = (0, react.useMemo)(() => projectedStats(projected, fallback), [fallback, projected]);
+			const groups = [];
+			if (stats.steps > 0) {
+				groups.push(t("stats.counts", {
+					turns: stats.turns,
+					steps: stats.steps
+				}));
+				const durations = [];
+				if (stats.llmMs > 0) durations.push(t("stats.llm", { duration: formatDuration(stats.llmMs, t) }));
+				if (stats.toolMs > 0) durations.push(t("stats.toolCall", { duration: formatDuration(stats.toolMs, t) }));
+				if (durations.length > 0) groups.push(durations.join(" · "));
+				const speeds = [];
+				if (stats.ttftSteps > 0) speeds.push(t("stats.ttftAverage", { duration: formatDuration(stats.ttftMs / stats.ttftSteps, t) }));
+				if (stats.decodeMs > 0) speeds.push(t("stats.tokensPerSecond", { throughput: formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1e3)) }));
+				if (speeds.length > 0) groups.push(speeds.join(" · "));
+			}
+			if (usage !== void 0) {
+				const input = billedInputTokens(usage);
+				const output = nonNegative(usage.outputTokens);
+				if (input > 0 || output > 0) {
+					const cacheHit = cacheHitPercent(usage);
+					if (cacheHit !== null) groups.push(t("stats.cacheHit", { percent: cacheHit }));
+					groups.push(t("stats.tokens", {
+						input: formatTokens(input),
+						output: formatTokens(output)
+					}));
+				}
+			}
+			if (groups.length === 0) return null;
+			const line = groups.join(" | ");
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: SessionStatsLine_module_css_default.root,
+				title: line,
+				"data-dcode-session-stats": "",
+				children: groups.map((group, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react.Fragment, { children: [index === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: SessionStatsLine_module_css_default.sep,
+					"aria-hidden": true,
+					children: "|"
+				}), " "] }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: group })] }, `${String(index)}:${group}`))
+			});
+		}
+		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\Composer.module.css.mjs
 		const css$12 = ".SmCagG_dock{padding:0 var(--zx-space-5) clamp(14px, 2.4vh, 24px);flex:none}.SmCagG_shell{box-sizing:border-box;width:min(var(--zx-reading-width), 100%);border:1px solid var(--dsw-alias-border-l2-darkmode-thin,var(--zx-border-control));background:var(--dsw-specific-input-major,var(--zx-bg-card));box-shadow:var(--dsw-shadow-lv2,var(--zx-shadow-card));transition:border-color var(--zx-motion-fast), border-radius .22s cubic-bezier(.2, .8, .2, 1), box-shadow var(--zx-motion-fast), background var(--zx-motion-fast);border-radius:22px;margin:0 auto;position:relative;overflow:visible}.SmCagG_shellCompact,.SmCagG_shellExpanded{border-radius:22px}.SmCagG_shellFocused{border-color:var(--dsw-alias-state-business-primary,var(--zx-accent));box-shadow:var(--dsw-shadow-lv2,var(--zx-shadow-card)), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 12%, transparent)}.SmCagG_referenceActive:not(.SmCagG_dropActive){border-color:color-mix(in srgb, var(--zx-accent) 32%, var(--zx-border))}.SmCagG_dropActive{border-color:var(--zx-accent)}.SmCagG_dropOverlay{z-index:var(--zx-z-sticky);justify-content:center;align-items:center;gap:var(--zx-space-2);border:1px solid color-mix(in srgb, var(--zx-accent) 72%, transparent);border-radius:inherit;background:radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--zx-accent) 18%, transparent), transparent 58%), color-mix(in srgb, var(--zx-bg-card) 78%, transparent);color:var(--zx-label);backdrop-filter:blur(18px)saturate(145%);box-shadow:inset 0 0 0 1px #ffffff21, inset 0 0 32px color-mix(in srgb, var(--zx-accent) 12%, transparent), 0 0 24px color-mix(in srgb, var(--zx-accent) 10%, transparent);pointer-events:none;animation:SmCagG_dropOverlayIn var(--zx-motion-fast) ease-out;flex-direction:column;display:flex;position:absolute;inset:0}.SmCagG_dropIcon{border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 16%, var(--zx-bg-card));width:36px;height:36px;color:var(--zx-accent);place-items:center;display:grid}.SmCagG_dropIcon svg{width:18px;height:18px}.SmCagG_dropOverlay span{color:var(--zx-label-secondary);font-size:var(--zx-text-xs)}.SmCagG_inputArea{min-width:0;position:relative}.SmCagG_queueBanner{z-index:var(--zx-z-sticky);align-items:center;gap:var(--zx-space-2);width:min(calc(var(--zx-reading-width) - 24px), calc(100% - 24px));min-height:32px;padding:4px 6px 4px var(--zx-space-3);border:var(--zx-border-hairline);border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-bg-overlay) 84%, transparent);box-shadow:var(--zx-shadow-floating), var(--zx-shadow-inset-top);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);backdrop-filter:var(--zx-glass-filter);margin:0 auto 6px;animation:.18s cubic-bezier(.2,.8,.2,1) SmCagG_queueBannerIn;display:flex;position:relative}.SmCagG_queueCount{color:var(--zx-accent);font-weight:var(--zx-weight-semibold);flex:none}.SmCagG_queuePreview{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.SmCagG_queueEdit{border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-pill);min-width:0;height:24px;padding:0 var(--zx-space-3);background:var(--zx-bg-panel);color:var(--zx-label);font:inherit;flex:1}.SmCagG_queueEdit:focus{box-shadow:var(--zx-focus-ring);outline:none}.SmCagG_queueButtons{flex:none;gap:2px;display:inline-flex}.SmCagG_queueButtons button{border-radius:var(--zx-radius-pill);height:24px;padding:0 var(--zx-space-2);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;background:0 0;border:0}.SmCagG_queueButtons button:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.SmCagG_queueButtons button:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.SmCagG_referenceMenu{z-index:var(--zx-z-popover);max-height:min(52vh,420px);padding:var(--zx-space-2);border:var(--zx-border-hairline);border-radius:var(--zx-radius-xl);background:color-mix(in srgb, var(--zx-bg-overlay) 88%, transparent);box-shadow:var(--zx-shadow-popover), var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);animation:.15s cubic-bezier(.2,.8,.2,1) SmCagG_commandMenuIn;position:absolute;bottom:calc(100% + 8px);left:10px;right:10px;overflow-y:auto}.SmCagG_referenceRow{display:contents}.SmCagG_referenceGroup{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.04em;text-transform:uppercase;padding:7px 9px 4px}.SmCagG_referenceOption{align-items:center;gap:var(--zx-space-2);border-radius:var(--zx-radius-md);width:100%;min-height:36px;color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;grid-template-columns:20px minmax(90px,auto) minmax(0,1fr);padding:5px 9px;display:grid}.SmCagG_referenceOption:hover,.SmCagG_referenceOptionActive{background:var(--zx-bg-hover);color:var(--zx-label)}.SmCagG_referenceOptionActive{box-shadow:inset 2px 0 var(--zx-accent)}.SmCagG_referenceKind{color:var(--zx-accent);text-align:center}.SmCagG_referenceLabel,.SmCagG_referenceDetail{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.SmCagG_referenceDetail{color:var(--zx-label-tertiary)}.SmCagG_contextPills{gap:var(--zx-space-1);flex-wrap:wrap;padding:9px 15px 0;display:flex}.SmCagG_contextPill{border:1px solid color-mix(in srgb, var(--zx-accent) 28%, var(--zx-border));border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-panel));max-width:220px;height:24px;color:var(--zx-label-secondary);font-size:var(--zx-text-micro);align-items:center;gap:5px;padding:0 3px 0 8px;display:inline-flex}.SmCagG_contextPill>span:nth-child(2){text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.SmCagG_contextPill button{width:18px;height:18px;color:var(--zx-label-faint);cursor:pointer;background:0 0;border:0;border-radius:50%;place-items:center;padding:0;display:grid}.SmCagG_contextPill button:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.SmCagG_commandMenu{z-index:var(--zx-z-popover);max-height:min(48vh,360px);padding:var(--zx-space-2);border:1px solid color-mix(in srgb, var(--zx-label) 12%, transparent);background:color-mix(in srgb, var(--zx-bg-panel) 88%, transparent);backdrop-filter:blur(18px)saturate(135%);box-shadow:0 18px 44px #0003, var(--zx-shadow-inset-top);border-radius:14px;animation:.15s cubic-bezier(.2,.8,.2,1) SmCagG_commandMenuIn;position:absolute;bottom:calc(100% + 8px);left:10px;right:10px;overflow-y:auto}.SmCagG_commandMenuTitle{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.04em;text-transform:uppercase;padding:3px 8px 7px}.SmCagG_commandOption{align-items:center;gap:var(--zx-space-3);border-radius:var(--zx-radius-md);width:100%;min-height:38px;color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);text-align:left;cursor:pointer;background:0 0;border:0;grid-template-columns:minmax(96px,auto) minmax(0,1fr) auto;padding:6px 9px;display:grid}.SmCagG_commandOption:hover,.SmCagG_commandOptionActive{background:var(--zx-bg-hover);color:var(--zx-label)}.SmCagG_commandOptionActive{box-shadow:inset 2px 0 var(--zx-accent)}.SmCagG_commandName{color:var(--zx-accent);font-weight:var(--zx-weight-semibold)}.SmCagG_commandDescription{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}.SmCagG_commandHint{max-width:180px;color:var(--zx-label-tertiary);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.SmCagG_input{width:100%;min-height:52px;max-height:min(38vh,336px);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);resize:none;box-sizing:border-box;scrollbar-color:color-mix(in srgb, var(--zx-label) 22%, transparent) transparent;scrollbar-width:thin;background:0 0;border:0;padding:14px 16px 4px;line-height:24px;display:block;overflow-y:auto}.SmCagG_input::-webkit-scrollbar{width:5px}.SmCagG_input::-webkit-scrollbar-track{background:0 0}.SmCagG_input::-webkit-scrollbar-thumb{border-radius:var(--zx-radius-pill);background:color-mix(in srgb, var(--zx-label) 20%, transparent)}.SmCagG_input:focus{outline:none}.SmCagG_input::placeholder{color:var(--zx-label-tertiary)}.SmCagG_fileInput{clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}.SmCagG_attachmentRail{gap:var(--zx-space-2);flex-wrap:wrap;padding:3px 15px 10px;display:flex}.SmCagG_attachment{align-items:center;gap:var(--zx-space-2);max-width:230px;min-height:var(--zx-control-lg);border:1px solid var(--zx-border-control);background:color-mix(in srgb, var(--zx-bg-panel) 78%, var(--zx-bg-card));color:var(--zx-label-secondary);font-size:var(--zx-text-xs);transition:border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);border-radius:8px;padding:4px 26px 4px 5px;animation:.18s cubic-bezier(.2,.8,.2,1) both SmCagG_attachmentIn;display:flex;position:relative;overflow:hidden}.SmCagG_attachment:hover{border-color:color-mix(in srgb, var(--zx-accent) 36%, var(--zx-border-control));box-shadow:var(--zx-shadow-card);transform:translateY(-2px)}.SmCagG_attachmentPreview{width:38px;height:var(--zx-control-md);object-fit:cover;background:var(--zx-bg-hover);transition:transform var(--zx-motion-fast), filter var(--zx-motion-fast);border-radius:8px;flex:none}.SmCagG_attachment:hover .SmCagG_attachmentPreview{filter:saturate(1.08);transform:scale(1.06)}.SmCagG_attachmentFile{align-items:center;gap:var(--zx-space-2);min-width:0;display:inline-flex}.SmCagG_fileGlyph{background:color-mix(in srgb, var(--zx-label) 7%, transparent);width:28px;height:28px;color:var(--zx-label-muted);border-radius:7px;flex:0 0 28px;place-items:center;display:grid}.SmCagG_fileGlyph svg{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.2px;width:17px;height:17px}.SmCagG_fileGlyph_archive{color:var(--zx-warn)}.SmCagG_fileGlyph_code{color:var(--zx-accent)}.SmCagG_fileGlyph_document{color:color-mix(in srgb, var(--zx-accent) 64%, var(--zx-label))}.SmCagG_fileGlyph_generic{color:var(--zx-label-muted)}.SmCagG_attachmentFile>span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.SmCagG_attachmentMeta{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);white-space:nowrap}.SmCagG_attachmentRemove{width:var(--zx-control-xs);height:var(--zx-control-xs);border-radius:var(--zx-radius-pill);color:var(--zx-label-muted);cursor:pointer;opacity:.55;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), opacity var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:0;place-items:center;padding:0;display:grid;position:absolute;top:4px;right:4px;transform:scale(.88)}.SmCagG_attachment:hover .SmCagG_attachmentRemove,.SmCagG_attachmentRemove:focus-visible{opacity:1;transform:scale(1)}.SmCagG_attachmentRemove:hover:not(:disabled){background:var(--zx-bg-hover);color:var(--zx-label)}.SmCagG_attachmentRemove:active:not(:disabled){transform:scale(.94)}.SmCagG_attachmentRemove:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.SmCagG_attachmentRemove:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.SmCagG_controls{justify-content:space-between;align-items:center;gap:var(--zx-space-2);min-width:0;padding:2px 8px 6px;display:flex}.SmCagG_leadingControls,.SmCagG_trailingControls{align-items:center;gap:4px;min-width:0;display:flex}.SmCagG_addButton{width:28px;height:var(--zx-control-sm);border-radius:var(--zx-radius-pill);background:var(--dsw-specific-selector,var(--zx-bg-raised));color:var(--dsw-alias-label-primary,var(--zx-label));cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);border:0;flex:0 0 28px;place-items:center;padding:0;display:grid}.SmCagG_addButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-solid,var(--zx-bg-hover));color:var(--zx-label)}.SmCagG_addButton:active:not(:disabled){transform:scale(.94)}.SmCagG_addButton:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}.SmCagG_addButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.SmCagG_leadingControls{flex:auto}.SmCagG_addMenu{width:min(460px,100vw - 32px);min-width:min(360px,100vw - 32px);max-width:min(460px,100vw - 32px)}.SmCagG_addMenu>button{border-radius:var(--zx-radius-md);min-height:36px}.SmCagG_addCommandLabel{align-items:baseline;gap:var(--zx-space-3);width:100%;min-width:0;display:flex}.SmCagG_addCommandName{color:var(--zx-label);font-weight:var(--zx-weight-medium);flex:none}.SmCagG_addCommandDescription{min-width:0;color:var(--zx-label-muted);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.SmCagG_trailingControls{flex:0 auto;justify-content:flex-end;margin-left:auto}.SmCagG_busyHints{margin-right:var(--zx-space-1);align-items:center;gap:4px;display:flex}.SmCagG_busyHint{border-radius:var(--zx-radius-pill);height:24px;color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);white-space:nowrap;transition:background var(--zx-motion-fast), border-color var(--zx-motion-fast), color var(--zx-motion-fast);border:1px solid #0000;align-items:center;gap:4px;padding:0 6px;display:inline-flex}.SmCagG_busyHint kbd{color:inherit;font:inherit}.SmCagG_busyHintActive{border-color:color-mix(in srgb, var(--zx-accent) 28%, transparent);background:color-mix(in srgb, var(--zx-accent) 10%, transparent);color:var(--zx-accent);font-weight:var(--zx-weight-semibold)}@keyframes SmCagG_dropOverlayIn{0%{opacity:0;transform:scale(.985)}to{opacity:1;transform:scale(1)}}@keyframes SmCagG_commandMenuIn{0%{opacity:0;transform:translateY(5px)scale(.99)}to{opacity:1;transform:translateY(0)scale(1)}}@keyframes SmCagG_attachmentIn{0%{opacity:0;transform:translateY(4px)scale(.98)}to{opacity:1;transform:translateY(0)scale(1)}}@keyframes SmCagG_queueBannerIn{0%{opacity:0;transform:translateY(4px)scale(.99)}to{opacity:1;transform:translateY(0)scale(1)}}.SmCagG_leadingControls>*,.SmCagG_trailingControls>*,.SmCagG_leadingControls>*>button,.SmCagG_trailingControls>*>button{min-width:0}.SmCagG_control{min-width:0;height:var(--zx-control-sm);color:var(--zx-label-secondary);font-size:var(--zx-text-sm);line-height:20px;font-weight:var(--zx-weight-medium);align-items:center;gap:4px;padding:0;display:inline-flex}.SmCagG_controlTrigger{max-width:220px;height:28px;color:var(--zx-label-secondary);font-size:var(--zx-text-sm);line-height:20px;font-weight:var(--zx-weight-medium);transition:background var(--zx-motion-fast), color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:0;border-radius:8px;padding:0 7px 0 8px}.SmCagG_controlTrigger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover))}.SmCagG_controlTrigger:active:not(:disabled){transform:scale(.98)}.SmCagG_controlTrigger:disabled{color:var(--zx-label-tertiary)}.SmCagG_permissionRead{color:var(--zx-label-secondary)}.SmCagG_permissionWrite{color:var(--zx-accent)}.SmCagG_permissionDanger{color:var(--zx-warn)}.SmCagG_securityPermission{background:0 0}.SmCagG_control svg{flex:none;width:14px;height:14px}.SmCagG_controlChevron{color:var(--zx-label-muted)}.SmCagG_modelTrigger .SmCagG_controlLabel{color:var(--zx-label)}.SmCagG_modelTrigger{background:0 0;max-width:300px}.SmCagG_reasoningTrigger .SmCagG_controlLabel{color:var(--zx-label-secondary)}.SmCagG_reasoningTrigger{border-color:color-mix(in srgb, var(--zx-accent) 13%, transparent);background:color-mix(in srgb, var(--zx-accent) 5%, transparent)}.SmCagG_controlLabel{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;display:inline-block;overflow:hidden}.SmCagG_permissionMenu{background:color-mix(in srgb, var(--dsw-alias-bg-base,#0d0d0f) 92%, transparent);width:min(320px,100vw - 32px);min-width:min(280px,100vw - 32px)}.SmCagG_permissionMenu>button{column-gap:var(--zx-space-3);min-height:calc(var(--zx-control-xl) + var(--zx-space-1));padding:var(--zx-space-2) var(--zx-space-3);border-radius:var(--zx-radius-md);grid-template-columns:18px minmax(0,1fr) 14px;align-items:center;line-height:18px;display:grid}.SmCagG_permissionMenu>button>span{white-space:normal}.SmCagG_permissionMenu>button>span>span{white-space:nowrap;text-overflow:ellipsis;color:var(--zx-label-tertiary);overflow:hidden}.SmCagG_permissionMenu>button>svg{flex:none;justify-self:end;margin-top:0}.SmCagG_modelMenu{min-width:min(250px,100vw - 32px);max-height:min(60vh,420px)}.SmCagG_contextSeat{border-left:1px solid color-mix(in srgb, var(--zx-label) 9%, transparent);align-items:center;height:26px;padding:0 2px;display:inline-flex}.SmCagG_contextSeat>span>button{width:26px;height:26px;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), transform var(--zx-motion-fast)}.SmCagG_contextSeat>span>button:active{transform:scale(.94)}.SmCagG_send{border-radius:var(--zx-radius-pill);background:var(--dsw-alias-button-info-fill,#3964fe);color:#fff;cursor:pointer;width:34px;height:34px;box-shadow:var(--zx-shadow-card);transition:background var(--zx-motion-fast), opacity var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);border:0;flex:0 0 34px;place-items:center;padding:0;display:grid}.SmCagG_send:hover:not(:disabled){background:var(--dsw-alias-button-info-hover,#3158e8);transform:translateY(-1px)}.SmCagG_send:active:not(:disabled){transform:translateY(0)scale(.94)}.SmCagG_send:disabled{opacity:.4;cursor:default}.SmCagG_send:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.SmCagG_stop{background:var(--dsw-alias-button-info-fill,#3964fe);color:#fff}.SmCagG_send svg{width:16px;height:16px}.SmCagG_error{padding:0 var(--zx-space-4) var(--zx-space-1);color:var(--zx-error);font-size:var(--zx-text-xs);line-height:var(--zx-leading-tight)}.SmCagG_readinessIssue{justify-content:space-between;align-items:center;gap:var(--zx-space-2);padding:2px var(--zx-space-3) var(--zx-space-1) var(--zx-space-4);color:var(--zx-warn);font-size:var(--zx-text-xs);display:flex}.SmCagG_readinessIssue button{border-radius:var(--zx-radius-pill);min-height:26px;padding:0 var(--zx-space-3);background:color-mix(in srgb, var(--zx-accent) 13%, transparent);color:var(--zx-accent);font:inherit;font-weight:var(--zx-weight-semibold);cursor:pointer;border:0;flex:none}.SmCagG_readinessIssue button:hover{background:color-mix(in srgb, var(--zx-accent) 20%, transparent)}.SmCagG_headerRow{width:min(var(--zx-reading-width), 100%);margin:0 auto var(--zx-space-2);align-items:center;gap:var(--zx-space-2);padding-left:8px;display:flex}.SmCagG_projectChip,.SmCagG_headerChip{min-height:28px;color:var(--dsw-alias-label-primary,var(--zx-label));font:inherit;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast), border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast), transform var(--zx-motion-fast);background:0 0;border:0;border-radius:16px;align-items:center;gap:4px;padding:0 8px;font-size:13px;font-weight:500;display:inline-flex}.SmCagG_projectChip:hover,.SmCagG_headerChip:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--zx-bg-hover));color:var(--zx-label)}.SmCagG_projectChip:active,.SmCagG_headerChip:active:not(:disabled){transform:scale(.98)}.SmCagG_projectChip:focus-visible,.SmCagG_headerChip:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.SmCagG_headerChipContent{align-items:center;gap:4px;min-width:0;display:inline-flex}.SmCagG_headerChipContent>span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}@container (width<=720px){.SmCagG_dock{padding-right:var(--zx-space-4);padding-left:var(--zx-space-4)}.SmCagG_controls{flex-wrap:wrap;row-gap:2px}.SmCagG_leadingControls,.SmCagG_trailingControls{max-width:100%}.SmCagG_trailingControls{flex-wrap:wrap}.SmCagG_busyHints{flex:100%;order:-1;justify-content:flex-end}.SmCagG_headerRow{flex-wrap:wrap;padding-inline:0}}@container (width<=520px){.SmCagG_leadingControls,.SmCagG_trailingControls{flex:100%}.SmCagG_trailingControls{margin-left:0}.SmCagG_leadingControls .SmCagG_controlTrigger,.SmCagG_trailingControls .SmCagG_modelTrigger{max-width:170px}.SmCagG_trailingControls .SmCagG_reasoningTrigger{max-width:112px}.SmCagG_securityPermission .SmCagG_controlLabel{display:none}.SmCagG_commandOption{grid-template-columns:minmax(82px,auto) minmax(0,1fr)}.SmCagG_commandHint{display:none}}@media (prefers-reduced-motion:reduce){.SmCagG_dropOverlay,.SmCagG_commandMenu,.SmCagG_attachment,.SmCagG_attachmentPreview,.SmCagG_attachmentRemove{transition:none;animation:none}.SmCagG_queueBanner,.SmCagG_referenceMenu{animation:none}}";
 		const tagId$11 = "@dsh-portable/dcode-ui/Composer.module.css";
@@ -15710,6 +16437,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		/** Draft text per session, so switching tasks does not lose an unsent prompt. */
 		const drafts = /* @__PURE__ */ new Map();
+		const OPEN_WORKSPACE_ROW_ID = "open-workspace";
+		/** Keep a useful folder label visible while the durable workspace list settles. */
+		function folderLabel(path) {
+			if (path === void 0 || path.trim() === "") return void 0;
+			const normalized = path.replace(/[\\/]+$/, "");
+			const leaf = normalized.slice(Math.max(normalized.lastIndexOf("\\"), normalized.lastIndexOf("/")) + 1);
+			return leaf === "" ? path : leaf;
+		}
 		/** A leading, argument-free slash token is eligible for command completion. */
 		function slashQuery(value) {
 			return /^\/([^\s]*)$/.exec(value)?.[1]?.toLocaleLowerCase();
@@ -16249,6 +16984,37 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				selectPreset,
 				t
 			]);
+			const { groups } = useWorkspaceGroups();
+			const workspace = (0, react.useMemo)(() => groups.find((group) => group.path === cwd) ?? groups.find((group) => group.sessions.some((row) => row.id === sessionId)), [
+				cwd,
+				groups,
+				sessionId
+			]);
+			const workspaceTitle = workspace?.title ?? folderLabel(cwd);
+			const workspaceRows = (0, react.useMemo)(() => {
+				if (groups.length === 0) return [];
+				return [...groups.map((group) => ({
+					id: String(group.workspaceId),
+					label: group.title,
+					detail: group.path,
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, {}),
+					active: group.workspaceId === workspace?.workspaceId,
+					onSelect: () => {
+						runtime.navigation?.startSession(group.workspaceId);
+					}
+				})), ...onOpenWorkspace === void 0 ? [] : [{
+					id: OPEN_WORKSPACE_ROW_ID,
+					label: t("nav.openWorkspace"),
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {}),
+					onSelect: onOpenWorkspace
+				}]];
+			}, [
+				groups,
+				onOpenWorkspace,
+				runtime,
+				t,
+				workspace?.workspaceId
+			]);
 			const send = (0, react.useCallback)((mode) => {
 				if (sessionId === void 0) return;
 				const text = draft.trim();
@@ -16403,12 +17169,30 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				children: [
 					blank && sessionId !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: Composer_module_css_default.headerRow,
-						children: [cwd === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						children: [workspaceRows.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Popover, {
+							label: t("top.workspaceMenu"),
+							triggerClassName: Composer_module_css_default.projectChip,
+							trigger: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: Composer_module_css_default.headerChipContent,
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: workspaceTitle ?? t("nav.openWorkspace") }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, {})
+								]
+							}),
+							rows: workspaceRows
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 							type: "button",
 							className: Composer_module_css_default.projectChip,
 							onClick: onOpenWorkspace,
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("nav.openWorkspace") })
-						}) : null, /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Popover, {
+							disabled: onOpenWorkspace === void 0,
+							title: cwd,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: workspaceTitle ?? t("nav.openWorkspace") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, {})
+							]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Popover, {
 							label: t("composer.mode"),
 							disabled: modeRows.length === 0,
 							triggerClassName: Composer_module_css_default.headerChip,
@@ -16732,30 +17516,35 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: Composer_module_css_default.trailingControls,
 									"data-dcode-model-select": "",
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ModelSelect, {
-										ref: modelSelectRef,
-										sessionId,
-										disabled
-									}), running ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: `${Composer_module_css_default.send} ${Composer_module_css_default.stop}`,
-										onClick: stop,
-										"aria-label": t("composer.stop"),
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconStopFill16, {})
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: Composer_module_css_default.send,
-										onClick: () => {
-											send("queue");
-										},
-										disabled: disabled || draft.trim() === "" && inputState.imageIds.length === 0,
-										"aria-label": t("composer.send"),
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSendOutline16, {})
-									})]
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ModelSelect, {
+											ref: modelSelectRef,
+											sessionId,
+											disabled
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ContextMeter, { sessionId }),
+										running ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: `${Composer_module_css_default.send} ${Composer_module_css_default.stop}`,
+											onClick: stop,
+											"aria-label": t("composer.stop"),
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconStopFill16, {})
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: Composer_module_css_default.send,
+											onClick: () => {
+												send("queue");
+											},
+											disabled: disabled || draft.trim() === "" && inputState.imageIds.length === 0,
+											"aria-label": t("composer.send"),
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSendOutline16, {})
+										})
+									]
 								})]
 							})
 						]
-					})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SessionStatsLine, { sessionId })
 				]
 			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.RiskConfirmation, {
 				open: confirmingFullAccess,
@@ -17666,13 +18455,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "library",
+					id: "learning",
 					kind: "action",
 					group: t("palette.configuration"),
-					label: t("nav.library"),
-					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, {}),
+					label: t("nav.learning"),
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSparkle16, {}),
 					run: () => {
-						navigation.show("library");
+						navigation.show("learning");
 					}
 				},
 				{
@@ -18093,9 +18882,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			});
 		}
 		//#endregion
-		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\library\ResourceLibraryHome.module.css.mjs
-		const css$7 = "._5WcSWq_status{justify-content:center;align-items:flex-start;gap:var(--lx-space-md);min-height:280px;padding:var(--lx-space-3xl);color:var(--lx-label-secondary);flex-direction:column;display:flex}._5WcSWq_statusTitle{color:var(--lx-label-primary);font-size:var(--lx-text-md);font-weight:var(--lx-weight-strong);line-height:var(--lx-leading-md);margin:0}._5WcSWq_statusBody{max-width:62ch;font-size:var(--lx-text-sm);line-height:var(--lx-leading-sm);margin:0}._5WcSWq_statusActions{gap:var(--lx-space-sm);flex-wrap:wrap;margin-block-start:var(--lx-space-xs);display:flex}._5WcSWq_statusAction{min-height:var(--lx-control-height-md);padding:var(--lx-control-padding-md);border:1px solid var(--lx-border-default);border-radius:var(--lx-radius-md);background:var(--lx-surface-raised);color:var(--lx-label-primary);font:inherit;font-size:var(--lx-text-sm);cursor:pointer}._5WcSWq_statusAction:hover:not(:disabled){border-color:var(--lx-border-strong);background:var(--lx-surface-sunken)}._5WcSWq_statusAction:disabled{cursor:default;opacity:var(--lx-control-disabled-opacity)}._5WcSWq_statusAction:focus-visible{outline:var(--lx-focus-width) solid var(--lx-focus-color);outline-offset:var(--lx-focus-offset)}._5WcSWq_statusActionPrimary{border-color:var(--lx-accent);background:var(--lx-accent);color:var(--lx-label-on-accent)}";
-		const tagId$6 = "@dsh-portable/dcode-ui/ResourceLibraryHome.module.css";
+		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\learning\LearningHome.module.css.mjs
+		const css$7 = ".F7L6-W_surface{background:var(--zx-bg-app);grid-template-columns:220px 1fr;width:100%;min-width:0;height:100%;display:grid;overflow:hidden}.F7L6-W_rail{border-right:1px solid var(--zx-border-soft);background:var(--zx-bg-panel);padding:var(--zx-space-2) var(--zx-space-3) var(--zx-space-4);flex-direction:column;gap:2px;display:flex;overflow:hidden auto}.F7L6-W_back{align-items:center;gap:var(--zx-space-2);height:var(--zx-control-md);padding:0 var(--zx-space-3);margin-bottom:var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;transition:background var(--zx-motion-fast), color var(--zx-motion-fast);background:0 0;border:0;display:flex}.F7L6-W_back:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.F7L6-W_railItem{align-items:center;gap:var(--zx-space-3);height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.F7L6-W_railItem:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.F7L6-W_railItemActive{background:var(--zx-bg-active);color:var(--zx-label)}.F7L6-W_railGroup{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.02em}.F7L6-W_body{min-width:0;padding:var(--zx-space-6) var(--zx-space-7) var(--zx-space-7);background:var(--zx-bg-app);overflow:hidden auto}.F7L6-W_inner{gap:var(--zx-space-6);flex-direction:column;width:min(900px,100%);margin:0 auto;display:flex}.F7L6-W_title{font-size:var(--zx-text-2xl);font-weight:var(--zx-weight-medium);color:var(--zx-label)}.F7L6-W_subtitle{color:var(--zx-label-muted);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);max-width:620px}.F7L6-W_grid{gap:var(--zx-space-4);grid-template-columns:repeat(auto-fit,minmax(240px,1fr));display:grid}.F7L6-W_mode{gap:var(--zx-space-2);padding:var(--zx-space-5);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:border-color var(--zx-motion-fast), background var(--zx-motion-fast);flex-direction:column;display:flex}.F7L6-W_mode:hover:not(:disabled){border-color:var(--zx-border);background:var(--zx-bg-hover)}.F7L6-W_mode:disabled{opacity:var(--zx-opacity-disabled);cursor:default}.F7L6-W_modeTitle{align-items:center;gap:var(--zx-space-3);font-size:var(--zx-text-md);color:var(--zx-label);display:flex}.F7L6-W_modeBody{color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.F7L6-W_sessionRow{align-items:center;gap:var(--zx-space-3);width:100%;min-height:var(--zx-control-lg);padding:var(--zx-space-2) var(--zx-space-4);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;display:flex}.F7L6-W_sessionRow:hover{background:var(--zx-bg-hover)}.F7L6-W_sessionTitle{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;overflow:hidden}.F7L6-W_note{color:var(--zx-label-muted);font-size:var(--zx-text-xs)}";
+		const tagId$6 = "@dsh-portable/dcode-ui/LearningHome.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$6) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
@@ -18103,237 +18892,198 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			tag.textContent = css$7;
 			document.head.appendChild(tag);
 		}
-		var ResourceLibraryHome_module_css_default = {
-			"status": "_5WcSWq_status",
-			"statusAction": "_5WcSWq_statusAction",
-			"statusActionPrimary": "_5WcSWq_statusActionPrimary",
-			"statusActions": "_5WcSWq_statusActions",
-			"statusBody": "_5WcSWq_statusBody",
-			"statusTitle": "_5WcSWq_statusTitle"
+		var LearningHome_module_css_default = {
+			"back": "F7L6-W_back",
+			"body": "F7L6-W_body",
+			"grid": "F7L6-W_grid",
+			"inner": "F7L6-W_inner",
+			"mode": "F7L6-W_mode",
+			"modeBody": "F7L6-W_modeBody",
+			"modeTitle": "F7L6-W_modeTitle",
+			"note": "F7L6-W_note",
+			"rail": "F7L6-W_rail",
+			"railGroup": "F7L6-W_railGroup",
+			"railItem": "F7L6-W_railItem",
+			"railItemActive": "F7L6-W_railItemActive",
+			"sessionRow": "F7L6-W_sessionRow",
+			"sessionTitle": "F7L6-W_sessionTitle",
+			"subtitle": "F7L6-W_subtitle",
+			"surface": "F7L6-W_surface",
+			"title": "F7L6-W_title"
 		};
 		//#endregion
-		//#region src/client/library/ResourceLibraryHome.tsx
+		//#region src/client/learning/LearningHome.tsx
 		/**
-		* DCode's resource-library launcher.
+		* Learning mode as a focused workbench surface.
 		*
-		* The library content and its settings-style dialog belong to the Interactive
-		* Learning client package. DCode only supplies its own workspace/session
-		* candidates and the small hand-off actions needed when a person has not
-		* opened a resource space yet. The official DSH sidebar entry uses the same
-		* dialog and the same VaultLibrary underneath it.
-		* @module @dsh-portable/dcode-ui/client/library/ResourceLibraryHome
+		* This page owns the learning entry points and the list of existing learning
+		* sessions. Materials are attached from the conversation when the learner
+		* chooses the material flow; there is no separate library surface.
+		* @module @dsh-portable/dcode-ui/client/learning/LearningHome
 		*/
-		function record(value) {
-			return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
-		}
-		function rosterFrom(answer) {
-			const outer = record(answer);
-			if (outer?.ok !== true) {
-				const error = record(outer?.error);
-				throw new Error(typeof error?.message === "string" ? error.message : "resource roster unavailable");
+		/** The agent preset installed by the Interactive Learning pack. */
+		const LEARNING_PRESET = "learning";
+		const MODES = [
+			{
+				id: "concept",
+				titleKey: "learning.concept",
+				bodyKey: "learning.conceptBody"
+			},
+			{
+				id: "problem",
+				titleKey: "learning.problem",
+				bodyKey: "learning.problemBody"
+			},
+			{
+				id: "material",
+				titleKey: "learning.material",
+				bodyKey: "learning.materialBody"
 			}
-			const value = record(outer.value);
-			if (value === void 0 || !Array.isArray(value.vaults)) throw new Error("resource roster returned an invalid response");
-			return { vaults: value.vaults.filter((item) => {
-				const space = record(item);
-				return typeof space?.cwd === "string" && typeof space.title === "string" && typeof space.root === "string" && typeof space.sources === "number" && typeof space.concepts === "number" && typeof space.notes === "number" && typeof space.due === "number" && typeof space.blocked === "number";
-			}) };
-		}
-		/** Candidate folders are supplied by the client so the Host never enumerates unrelated directories. */
-		function resourceCandidates(cwd, workspacePaths, sessionCwds) {
-			const result = [];
-			const seen = /* @__PURE__ */ new Set();
-			const add = (path) => {
-				if (path === void 0 || path.trim() === "" || seen.has(path)) return;
-				seen.add(path);
-				result.push(path);
-			};
-			add(cwd);
-			for (const path of workspacePaths) add(path);
-			for (const path of sessionCwds) add(path);
-			return result.slice(0, 24);
-		}
-		function StatusContent({ title, body, busy = false, action, primary = false }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: ResourceLibraryHome_module_css_default.status,
-				role: busy ? "status" : void 0,
-				"aria-busy": busy || void 0,
-				children: [
-					title !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: ResourceLibraryHome_module_css_default.statusTitle,
-						children: title
-					}),
-					body !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: ResourceLibraryHome_module_css_default.statusBody,
-						children: body
-					}),
-					action !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: ResourceLibraryHome_module_css_default.statusActions,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: `${ResourceLibraryHome_module_css_default.statusAction} ${primary ? ResourceLibraryHome_module_css_default.statusActionPrimary : ""}`,
-							disabled: action.disabled,
-							onClick: action.onClick,
-							children: action.label
-						})
-					})
-				]
-			});
-		}
-		/** Open an existing task in a space, or create a task under that workspace. */
-		function useOpenSpaceSession({ navigation, runtime, list, workspaces, cwd, sessionId, selectedCwd }) {
-			return (0, react.useCallback)((space) => {
-				const targetCwd = space?.cwd ?? selectedCwd ?? cwd ?? workspaces.items[0]?.path;
-				const current = sessionId === void 0 ? void 0 : list.byId[sessionId];
-				if (current?.cwd === targetCwd) {
-					runtime.sessions.open(current.id);
-					navigation.show("session");
-					return true;
-				}
-				const existing = list.ids.map((id) => list.byId[id]).find((summary) => summary?.cwd === targetCwd);
-				if (existing !== void 0) {
-					runtime.sessions.open(existing.id);
-					navigation.show("session");
-					return true;
-				}
-				const workspace = workspaces.items.find((item) => item.path === targetCwd);
-				if (workspace !== void 0 && runtime.navigation !== void 0) {
-					navigation.show("session");
-					runtime.navigation.startSession(workspace.workspaceId);
-					return true;
-				}
-				if (sessionId !== void 0) {
-					runtime.sessions.open(sessionId);
-					navigation.show("session");
-					return true;
-				}
-				return false;
-			}, [
-				cwd,
-				list.byId,
-				list.ids,
-				navigation,
-				runtime,
-				selectedCwd,
-				sessionId,
-				workspaces.items
-			]);
-		}
-		/** The shared home for the official and DCode library content. */
-		function ResourceLibraryHome({ navigation, cwd, sessionId, onOpenWorkspace }) {
+		];
+		/** Learning entry points and the current learning-session list. */
+		function LearningHome({ navigation, cwd, sessionId }) {
 			const runtime = useRuntime();
 			const t = useT();
 			const list = useSessionList();
-			const workspaces = useWorkspaces();
-			const [selectedCwd, setSelectedCwd] = (0, react.useState)(cwd);
-			const [reloads, setReloads] = (0, react.useState)(0);
-			const [roster, setRoster] = (0, react.useState)({
-				phase: "loading",
-				spaces: []
-			});
-			const candidates = (0, react.useMemo)(() => resourceCandidates(cwd, workspaces.items.map((item) => item.path), list.ids.map((id) => list.byId[id]?.cwd)), [
-				cwd,
-				list.byId,
-				list.ids,
-				workspaces.items
-			]);
-			(0, react.useEffect)(() => {
-				if (candidates.length === 0) {
-					setRoster({
-						phase: "ready",
-						spaces: []
-					});
-					return;
-				}
-				let cancelled = false;
-				setRoster((previous) => ({
-					...previous,
-					phase: "loading",
-					error: void 0
-				}));
-				runtime.learningCall("vault/roster", { cwds: candidates }).then((answer) => {
-					if (cancelled) return;
-					setRoster({
-						phase: "ready",
-						spaces: rosterFrom(answer).vaults
-					});
-				}).catch((cause) => {
-					if (cancelled) return;
-					setRoster({
-						phase: "error",
-						spaces: [],
-						error: cause instanceof Error ? cause.message : String(cause)
-					});
-				});
-				return () => {
-					cancelled = true;
-				};
+			const [section, setSection] = (0, react.useState)("start");
+			const [starting, setStarting] = (0, react.useState)(false);
+			const [failure, setFailure] = (0, react.useState)();
+			const learningSessions = (0, react.useMemo)(() => list.ids.map((id) => list.byId[id]).filter((summary) => summary !== void 0 && summary.projectionValues?.agentPreset === LEARNING_PRESET), [list]);
+			const start = (0, react.useCallback)((mode) => {
+				const nav = runtime.navigation;
+				if (nav === void 0 || starting) return;
+				setStarting(true);
+				setFailure(void 0);
+				(async () => {
+					try {
+						const workspace = runtime.workspaces.list.getSnapshot().items.find((item) => item.path === cwd);
+						const target = workspace === void 0 ? sessionId : await nav.connectWorkspace(workspace.workspaceId);
+						if (target === void 0) {
+							setFailure(t("learning.needsWorkspace"));
+							return;
+						}
+						const selected = await runtime.remote.agentPresets.select(target, LEARNING_PRESET);
+						if (!selected.ok) {
+							setFailure(selected.error.message);
+							return;
+						}
+						runtime.sessions.open(target);
+						navigation.show("session");
+						const opening = mode.id === "concept" ? t("learning.concept") : mode.id === "problem" ? t("learning.problem") : t("learning.material");
+						const face = runtime.binding(target)?.session;
+						if (face !== void 0) {
+							const handle = face.beginSubmission({
+								mode: "queue",
+								text: opening,
+								images: []
+							});
+							const sent = await face.prompt([{
+								type: "text",
+								text: opening
+							}], "queue", void 0, handle.requestId);
+							if (!sent.ok) {
+								handle.abandon();
+								setFailure(sent.error.message);
+							}
+						}
+					} catch (cause) {
+						setFailure(cause instanceof Error ? cause.message : String(cause));
+					} finally {
+						setStarting(false);
+					}
+				})();
 			}, [
-				candidates.join("|"),
-				candidates,
-				reloads,
-				runtime.learningCall
-			]);
-			const spaces = roster.spaces;
-			const selectedSpace = spaces.find((space) => space.cwd === selectedCwd) ?? spaces.find((space) => space.cwd === cwd) ?? spaces[0];
-			(0, react.useEffect)(() => {
-				setSelectedCwd((current) => spaces.some((space) => space.cwd === current) ? current : spaces.find((space) => space.cwd === cwd)?.cwd ?? spaces[0]?.cwd ?? cwd);
-			}, [cwd, spaces]);
-			const openSpaceSession = useOpenSpaceSession({
+				cwd,
 				navigation,
 				runtime,
-				list,
-				workspaces,
-				cwd,
 				sessionId,
-				selectedCwd
-			});
-			const openMaterialIntake = (0, react.useCallback)(() => {
-				if (openSpaceSession(selectedSpace)) return;
-				onOpenWorkspace?.();
-			}, [
-				onOpenWorkspace,
-				openSpaceSession,
-				selectedSpace
+				starting,
+				t
 			]);
-			const close = (0, react.useCallback)(() => {
-				navigation.show("session");
-			}, [navigation]);
-			const canOpenWorkspace = runtime.navigation !== void 0 || onOpenWorkspace !== void 0;
-			const dialogContent = roster.phase === "loading" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatusContent, {
-				body: t("library.loading"),
-				busy: true
-			}) : roster.phase === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatusContent, {
-				title: t("library.loadFailed"),
-				body: t("library.loadFailedBody"),
-				action: {
-					label: t("library.retry"),
-					onClick: () => {
-						setReloads((value) => value + 1);
-					}
-				}
-			}) : spaces.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatusContent, {
-				title: t("library.emptyTitle"),
-				body: t("library.emptyBody"),
-				action: {
-					label: t("library.addMaterial"),
-					onClick: openMaterialIntake,
-					disabled: !canOpenWorkspace
-				},
-				primary: true
-			}) : void 0;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_dsh_portable_interactive_learning_client.VaultLibraryDialog, {
-				open: true,
-				title: t("library.title"),
-				topics: spaces,
-				selectedCwd: selectedSpace?.cwd,
-				call: selectedSpace === void 0 ? void 0 : runtime.learningCall,
-				t: runtime.learningT,
-				onSelectCwd: (next) => {
-					setSelectedCwd(next);
-				},
-				onClose: close,
-				content: dialogContent
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: LearningHome_module_css_default.surface,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
+					className: LearningHome_module_css_default.rail,
+					"aria-label": t("learning.title"),
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: LearningHome_module_css_default.back,
+						onClick: () => {
+							navigation.show("session");
+						},
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutline14, {}), t("nav.backToWorkspace")]
+					}), [["start", t("learning.title")], ["current", t("learning.current")]].map(([id, label]) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: `${LearningHome_module_css_default.railItem} ${section === id ? LearningHome_module_css_default.railItemActive : ""}`,
+						onClick: () => {
+							setSection(id);
+						},
+						"aria-current": section === id ? "page" : void 0,
+						children: label
+					}, id))]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: LearningHome_module_css_default.body,
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: LearningHome_module_css_default.inner,
+						children: section === "start" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: LearningHome_module_css_default.title,
+								children: t("learning.title")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: LearningHome_module_css_default.subtitle,
+								children: t("learning.subtitle")
+							})] }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: LearningHome_module_css_default.grid,
+								children: MODES.map((mode) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: LearningHome_module_css_default.mode,
+									disabled: starting || runtime.navigation === void 0,
+									onClick: () => {
+										start(mode);
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: LearningHome_module_css_default.modeTitle,
+										children: [mode.id === "concept" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSparkle16, {}) : mode.id === "problem" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconQuestionOutline14, { size: 16 }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSkillOutline16, {}), t(mode.titleKey)]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: LearningHome_module_css_default.modeBody,
+										children: t(mode.bodyKey)
+									})]
+								}, mode.id))
+							}),
+							failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: LearningHome_module_css_default.note,
+								role: "alert",
+								children: failure
+							}),
+							cwd === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: LearningHome_module_css_default.note,
+								children: t("learning.needsWorkspace")
+							}) : null
+						] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: LearningHome_module_css_default.title,
+							children: t("learning.current")
+						}), learningSessions.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("learning.currentNone") }) : learningSessions.map((summary) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+							type: "button",
+							className: LearningHome_module_css_default.sessionRow,
+							onClick: () => {
+								runtime.sessions.open(summary.id);
+								navigation.show("session");
+							},
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconGoalOutline16, {}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: LearningHome_module_css_default.sessionTitle,
+									children: summary.displayTitle
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: LearningHome_module_css_default.note,
+									children: summary.cwd
+								})
+							]
+						}, summary.id))] })
+					})
+				})]
 			});
 		}
 		//#endregion
@@ -19970,7 +20720,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\plugins\PluginsHome.module.css.mjs
-		const css$5 = ".JzaE-a_overlay{z-index:var(--zx-z-dialog);box-sizing:border-box;justify-content:center;align-items:center;padding:20px;display:flex;position:absolute;inset:0}.JzaE-a_mask{background:var(--zx-scrim);backdrop-filter:blur(5px);border:0;position:absolute;inset:0}.JzaE-a_panel{z-index:1;border:1px solid var(--zx-border);border-radius:var(--zx-radius-dialog);background:var(--zx-bg-overlay);width:min(920px,100%);max-width:100%;height:min(680px,100%);max-height:100%;box-shadow:var(--zx-shadow-dialog);backdrop-filter:var(--zx-glass-filter);display:flex;position:relative;overflow:hidden}.JzaE-a_surface{grid-template-columns:230px minmax(0,1fr);width:100%;min-width:0;min-height:0;display:grid;overflow:hidden}.JzaE-a_rail{gap:var(--zx-space-3);width:230px;min-width:0;padding:var(--zx-space-6) var(--zx-space-3) var(--zx-space-4);box-sizing:border-box;border-right:1px solid var(--zx-border-soft);background:color-mix(in srgb, var(--zx-bg-panel) 90%, transparent);flex-direction:column;flex:0 0 230px;display:flex;overflow:hidden auto}.JzaE-a_railTitle{margin:0 var(--zx-space-2) var(--zx-space-2);color:var(--zx-label);font-size:var(--zx-text-lg);font-weight:var(--zx-weight-semibold);line-height:1.5}.JzaE-a_navList{gap:var(--zx-space-1);flex-direction:column;flex:1;min-height:0;display:flex;overflow:hidden auto}.JzaE-a_railItem{align-items:center;gap:var(--zx-space-3);height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.JzaE-a_railItem:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.JzaE-a_railItemActive{background:var(--zx-bg-active);color:var(--zx-label)}.JzaE-a_railItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_railCount{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}.JzaE-a_railGroup{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.02em}.JzaE-a_content{flex-direction:column;flex:1;min-width:0;min-height:0;display:flex;container-type:inline-size}.JzaE-a_header{justify-content:space-between;align-items:center;gap:var(--zx-space-3);min-height:64px;padding:var(--zx-space-5) var(--zx-space-5) var(--zx-space-3) var(--zx-space-6);box-sizing:border-box;flex:none;display:flex}.JzaE-a_headerTitle{min-width:0;color:var(--zx-label);font-size:var(--zx-text-lg);font-weight:var(--zx-weight-semibold);margin:0;line-height:1.5}.JzaE-a_close{border-radius:var(--zx-radius-pill);width:28px;height:28px;color:var(--zx-label-secondary);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.JzaE-a_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.JzaE-a_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_body{min-width:0;min-height:0;padding:0 var(--zx-space-6) var(--zx-space-7);background:color-mix(in srgb, var(--zx-bg-overlay) 94%, transparent);flex:1;overflow:hidden auto}.JzaE-a_inner{gap:var(--zx-space-5);flex-direction:column;width:100%;margin:0;display:flex}.JzaE-a_title{color:var(--zx-label);font-size:var(--zx-text-2xl);font-weight:var(--zx-weight-medium)}.JzaE-a_subtitle{max-width:620px;margin-top:var(--zx-space-2);color:var(--zx-label-muted);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body)}.JzaE-a_filterField select:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_toolbar{align-items:center;gap:var(--zx-space-3);flex-wrap:wrap;display:flex}.JzaE-a_searchField{align-items:center;gap:var(--zx-space-2);min-width:0;height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-muted);flex:240px;display:flex}.JzaE-a_searchField:focus-within{border-color:var(--zx-accent);color:var(--zx-label-secondary)}.JzaE-a_searchInput{min-width:0;color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);background:0 0;border:0;flex:1}.JzaE-a_searchInput:focus{outline:none}.JzaE-a_searchInput::placeholder{color:var(--zx-label-tertiary)}.JzaE-a_filters{gap:var(--zx-space-2);grid-template-columns:repeat(4,minmax(0,1fr));display:grid}.JzaE-a_filterField{gap:var(--zx-space-1);min-width:0;color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex-direction:column;display:flex}.JzaE-a_filterField select{min-width:0;height:var(--zx-control-sm);padding:0 var(--zx-space-2);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:var(--zx-bg-card);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs)}.JzaE-a_exploreWarning{padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-warn) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-warn) 8%, var(--zx-bg-card));color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_meta{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}.JzaE-a_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_note a,a.JzaE-a_meta{color:var(--zx-label-secondary)}.JzaE-a_note a:hover,a.JzaE-a_meta:hover{color:var(--zx-accent)}.JzaE-a_error{padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-error) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 8%, var(--zx-bg-card));color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_loadingState{justify-content:center;align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xl);color:var(--zx-label-muted);font-size:var(--zx-text-xs);display:flex}.JzaE-a_banner{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-accent) 38%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:var(--zx-accent-soft);color:var(--zx-label);font-size:var(--zx-text-xs);flex-wrap:wrap;display:flex}.JzaE-a_bannerText{min-width:0;line-height:var(--zx-leading-body);flex:1}.JzaE-a_list{gap:var(--zx-space-3);flex-direction:column;display:flex}.JzaE-a_compactGrid{gap:var(--zx-space-3);grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;display:grid}.JzaE-a_denseList{border-top:1px solid var(--zx-border-soft);flex-direction:column;gap:0;display:flex}.JzaE-a_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card);flex-direction:column;display:flex}.JzaE-a_compactCard .JzaE-a_cardBody{gap:var(--zx-space-2);padding:var(--zx-space-3) var(--zx-space-4)}.JzaE-a_compactCard .JzaE-a_description{-webkit-line-clamp:2}.JzaE-a_denseCard{border:0;border-bottom:1px solid var(--zx-border-soft);box-shadow:none;background:0 0;border-radius:0}.JzaE-a_denseCard:hover{background:var(--zx-bg-panel)}.JzaE-a_denseCard .JzaE-a_cardHead{min-height:var(--zx-control-md);padding:var(--zx-space-2) var(--zx-space-3) 0;box-shadow:none}.JzaE-a_denseCard .JzaE-a_cardBody{align-items:center;gap:var(--zx-space-1) var(--zx-space-3);padding:var(--zx-space-1) var(--zx-space-3) var(--zx-space-2);grid-template-columns:minmax(0,1fr) auto;grid-template-areas:\"JzaE-a_description JzaE-a_facts\"\"JzaE-a_review JzaE-a_review\";display:grid}.JzaE-a_denseCard .JzaE-a_description{-webkit-line-clamp:1;grid-area:JzaE-a_description}.JzaE-a_denseCard .JzaE-a_facts{gap:var(--zx-space-1);flex-wrap:nowrap;grid-area:JzaE-a_facts}.JzaE-a_denseCard .JzaE-a_review{border:0;border-top:1px solid var(--zx-border-soft);background:0 0;border-radius:0;grid-area:JzaE-a_review}.JzaE-a_denseCard .JzaE-a_reviewSummary{min-height:var(--zx-control-2xs);font-size:var(--zx-text-micro);padding:0}.JzaE-a_cardHead{align-items:flex-start;min-width:0;display:flex}.JzaE-a_cardBody{gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-4);flex-direction:column;display:flex}.JzaE-a_identity{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;flex:1;min-width:0;display:flex}.JzaE-a_name{color:inherit;overflow-wrap:anywhere;text-decoration:none}a.JzaE-a_name:hover{color:var(--zx-accent);text-decoration:underline}.JzaE-a_linkButton{border-radius:var(--zx-radius-sm);color:var(--zx-label-tertiary);font:inherit;font-size:var(--zx-text-micro);white-space:nowrap;cursor:pointer;background:0 0;border:0;flex:none;padding:0}.JzaE-a_linkButton:hover:not(:disabled){color:var(--zx-accent);text-decoration:underline}.JzaE-a_linkButton:disabled{cursor:default}.JzaE-a_linkButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_actions{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;flex:none;justify-content:flex-end;display:flex}.JzaE-a_description{min-width:0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);-webkit-line-clamp:3;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.JzaE-a_facts{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;display:flex}.JzaE-a_factsAction{margin-left:auto}.JzaE-a_tagAccent{background:var(--zx-accent-soft);color:var(--zx-on-accent-soft)}.JzaE-a_tagSuccess{background:color-mix(in srgb, var(--zx-success) 16%, transparent);color:var(--zx-success)}.JzaE-a_tagWarn{background:color-mix(in srgb, var(--zx-warn) 18%, transparent);color:var(--zx-warn)}.JzaE-a_tagMuted{box-shadow:inset 0 0 0 1px var(--zx-border-control);color:var(--zx-label-muted);background:0 0}.JzaE-a_statusLine{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_statusOk{color:var(--zx-success)}.JzaE-a_statusError{color:var(--zx-error)}.JzaE-a_review{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-panel)}.JzaE-a_reviewSummary{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xs);width:100%;padding:0 var(--zx-space-3);font:inherit;text-align:left;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;list-style:none;display:flex}.JzaE-a_reviewSummary:hover{color:var(--zx-label)}.JzaE-a_reviewOpen .JzaE-a_reviewSummary{border-bottom:1px solid var(--zx-border-soft)}.JzaE-a_reviewChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none;display:inline-flex}.JzaE-a_reviewOpen .JzaE-a_reviewChevron{transform:rotate(90deg)}.JzaE-a_reviewBody{gap:var(--zx-space-3);padding:var(--zx-space-4);flex-direction:column;display:flex}.JzaE-a_reviewGrid{gap:var(--zx-space-2) var(--zx-space-4);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);grid-template-columns:minmax(110px,.32fr) minmax(0,1fr);display:grid}.JzaE-a_reviewKey{color:var(--zx-label-tertiary)}.JzaE-a_reviewValue{color:var(--zx-label-secondary);overflow-wrap:anywhere}.JzaE-a_reviewWarning{color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_reviewActions{align-items:center;gap:var(--zx-space-3);flex-wrap:wrap;display:flex}.JzaE-a_progress{gap:var(--zx-space-2);flex-direction:column;display:flex}.JzaE-a_progressHead{align-items:center;gap:var(--zx-space-3);font-size:var(--zx-text-xs);flex-wrap:wrap;display:flex}.JzaE-a_progressPhase{color:var(--zx-label);font-weight:var(--zx-weight-medium)}.JzaE-a_progressPercent{color:var(--zx-label-secondary);font-variant-numeric:tabular-nums}.JzaE-a_progressStats{min-width:0;color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:1}.JzaE-a_progressTrack{border-radius:var(--zx-radius-pill);background:var(--zx-bg-active);height:4px;position:relative;overflow:hidden}.JzaE-a_progressFill{border-radius:var(--zx-radius-pill);background:var(--zx-accent);height:100%;transition:width var(--zx-motion)}.JzaE-a_progressIndeterminate{width:36%;animation:1.2s ease-in-out infinite JzaE-a_zx-market-slide}@keyframes JzaE-a_zx-market-slide{0%{margin-left:-36%}to{margin-left:100%}}@media (prefers-reduced-motion:reduce){.JzaE-a_progressIndeterminate{opacity:.5;width:100%;margin-left:0;animation:none}}.JzaE-a_progressStep{color:var(--zx-label-muted);font-size:var(--zx-text-micro);overflow-wrap:anywhere}.JzaE-a_log{max-height:96px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);line-height:var(--zx-leading-tight);white-space:pre-wrap;overflow-wrap:anywhere;margin:0;overflow:hidden auto}.JzaE-a_lifecycle{gap:var(--zx-space-2);grid-template-columns:repeat(auto-fit,minmax(120px,1fr));display:grid}.JzaE-a_step{padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-left:2px solid var(--zx-border);border-radius:var(--zx-radius-sm);font-size:var(--zx-text-micro);line-height:var(--zx-leading-tight);flex-direction:column;gap:2px;display:flex}.JzaE-a_stepName{color:var(--zx-label-secondary);font-weight:var(--zx-weight-medium)}.JzaE-a_stepBody{color:var(--zx-label-tertiary)}.JzaE-a_stepDone{border-left-color:var(--zx-success)}.JzaE-a_stepPending{border-left-color:var(--zx-warn)}.JzaE-a_stepOff{opacity:.62}.JzaE-a_translationOriginal{padding-bottom:var(--zx-space-3);margin-bottom:var(--zx-space-3);border-bottom:1px dashed var(--zx-border);color:var(--zx-label-tertiary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_translationText{color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);overflow-wrap:anywhere}.JzaE-a_dangerConfirm{color:var(--zx-error)}.JzaE-a_footer{padding-top:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}@container (width<=680px){.JzaE-a_filters{grid-template-columns:repeat(2,minmax(0,1fr))}.JzaE-a_compactGrid{grid-template-columns:1fr}}@container (width<=560px){.JzaE-a_toolbar{grid-template-columns:minmax(0,1fr) auto;align-items:center;display:grid}.JzaE-a_toolbar .JzaE-a_searchField,.JzaE-a_toolbar>a.JzaE-a_meta{grid-column:1/-1}.JzaE-a_denseCard .JzaE-a_cardHead{gap:var(--zx-space-2);flex-direction:column}.JzaE-a_denseCard .JzaE-a_actions{justify-content:flex-start}.JzaE-a_denseCard .JzaE-a_cardBody{grid-template-columns:1fr;grid-template-areas:\"JzaE-a_description\"\"JzaE-a_facts\"\"JzaE-a_review\"}.JzaE-a_denseCard .JzaE-a_facts{flex-wrap:wrap}}@container (width<=420px){.JzaE-a_filters{grid-template-columns:1fr}}@media (width<=720px){.JzaE-a_overlay{padding:0}.JzaE-a_panel{border-inline:0;border-radius:0;width:100%;max-width:none;height:100%;max-height:none}.JzaE-a_surface{grid-template-columns:200px minmax(0,1fr)}.JzaE-a_rail{flex-basis:200px;width:200px}.JzaE-a_body{padding-inline:var(--zx-space-5)}}@media (width<=540px){.JzaE-a_surface{grid-template-columns:176px minmax(0,1fr)}.JzaE-a_rail{flex-basis:176px;width:176px}.JzaE-a_railTitle{font-size:var(--zx-text-md)}.JzaE-a_railItem{gap:var(--zx-space-2);padding-inline:var(--zx-space-2);font-size:var(--zx-text-xs)}.JzaE-a_header,.JzaE-a_body{padding-inline:var(--zx-space-4)}}";
+		const css$5 = ".JzaE-a_overlay{z-index:var(--zx-z-dialog);box-sizing:border-box;justify-content:center;align-items:center;padding:20px;display:flex;position:absolute;inset:0}.JzaE-a_mask{background:var(--zx-scrim);backdrop-filter:blur(5px);border:0;position:absolute;inset:0}.JzaE-a_panel{z-index:1;border:1px solid var(--zx-border);border-radius:var(--zx-radius-dialog);background:var(--zx-bg-overlay);width:min(920px,100%);max-width:100%;height:min(680px,100%);max-height:100%;box-shadow:var(--zx-shadow-dialog);backdrop-filter:var(--zx-glass-filter);display:flex;position:relative;overflow:hidden}.JzaE-a_surface{grid-template-columns:230px minmax(0,1fr);width:100%;min-width:0;min-height:0;display:grid;overflow:hidden}.JzaE-a_rail{gap:var(--zx-space-3);width:230px;min-width:0;padding:var(--zx-space-6) var(--zx-space-3) var(--zx-space-4);box-sizing:border-box;border-right:1px solid var(--zx-border-soft);background:color-mix(in srgb, var(--zx-bg-panel) 90%, transparent);flex-direction:column;flex:0 0 230px;display:flex;overflow:hidden auto}.JzaE-a_railTitle{margin:0 var(--zx-space-2) var(--zx-space-2);color:var(--zx-label);font-size:var(--zx-text-lg);font-weight:var(--zx-weight-semibold);line-height:1.5}.JzaE-a_navList{gap:var(--zx-space-1);flex-direction:column;flex:1;min-height:0;display:flex;overflow:hidden auto}.JzaE-a_railItem{align-items:center;gap:var(--zx-space-3);height:var(--zx-control-md);padding:0 var(--zx-space-3);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-sm);text-align:left;cursor:pointer;background:0 0;border:0;display:flex}.JzaE-a_railItem:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.JzaE-a_railItemActive{background:var(--zx-bg-active);color:var(--zx-label)}.JzaE-a_railItem:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_railCount{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}.JzaE-a_railGroup{padding:var(--zx-space-3) var(--zx-space-3) var(--zx-space-1);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-weight:var(--zx-weight-semibold);letter-spacing:.02em}.JzaE-a_content{flex-direction:column;flex:1;min-width:0;min-height:0;display:flex;container-type:inline-size}.JzaE-a_header{justify-content:space-between;align-items:center;gap:var(--zx-space-3);min-height:64px;padding:var(--zx-space-5) var(--zx-space-5) var(--zx-space-3) var(--zx-space-6);box-sizing:border-box;flex:none;display:flex}.JzaE-a_headerTitle{min-width:0;color:var(--zx-label);font-size:var(--zx-text-lg);font-weight:var(--zx-weight-semibold);margin:0;line-height:1.5}.JzaE-a_close{border-radius:var(--zx-radius-pill);width:28px;height:28px;color:var(--zx-label-secondary);cursor:pointer;background:0 0;border:0;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.JzaE-a_close:hover{background:var(--zx-bg-hover);color:var(--zx-label)}.JzaE-a_close:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_body{min-width:0;min-height:0;padding:0 var(--zx-space-6) var(--zx-space-7);background:color-mix(in srgb, var(--zx-bg-overlay) 94%, transparent);flex:1;overflow:hidden auto}.JzaE-a_inner{gap:var(--zx-space-5);flex-direction:column;width:100%;margin:0;display:flex}.JzaE-a_title{color:var(--zx-label);font-size:var(--zx-text-2xl);font-weight:var(--zx-weight-medium)}.JzaE-a_subtitle{max-width:620px;margin-top:var(--zx-space-2);color:var(--zx-label-muted);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body)}.JzaE-a_toolbar{align-items:center;gap:var(--zx-space-3);flex-wrap:wrap;display:flex}.JzaE-a_searchField{align-items:center;gap:var(--zx-space-2);min-width:0;height:var(--zx-control-md);padding:0 var(--zx-space-3);border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-md);background:var(--zx-bg-card);color:var(--zx-label-muted);flex:240px;display:flex}.JzaE-a_searchField:focus-within{border-color:var(--zx-accent);color:var(--zx-label-secondary)}.JzaE-a_searchInput{min-width:0;color:var(--zx-label);font:inherit;font-size:var(--zx-text-xs);background:0 0;border:0;flex:1}.JzaE-a_searchInput:focus{outline:none}.JzaE-a_searchInput::placeholder{color:var(--zx-label-tertiary)}.JzaE-a_exploreWarning{padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-warn) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-warn) 8%, var(--zx-bg-card));color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_meta{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:none}.JzaE-a_note{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_note a,a.JzaE-a_meta{color:var(--zx-label-secondary)}.JzaE-a_note a:hover,a.JzaE-a_meta:hover{color:var(--zx-accent)}.JzaE-a_error{padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-error) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 8%, var(--zx-bg-card));color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_loadingState{justify-content:center;align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xl);color:var(--zx-label-muted);font-size:var(--zx-text-xs);display:flex}.JzaE-a_banner{align-items:center;gap:var(--zx-space-3);padding:var(--zx-space-3) var(--zx-space-4);border:1px solid color-mix(in srgb, var(--zx-accent) 38%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:var(--zx-accent-soft);color:var(--zx-label);font-size:var(--zx-text-xs);flex-wrap:wrap;display:flex}.JzaE-a_bannerText{min-width:0;line-height:var(--zx-leading-body);flex:1}.JzaE-a_list{gap:var(--zx-space-3);flex-direction:column;display:flex}.JzaE-a_compactGrid{gap:var(--zx-space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));align-items:start;display:grid}.JzaE-a_card{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:var(--zx-bg-card);box-shadow:var(--zx-shadow-card);flex-direction:column;display:flex}.JzaE-a_compactCard .JzaE-a_cardBody{gap:var(--zx-space-3);padding:var(--zx-space-3) var(--zx-space-4) var(--zx-space-4)}.JzaE-a_compactCard .JzaE-a_description{-webkit-line-clamp:2}.JzaE-a_cardHead{align-items:flex-start;min-width:0;display:flex}.JzaE-a_cardBody{gap:var(--zx-space-3);padding:var(--zx-space-4) var(--zx-space-5) var(--zx-space-4);flex-direction:column;display:flex}.JzaE-a_identity{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;flex:1;min-width:0;display:flex}.JzaE-a_name{color:inherit;overflow-wrap:anywhere;text-decoration:none}a.JzaE-a_name:hover{color:var(--zx-accent);text-decoration:underline}.JzaE-a_linkButton{border-radius:var(--zx-radius-sm);color:var(--zx-label-tertiary);font:inherit;font-size:var(--zx-text-micro);white-space:nowrap;cursor:pointer;background:0 0;border:0;flex:none;padding:0}.JzaE-a_linkButton:hover:not(:disabled){color:var(--zx-accent);text-decoration:underline}.JzaE-a_linkButton:disabled{cursor:default}.JzaE-a_linkButton:focus-visible{box-shadow:var(--zx-focus-ring);outline:none}.JzaE-a_actions{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;flex:none;justify-content:flex-end;display:flex}.JzaE-a_description{min-width:0;color:var(--zx-label-muted);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);-webkit-line-clamp:3;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.JzaE-a_facts{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;display:flex}.JzaE-a_factsAction{margin-left:auto}.JzaE-a_tagAccent{background:var(--zx-accent-soft);color:var(--zx-on-accent-soft)}.JzaE-a_tagSuccess{background:color-mix(in srgb, var(--zx-success) 16%, transparent);color:var(--zx-success)}.JzaE-a_tagWarn{background:color-mix(in srgb, var(--zx-warn) 18%, transparent);color:var(--zx-warn)}.JzaE-a_tagMuted{box-shadow:inset 0 0 0 1px var(--zx-border-control);color:var(--zx-label-muted);background:0 0}.JzaE-a_statusLine{color:var(--zx-label-muted);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_statusOk{color:var(--zx-success)}.JzaE-a_statusError{color:var(--zx-error)}.JzaE-a_review{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-panel)}.JzaE-a_reviewSummary{align-items:center;gap:var(--zx-space-2);min-height:var(--zx-control-xs);width:100%;padding:0 var(--zx-space-3);font:inherit;text-align:left;color:var(--zx-label-secondary);font-size:var(--zx-text-xs);cursor:pointer;background:0 0;border:0;list-style:none;display:flex}.JzaE-a_reviewSummary:hover{color:var(--zx-label)}.JzaE-a_reviewOpen .JzaE-a_reviewSummary{border-bottom:1px solid var(--zx-border-soft)}.JzaE-a_reviewChevron{color:var(--zx-label-decor);transition:transform var(--zx-motion-fast);flex:none;display:inline-flex}.JzaE-a_reviewOpen .JzaE-a_reviewChevron{transform:rotate(90deg)}.JzaE-a_reviewBody{gap:var(--zx-space-3);padding:var(--zx-space-4);flex-direction:column;display:flex}.JzaE-a_reviewGrid{gap:var(--zx-space-2) var(--zx-space-4);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);grid-template-columns:minmax(110px,.32fr) minmax(0,1fr);display:grid}.JzaE-a_reviewKey{color:var(--zx-label-tertiary)}.JzaE-a_reviewValue{color:var(--zx-label-secondary);overflow-wrap:anywhere}.JzaE-a_reviewWarning{color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}.JzaE-a_reviewActions{align-items:center;gap:var(--zx-space-3);flex-wrap:wrap;display:flex}.JzaE-a_progress{gap:var(--zx-space-2);flex-direction:column;display:flex}.JzaE-a_progressHead{align-items:center;gap:var(--zx-space-3);font-size:var(--zx-text-xs);flex-wrap:wrap;display:flex}.JzaE-a_progressPhase{color:var(--zx-label);font-weight:var(--zx-weight-medium)}.JzaE-a_progressPercent{color:var(--zx-label-secondary);font-variant-numeric:tabular-nums}.JzaE-a_progressStats{min-width:0;color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;flex:1}.JzaE-a_progressTrack{border-radius:var(--zx-radius-pill);background:var(--zx-bg-active);height:4px;position:relative;overflow:hidden}.JzaE-a_progressFill{border-radius:var(--zx-radius-pill);background:var(--zx-accent);height:100%;transition:width var(--zx-motion)}.JzaE-a_progressIndeterminate{width:36%;animation:1.2s ease-in-out infinite JzaE-a_zx-market-slide}@keyframes JzaE-a_zx-market-slide{0%{margin-left:-36%}to{margin-left:100%}}@media (prefers-reduced-motion:reduce){.JzaE-a_progressIndeterminate{opacity:.5;width:100%;margin-left:0;animation:none}}.JzaE-a_progressStep{color:var(--zx-label-muted);font-size:var(--zx-text-micro);overflow-wrap:anywhere}.JzaE-a_log{max-height:96px;padding:var(--zx-space-3);border-radius:var(--zx-radius-sm);background:var(--zx-bg-panel);color:var(--zx-label-tertiary);font-family:var(--zx-font-mono);font-size:var(--zx-text-micro);line-height:var(--zx-leading-tight);white-space:pre-wrap;overflow-wrap:anywhere;margin:0;overflow:hidden auto}.JzaE-a_lifecycle{gap:var(--zx-space-2);grid-template-columns:repeat(auto-fit,minmax(120px,1fr));display:grid}.JzaE-a_step{padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-left:2px solid var(--zx-border);border-radius:var(--zx-radius-sm);font-size:var(--zx-text-micro);line-height:var(--zx-leading-tight);flex-direction:column;gap:2px;display:flex}.JzaE-a_stepName{color:var(--zx-label-secondary);font-weight:var(--zx-weight-medium)}.JzaE-a_stepBody{color:var(--zx-label-tertiary)}.JzaE-a_stepDone{border-left-color:var(--zx-success)}.JzaE-a_stepPending{border-left-color:var(--zx-warn)}.JzaE-a_stepOff{opacity:.62}.JzaE-a_translationOriginal{padding-bottom:var(--zx-space-3);margin-bottom:var(--zx-space-3);border-bottom:1px dashed var(--zx-border);color:var(--zx-label-tertiary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body)}.JzaE-a_translationText{color:var(--zx-label);font-size:var(--zx-text-sm);line-height:var(--zx-leading-body);overflow-wrap:anywhere}.JzaE-a_dangerConfirm{color:var(--zx-error)}.JzaE-a_footer{padding-top:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body)}@container (width<=680px){.JzaE-a_compactGrid{grid-template-columns:1fr}}@container (width<=560px){.JzaE-a_toolbar{grid-template-columns:minmax(0,1fr) auto;align-items:center;display:grid}.JzaE-a_toolbar .JzaE-a_searchField,.JzaE-a_toolbar>a.JzaE-a_meta{grid-column:1/-1}}@media (width<=720px){.JzaE-a_overlay{padding:0}.JzaE-a_panel{border-inline:0;border-radius:0;width:100%;max-width:none;height:100%;max-height:none}.JzaE-a_surface{grid-template-columns:200px minmax(0,1fr)}.JzaE-a_rail{flex-basis:200px;width:200px}.JzaE-a_body{padding-inline:var(--zx-space-5)}}@media (width<=540px){.JzaE-a_surface{grid-template-columns:176px minmax(0,1fr)}.JzaE-a_rail{flex-basis:176px;width:176px}.JzaE-a_railTitle{font-size:var(--zx-text-md)}.JzaE-a_railItem{gap:var(--zx-space-2);padding-inline:var(--zx-space-2);font-size:var(--zx-text-xs)}.JzaE-a_header,.JzaE-a_body{padding-inline:var(--zx-space-4)}}";
 		const tagId$4 = "@dsh-portable/dcode-ui/PluginsHome.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$4) + "]") === null) {
 			const tag = document.createElement("style");
@@ -19992,15 +20742,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"compactGrid": "JzaE-a_compactGrid",
 			"content": "JzaE-a_content",
 			"dangerConfirm": "JzaE-a_dangerConfirm",
-			"denseCard": "JzaE-a_denseCard",
-			"denseList": "JzaE-a_denseList",
 			"description": "JzaE-a_description",
 			"error": "JzaE-a_error",
 			"exploreWarning": "JzaE-a_exploreWarning",
 			"facts": "JzaE-a_facts",
 			"factsAction": "JzaE-a_factsAction",
-			"filterField": "JzaE-a_filterField",
-			"filters": "JzaE-a_filters",
 			"footer": "JzaE-a_footer",
 			"header": "JzaE-a_header",
 			"headerTitle": "JzaE-a_headerTitle",
@@ -20396,7 +21142,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			return {
 				featured: item.featured || audit?.featured === true,
 				featuredSource: audit?.featuredSource[locale] ?? item.featuredSource,
-				reviewed: audit !== void 0,
 				category: audit?.category ?? item.category,
 				compatibility: audit !== void 0 && platformId !== void 0 ? audit.compatibility[platformId] : item.compatibility,
 				maintenance: item.maintenance
@@ -20510,28 +21255,21 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const failed = operation?.status === "failed";
 			const installed = item.installed || operation?.status === "done";
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("article", {
-				className: `${PluginsHome_module_css_default.card} ${props.density === "compact" ? PluginsHome_module_css_default.compactCard : PluginsHome_module_css_default.denseCard}`,
+				className: `${PluginsHome_module_css_default.card} ${PluginsHome_module_css_default.compactCard}`,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: `${PluginsHome_module_css_default.cardHead} ${ui_module_css_default.cardHeader}`,
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: PluginsHome_module_css_default.identity,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
-								className: PluginsHome_module_css_default.name,
-								href: item.url,
-								target: "_blank",
-								rel: "noreferrer",
-								children: item.fullName
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
-								className: reviewed ? PluginsHome_module_css_default.tagSuccess : PluginsHome_module_css_default.tagWarn,
-								children: t(reviewed ? "plugins.reviewed" : "plugins.unreviewed")
-							}),
-							metadata.featured ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
-								className: PluginsHome_module_css_default.tagAccent,
-								children: t("plugins.featured")
-							}) : null
-						]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+							className: PluginsHome_module_css_default.name,
+							href: item.url,
+							target: "_blank",
+							rel: "noreferrer",
+							children: item.fullName
+						}), metadata.featured ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
+							className: PluginsHome_module_css_default.tagAccent,
+							children: t("plugins.featured")
+						}) : null]
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: PluginsHome_module_css_default.actions,
 						children: installed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
@@ -20659,10 +21397,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const t = useT();
 			const [draft, setDraft] = (0, react.useState)("");
 			const [query, setQuery] = (0, react.useState)("");
-			const [category, setCategory] = (0, react.useState)("all");
-			const [reviewFilter, setReviewFilter] = (0, react.useState)("all");
-			const [compatibility, setCompatibility] = (0, react.useState)("all");
-			const [maintenance, setMaintenance] = (0, react.useState)("all");
 			const [page, setPage] = (0, react.useState)();
 			const [loading, setLoading] = (0, react.useState)(true);
 			const [failure, setFailure] = (0, react.useState)();
@@ -20672,7 +21406,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const moreLoading = (0, react.useRef)(false);
 			const moreController = (0, react.useRef)(null);
 			const { operations, start, cancel } = useOperations(client);
-			const scope = "explore";
 			(0, react.useEffect)(() => {
 				const timer = setTimeout(() => {
 					setQuery(draft.trim());
@@ -20689,7 +21422,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				setPage(void 0);
 				setLoading(true);
 				setFailure(void 0);
-				client.list(query, 1, controller.signal, scope).then((answer) => {
+				client.list(query, 1, controller.signal, "explore").then((answer) => {
 					if (controller.signal.aborted) return;
 					if (answer.ok) setPage(answer.value);
 					else setFailure(answer.error);
@@ -20707,8 +21440,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			}, [
 				client,
 				nonce,
-				query,
-				scope
+				query
 			]);
 			const loadMore = (0, react.useCallback)(() => {
 				const current = page;
@@ -20766,24 +21498,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			}, [client]);
 			const platform = page?.platform || (typeof navigator === "undefined" ? "" : navigator.userAgent);
 			const items = (0, react.useMemo)(() => {
-				return (page?.items ?? []).filter((item) => {
-					const metadata = metadataFor(item, locale, platform);
-					return (category === "all" || metadata.category === category) && (reviewFilter === "all" || reviewFilter === "reviewed" === metadata.reviewed) && (compatibility === "all" || metadata.compatibility === compatibility) && (maintenance === "all" || metadata.maintenance === maintenance);
-				}).sort((left, right) => {
+				return (page?.items ?? []).slice().sort((left, right) => {
 					const [leftMatch, leftStars] = searchRank(left, query);
 					const [rightMatch, rightStars] = searchRank(right, query);
 					return rightMatch - leftMatch || rightStars - leftStars || left.fullName.localeCompare(right.fullName);
 				});
-			}, [
-				category,
-				compatibility,
-				locale,
-				maintenance,
-				page?.items,
-				platform,
-				query,
-				reviewFilter
-			]);
+			}, [page?.items, query]);
 			const syncedAt = page === void 0 || page.fetchedAt === 0 ? t("plugins.neverSynced") : t("plugins.syncedAt", { time: new Date(page.fetchedAt).toLocaleString() });
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -20841,93 +21561,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						})
 					]
 				}),
-				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: PluginsHome_module_css_default.filters,
-					"aria-label": t("plugins.filters"),
-					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: PluginsHome_module_css_default.filterField,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("plugins.filter.category") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-								value: category,
-								onChange: (event) => {
-									setCategory(event.target.value);
-								},
-								children: [
-									"all",
-									"interface",
-									"vision",
-									"design",
-									"automation",
-									"developer",
-									"other",
-									"unknown"
-								].map((value) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-									value,
-									children: t(value === "all" ? "plugins.filter.all" : `plugins.category.${value}`)
-								}, value))
-							})]
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: PluginsHome_module_css_default.filterField,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("plugins.filter.review") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
-								value: reviewFilter,
-								onChange: (event) => {
-									setReviewFilter(event.target.value);
-								},
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-										value: "all",
-										children: t("plugins.filter.all")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-										value: "reviewed",
-										children: t("plugins.reviewed")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-										value: "unreviewed",
-										children: t("plugins.unreviewed")
-									})
-								]
-							})]
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: PluginsHome_module_css_default.filterField,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("plugins.filter.compatibility") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-								value: compatibility,
-								onChange: (event) => {
-									setCompatibility(event.target.value);
-								},
-								children: [
-									"all",
-									"compatible",
-									"incompatible",
-									"unknown"
-								].map((value) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-									value,
-									children: t(value === "all" ? "plugins.filter.all" : `plugins.compatibility.${value}`)
-								}, value))
-							})]
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: PluginsHome_module_css_default.filterField,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("plugins.filter.maintenance") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-								value: maintenance,
-								onChange: (event) => {
-									setMaintenance(event.target.value);
-								},
-								children: [
-									"all",
-									"active",
-									"stale",
-									"unknown"
-								].map((value) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-									value,
-									children: t(value === "all" ? "plugins.filter.all" : `plugins.maintenance.${value}`)
-								}, value))
-							})]
-						})
-					]
-				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: PluginsHome_module_css_default.exploreWarning,
 					children: t("plugins.exploreWarning")
@@ -20946,8 +21579,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					className: PluginsHome_module_css_default.loadingState,
 					role: "status",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, { size: "sm" }), t("plugins.loading")]
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: query === "" ? t("plugins.emptyFiltered") : t("plugins.emptySearch", { query }) }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: PluginsHome_module_css_default.denseList,
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: query === "" ? t("plugins.emptyMarket") : t("plugins.emptySearch", { query }) }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: PluginsHome_module_css_default.compactGrid,
 					children: [items.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MarketCard, {
 						item,
 						locale,
@@ -20955,7 +21588,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						reviewOpen: reviewOpen === item.fullName,
 						translating: translation?.name === item.fullName && translation.loading,
 						platform,
-						density: "dense",
 						onToggleReview: () => {
 							setReviewOpen((current) => current === item.fullName ? void 0 : item.fullName);
 						},
@@ -23306,7 +23938,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								className: SettingsSurface_module_css_default.badge,
 								children: modeName(currentMode, currentPresetRow?.name ?? currentMode, t)
 							})
-						]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingRow, {
+							title: t("settings.agentWorkflowTools"),
+							body: t("settings.agentWorkflowToolsBody"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: SettingsSurface_module_css_default.rowMono,
+								children: currentMode === "crew" ? t("settings.agentWorkflowToolsCluster") : t("settings.agentWorkflowToolsStandard")
+							})
+						})]
 					})
 				}),
 				described.loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -23413,6 +24052,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			{
 				id: "agentPresets",
 				label: "settings.agentPresets"
+			},
+			{
+				id: "archivedChats",
+				label: "settings.archivedChats"
 			},
 			{
 				id: "about",
@@ -24390,6 +25033,124 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				})
 			});
 		}
+		/** Manage conversations hidden by the registry-global archive set. */
+		function ArchivedChatsSection({ navigation }) {
+			const runtime = useRuntime();
+			const t = useT();
+			const sessions = useSessionList();
+			const workspaces = useWorkspaces();
+			const [busyId, setBusyId] = (0, react.useState)();
+			const [deleteTarget, setDeleteTarget] = (0, react.useState)();
+			const [error, setError] = (0, react.useState)();
+			const rows = (0, react.useMemo)(() => workspaces.archivedSessionIds.map((id) => sessions.byId[id] ?? {
+				id,
+				displayTitle: id,
+				running: false,
+				blank: false,
+				updatedAt: 0
+			}).sort((left, right) => right.updatedAt - left.updatedAt), [sessions.byId, workspaces.archivedSessionIds]);
+			const restore = (0, react.useCallback)((id) => {
+				if (busyId !== void 0) return;
+				setBusyId(id);
+				setError(void 0);
+				runtime.workspaces.unarchiveSession(id).then(() => {
+					if (runtime.sessions.list.getSnapshot().byId[id] !== void 0) {
+						runtime.sessions.open(id);
+						navigation.show("session");
+					}
+				}).catch((cause) => {
+					setError(cause instanceof Error ? cause.message : String(cause));
+				}).finally(() => {
+					setBusyId(void 0);
+				});
+			}, [
+				busyId,
+				navigation,
+				runtime
+			]);
+			const closeDelete = (0, react.useCallback)(() => {
+				if (busyId !== void 0) return;
+				setDeleteTarget(void 0);
+				setError(void 0);
+			}, [busyId]);
+			const confirmDelete = (0, react.useCallback)(() => {
+				const target = deleteTarget;
+				if (target === void 0 || busyId !== void 0) return;
+				setBusyId(target.id);
+				setError(void 0);
+				runtime.sessions.delete(target.id).then(() => {
+					if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear();
+					setDeleteTarget(void 0);
+				}).catch((cause) => {
+					setError(cause instanceof Error ? cause.message : String(cause));
+				}).finally(() => {
+					setBusyId(void 0);
+				});
+			}, [
+				busyId,
+				deleteTarget,
+				runtime
+			]);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(Section, {
+				title: t("settings.archivedChats"),
+				body: t("settings.archivedChatsBody"),
+				children: [
+					workspaces.phase !== "ready" || sessions.phase !== "ready" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, {}) }) : rows.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("settings.archivedChatsEmpty") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: SettingsSurface_module_css_default.card,
+						children: rows.map((session) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
+							title: session.displayTitle,
+							body: session.cwd ?? t("settings.archivedChats"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: SettingsSurface_module_css_default.presetActions,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+									disabled: busyId !== void 0,
+									onClick: () => {
+										restore(session.id);
+									},
+									children: busyId === session.id ? t("common.saving") : t("settings.archivedChatsRestore")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: SettingsSurface_module_css_default.dangerButton,
+									disabled: busyId !== void 0,
+									onClick: () => {
+										setError(void 0);
+										setDeleteTarget(session);
+									},
+									children: t("settings.archivedChatsDelete")
+								})]
+							})
+						}, session.id))
+					}),
+					error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: SettingsSurface_module_css_default.inlineError,
+						role: "alert",
+						children: error
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusingModal, {
+						open: deleteTarget !== void 0,
+						onClose: closeDelete,
+						title: t("settings.archivedChatsDeleteTitle"),
+						closeLabel: t("common.close"),
+						description: t("settings.archivedChatsDeleteBody"),
+						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+							onClick: closeDelete,
+							disabled: busyId !== void 0,
+							children: t("common.cancel")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: SettingsSurface_module_css_default.dangerButton,
+							disabled: busyId !== void 0,
+							onClick: confirmDelete,
+							children: busyId === void 0 ? t("settings.archivedChatsDelete") : t("common.saving")
+						})] }),
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: SettingsSurface_module_css_default.rowTitle,
+							children: deleteTarget?.displayTitle
+						})
+					})
+				]
+			});
+		}
 		/** Persist the default preset through the same settings namespace as DSH. */
 		async function saveDefaultPreset(runtime, id) {
 			try {
@@ -24773,28 +25534,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				]
 			});
 		}
-		/** Direct subagents of the current session. */
-		function SubagentsSection({ sessionId }) {
-			const runtime = useRuntime();
-			const t = useT();
-			const catalog = useAsync(async (signal) => sessionId === void 0 ? void 0 : await runtime.remote.subagents.list(sessionId, signal), [runtime, sessionId]);
-			if (sessionId === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("composer.needsSession") });
-			if (catalog.loading) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Spinner, {}) });
-			if (catalog.error !== void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: catalog.error });
-			if (catalog.value?.ok === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: catalog.value.error.message });
-			const entries = catalog.value?.ok === true ? catalog.value.value.entries : [];
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Section, {
-				title: t("settings.subagents"),
-				body: t("settings.count", { count: entries.length }),
-				children: entries.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("settings.subagentsEmpty") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: SettingsSurface_module_css_default.card,
-					children: entries.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-						title: entry.kind === "child" ? entry.label ?? entry.id : entry.id,
-						body: entry.kind === "child" ? `${entry.activity} · ${entry.mode}` : entry.reason
-					}, entry.id))
-				})
-			});
-		}
 		/**
 		* Registered settings namespaces, filtered to those a section is about.
 		*
@@ -24963,12 +25702,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				case "mcp": return "plugins";
 				case "agentWorkflow":
 				case "agentPresets":
-				case "memory":
-				case "subagents": return "agentPresets";
+				case "memory": return "agentPresets";
 				case "data":
 				case "skills":
 				case "commands":
 				case "usage": return "data";
+				case "archivedChats": return "archivedChats";
 				case "about": return "about";
 				case "general":
 				case "appearance": return "general";
@@ -24982,12 +25721,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				case "mcp": return "settings.pluginsNav";
 				case "agentWorkflow":
 				case "agentPresets":
-				case "memory":
-				case "subagents": return "settings.agentPresets";
+				case "memory": return "settings.agentPresets";
 				case "data":
 				case "skills":
 				case "commands":
 				case "usage": return "settings.dataAndAbout";
+				case "archivedChats": return "settings.archivedChats";
 				case "about": return "settings.about";
 				case "general":
 				case "appearance": return "settings.general";
@@ -25024,6 +25763,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				plugins: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPersonalizationOutline16, {}),
 				agentPresets: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconAgentPresetOutline16, {}),
 				data: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconDatabaseOutline16, {}),
+				archivedChats: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconArchiveOutline20, { size: 16 }),
 				about: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconQuestionOutline14, {})
 			};
 			const activeNav = settingsNavSection(state.settingsSection);
@@ -25047,14 +25787,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					case "plugins": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginSettingsSection, {});
 					case "mcp": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginSettingsSection, { mcpOnly: true });
 					case "data": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DataSection, { sessionId });
-					case "agentPresets": return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AgentWorkflowSection, { sessionId }),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AgentPresetsSection, {}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SubagentsSection, { sessionId })
-					] });
+					case "agentPresets": return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AgentWorkflowSection, { sessionId }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AgentPresetsSection, {})] });
 					case "agentWorkflow": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AgentWorkflowSection, { sessionId });
-					case "subagents": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SubagentsSection, { sessionId });
 					case "usage": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(UsageSection, {});
+					case "archivedChats": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ArchivedChatsSection, { navigation });
 					case "about": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AboutSection, {});
 					case "memory": return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(NamespaceSection, {
 						title: t("settings.memory"),
@@ -25365,6 +26101,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const { groups } = useWorkspaceGroups();
 			const { scheme, fontSize } = useAppearance();
 			const [browsing, setBrowsing] = (0, react.useState)(false);
+			const [fullSubagentConversation, setFullSubagentConversation] = (0, react.useState)();
 			const [railWidth, setRailWidth] = (0, react.useState)(readRailWidth);
 			const [railResizing, setRailResizing] = (0, react.useState)(false);
 			const railDrag = (0, react.useRef)();
@@ -25378,6 +26115,18 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					goalActive: goal != null && goal.goal.phase !== "completed" && goal.goal.phase !== "paused"
 				};
 			}, [git.status, goal]);
+			const openSubagentConversation = (0, react.useCallback)((parentSessionId, entry) => {
+				setFullSubagentConversation({
+					parentSessionId,
+					entry
+				});
+			}, []);
+			const closeSubagentConversation = (0, react.useCallback)(() => {
+				const opened = fullSubagentConversation;
+				setFullSubagentConversation(void 0);
+				if (opened === void 0 || runtime.sessions.list.getSnapshot().current !== opened.entry.id) return;
+				runtime.sessions.open(opened.parentSessionId);
+			}, [fullSubagentConversation, runtime]);
 			(0, react.useEffect)(() => {
 				navigation.setWorkspace(cwd);
 			}, [cwd, navigation]);
@@ -25635,7 +26384,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				openWorkspace,
 				restoreOverlayFocus
 			]);
-			const fullSurface = state.view === "plugins";
+			const fullSurface = state.view === "plugins" || state.view === "learning";
 			const overlayOpen = compactOverlay !== void 0;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				ref: setFrame,
@@ -25655,7 +26404,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				children: [
 					fullSurface ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: Workbench_module_css_default.surface,
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginsHome, { navigation })
+						children: state.view === "learning" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LearningHome, {
+							navigation,
+							cwd,
+							sessionId
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginsHome, { navigation })
 					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 						overlayOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: Workbench_module_css_default.scrim,
@@ -25702,13 +26455,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 									open: state.summaryOpen,
 									compact: state.layout === "compact"
 								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Transcript, {
+								fullSubagentConversation === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Transcript, {
 									navigation,
 									sessionId,
 									cwd,
 									blank,
 									compact: state.layout === "compact"
-								}),
+								}) : null,
 								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: Workbench_module_css_default.composerSeat,
 									children: [
@@ -25766,16 +26519,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								navigation,
 								sessionId,
 								cwd,
-								context: taskContext
+								context: taskContext,
+								onOpenSubagentConversation: openSubagentConversation
 							})]
 						})
 					] }),
-					state.view === "library" || state.view === "learning" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ResourceLibraryHome, {
-						navigation,
-						cwd,
-						sessionId,
-						onOpenWorkspace: openWorkspace
-					}) : null,
 					state.view === "settings" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsBoundary, {
 						resetKey: state.settingsSection,
 						t,
@@ -25800,7 +26548,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						onCancel: () => {
 							setBrowsing(false);
 						}
-					}) : null
+					}) : null,
+					fullSubagentConversation === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SubagentConversationDialog, {
+						parentSessionId: fullSubagentConversation.parentSessionId,
+						entry: fullSubagentConversation.entry,
+						navigation,
+						onClose: closeSubagentConversation
+					})
 				]
 			});
 		}

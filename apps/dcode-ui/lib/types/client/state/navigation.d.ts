@@ -14,7 +14,7 @@
  */
 import { type LayoutSize } from './layout.ts';
 /** The top-level surfaces the left rail selects between. */
-export type WorkbenchView = 'session' | 'library' | 'learning' | 'plugins' | 'settings';
+export type WorkbenchView = 'session' | 'learning' | 'plugins' | 'settings';
 /** Tabs of the right-hand preview column. */
 export type AsideTab = 'changes' | 'terminal' | 'goal';
 /** The two frontend views that occupy the compact frame as overlays. */
@@ -33,9 +33,9 @@ export declare function orderedAsideTabs(_context: TaskContext): readonly AsideT
 /** Resolve the next preview tab, wrapping seamlessly at either edge. */
 export declare function adjacentAsideTab(tab: AsideTab, direction: -1 | 1, tabs?: readonly AsideTab[]): AsideTab;
 /** Settings sections, mirroring the official settings surface's own groups. */
-export type SettingsSection = 'general' | 'appearance' | 'models' | 'data' | 'memory' | 'subagents' | 'plugins' | 'agentWorkflow'
+export type SettingsSection = 'general' | 'appearance' | 'models' | 'data' | 'memory' | 'plugins' | 'agentWorkflow'
 /** @deprecated Use the unified Agent and workflow page. */
- | 'agentPresets' | 'mcp' | 'skills' | 'commands' | 'usage' | 'about';
+ | 'agentPresets' | 'mcp' | 'skills' | 'commands' | 'usage' | 'archivedChats' | 'about';
 /** A file the diff viewer is showing. */
 export interface DiffTarget {
     readonly path: string;

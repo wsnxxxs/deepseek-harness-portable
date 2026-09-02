@@ -13,12 +13,12 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/settings/SettingsSurface
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { IconAgentPresetOutline16, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16, IconPersonalizationOutline16, IconPlusOutline16, IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconAgentPresetOutline16, IconArchiveOutline20, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16, IconPersonalizationOutline16, IconPlusOutline16, IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
-import { useAsync, useSessionList } from "../state/hooks.js";
+import { useAsync, useSessionList, useWorkspaces } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
-import { Button, EmptyState, Spinner, ui } from "../shell/ui.js";
+import { Button, EmptyState, FocusingModal, Spinner, ui } from "../shell/ui.js";
 import { useModalFocus } from "../shell/use-modal-focus.js";
 import { ThemeSwitch, useAppearance } from "../shell/ThemeSwitch.js";
 import { UiModeSwitch } from "../shell/UiModeSwitch.js";
@@ -36,6 +36,7 @@ const RAIL = [
     { id: 'models', label: 'settings.modelsNav' },
     { id: 'plugins', label: 'settings.pluginsNav' },
     { id: 'agentPresets', label: 'settings.agentPresets' },
+    { id: 'archivedChats', label: 'settings.archivedChats' },
     { id: 'about', label: 'settings.about' },
 ];
 /** A titled block with an explanatory line. */
@@ -536,6 +537,66 @@ function CommandsSection({ sessionId }) {
             ? _jsx(EmptyState, { children: t('settings.commandsEmpty') })
             : (_jsx("div", { className: css.card, children: rows.map(command => (_jsx(Row, { title: `/${command.name}`, body: command.description }, command.name))) })) }));
 }
+/** Manage conversations hidden by the registry-global archive set. */
+function ArchivedChatsSection({ navigation }) {
+    const runtime = useRuntime();
+    const t = useT();
+    const sessions = useSessionList();
+    const workspaces = useWorkspaces();
+    const [busyId, setBusyId] = useState();
+    const [deleteTarget, setDeleteTarget] = useState();
+    const [error, setError] = useState();
+    const rows = useMemo(() => workspaces.archivedSessionIds
+        .map(id => sessions.byId[id] ?? {
+        id,
+        displayTitle: id,
+        running: false,
+        blank: false,
+        updatedAt: 0,
+    })
+        .sort((left, right) => right.updatedAt - left.updatedAt), [sessions.byId, workspaces.archivedSessionIds]);
+    const restore = useCallback((id) => {
+        if (busyId !== undefined)
+            return;
+        setBusyId(id);
+        setError(undefined);
+        void runtime.workspaces.unarchiveSession(id)
+            .then(() => {
+            if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
+                runtime.sessions.open(id);
+                navigation.show('session');
+            }
+        })
+            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
+            .finally(() => { setBusyId(undefined); });
+    }, [busyId, navigation, runtime]);
+    const closeDelete = useCallback(() => {
+        if (busyId !== undefined)
+            return;
+        setDeleteTarget(undefined);
+        setError(undefined);
+    }, [busyId]);
+    const confirmDelete = useCallback(() => {
+        const target = deleteTarget;
+        if (target === undefined || busyId !== undefined)
+            return;
+        setBusyId(target.id);
+        setError(undefined);
+        void runtime.sessions.delete(target.id)
+            .then(() => {
+            if (runtime.sessions.list.getSnapshot().current === target.id)
+                runtime.sessions.clear();
+            setDeleteTarget(undefined);
+        })
+            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
+            .finally(() => { setBusyId(undefined); });
+    }, [busyId, deleteTarget, runtime]);
+    return (_jsxs(Section, { title: t('settings.archivedChats'), body: t('settings.archivedChatsBody'), children: [workspaces.phase !== 'ready' || sessions.phase !== 'ready'
+                ? _jsx(EmptyState, { children: _jsx(Spinner, {}) })
+                : rows.length === 0
+                    ? _jsx(EmptyState, { children: t('settings.archivedChatsEmpty') })
+                    : (_jsx("div", { className: css.card, children: rows.map(session => (_jsx(Row, { title: session.displayTitle, body: session.cwd ?? t('settings.archivedChats'), control: (_jsxs("div", { className: css.presetActions, children: [_jsx(Button, { disabled: busyId !== undefined, onClick: () => { restore(session.id); }, children: busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: busyId !== undefined, onClick: () => { setError(undefined); setDeleteTarget(session); }, children: t('settings.archivedChatsDelete') })] })) }, session.id))) })), error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsx(FocusingModal, { open: deleteTarget !== undefined, onClose: closeDelete, title: t('settings.archivedChatsDeleteTitle'), closeLabel: t('common.close'), description: t('settings.archivedChatsDeleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(Button, { onClick: closeDelete, disabled: busyId !== undefined, children: t('common.cancel') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: busyId !== undefined, onClick: confirmDelete, children: busyId === undefined ? t('settings.archivedChatsDelete') : t('common.saving') })] })), children: _jsx("div", { className: css.rowTitle, children: deleteTarget?.displayTitle }) })] }));
+}
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(runtime, id) {
     try {
@@ -717,28 +778,6 @@ function AgentPresetsSection() {
                                 ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.view') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), dialogBusy ? _jsx(EmptyState, { children: _jsx(Spinner, {}) }) : viewContent === undefined ? _jsx("div", { className: css.inlineError, role: "alert", children: dialogError ?? t('common.error') }) : _jsx("pre", { className: css.viewerCode, tabIndex: 0, role: "region", "aria-label": t('settings.agentPresets.view'), children: viewContent })] }))
                                 : (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dialogHeader, children: [_jsx("div", { id: "dcode-settings-dialog-title", className: css.dialogTitle, children: t('settings.agentPresets.deleteTitle') }), _jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.close') })] }), _jsx("p", { className: css.dialogBody, children: t('settings.agentPresets.deleteBody') }), dialogError === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: dialogError }), _jsxs("div", { className: css.dialogActions, children: [_jsx(Button, { onClick: closeDialog, disabled: dialogBusy, children: t('common.cancel') }), _jsx(Button, { primary: true, onClick: confirmDelete, disabled: dialogBusy, children: dialogBusy ? t('common.saving') : t('settings.agentPresets.delete') })] })] })) }) })), Object.entries(revealedPaths).map(([id, path]) => (_jsxs("div", { className: css.revealedPath, children: [_jsx("span", { children: `${id}: ` }), _jsx("code", { children: path })] }, id)))] }));
 }
-/** Direct subagents of the current session. */
-function SubagentsSection({ sessionId }) {
-    const runtime = useRuntime();
-    const t = useT();
-    const catalog = useAsync(async (signal) => (sessionId === undefined ? undefined : await runtime.remote.subagents.list(sessionId, signal)), [runtime, sessionId]);
-    if (sessionId === undefined)
-        return _jsx(EmptyState, { children: t('composer.needsSession') });
-    if (catalog.loading)
-        return _jsx(EmptyState, { children: _jsx(Spinner, {}) });
-    if (catalog.error !== undefined)
-        return _jsx(EmptyState, { children: catalog.error });
-    if (catalog.value?.ok === false)
-        return _jsx(EmptyState, { children: catalog.value.error.message });
-    const entries = catalog.value?.ok === true
-        ? catalog.value.value.entries
-        : [];
-    return (_jsx(Section, { title: t('settings.subagents'), body: t('settings.count', { count: entries.length }), children: entries.length === 0
-            ? _jsx(EmptyState, { children: t('settings.subagentsEmpty') })
-            : (_jsx("div", { className: css.card, children: entries.map(entry => (_jsx(Row, { title: entry.kind === 'child' ? entry.label ?? entry.id : entry.id, body: entry.kind === 'child'
-                        ? `${entry.activity} · ${entry.mode}`
-                        : entry.reason }, entry.id))) })) }));
-}
 /**
  * Registered settings namespaces, filtered to those a section is about.
  *
@@ -794,11 +833,12 @@ function settingsNavSection(section) {
         case 'agentWorkflow':
         case 'agentPresets':
         case 'memory':
-        case 'subagents': return 'agentPresets';
+            return 'agentPresets';
         case 'data':
         case 'skills':
         case 'commands':
         case 'usage': return 'data';
+        case 'archivedChats': return 'archivedChats';
         case 'about': return 'about';
         case 'general':
         case 'appearance': return 'general';
@@ -813,11 +853,12 @@ function settingsTitleKey(section) {
         case 'agentWorkflow':
         case 'agentPresets':
         case 'memory':
-        case 'subagents': return 'settings.agentPresets';
+            return 'settings.agentPresets';
         case 'data':
         case 'skills':
         case 'commands':
         case 'usage': return 'settings.dataAndAbout';
+        case 'archivedChats': return 'settings.archivedChats';
         case 'about': return 'settings.about';
         case 'general':
         case 'appearance': return 'settings.general';
@@ -843,6 +884,7 @@ export function SettingsSurface({ navigation, sessionId }) {
         plugins: _jsx(IconPersonalizationOutline16, {}),
         agentPresets: _jsx(IconAgentPresetOutline16, {}),
         data: _jsx(IconDatabaseOutline16, {}),
+        archivedChats: _jsx(IconArchiveOutline20, { size: 16 }),
         about: _jsx(IconQuestionOutline14, {}),
     };
     const activeNav = settingsNavSection(state.settingsSection);
@@ -865,10 +907,10 @@ export function SettingsSurface({ navigation, sessionId }) {
             case 'plugins': return _jsx(PluginSettingsSection, {});
             case 'mcp': return _jsx(PluginSettingsSection, { mcpOnly: true });
             case 'data': return _jsx(DataSection, { sessionId: sessionId });
-            case 'agentPresets': return (_jsxs(_Fragment, { children: [_jsx(AgentWorkflowSection, { sessionId: sessionId }), _jsx(AgentPresetsSection, {}), _jsx(SubagentsSection, { sessionId: sessionId })] }));
+            case 'agentPresets': return (_jsxs(_Fragment, { children: [_jsx(AgentWorkflowSection, { sessionId: sessionId }), _jsx(AgentPresetsSection, {})] }));
             case 'agentWorkflow': return _jsx(AgentWorkflowSection, { sessionId: sessionId });
-            case 'subagents': return _jsx(SubagentsSection, { sessionId: sessionId });
             case 'usage': return _jsx(UsageSection, {});
+            case 'archivedChats': return _jsx(ArchivedChatsSection, { navigation: navigation });
             case 'about': return _jsx(AboutSection, {});
             case 'memory':
                 return _jsx(NamespaceSection, { title: t('settings.memory'), body: t('settings.memoryBody'), match: /memor|context|compaction/i });

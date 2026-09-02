@@ -19,10 +19,23 @@ import { UI_MODE_NS } from '@dsh-portable/ui-mode/client';
 import { createLearningCall, createDcodeApi, createDcodeMemoryApi, } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
 const EMPTY_LIST = [];
+const EMPTY_CHAT_NODE_SOURCE = {
+    getSnapshot: () => undefined,
+    subscribe: () => () => { },
+};
+const EMPTY_CHAT_NODE_PROCESS_SOURCE = {
+    getSnapshot: () => undefined,
+    subscribe: () => () => { },
+};
 /** Stable empty Chat value used while the Conversation target is starting. */
 export const EMPTY_CHAT_SNAPSHOT = {
     order: EMPTY_LIST,
-    nodes: { get: () => undefined, values: () => EMPTY_LIST },
+    nodes: {
+        get: () => undefined,
+        source: () => EMPTY_CHAT_NODE_SOURCE,
+        processSource: () => EMPTY_CHAT_NODE_PROCESS_SOURCE,
+        values: () => EMPTY_LIST,
+    },
     locations: { getTurn: () => EMPTY_LIST, getStep: () => EMPTY_LIST },
     navigation: { items: () => EMPTY_LIST },
     timeline: { turnOrder: EMPTY_LIST, turns: new Map() },

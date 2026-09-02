@@ -1,6 +1,8 @@
 /** Portable runtime session-event compatibility declarations. */
 import { KNOWN_SESSION_EVENT_TYPES, } from '@deepseek-ai/dsh-session';
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets';
 import { registerInteractiveLearningSessionCompatibility } from '@dsh-portable/interactive-learning/bootstrap';
+import { canonicalModeId } from './mode-catalog.js';
 /** Exact durable discriminator used by portable mode-resolution diagnostics. */
 export const PORTABLE_MODE_RESOLUTION_EVENT_TYPE = 'portable-runtime/mode-resolution';
 /** Register the exact legacy portable event understood by this distribution. */
@@ -12,12 +14,28 @@ export function registerPortableSessionCompatibility() {
 }
 /** Register every required event understood by the packaged runtime before persistence can read. */
 export function registerPackagedSessionCompatibility() {
-    // Learning state is registered for strict validation/folding when the package
-    // is present. Writers also mark this log-only projection ignorable so a host
-    // can resume a session before a lazily loaded Learning package registers it;
-    // the persistence reader retains the event for a later fold.
+    // Learning state is registered for strict validation/folding before a
+    // packaged Host can restore a session.
     registerInteractiveLearningSessionCompatibility();
     registerPortableSessionCompatibility();
+}
+/** The projection used by the portable roster, including the retired `code` id. */
+export const portableAgentPresetProjectionDefinition = {
+    ...agentPresetProjectionDefinition,
+    init: (header) => {
+        const preset = agentPresetProjectionDefinition.init(header);
+        return preset === null ? null : canonicalModeId(preset);
+    },
+    apply: (state, event) => {
+        const preset = agentPresetProjectionDefinition.apply(state, event);
+        return preset === null ? null : canonicalModeId(preset);
+    },
+};
+/** Register the portable projection before the upstream AgentPresets service. */
+export function installPortableAgentPresetCompatibility(ctx) {
+    ctx.inject(['sessionProjections'], (projectionCtx) => {
+        projectionCtx.sessionProjections.register(portableAgentPresetProjectionDefinition);
+    });
 }
 /**
  * Append an informational mode-resolution trace with forward-safe metadata.
@@ -26,6 +44,6 @@ export function registerPackagedSessionCompatibility() {
  */
 export function appendPortableModeResolution(session, trace) {
     ;
-    session.append(PORTABLE_MODE_RESOLUTION_EVENT_TYPE, trace, { ignorable: true });
+    session.append(PORTABLE_MODE_RESOLUTION_EVENT_TYPE, trace);
 }
 //# sourceMappingURL=session-compatibility.js.map

@@ -1,5 +1,5 @@
 import { i as __reExport, n as types_exports, r as __exportAll, t as material_anchor_exports } from "./material-anchor-ChboTkkx.js";
-import { f as createInitialLearnerState } from "./learner-state-BiBCCaLg.js";
+import { f as createInitialLearnerState } from "./learner-state-CA63fLIw.js";
 import { createHash } from "node:crypto";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
@@ -1113,6 +1113,76 @@ var lexical_exports = /* @__PURE__ */ __exportAll({});
 import * as import__dsh_portable_space_kernel_search_lexical from "@dsh-portable/space-kernel/search/lexical";
 __reExport(lexical_exports, import__dsh_portable_space_kernel_search_lexical);
 //#endregion
+//#region lib/types/ingest/pipeline.js
+var pipeline_exports = /* @__PURE__ */ __exportAll({});
+import * as import__dsh_portable_space_kernel_ingest_pipeline from "@dsh-portable/space-kernel/ingest/pipeline";
+__reExport(pipeline_exports, import__dsh_portable_space_kernel_ingest_pipeline);
+//#endregion
+//#region lib/types/learning-reanchor.js
+/**
+* Re-anchoring the teaching pack's own stored citations.
+*
+* Moving a quote onto a rebuilt structure is kernel work and lives in
+* `@dsh-portable/space-kernel`. WHAT holds the quotes is not: learner memory is
+* this pack's record, so the pass over it belongs here and is contributed to
+* the ingest pipeline through {@link registerReanchorHook} rather than being
+* imported by it.
+* @module @dsh-portable/interactive-learning/learning-reanchor
+*/
+/** The zero total, returned when a space holds no learner memory yet. */
+const EMPTY_OUTCOME = {
+	moved: 0,
+	unchanged: 0,
+	stale: 0,
+	recovered: 0
+};
+/** Re-anchor one concept record; returns the record and what changed. */
+function reanchorConcept(concept, previous, next) {
+	const result = reanchorAnchorLists(concept.anchors, concept.staleAnchors, previous, next);
+	return {
+		concept: result.changed ? {
+			...concept,
+			anchors: result.anchors,
+			staleAnchors: result.staleAnchors
+		} : concept,
+		outcome: result.outcome
+	};
+}
+/**
+* Move every stored citation for one source onto its rebuilt structure.
+*
+* Called by the ingest pipeline after a source is re-parsed. Writes only when
+* something actually changed, so a routine reingest of unchanged material costs
+* nothing.
+* @param vault - The vault whose memory holds the citations.
+* @param previous - The structure recorded before this reimport, when there was one.
+* @param next - The freshly derived structure.
+* @returns the totals across every concept.
+*/
+async function reanchorVaultMemory(vault, previous, next) {
+	const memory = await readLearnerMemory(vault);
+	if (memory.concepts.length === 0) return { ...EMPTY_OUTCOME };
+	const total = { ...EMPTY_OUTCOME };
+	const concepts = [];
+	let changed = false;
+	for (const concept of memory.concepts) {
+		const result = reanchorConcept(concept, previous, next);
+		concepts.push(result.concept);
+		if (result.concept !== concept) changed = true;
+		total.moved += result.outcome.moved;
+		total.unchanged += result.outcome.unchanged;
+		total.stale += result.outcome.stale;
+		total.recovered += result.outcome.recovered;
+	}
+	if (changed) await writeLearnerMemory(vault, {
+		...memory,
+		concepts
+	});
+	return total;
+}
+registerReanchorHook(reanchorVaultMemory);
+registerReanchorHook(reanchorConceptCards);
+//#endregion
 //#region lib/types/material-retrieval.js
 /**
 * State-driven retrieval: the learner's state decides what to look for, not the
@@ -1317,12 +1387,6 @@ function planRetrieval(state, budgetChars = DEFAULT_RETRIEVAL_BUDGET_CHARS, focu
 	if (goalTerms.length === 0 && focusTerms.length === 0) return void 0;
 	return build("verbatim-anchor", focusTerms.length === 0 ? "no more specific situation applies, so find where the material states the goal" : "the learner named what to look for, so their own words lead the search");
 }
-/** Return the supplied terms that occur in a body, preserving their order. */
-function matchedTerms(body, terms) {
-	const candidates = typeof terms === "string" ? [terms] : terms;
-	const haystack = body.toLocaleLowerCase();
-	return candidates.filter((term) => term.trim() !== "" && haystack.includes(term.toLocaleLowerCase()));
-}
 /** Excerpt around the first matched term, bounded. */
 function excerptAround(body, matched, limit) {
 	const terms = typeof matched === "string" ? [matched] : matched;
@@ -1452,76 +1516,6 @@ async function executeRetrievalPlan(vault, plan, state, sessionQuery, options = 
 	};
 }
 //#endregion
-//#region lib/types/learning-reanchor.js
-/**
-* Re-anchoring the teaching pack's own stored citations.
-*
-* Moving a quote onto a rebuilt structure is kernel work and lives in
-* `@dsh-portable/space-kernel`. WHAT holds the quotes is not: learner memory is
-* this pack's record, so the pass over it belongs here and is contributed to
-* the ingest pipeline through {@link registerReanchorHook} rather than being
-* imported by it.
-* @module @dsh-portable/interactive-learning/learning-reanchor
-*/
-/** The zero total, returned when a space holds no learner memory yet. */
-const EMPTY_OUTCOME = {
-	moved: 0,
-	unchanged: 0,
-	stale: 0,
-	recovered: 0
-};
-/** Re-anchor one concept record; returns the record and what changed. */
-function reanchorConcept(concept, previous, next) {
-	const result = reanchorAnchorLists(concept.anchors, concept.staleAnchors, previous, next);
-	return {
-		concept: result.changed ? {
-			...concept,
-			anchors: result.anchors,
-			staleAnchors: result.staleAnchors
-		} : concept,
-		outcome: result.outcome
-	};
-}
-/**
-* Move every stored citation for one source onto its rebuilt structure.
-*
-* Called by the ingest pipeline after a source is re-parsed. Writes only when
-* something actually changed, so a routine reingest of unchanged material costs
-* nothing.
-* @param vault - The vault whose memory holds the citations.
-* @param previous - The structure recorded before this reimport, when there was one.
-* @param next - The freshly derived structure.
-* @returns the totals across every concept.
-*/
-async function reanchorVaultMemory(vault, previous, next) {
-	const memory = await readLearnerMemory(vault);
-	if (memory.concepts.length === 0) return { ...EMPTY_OUTCOME };
-	const total = { ...EMPTY_OUTCOME };
-	const concepts = [];
-	let changed = false;
-	for (const concept of memory.concepts) {
-		const result = reanchorConcept(concept, previous, next);
-		concepts.push(result.concept);
-		if (result.concept !== concept) changed = true;
-		total.moved += result.outcome.moved;
-		total.unchanged += result.outcome.unchanged;
-		total.stale += result.outcome.stale;
-		total.recovered += result.outcome.recovered;
-	}
-	if (changed) await writeLearnerMemory(vault, {
-		...memory,
-		concepts
-	});
-	return total;
-}
-registerReanchorHook(reanchorVaultMemory);
-registerReanchorHook(reanchorConceptCards);
-//#endregion
-//#region lib/types/ingest/pipeline.js
-var pipeline_exports = /* @__PURE__ */ __exportAll({});
-import * as import__dsh_portable_space_kernel_ingest_pipeline from "@dsh-portable/space-kernel/ingest/pipeline";
-__reExport(pipeline_exports, import__dsh_portable_space_kernel_ingest_pipeline);
-//#endregion
 //#region lib/types/retrieval/index.js
 /** General retrieval facade; the existing teaching planner remains one mode. */
 /** Named value for callers that want to inject the existing teaching planner. */
@@ -1591,9 +1585,10 @@ function parseFileMentions(text) {
 }
 /** Every path the learner mentioned across the recent user messages. */
 function mentionedPaths(session) {
+	const events = session.snapshotEvents();
 	const texts = [];
-	for (let index = session.events.length - 1; index >= 0 && texts.length < MENTION_LOOKBACK; index -= 1) {
-		const event = session.events[index];
+	for (let index = events.length - 1; index >= 0 && texts.length < MENTION_LOOKBACK; index -= 1) {
+		const event = events[index];
 		if (event?.type !== "user/message") continue;
 		const data = event.data;
 		if (data.source?.kind !== "user") continue;
@@ -1624,7 +1619,7 @@ async function syncMentionedMaterial(agent, vault, extraMentions = []) {
 	if (agent === void 0) return [];
 	const session = agent.session;
 	const cached = synced.get(agent);
-	if (extraMentions.length === 0 && cached?.count === session.events.length) return cached.results;
+	if (extraMentions.length === 0 && cached?.count === session.snapshotEvents().length) return cached.results;
 	const mentions = [...mentionedPaths(session)];
 	for (const mention of extraMentions) if (!mentions.includes(mention)) mentions.push(mention);
 	const results = [];
@@ -1656,7 +1651,7 @@ async function syncMentionedMaterial(agent, vault, extraMentions = []) {
 	}
 	const settled = results.filter((result) => result.status !== "unchanged");
 	synced.set(agent, {
-		count: session.events.length,
+		count: session.snapshotEvents().length,
 		results: settled,
 		reportedUnsupported: [...reportedUnsupported]
 	});
@@ -3050,4 +3045,4 @@ function buildLearningTeachingPolicy(context = {}) {
 /** Backwards-compatible standing-layer name used by existing agent wiring. */
 const LEARNING_TEACHING_POLICY = LEARNING_TEACHING_POLICY_CORE;
 //#endregion
-export { parseMarkdownFrontmatter as $, describeReanchor as A, lexical_exports as B, mentionedPaths as C, LEARN_INTENT as Ct, TeachingPlanner as D, classifyLearnIntent as Dt, material_receipts_exports as E, LEARN_INTENT_RULES as Et, excerptAround as F, conceptCardDraftFromState as G, MAX_CONCEPT_CARDS as H, executeRetrievalPlan as I, dateKey as J, conceptCardPathOf as K, keyPhrases as L, reanchorVaultMemory as M, DEFAULT_RETRIEVAL_BUDGET_CHARS as N, retrieve as O, isLearnIntent as Ot, RETRIEVAL_INTENTS as P, nextReviewSchedule as Q, matchedTerms as R, sectionAnchor as S, LEARNING_INTENT_ROUTING_GUIDANCE as St, syncMentionedMaterial as T, LEARN_INTENT_NATURAL_LANGUAGE_RULES as Tt, MAX_REVIEW_INTERVAL_DAYS as U, INITIAL_REVIEW_INTERVAL_DAYS as V, buildConceptStudyMap as W, isConceptDue as X, hasFreshIndependentTransfer as Y, labelFromBody as Z, MATERIAL_TOOL_NAMES as _, readLearnerMemory as _t, LEARNING_REVIEW_POLICY as a, renderConceptCard as at, MAX_SEARCH_MATCHES as b, writeLearnerMemory as bt, LEARNING_VISUAL_POLICY as c, updateConceptCardAnchors as ct, routeLearningTurn as d, LEARNER_MEMORY_PROTOCOL as dt, readConceptCard as et, CONCEPT_TOOL_NAMES as f, MAX_RENDERED_CONCEPTS as ft, validateStudyMapAgainstVault as g, parseLearnerConceptRecord as gt, formatStudyMapViolations as h, memoryPathOf as ht, LEARNING_MATERIAL_POLICY as i, recallCardIdOf as it, reanchorAnchorLists$1 as j, pipeline_exports as k, isLearningBoundary as kt, buildLearningTeachingPolicy as l, updateConceptCardSchedule as lt, validateRecallDeckAgainstVault as m, conceptRecordFromState as mt, LEARNING_CONCEPT_SAVE_POLICY as n, readLearnerMemoryWithCards as nt, LEARNING_TEACHING_POLICY as o, reviewIntervalDays as ot, registerConceptTools as p, MAX_STORED_CONCEPTS as pt, conceptRecordFromCard as q, LEARNING_GRADED_POLICY as r, reanchorConceptCards as rt, LEARNING_TEACHING_POLICY_CORE as s, saveConceptCard as st, LEARNING_CHINESE_TEMPLATES as t, readConceptCards as tt, routeLearningRequest as u, yamlString as ut, MAX_MAP_SECTIONS as v, renderLearnerMemory as vt, parseFileMentions as w, LEARN_INTENT_MODEL_GUIDANCE as wt, registerMaterialTools as x, topic_vault_exports as xt, MAX_READ_CHARS as y, upsertLearnerConcept as yt, planRetrieval as z };
+export { recallCardIdOf as $, RETRIEVAL_INTENTS as A, MAX_CONCEPT_CARDS as B, mentionedPaths as C, isLearningBoundary as Ct, TeachingPlanner as D, material_receipts_exports as E, reanchorAnchorLists$1 as F, conceptRecordFromCard as G, buildConceptStudyMap as H, reanchorVaultMemory as I, nextReviewSchedule as J, hasFreshIndependentTransfer as K, pipeline_exports as L, keyPhrases as M, planRetrieval as N, retrieve as O, describeReanchor as P, reanchorConceptCards as Q, lexical_exports as R, sectionAnchor as S, isLearnIntent as St, syncMentionedMaterial as T, conceptCardDraftFromState as U, MAX_REVIEW_INTERVAL_DAYS as V, conceptCardPathOf as W, readConceptCards as X, readConceptCard as Y, readLearnerMemoryWithCards as Z, MATERIAL_TOOL_NAMES as _, LEARN_INTENT as _t, LEARNING_REVIEW_POLICY as a, LEARNER_MEMORY_PROTOCOL as at, MAX_SEARCH_MATCHES as b, LEARN_INTENT_RULES as bt, LEARNING_VISUAL_POLICY as c, conceptRecordFromState as ct, routeLearningTurn as d, readLearnerMemory as dt, renderConceptCard as et, CONCEPT_TOOL_NAMES as f, renderLearnerMemory as ft, validateStudyMapAgainstVault as g, LEARNING_INTENT_ROUTING_GUIDANCE as gt, formatStudyMapViolations as h, topic_vault_exports as ht, LEARNING_MATERIAL_POLICY as i, updateConceptCardSchedule as it, executeRetrievalPlan as j, DEFAULT_RETRIEVAL_BUDGET_CHARS as k, buildLearningTeachingPolicy as l, memoryPathOf as lt, validateRecallDeckAgainstVault as m, writeLearnerMemory as mt, LEARNING_CONCEPT_SAVE_POLICY as n, saveConceptCard as nt, LEARNING_TEACHING_POLICY as o, MAX_RENDERED_CONCEPTS as ot, registerConceptTools as p, upsertLearnerConcept as pt, isConceptDue as q, LEARNING_GRADED_POLICY as r, updateConceptCardAnchors as rt, LEARNING_TEACHING_POLICY_CORE as s, MAX_STORED_CONCEPTS as st, LEARNING_CHINESE_TEMPLATES as t, reviewIntervalDays as tt, routeLearningRequest as u, parseLearnerConceptRecord as ut, MAX_MAP_SECTIONS as v, LEARN_INTENT_MODEL_GUIDANCE as vt, parseFileMentions as w, registerMaterialTools as x, classifyLearnIntent as xt, MAX_READ_CHARS as y, LEARN_INTENT_NATURAL_LANGUAGE_RULES as yt, INITIAL_REVIEW_INTERVAL_DAYS as z };

@@ -5,14 +5,15 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * Nodes come from the Chat target the official UI assembles — the very same
  * `ConversationNode` stream, projections and streaming partial — so a session
  * opened in one surface and continued in the other shows one history. What
- * differs is the presentation: a compact tool card per call, a file-change
+ * differs is the presentation: a turn-level process disclosure, a file-change
  * summary closing each turn, and a reading column instead of a full-width
  * flow.
  * @module @dsh-portable/dcode-ui/client/chat/Transcript
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FishLogo, IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16, IconDislikeOutline16, IconEditOutline16, IconLikeOutline16, IconSearchOutline16, IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FishLogo, IconBranchOutline16, IconCheckOutline16, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16, IconContextInjectionOutline16, IconDislikeOutline16, IconEditOutline16, IconLikeOutline16, IconSendOutline14, IconSparkle16, IconThinkOutline14, IconTrashOutline16, IconWarningOutline16, MarkdownText, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SessionSeq } from '@deepseek-ai/dsh-session/types';
 import { useRuntime } from "../state/runtime.js";
 import { useChatSnapshot, useSessionSnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
@@ -24,7 +25,7 @@ import { ToolCard } from "./ToolCard.js";
 import { FileChanges } from "./FileChanges.js";
 import { extractProposedPlan, PlanPreviewCard } from "./PlanPreview.js";
 import { useMessageFeedback } from "./message-feedback.js";
-import { aggregateToolActivity, changedPaths, formatToolDuration, messageText, splitTurns, } from "./tools.js";
+import { changedPaths, isSubagentTool, messageText, splitTurns, } from "./tools.js";
 import css from './Transcript.module.css';
 /** Click-to-expand image viewer for durable and local message images. */
 function ImageLightbox(props) {
@@ -45,10 +46,10 @@ function compactTokens(count) {
         return `${(count / 1000).toFixed(count < 10_000 ? 1 : 0)}k`;
     return `${(count / 1_000_000).toFixed(1)}m`;
 }
-/** Running reasoning stays visible; completed reasoning folds into a one-line row. */
+/** Reasoning details stay behind a one-line row until the operator opens them. */
 function Reasoning(props) {
     const t = useT();
-    const [open, setOpen] = useState(props.streaming);
+    const [open, setOpen] = useState(false);
     const panelId = useId();
     const startedAt = useRef(Date.now());
     const [elapsed, setElapsed] = useState(0);
@@ -60,19 +61,13 @@ function Reasoning(props) {
         const timer = window.setInterval(update, 1000);
         return () => { window.clearInterval(timer); };
     }, [props.streaming]);
-    useEffect(() => {
-        if (props.streaming)
-            setOpen(true);
-    }, [props.streaming]);
     const seconds = Math.max(0, Math.round((props.streaming ? elapsed : props.durationMs ?? 0) / 1000));
     const title = props.streaming
         ? t('chat.thinkingProgress', { seconds })
         : props.tokenCount === undefined
             ? t('chat.thoughtFor', { seconds })
             : `${t('chat.thoughtFor', { seconds })} · ${t('chat.tokens', { count: compactTokens(props.tokenCount) })}`;
-    return (_jsxs("div", { className: `${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''} ${shimmerActive(props.streaming)}`, children: [_jsxs("button", { type: "button", className: css.reasoningHead, "aria-expanded": open, "aria-controls": panelId, disabled: props.streaming, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsx("span", { className: css.reasoningTitle, children: title }), props.streaming
-                        ? null
-                        : _jsx(IconChevronRightOutline14, { className: `${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}` })] }), _jsx("div", { className: `${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`, children: _jsx("div", { className: css.reasoningBody, id: panelId, role: "region", children: _jsx(MarkdownText, { text: props.text, streaming: props.streaming, labels: props.labels }) }) })] }));
+    return (_jsxs("div", { className: `${css.reasoning} ${props.streaming ? css.reasoningStreaming : ''} ${shimmerActive(props.streaming)}`, children: [_jsxs("button", { type: "button", className: css.reasoningHead, "aria-expanded": open, "aria-controls": panelId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsx("span", { className: css.reasoningTitle, children: title }), _jsx(IconChevronRightOutline14, { className: `${css.reasoningChevron} ${open ? css.reasoningChevronOpen : ''}` })] }), _jsx("div", { className: `${css.reasoningDisclosure} ${open ? css.reasoningDisclosureOpen : ''}`, children: _jsx("div", { className: css.reasoningBody, id: panelId, role: "region", children: _jsx(MarkdownText, { text: props.text, streaming: props.streaming, labels: props.labels }) }) })] }));
 }
 /** Lightweight waiting row before the first assistant delta arrives. */
 function ThinkingStatus() {
@@ -87,21 +82,123 @@ function ThinkingStatus() {
     }, []);
     return (_jsx("div", { className: `${css.reasoning} ${css.reasoningStreaming} ${shimmerActive()}`, role: "status", "aria-live": "polite", children: _jsxs("div", { className: css.reasoningHead, children: [_jsx("span", { className: css.reasoningIcon, "aria-hidden": true, children: _jsx(IconThinkOutline14, {}) }), _jsx("span", { className: css.reasoningTitle, children: t('chat.thinkingProgress', { seconds }) })] }) }));
 }
-/** A compact disclosure for a consecutive run of successful read/search calls. */
-function ToolActivityGroup(props) {
-    const t = useT();
+function hasAssistantAnswer(node) {
+    if (node.blocks.some(block => block.kind === 'tool-call'))
+        return false;
+    return node.blocks.some(block => ((block.kind === 'text' && block.text.trim() !== '') || block.kind === 'image'));
+}
+function turnNodeNumber(node) {
+    return 'turn' in node && typeof node.turn === 'number' ? node.turn : undefined;
+}
+/** Build one turn's process rows while keeping the final answer separate. */
+function buildTurnActivity(turn, runningCalls) {
+    const items = [];
+    let finalAssistant;
+    for (let index = turn.length - 1; index >= 0; index -= 1) {
+        const node = turn[index];
+        if (node?.kind === 'assistant' && hasAssistantAnswer(node)) {
+            finalAssistant = node;
+            break;
+        }
+    }
+    let messageCount = 0;
+    let toolCallCount = 0;
+    let subagentCount = 0;
+    for (const node of turn) {
+        if (node.kind === 'context') {
+            items.push({ kind: 'context', key: `context:${String(node.seq)}`, node });
+            continue;
+        }
+        if (node.kind === 'assistant') {
+            if (node.seq !== finalAssistant?.seq) {
+                const hasMessage = node.blocks.some(block => block.kind === 'text' && block.text.trim() !== '');
+                if (hasMessage)
+                    messageCount += 1;
+            }
+            for (const [blockIndex, block] of node.blocks.entries()) {
+                if (block.kind === 'reasoning' && block.text.trim() !== '') {
+                    items.push({
+                        kind: 'reasoning',
+                        key: `reasoning:${String(node.seq)}:${String(blockIndex)}`,
+                        text: block.text,
+                    });
+                }
+                else if (node.seq !== finalAssistant?.seq && block.kind === 'text' && block.text.trim() !== '') {
+                    items.push({ kind: 'message', key: `message:${String(node.seq)}:${String(blockIndex)}`, text: block.text });
+                }
+            }
+            continue;
+        }
+        if (node.kind !== 'tool-result')
+            continue;
+        const name = node.call?.name ?? 'tool';
+        if (isSubagentTool(name))
+            subagentCount += 1;
+        else
+            toolCallCount += 1;
+        items.push({ kind: 'tool', key: `tool:${node.callId}`, block: node });
+    }
+    for (const call of runningCalls) {
+        if (isSubagentTool(call.name))
+            subagentCount += 1;
+        else
+            toolCallCount += 1;
+        items.push({ kind: 'tool', key: `running:${call.callId}`, block: call });
+    }
+    return { items, finalAssistant, messageCount, toolCallCount, subagentCount };
+}
+function activityPreview(text) {
+    const singleLine = text.replace(/\s+/g, ' ').trim();
+    return singleLine.length > 180 ? `${singleLine.slice(0, 179)}…` : singleLine;
+}
+function ActivityTextRow(props) {
     const [open, setOpen] = useState(false);
     const contentId = useId();
-    const summary = [
-        props.group.memoryCount === 0 ? undefined : t(props.group.memoryCount === 1 ? 'chat.toolActivity.memoryOne' : 'chat.toolActivity.memoryMany', { count: props.group.memoryCount }),
-        props.group.readCount === 0 ? undefined : t(props.group.readCount === 1 ? 'chat.toolActivity.readOne' : 'chat.toolActivity.readMany', { count: props.group.readCount }),
-        props.group.searchCount === 0 ? undefined : t(props.group.searchCount === 1 ? 'chat.toolActivity.searchOne' : 'chat.toolActivity.searchMany', { count: props.group.searchCount }),
-    ].filter((part) => part !== undefined).join(' · ');
-    return (_jsxs("div", { className: css.toolActivity, children: [_jsxs("button", { type: "button", className: css.toolActivityHead, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.toolActivityIcon, "aria-hidden": true, children: props.group.memoryCount > 0 && props.group.readCount === 0 && props.group.searchCount === 0
-                            ? _jsx(IconSparkle16, {})
-                            : _jsx(IconSearchOutline16, {}) }), _jsx("span", { className: css.toolActivitySummary, children: summary }), props.group.durationMs === undefined
-                        ? null
-                        : _jsxs("span", { className: css.toolActivityDuration, children: ["\u00B7 ", formatToolDuration(props.group.durationMs)] }), _jsx(IconChevronRightOutline14, { className: `${css.toolActivityChevron} ${open ? css.toolActivityChevronOpen : ''}` })] }), _jsx("div", { className: `${css.toolActivityDisclosure} ${open ? css.toolActivityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.toolActivityClip, children: _jsx("div", { className: css.toolActivityItems, id: contentId, children: props.group.blocks.map(block => (_jsx(ToolCard, { block: block }, block.callId))) }) }) })] }));
+    return (_jsxs("div", { className: css.activityItem, children: [_jsxs("button", { type: "button", className: css.activityRow, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.activityRowIcon, "aria-hidden": true, children: props.icon === 'thinking' ? _jsx(IconThinkOutline14, {}) : _jsx(IconSparkle16, {}) }), _jsx("span", { className: css.activityRowLabel, children: props.label }), _jsx("span", { className: css.activityRowPreview, children: activityPreview(props.text) }), _jsx(IconChevronRightOutline14, { className: `${css.activityRowChevron} ${open ? css.activityRowChevronOpen : ''}` })] }), _jsx("div", { className: `${css.activityDisclosure} ${open ? css.activityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.activityDetail, id: contentId, role: "region", children: _jsx(MarkdownText, { text: props.text, streaming: props.streaming === true, labels: props.labels }) }) })] }));
+}
+/** Progress messages are output-like rows, not another disclosure layer. */
+function ActivityMessageRow(props) {
+    return (_jsx("div", { className: css.activityMessage, children: _jsx(MarkdownText, { text: props.text, streaming: false, labels: props.labels }) }));
+}
+/** A context source keeps the same compact, one-line rhythm as activity rows. */
+function ActivityContextRow(props) {
+    const t = useT();
+    const source = props.node.provenance.label;
+    return (_jsxs("div", { className: css.activityContextRow, children: [_jsx("span", { className: css.activityRowIcon, "aria-hidden": true, children: _jsx(IconContextInjectionOutline16, { size: 14 }) }), _jsx("span", { className: css.activityRowLabel, children: t(props.node.provenance.role === 'recall' ? 'chat.activity.contextRecall' : 'chat.activity.contextInjection') }), source === null ? null : (_jsx("span", { className: css.activityRowPreview, children: source }))] }));
+}
+/** One turn's process summary. Completed summaries start closed. */
+function TurnActivity(props) {
+    const t = useT();
+    const [open, setOpen] = useState(false);
+    const wasRunning = useRef(props.running);
+    const contentId = useId();
+    useEffect(() => {
+        if (!props.running && wasRunning.current)
+            setOpen(false);
+        wasRunning.current = props.running;
+    }, [props.running]);
+    const summaryParts = [];
+    if (props.data.toolCallCount > 0) {
+        summaryParts.push(t(props.data.toolCallCount === 1 ? 'chat.activity.toolCalls.one' : 'chat.activity.toolCalls.many', { count: props.data.toolCallCount }));
+    }
+    if (props.data.messageCount > 0) {
+        summaryParts.push(t(props.data.messageCount === 1 ? 'chat.activity.messages.one' : 'chat.activity.messages.many', { count: props.data.messageCount }));
+    }
+    if (props.data.subagentCount > 0) {
+        summaryParts.push(t(props.data.subagentCount === 1 ? 'chat.activity.subagents.one' : 'chat.activity.subagents.many', { count: props.data.subagentCount }));
+    }
+    const summary = summaryParts.length === 0
+        ? t('chat.activity.thoughtForAWhile')
+        : summaryParts.join(t('chat.activity.separator'));
+    return (_jsxs("div", { className: css.turnActivity, "data-turn-activity": true, "data-activity-open": open || undefined, children: [_jsxs("button", { type: "button", className: css.turnActivityHead, "aria-expanded": open, "aria-controls": contentId, onClick: () => { setOpen(value => !value); }, children: [_jsx("span", { className: css.turnActivitySummary, children: summary }), _jsx(IconChevronRightOutline14, { className: `${css.turnActivityChevron} ${open ? css.turnActivityChevronOpen : ''}` })] }), _jsx("div", { className: `${css.turnActivityDisclosure} ${open ? css.turnActivityDisclosureOpen : ''}`, "aria-hidden": !open, children: _jsx("div", { className: css.turnActivityItems, id: contentId, children: props.data.items.map(item => {
+                        if (item.kind === 'context')
+                            return _jsx(ActivityContextRow, { node: item.node }, item.key);
+                        if (item.kind === 'tool')
+                            return _jsx(ToolCard, { block: item.block, activity: true }, item.key);
+                        if (item.kind === 'message')
+                            return _jsx(ActivityMessageRow, { text: item.text, labels: props.labels }, item.key);
+                        return (_jsx(ActivityTextRow, { icon: "thinking", label: t('chat.activity.thinking'), text: item.text, labels: props.labels, streaming: false }, item.key));
+                    }) }) })] }));
 }
 /** Session-authorized image display; the Conversation assembly owns its URL cache. */
 function DurableImage(props) {
@@ -125,7 +222,7 @@ function DurableImage(props) {
         ? _jsx("span", { className: css.attachmentPlaceholder, children: props.attachment.name ?? 'image' })
         : _jsx(ImageLightbox, { src: src, alt: props.attachment.name ?? 'image' });
 }
-/** Render official alpha.3 image attachments without changing the DCode layout. */
+/** Render official alpha.4 image attachments without changing the DCode layout. */
 function MessageAttachments(props) {
     const images = [...(props.images ?? [])];
     for (const block of props.content ?? []) {
@@ -158,6 +255,8 @@ function AssistantBlocks(props) {
                 return (_jsx("div", { className: css.assistant, children: _jsx(MarkdownText, { text: block.text, streaming: props.streaming, labels: props.labels }) }, index));
             }
             if (block.kind === 'reasoning') {
+                if (props.showReasoning === false)
+                    return null;
                 return (_jsx(Reasoning, { text: block.text, streaming: props.streaming, durationMs: props.durationMs, tokenCount: props.tokenCount, labels: props.labels }, index));
             }
             if (block.kind === 'image') {
@@ -291,7 +390,7 @@ function Node(props) {
         case 'steering':
             return _jsx(UserBubble, { sessionId: props.sessionId, content: node.content, className: `${css.steering} ${props.highlighted === true ? css.turnLeadHighlight : ''}` });
         case 'assistant':
-            return (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: props.sessionId, blocks: node.blocks, streaming: false, labels: props.labels, durationMs: assistantDurationMs(node), tokenCount: assistantTokenCount(node) }), _jsx(AssistantActions, { sessionId: props.sessionId, node: node, feedback: props.feedback, onBranched: props.onBranched }), _jsx(Stats, { node: node })] }));
+            return (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: props.sessionId, blocks: node.blocks, streaming: false, labels: props.labels, durationMs: assistantDurationMs(node), tokenCount: assistantTokenCount(node), showReasoning: props.showReasoning }), _jsx(AssistantActions, { sessionId: props.sessionId, node: node, feedback: props.feedback, onBranched: props.onBranched }), _jsx(Stats, { node: node })] }));
         case 'tool-result':
             return _jsx(ToolCard, { block: node });
         case 'command':
@@ -309,6 +408,34 @@ function Node(props) {
         default:
             return null;
     }
+}
+/** Render a turn with one process owner between the prompt and final answer. */
+function TurnView(props) {
+    const data = useMemo(() => buildTurnActivity(props.turn, props.runningCalls), [props.runningCalls, props.turn]);
+    const firstHumanSeq = props.turn.find(node => node.kind === 'user' || node.kind === 'steering')?.seq;
+    const finalAssistantSeq = data.finalAssistant?.seq;
+    const rows = [];
+    let activityInserted = false;
+    const insertActivity = () => {
+        if (activityInserted || data.items.length === 0)
+            return;
+        activityInserted = true;
+        rows.push(_jsx(TurnActivity, { data: data, labels: props.labels, running: props.running }, "turn-activity"));
+    };
+    for (const node of props.turn) {
+        const processNode = node.kind === 'context' || node.kind === 'assistant' || node.kind === 'tool-result';
+        if (processNode)
+            insertActivity();
+        if (node.kind === 'context')
+            continue;
+        if (node.kind === 'tool-result')
+            continue;
+        if (node.kind === 'assistant' && node.seq !== finalAssistantSeq)
+            continue;
+        rows.push(_jsx(Node, { sessionId: props.sessionId, node: node, labels: props.labels, feedback: props.feedback, highlighted: props.highlighted && node.seq === firstHumanSeq, showReasoning: data.items.length > 0 && node.seq === finalAssistantSeq ? false : undefined, onBranched: props.onBranched }, `${node.kind}:${String(node.seq)}`));
+    }
+    insertActivity();
+    return _jsx(_Fragment, { children: rows });
 }
 /** Queue controls mirror the host queue verbs instead of treating queued text as static output. */
 function QueuedMessageRow(props) {
@@ -397,6 +524,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     const scrollerRef = useRef(null);
     const pinnedRef = useRef(true);
     const highlightTimerRef = useRef(undefined);
+    const historyLoadSessionRef = useRef(undefined);
     const [highlightedTurn, setHighlightedTurn] = useState(undefined);
     const [branchCreated, setBranchCreated] = useState(false);
     const [showScrollLatest, setShowScrollLatest] = useState(false);
@@ -409,7 +537,34 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     const partial = chat?.legacy.partial ?? null;
     const runningCalls = chat?.legacy.runningCalls ?? [];
     const turns = useMemo(() => splitTurns(nodes), [nodes]);
+    const lastTurnHasNumber = turns.length > 0
+        && turns[turns.length - 1].some(node => turnNodeNumber(node) !== undefined);
+    const nodeLessLastTurnNumber = !lastTurnHasNumber ? runningCalls[0]?.turn : undefined;
+    const loadedTurnNumbers = useMemo(() => new Set([...turns.flatMap(turn => turn
+            .map(turnNodeNumber)
+            .filter((number) => number !== undefined)), nodeLessLastTurnNumber]
+        .filter((number) => number !== undefined)), [nodeLessLastTurnNumber, turns]);
     const queued = useMemo(() => (session?.queue ?? []).filter(item => item.placement !== 'context'), [session?.queue]);
+    // DCode always presents a complete record. Drain the session's history
+    // window as soon as its first page is open instead of exposing pagination
+    // controls in the transcript.
+    useEffect(() => {
+        if (sessionId === undefined || session?.openState !== 'open') {
+            historyLoadSessionRef.current = undefined;
+            return;
+        }
+        if (session.hasMore !== true) {
+            historyLoadSessionRef.current = undefined;
+            return;
+        }
+        if (historyLoadSessionRef.current === sessionId)
+            return;
+        const face = runtime.binding(sessionId)?.session;
+        if (face === undefined)
+            return;
+        historyLoadSessionRef.current = sessionId;
+        void face.loadThrough(SessionSeq(0));
+    }, [runtime, session?.hasMore, session?.openState, sessionId]);
     const navigateToTurn = useCallback((index) => {
         // Opt out of bottom pinning before smooth scrolling begins, otherwise a
         // streaming layout update can pull the selected turn back out of view.
@@ -478,22 +633,20 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     }
     return (_jsxs("div", { className: css.scroller, ref: scrollerRef, tabIndex: 0, role: "region", "aria-label": t('chat.transcript'), children: [blank
                 ? emptyHero
-                : (_jsxs(_Fragment, { children: [compact ? null : _jsx(MessageNavRail, { nodes: nodes, scrollerRef: scrollerRef, onNavigate: navigateToTurn }), _jsxs("div", { className: css.flow, children: [feedback.error === undefined ? null : (_jsxs("div", { className: `${css.notice} ${css.noticeError}`, role: "alert", children: [_jsx(IconWarningOutline16, {}), t('chat.feedback.failed', { error: feedback.error })] })), session?.hasMore === true
-                                    ? (_jsx(Button, { className: css.loadOlder, disabled: session.loadingOlder, onClick: () => { void runtime.binding(sessionId)?.session.loadOlder(); }, children: session.loadingOlder ? t('chat.loading') : t('chat.loadOlder') }))
-                                    : null, turns.map((turn, turnIndex) => {
+                : (_jsxs(_Fragment, { children: [compact ? null : _jsx(MessageNavRail, { nodes: nodes, scrollerRef: scrollerRef, onNavigate: navigateToTurn }), _jsxs("div", { className: css.flow, children: [feedback.error === undefined ? null : (_jsxs("div", { className: `${css.notice} ${css.noticeError}`, role: "alert", children: [_jsx(IconWarningOutline16, {}), t('chat.feedback.failed', { error: feedback.error })] })), turns.map((turn, turnIndex) => {
                                     const paths = changedPaths(turn);
-                                    const items = aggregateToolActivity(turn);
                                     const last = turnIndex === turns.length - 1;
-                                    const firstUserIndex = items.findIndex(item => item.kind === 'user' || item.kind === 'steering');
-                                    return (_jsxs("div", { className: css.turn, "data-turn-index": turnIndex, children: [items.map((item, itemIndex) => {
-                                                if (item.kind === 'tool-activity') {
-                                                    return (_jsx(ToolActivityGroup, { group: item }, `tool-activity:${item.blocks[0]?.callId ?? 'empty'}`));
-                                                }
-                                                return (_jsx(Node, { sessionId: sessionId, node: item, labels: labels, feedback: feedback, highlighted: highlightedTurn === turnIndex && itemIndex === firstUserIndex, onBranched: () => { setBranchCreated(true); } }, `${item.kind}:${String(item.seq)}`));
-                                            }), paths.length > 0 && (!last || session?.running !== true)
+                                    const turnNumber = turn
+                                        .map(turnNodeNumber)
+                                        .find((number) => number !== undefined)
+                                        ?? (last ? nodeLessLastTurnNumber : undefined);
+                                    const turnRunningCalls = turnNumber === undefined
+                                        ? []
+                                        : runningCalls.filter(call => call.turn === turnNumber);
+                                    return (_jsxs("div", { className: css.turn, "data-turn-index": turnIndex, children: [_jsx(TurnView, { sessionId: sessionId, turn: turn, runningCalls: turnRunningCalls, labels: labels, feedback: feedback, highlighted: highlightedTurn === turnIndex, running: last && session?.running === true, onBranched: () => { setBranchCreated(true); } }), paths.length > 0 && (!last || session?.running !== true)
                                                 ? (_jsx(FileChanges, { paths: paths, cwd: cwd, status: git.status, onOpenDiff: path => { navigation.openDiff(path); }, onChanged: git.refresh }))
                                                 : null] }, turn[0]?.seq ?? turnIndex));
-                                }), runningCalls.map(call => (_jsx(ToolCard, { block: call }, call.callId))), partial === null
+                                }), runningCalls.filter(call => !loadedTurnNumbers.has(call.turn)).map(call => (_jsx(ToolCard, { block: call }, call.callId))), partial === null
                                     ? null
                                     : (_jsxs("div", { children: [_jsx(AssistantBlocks, { sessionId: sessionId, blocks: partial.blocks, streaming: true, labels: labels }), _jsx("span", { className: css.streamingDot, role: "status", "aria-label": t('chat.thinking') })] })), session?.running === true && partial === null && runningCalls.length === 0
                                     ? _jsx(ThinkingStatus, {})

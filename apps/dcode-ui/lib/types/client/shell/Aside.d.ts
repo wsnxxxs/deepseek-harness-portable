@@ -10,13 +10,15 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import { type NavigationStore, type TaskContext } from '../state/navigation.ts';
+import { type SubagentChildEntry } from './AgentInspector.tsx';
 /** Props of the floating right card. */
 export interface AsideProps {
     readonly navigation: NavigationStore;
     readonly sessionId: SessionId | undefined;
     readonly cwd: string | undefined;
     readonly context: TaskContext;
+    readonly onOpenSubagentConversation: (parentSessionId: SessionId, entry: SubagentChildEntry) => void;
 }
 /** The docked preview sidebar with its content views. */
-export declare function Aside({ navigation, sessionId, cwd, context }: AsideProps): import("react").JSX.Element;
+export declare function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConversation }: AsideProps): import("react").JSX.Element;
 //# sourceMappingURL=Aside.d.ts.map

@@ -358,7 +358,8 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region src/client/VisionRouteMarker.tsx
-		function VisionRouteMarker({ input, t, useVisionCard }) {
+		function VisionRouteMarker({ useInput, t, useVisionCard }) {
+			const input = useInput((state) => state);
 			const enabled = useVisionCard((state) => state.enabled);
 			const plan = planVisionTurn(input.imageIds);
 			if (!enabled || plan.kind === "text") return null;

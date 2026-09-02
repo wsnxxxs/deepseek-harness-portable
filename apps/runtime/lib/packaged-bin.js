@@ -38,7 +38,7 @@ import { describePresetRosterOutcome, reconcileCrewRuntime, reconcilePresetRoste
 import { ensureMarketplacePreinstalled, materializeMarketplaceSeed, MARKETPLACE_PACKAGE, } from './marketplace-bootstrap.js';
 import { createCachedProfileFallbackHealer } from './profile-fallback-cache.js';
 import { composeAfterManagedFallback } from './profile-startup.js';
-import { appendPortableModeResolution, PORTABLE_MODE_RESOLUTION_EVENT_TYPE, registerPackagedSessionCompatibility, } from './session-compatibility.js';
+import { appendPortableModeResolution, installPortableAgentPresetCompatibility, PORTABLE_MODE_RESOLUTION_EVENT_TYPE, registerPackagedSessionCompatibility, } from './session-compatibility.js';
 import { adaptWin32SubprocessRuntime } from './win32-terminal-inspector.js';
 // Required persistence discriminators must exist before Loader can construct
 // AgentLoop rows that synchronously restore configured sessions.
@@ -662,8 +662,9 @@ function installRuntimeEvidenceSurface(ctx, state) {
         if (trace === undefined)
             return;
         let previous;
-        for (let index = agent.session.events.length - 1; index >= 0; index -= 1) {
-            const event = agent.session.events[index];
+        const events = agent.session.snapshotEvents();
+        for (let index = events.length - 1; index >= 0; index -= 1) {
+            const event = events[index];
             if (event?.type !== PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
                 continue;
             previous = event.data;
@@ -792,6 +793,7 @@ async function main() {
     // bare config specifiers go through HostResolvedRootInclude's override.
     const prepare = (hostCtx) => {
         app.current = hostCtx;
+        installPortableAgentPresetCompatibility(hostCtx);
         // Before any config-tree entry mounts, so plugins resolve all launch-time
         // environment values from the same immutable provenance snapshot.
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, loadLayeredEnv(NAME));

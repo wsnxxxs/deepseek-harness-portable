@@ -2,22 +2,24 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 /**
  * The file-change summary card that closes a turn.
  *
- * It lists exactly the paths that turn's settled write/edit calls touched,
+ * It previews the paths that turn's settled write/edit calls touched,
  * annotates each with the line counts from the working-tree status, opens the
  * diff viewer on click, and offers the one destructive action the workbench
- * has: undoing that turn's edits.
+ * has: undoing that turn's edits. Longer lists stay compact until expanded.
  *
  * Undo is deliberately narrow. It restores tracked files from HEAD and moves
  * untracked ones into `.dsh/dcode-undo/<timestamp>/` rather than deleting
  * them, so a mistaken undo is recoverable from the operator's own directory.
  * @module @dsh-portable/dcode-ui/client/chat/FileChanges
  */
-import { useCallback, useMemo, useState } from 'react';
-import { IconEditOutline16, IconRefreshOutline14, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useCallback, useId, useMemo, useState } from 'react';
+import { IconChevronDownOutline14, IconEditOutline16, IconPlusOutline16, IconRefreshOutline14, RiskConfirmation, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
 import { useT } from "../state/i18n.js";
 import { DiffCount, Spinner, ui } from "../shell/ui.js";
 import css from './FileChanges.module.css';
+/** Keep the completed-turn summary short while leaving every file one click away. */
+const DEFAULT_VISIBLE_PATHS = 3;
 /** Split a path into its directory prefix and file name for two-tone display. */
 function splitPath(path) {
     const normalized = path.split('\\').join('/');
@@ -56,15 +58,19 @@ function countsFor(status, path) {
 export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
     const runtime = useRuntime();
     const t = useT();
+    const moreFilesId = useId();
     const [undoing, setUndoing] = useState(false);
     const [note, setNote] = useState(undefined);
     const [confirmingUndo, setConfirmingUndo] = useState(false);
     const [acknowledgedUndo, setAcknowledgedUndo] = useState(false);
+    const [showAll, setShowAll] = useState(false);
     const gitPath = useCallback((path) => repoRelative(path, cwd, status?.root), [cwd, status?.root]);
     const totals = useMemo(() => paths.reduce((sum, path) => {
         const counts = countsFor(status, gitPath(path));
         return { insertions: sum.insertions + counts.insertions, deletions: sum.deletions + counts.deletions };
     }, { insertions: 0, deletions: 0 }), [paths, status, gitPath]);
+    const hiddenCount = Math.max(paths.length - DEFAULT_VISIBLE_PATHS, 0);
+    const visiblePaths = showAll ? paths : paths.slice(0, DEFAULT_VISIBLE_PATHS);
     const undo = useCallback(() => {
         if (cwd === undefined)
             return;
@@ -91,15 +97,17 @@ export function FileChanges({ paths, cwd, status, onOpenDiff, onChanged }) {
     }, [runtime, cwd, gitPath, onChanged, t]);
     if (paths.length === 0)
         return null;
-    return (_jsxs("section", { className: css.card, children: [_jsxs("header", { className: `${css.head} ${ui.cardHeader}`, children: [_jsx("span", { className: css.title, children: t('changes.count', { count: paths.length }) }), _jsx(DiffCount, { insertions: totals.insertions, deletions: totals.deletions }), _jsxs("button", { type: "button", className: css.undo, disabled: undoing || cwd === undefined || !runtime.git.available, onClick: () => {
+    return (_jsxs("section", { className: css.card, children: [_jsxs("header", { className: `${css.head} ${ui.cardHeader}`, children: [_jsx("span", { className: css.titleIcon, "aria-hidden": true, children: _jsx(IconEditOutline16, {}) }), _jsxs("div", { className: css.titleCopy, children: [_jsx("span", { className: css.title, children: t('changes.count', { count: paths.length }) }), totals.insertions === 0 && totals.deletions === 0
+                                ? null
+                                : _jsx("span", { className: css.stats, children: _jsx(DiffCount, { insertions: totals.insertions, deletions: totals.deletions }) })] }), _jsxs("button", { type: "button", className: css.undo, disabled: undoing || cwd === undefined || !runtime.git.available, onClick: () => {
                             setAcknowledgedUndo(false);
                             setConfirmingUndo(true);
-                        }, title: t('changes.undo'), children: [undoing ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}), undoing ? t('changes.undoing') : t('changes.undo')] })] }), paths.map((path) => {
-                const { dir, name } = splitPath(path);
-                const target = gitPath(path);
-                const counts = countsFor(status, target);
-                return (_jsxs("button", { type: "button", className: css.row, onClick: () => { onOpenDiff(target); }, title: path, children: [_jsx(IconEditOutline16, {}), _jsx("span", { className: css.path, children: _jsxs("bdi", { children: [dir === '' ? '' : _jsx("span", { className: css.dir, children: dir }), name] }) }), _jsx(DiffCount, { insertions: counts.insertions, deletions: counts.deletions })] }, path));
-            }), note === undefined
+                        }, title: t('changes.undo'), children: [undoing ? _jsx(Spinner, {}) : _jsx(IconRefreshOutline14, {}), undoing ? t('changes.undoing') : t('changes.undo')] })] }), _jsx("div", { id: moreFilesId, className: css.rows, children: visiblePaths.map((path) => {
+                    const { dir, name } = splitPath(path);
+                    const target = gitPath(path);
+                    const counts = countsFor(status, target);
+                    return (_jsxs("button", { type: "button", className: css.row, onClick: () => { onOpenDiff(target); }, title: path, children: [_jsx(IconEditOutline16, {}), _jsx("span", { className: css.path, children: _jsxs("bdi", { children: [dir === '' ? '' : _jsx("span", { className: css.dir, children: dir }), name] }) }), _jsx(DiffCount, { insertions: counts.insertions, deletions: counts.deletions })] }, path));
+                }) }), hiddenCount > 0 ? (_jsxs("button", { type: "button", className: css.more, "aria-expanded": showAll, "aria-controls": moreFilesId, onClick: () => { setShowAll(value => !value); }, children: [_jsx("span", { className: css.moreIcon, "aria-hidden": true, children: _jsx(IconPlusOutline16, {}) }), _jsx("span", { className: css.moreLabel, children: showAll ? t('changes.showLessFiles') : t('changes.showMoreFiles', { count: hiddenCount }) }), _jsx("span", { className: `${css.moreChevron} ${showAll ? css.moreChevronOpen : ''}`, "aria-hidden": true, children: _jsx(IconChevronDownOutline14, {}) })] })) : null, note === undefined
                 ? null
                 : _jsx("p", { className: `${css.note} ${note.kind === 'error' ? css.noteError : ''}`, role: note.kind === 'error' ? 'alert' : 'status', children: note.text }), _jsx(RiskConfirmation, { open: confirmingUndo, title: t('changes.undoConfirmTitle'), description: t('changes.undoConfirmBody'), acknowledgeLabel: t('changes.undoConfirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('changes.undo'), acknowledged: acknowledgedUndo, disabled: undoing, onAcknowledgedChange: setAcknowledgedUndo, onCancel: () => {
                     setAcknowledgedUndo(false);

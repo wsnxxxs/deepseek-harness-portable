@@ -11,12 +11,14 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * @module @dsh-portable/dcode-ui/client/shell/Composer
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14, IconPaperclipOutline16, IconPlusOutline16, IconSendOutline16, IconStopFill16, RiskConfirmation, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconAgentPresetOutline16, IconChevronDownOutline14, IconCloseFill14, IconFolderOpen16, IconFolderOpenOutline16, IconPaperclipOutline16, IconPlusOutline16, IconSendOutline16, IconStopFill16, RiskConfirmation, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
-import { useAsync, useObservable, useProjectionValue, useSessionInput, useSessionList, useSessionSnapshot, } from "../state/hooks.js";
+import { useAsync, useObservable, useProjectionValue, useSessionInput, useSessionList, useSessionSnapshot, useWorkspaceGroups, } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { Popover } from "./ui.js";
+import { ContextMeter } from "./ContextMeter.js";
 import { ModelSelect } from "./ModelSelect.js";
+import { SessionStatsLine } from "./SessionStatsLine.js";
 import css from './Composer.module.css';
 /** Permission value that requires an explicit user acknowledgement. */
 const FULL_ACCESS_PERMISSION = 'danger-full-access';
@@ -50,6 +52,15 @@ function oppositeBusyEnter(value) {
 }
 /** Draft text per session, so switching tasks does not lose an unsent prompt. */
 const drafts = new Map();
+const OPEN_WORKSPACE_ROW_ID = 'open-workspace';
+/** Keep a useful folder label visible while the durable workspace list settles. */
+function folderLabel(path) {
+    if (path === undefined || path.trim() === '')
+        return undefined;
+    const normalized = path.replace(/[\\/]+$/, '');
+    const leaf = normalized.slice(Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/')) + 1);
+    return leaf === '' ? path : leaf;
+}
 /** A leading, argument-free slash token is eligible for command completion. */
 function slashQuery(value) {
     const match = /^\/([^\s]*)$/.exec(value);
@@ -516,6 +527,32 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                 selectPreset(preset.id);
         },
     })), [currentPreset, roster, selectPreset, t]);
+    const { groups } = useWorkspaceGroups();
+    const workspace = useMemo(() => groups.find(group => group.path === cwd)
+        ?? groups.find(group => group.sessions.some(row => row.id === sessionId)), [cwd, groups, sessionId]);
+    const workspaceTitle = workspace?.title ?? folderLabel(cwd);
+    const workspaceRows = useMemo(() => {
+        if (groups.length === 0)
+            return [];
+        return [
+            ...groups.map(group => ({
+                id: String(group.workspaceId),
+                label: group.title,
+                detail: group.path,
+                icon: _jsx(IconFolderOpen16, {}),
+                active: group.workspaceId === workspace?.workspaceId,
+                onSelect: () => { runtime.navigation?.startSession(group.workspaceId); },
+            })),
+            ...(onOpenWorkspace === undefined
+                ? []
+                : [{
+                        id: OPEN_WORKSPACE_ROW_ID,
+                        label: t('nav.openWorkspace'),
+                        icon: _jsx(IconFolderOpenOutline16, {}),
+                        onSelect: onOpenWorkspace,
+                    }]),
+        ];
+    }, [groups, onOpenWorkspace, runtime, t, workspace?.workspaceId]);
     const send = useCallback((mode) => {
         if (sessionId === undefined)
             return;
@@ -666,9 +703,9 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             .finally(() => { setQueueBusy(false); });
     };
     return (_jsxs(_Fragment, { children: [_jsxs("div", { className: css.dock, children: [blank && sessionId !== undefined
-                        ? (_jsxs("div", { className: css.headerRow, children: [cwd === undefined
-                                    ? (_jsx("button", { type: "button", className: css.projectChip, onClick: onOpenWorkspace, children: _jsx("span", { children: t('nav.openWorkspace') }) }))
-                                    : null, _jsx(Popover, { label: t('composer.mode'), disabled: modeRows.length === 0, triggerClassName: css.headerChip, trigger: (_jsxs("span", { className: css.headerChipContent, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { children: currentPresetLabel }), _jsx(IconChevronDownOutline14, {})] })), rows: modeRows })] }))
+                        ? (_jsxs("div", { className: css.headerRow, children: [workspaceRows.length > 0
+                                    ? (_jsx(Popover, { label: t('top.workspaceMenu'), triggerClassName: css.projectChip, trigger: (_jsxs("span", { className: css.headerChipContent, children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { children: workspaceTitle ?? t('nav.openWorkspace') }), _jsx(IconChevronDownOutline14, {})] })), rows: workspaceRows }))
+                                    : (_jsxs("button", { type: "button", className: css.projectChip, onClick: onOpenWorkspace, disabled: onOpenWorkspace === undefined, title: cwd, children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { children: workspaceTitle ?? t('nav.openWorkspace') }), _jsx(IconChevronDownOutline14, {})] })), _jsx(Popover, { label: t('composer.mode'), disabled: modeRows.length === 0, triggerClassName: css.headerChip, trigger: (_jsxs("span", { className: css.headerChipContent, children: [_jsx(IconAgentPresetOutline16, {}), _jsx("span", { children: currentPresetLabel }), _jsx(IconChevronDownOutline14, {})] })), rows: modeRows })] }))
                         : null, running && queued.length > 0
                         ? (_jsxs("div", { className: css.queueBanner, role: "status", children: [_jsxs("span", { className: css.queueCount, children: [t('chat.queued'), ": ", queued.length] }), queueEditing
                                     ? (_jsx("input", { className: css.queueEdit, value: queueDraft, autoFocus: true, "aria-label": t('chat.editQueued'), onChange: event => { setQueueDraft(event.target.value); }, onKeyDown: event => {
@@ -714,9 +751,9 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                                     event.currentTarget.value = '';
                                 } }), readinessIssue === undefined
                                 ? null
-                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx(Popover, { label: t('composer.add'), disabled: disabled, triggerClassName: css.addButton, popoverClassName: css.addMenu, trigger: _jsx(IconPlusOutline16, {}), rows: addRows }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), running
+                                : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx(Popover, { label: t('composer.add'), disabled: disabled, triggerClassName: css.addButton, popoverClassName: css.addMenu, trigger: _jsx(IconPlusOutline16, {}), rows: addRows }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), _jsx(ContextMeter, { sessionId: sessionId }), running
                                                 ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
-                                                : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
+                                                : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] }), _jsx(SessionStatsLine, { sessionId: sessionId })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
                     setAcknowledgedFullAccess(false);
                     setConfirmingFullAccess(false);
                 }, onConfirm: () => {

@@ -7,14 +7,15 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
  * catalogs, and the child conversation feed.
  * @module @dsh-portable/dcode-ui/client/shell/AgentInspector
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconRefreshOutline14, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IconCheckOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconCloseOutline16, IconRefreshOutline14, IconSparkle16, IconUserOutline16, IconWarningOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useChatSnapshot, useConversationBlank, useProjectionValue, useSessionList, useSessionSnapshot } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useRuntime } from "../state/runtime.js";
 import { formatToolDuration, messageText, resultText } from "../chat/tools.js";
 import { Transcript } from "../chat/Transcript.js";
 import { Button, CopyButton, EmptyState, IconButton, Pill, Spinner, ui } from "./ui.js";
+import { useModalFocus } from "./use-modal-focus.js";
 import css from './AgentInspector.module.css';
 function elapsedMs(timing, activity, now) {
     if (timing === undefined)
@@ -102,9 +103,48 @@ function childTask(nodes, fallback) {
     }
     return fallback;
 }
-/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
-export function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, }) {
+/** Centered full-session reader opened over the workbench. */
+export function SubagentConversationDialog({ parentSessionId, entry, navigation, onClose, }) {
     const runtime = useRuntime();
+    const t = useT();
+    const list = useSessionList();
+    const session = useSessionSnapshot(entry.id);
+    const chat = useChatSnapshot(entry.id);
+    const blank = useConversationBlank(entry.id);
+    const panelRef = useRef(null);
+    const closeRef = useRef(null);
+    const titleId = useId();
+    const address = useMemo(() => ({
+        parentSessionId,
+        childSessionId: entry.id,
+        mode: entry.mode,
+    }), [entry.id, entry.mode, parentSessionId]);
+    const [openFailure, setOpenFailure] = useState();
+    const parentCwd = list.byId[parentSessionId]?.cwd;
+    const cwd = list.byId[entry.id]?.cwd ?? parentCwd;
+    const running = entry.activity === 'running' || session?.running === true;
+    const log = useMemo(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry]);
+    const transcriptReady = session?.openState === 'open' && chat !== undefined;
+    const transcriptError = openFailure
+        ?? (session?.openState === 'error' ? session.openError?.message ?? t('common.error') : undefined);
+    useModalFocus(true, panelRef, { initialFocusRef: closeRef, onClose });
+    useLayoutEffect(() => {
+        setOpenFailure(undefined);
+        try {
+            runtime.sessions.openSubagent(address);
+        }
+        catch (cause) {
+            setOpenFailure(cause instanceof Error ? cause.message : String(cause));
+        }
+    }, [address, runtime]);
+    return (_jsxs("div", { className: css.conversationOverlay, role: "presentation", children: [_jsx("div", { className: css.conversationMask, "aria-hidden": "true", onClick: onClose }), _jsxs("div", { ref: panelRef, className: css.conversationPanel, role: "dialog", "aria-modal": "true", "aria-labelledby": titleId, tabIndex: -1, children: [_jsxs("header", { className: css.conversationHeader, children: [_jsxs("div", { className: css.conversationTitleCopy, children: [_jsx("div", { className: css.conversationEyebrow, children: t('agents.openFull') }), _jsx("h2", { id: titleId, children: entryLabel(entry) }), _jsxs("span", { className: css.conversationMeta, children: [running ? t('agents.running') : t('agents.inactive'), _jsx("span", { "aria-hidden": true, children: "\u00B7" }), entry.mode === 'continuable' ? t('agents.continuable') : t('agents.oneShot')] })] }), _jsxs("div", { className: css.conversationActions, children: [_jsx(CopyButton, { text: log, label: t('agents.copyLog'), copiedLabel: t('agents.copied') }), _jsx("button", { ref: closeRef, type: "button", className: css.conversationClose, onClick: onClose, "aria-label": t('common.close'), children: _jsx(IconCloseOutline16, {}) })] })] }), _jsx("div", { className: css.conversationBody, children: transcriptError !== undefined
+                            ? _jsx(EmptyState, { children: transcriptError })
+                            : !transcriptReady
+                                ? _jsxs(EmptyState, { children: [_jsx(Spinner, { size: "md" }), t('chat.loading')] })
+                                : _jsx(Transcript, { navigation: navigation, sessionId: entry.id, cwd: cwd, blank: blank }) })] })] }));
+}
+/** Detailed child view, following DCode's back / copy-log / transcript pattern. */
+export function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack, onOpenFull, }) {
     const t = useT();
     const list = useSessionList();
     const session = useSessionSnapshot(entry.id);
@@ -116,25 +156,23 @@ export function SubagentDetailPanel({ parentSessionId, entry, navigation, onBack
     const timing = useProjectionValue(entry.id, 'subagentTiming');
     const running = entry.activity === 'running' || session?.running === true;
     const duration = elapsedMs(timing, running ? 'running' : 'inactive', now);
-    const address = {
-        parentSessionId,
-        childSessionId: entry.id,
-        mode: entry.mode,
-    };
     useEffect(() => {
         if (!running)
             return undefined;
         const timer = window.setInterval(() => { setNow(Date.now()); }, 1000);
         return () => { window.clearInterval(timer); };
     }, [running]);
-    const openFull = useCallback(() => {
-        runtime.sessions.openSubagent(address);
-    }, [address, runtime]);
     const log = useMemo(() => childLog(chat?.legacy.nodes ?? [], entry), [chat?.legacy.nodes, entry]);
     const task = useMemo(() => childTask(chat?.legacy.nodes ?? [], entryLabel(entry)), [chat?.legacy.nodes, entry]);
     const error = session?.lastAgentError;
-    return (_jsxs("div", { className: css.detail, children: [_jsxs("header", { className: css.detailHeader, children: [_jsxs("button", { type: "button", className: css.backButton, onClick: onBack, children: [_jsx(IconChevronLeftOutline14, {}), _jsx("span", { children: t('agents.back') })] }), _jsxs("span", { className: css.detailStatus, "data-running": running ? '' : undefined, children: [running ? _jsx(Spinner, { size: "sm" }) : error ? _jsx(IconWarningOutline16, {}) : _jsx(IconCheckOutline14, {}), running ? t('agents.running') : error ? t('agents.executionError') : t('agents.inactive')] })] }), _jsxs("div", { className: css.detailHeading, children: [_jsx("span", { className: css.detailAvatar, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("div", { className: css.detailTitleCopy, children: [_jsx("h3", { children: entryLabel(entry) }), _jsxs("span", { children: [entry.mode === 'continuable' ? t('agents.continuable') : t('agents.oneShot'), duration === undefined ? '' : ` · ${formatToolDuration(duration)}`] })] }), _jsx(CopyButton, { text: log, label: t('agents.copyLog'), copiedLabel: t('agents.copied') })] }), _jsxs("section", { className: css.taskBubble, children: [_jsx("span", { className: css.taskLabel, children: t('agents.task') }), _jsx("span", { children: task })] }), error === undefined ? null : _jsxs("div", { className: css.detailError, role: "alert", children: [_jsx(IconWarningOutline16, {}), error] }), runtime.binding(entry.id) === undefined
-                ? _jsx(EmptyState, { children: t('agents.noTranscript') })
-                : (_jsx("div", { className: css.childTranscript, children: _jsx(Transcript, { navigation: navigation, sessionId: entry.id, cwd: cwd, blank: blank, compact: true }) })), _jsx(Button, { primary: true, onClick: openFull, children: t('agents.openFull') })] }));
+    const transcriptError = session?.openState === 'error'
+        ? session.openError?.message ?? t('common.error')
+        : undefined;
+    const transcriptReady = session?.openState === 'open' && chat !== undefined;
+    return (_jsxs("div", { className: css.detail, children: [_jsxs("header", { className: css.detailHeader, children: [_jsxs("button", { type: "button", className: css.backButton, onClick: onBack, children: [_jsx(IconChevronLeftOutline14, {}), _jsx("span", { children: t('agents.back') })] }), _jsxs("span", { className: css.detailStatus, "data-running": running ? '' : undefined, children: [running ? _jsx(Spinner, { size: "sm" }) : error ? _jsx(IconWarningOutline16, {}) : _jsx(IconCheckOutline14, {}), running ? t('agents.running') : error ? t('agents.executionError') : t('agents.inactive')] })] }), _jsxs("div", { className: css.detailHeading, children: [_jsx("span", { className: css.detailAvatar, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("div", { className: css.detailTitleCopy, children: [_jsx("h3", { children: entryLabel(entry) }), _jsxs("span", { children: [entry.mode === 'continuable' ? t('agents.continuable') : t('agents.oneShot'), duration === undefined ? '' : ` · ${formatToolDuration(duration)}`] })] }), _jsx(CopyButton, { text: log, label: t('agents.copyLog'), copiedLabel: t('agents.copied') })] }), _jsxs("section", { className: css.taskBubble, children: [_jsx("span", { className: css.taskLabel, children: t('agents.task') }), _jsx("span", { children: task })] }), error === undefined ? null : _jsxs("div", { className: css.detailError, role: "alert", children: [_jsx(IconWarningOutline16, {}), error] }), _jsx("div", { className: css.childTranscript, children: transcriptError !== undefined
+                    ? _jsx(EmptyState, { children: transcriptError })
+                    : !transcriptReady
+                        ? _jsxs(EmptyState, { children: [_jsx(Spinner, { size: "sm" }), t('chat.loading')] })
+                        : _jsx(Transcript, { navigation: navigation, sessionId: entry.id, cwd: cwd, blank: blank, compact: true }) }), _jsx(Button, { primary: true, onClick: onOpenFull, children: t('agents.openFull') })] }));
 }
 //# sourceMappingURL=AgentInspector.js.map
