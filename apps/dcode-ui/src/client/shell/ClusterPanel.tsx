@@ -1,6 +1,6 @@
-/** DCode's Cluster workbench: durable roster, task DAG, worktrees, and gates. */
+/** DCode's Cluster workbench: durable roster and shared task board. */
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   IconCheckOutline14, IconChevronRightOutline14, IconPlusOutline16, IconRefreshOutline14,
   IconUserOutline16, IconWarningOutline16,
@@ -26,60 +26,25 @@ interface TaskDraft {
 
 const EMPTY_DRAFT: TaskDraft = { subject: '', description: '', blockers: '', scopes: '' }
 
-/** Optional fields retained by older DCode Cluster payloads. */
-type ClusterMemberView = Omit<TeamMemberView, 'status'> & {
-  readonly status: TeamMemberView['status'] | 'killed'
-  readonly parentId?: SessionId
-  readonly agentRole?: string
-  readonly isolation?: 'shared' | 'worktree'
-  readonly branchName?: string
-  readonly workspacePath?: string
-  readonly result?: string
-}
-
-/** Optional governance records retained by older DCode Cluster payloads. */
-interface ClusterGateReport {
-  readonly id: string
-  readonly gate: string
-  readonly verdict: 'pass' | 'fail' | 'blocked'
-  readonly actorName: string
-  readonly role: string
-  readonly taskId?: TeamTaskId
-  readonly evidence: string
-  readonly note?: string
-}
-
-type ClusterView = Omit<TeamView, 'members'> & {
-  readonly members: ClusterMemberView[]
-  readonly gates?: readonly ClusterGateReport[]
-}
-
 type MemberStatusKey =
   | 'cluster.status.running'
   | 'cluster.status.idle'
   | 'cluster.status.inactive'
   | 'cluster.status.provisioning'
   | 'cluster.status.failed'
-  | 'cluster.status.killed'
 
 type TaskStatusKey =
   | 'cluster.task.pending'
   | 'cluster.task.inProgress'
   | 'cluster.task.completed'
 
-type VerdictKey =
-  | 'cluster.verdict.pass'
-  | 'cluster.verdict.fail'
-  | 'cluster.verdict.blocked'
-
-function memberStatusKey(status: ClusterMemberView['status']): MemberStatusKey {
+function memberStatusKey(status: TeamMemberView['status']): MemberStatusKey {
   switch (status) {
     case 'running': return 'cluster.status.running'
     case 'idle': return 'cluster.status.idle'
     case 'inactive': return 'cluster.status.inactive'
     case 'provisioning': return 'cluster.status.provisioning'
     case 'failed': return 'cluster.status.failed'
-    case 'killed': return 'cluster.status.killed'
   }
 }
 
@@ -90,14 +55,6 @@ function taskStatusKey(status: TeamTaskView['status']): TaskStatusKey {
     case 'completed': return 'cluster.task.completed'
     /* Deleted task tombstones are not included by the Team view. */
     case 'deleted': return 'cluster.task.completed'
-  }
-}
-
-function verdictKey(verdict: ClusterGateReport['verdict']): VerdictKey {
-  switch (verdict) {
-    case 'pass': return 'cluster.verdict.pass'
-    case 'fail': return 'cluster.verdict.fail'
-    case 'blocked': return 'cluster.verdict.blocked'
   }
 }
 
@@ -123,22 +80,8 @@ function mutationError(result: RemoteResult<TeamTaskMutationResult>): string | u
   return undefined
 }
 
-function memberTree(members: readonly ClusterMemberView[], leadId: SessionId | undefined): readonly { member: ClusterMemberView; depth: number }[] {
-  const output: Array<{ member: ClusterMemberView; depth: number }> = []
-  const visited = new Set<SessionId>()
-  const visit = (member: ClusterMemberView, depth: number): void => {
-    if (visited.has(member.id)) return
-    visited.add(member.id)
-    output.push({ member, depth })
-    for (const child of members) {
-      if (child.role === 'teammate' && (child.parentId ?? leadId) === member.id) visit(child, depth + 1)
-    }
-  }
-  for (const member of members) {
-    if (member.role === 'lead' || member.parentId === undefined) visit(member, 0)
-  }
-  for (const member of members) visit(member, 0)
-  return output
+function memberTree(members: readonly TeamMemberView[]): readonly { member: TeamMemberView; depth: number }[] {
+  return members.map(member => ({ member, depth: member.role === 'lead' ? 0 : 1 }))
 }
 
 /** Cluster mode's durable orchestration inspector. */
@@ -155,12 +98,12 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
   const [busyTask, setBusyTask] = useState<string | undefined>()
   const [operationError, setOperationError] = useState<string | undefined>()
 
-  const loaded = useAsync(async (signal): Promise<ClusterView | undefined> => {
+  const loaded = useAsync(async (signal): Promise<TeamView | undefined> => {
     if (cluster === undefined || leadId === undefined) return undefined
     signal.throwIfAborted()
     const result = await cluster.view(leadId)
     if (!result.ok) throw new Error(result.error.message)
-    return result.value as ClusterView
+    return result.value
   }, [cluster, leadId])
 
   useEffect(() => {
@@ -229,9 +172,9 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
     }
   }, [cluster, draft, leadId, loaded.reload])
 
-  const openMember = useCallback(async (member: ClusterMemberView): Promise<void> => {
-    if (member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning' || member.status === 'killed') return
-    const parentSessionId = member.parentId ?? leadId
+  const openMember = useCallback(async (member: TeamMemberView): Promise<void> => {
+    if (member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning') return
+    const parentSessionId = leadId
     if (parentSessionId === undefined) return
     try {
       await runtime.sessions.refreshSubagents(parentSessionId)
@@ -256,10 +199,9 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
   const view = loaded.value
   const members = view?.members ?? []
   const tasks = view?.tasks ?? []
-  const gates = view?.gates ?? []
   const running = members.filter(member => member.status === 'running').length
   const completed = tasks.filter(task => task.status === 'completed').length
-  const rows = memberTree(members, leadId)
+  const rows = memberTree(members)
 
   return (
     <section className={css.section} data-cluster-panel>
@@ -286,7 +228,6 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
             <div className={css.summary}>
               <span><strong>{members.length}</strong> {t('cluster.members')}</span>
               <span><strong>{completed}/{tasks.length}</strong> {t('cluster.taskProgress')}</span>
-              <span><strong>{gates.length}</strong> {t('cluster.gates')}</span>
             </div>
             {operationError !== undefined && <div className={css.error} role="alert"><IconWarningOutline16 />{operationError}</div>}
             {loaded.error !== undefined && <div className={css.error} role="alert"><IconWarningOutline16 />{loaded.error}</div>}
@@ -303,8 +244,7 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
                           const canOpen = member.role !== 'lead'
                             && member.status !== 'failed'
                             && member.status !== 'provisioning'
-                            && member.status !== 'killed'
-                          const role = member.role === 'lead' ? t('cluster.roleLead') : member.agentRole ?? t('cluster.roleTeammate')
+                          const role = member.role === 'lead' ? t('cluster.roleLead') : t('cluster.roleTeammate')
                           return (
                             <button
                               key={member.id}
@@ -319,11 +259,6 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
                               <span className={css.memberCopy}>
                                 <span className={css.memberName}>{member.name}</span>
                                 <span className={css.memberMeta}>{role} · {t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${member.model}`}</span>
-                                {member.isolation === 'worktree'
-                                  ? <span className={css.memberMeta}>{t('cluster.worktree')}{member.branchName === undefined ? '' : ` · ${member.branchName}`}</span>
-                                  : <span className={css.memberMeta}>{t('cluster.shared')}</span>}
-                                {member.workspacePath === undefined ? null : <span className={css.memberPath} title={member.workspacePath}>{member.workspacePath}</span>}
-                                {member.result === undefined ? null : <span className={css.memberMeta} title={member.result}>{member.result}</span>}
                                 {member.diagnostics.map(diagnostic => <span key={diagnostic} className={css.diagnostic}>{diagnostic}</span>)}
                               </span>
                               {canOpen ? <IconChevronRightOutline14 className={css.rowChevron} /> : null}
@@ -378,7 +313,7 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
                             <TaskCard
                               key={task.id}
                               task={task}
-                              assignable={members.filter(member => member.status !== 'failed' && member.status !== 'provisioning' && member.status !== 'killed')}
+                               assignable={members.filter(member => member.status !== 'failed' && member.status !== 'provisioning')}
                               busy={busyTask === task.id}
                               onEdit={() => { beginEdit(task) }}
                               onAction={(action, owner) => {
@@ -393,12 +328,6 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
                       </div>
                     </section>
 
-                    <section className={css.subsection}>
-                      <header className={css.subsectionHeader}><span>{t('cluster.governance')}</span><Pill>{gates.length}</Pill></header>
-                      {gates.length === 0
-                        ? <EmptyState>{t('cluster.noGates')}</EmptyState>
-                        : <div className={css.gateList}>{gates.slice().reverse().map(report => <GateCard key={report.id} report={report} t={t} />)}</div>}
-                    </section>
                   </>
                 )}
           </div>
@@ -438,7 +367,7 @@ function TaskCard({
   task, assignable, busy, onEdit, onAction, t,
 }: {
   task: TeamTaskView
-  assignable: readonly ClusterMemberView[]
+  assignable: readonly TeamMemberView[]
   busy: boolean
   onEdit: () => void
   onAction: (action: TeamTaskAction, owner?: string) => void
@@ -489,20 +418,6 @@ function TaskCard({
           : null}
         <button type="button" className={css.dangerAction} disabled={busy} onClick={() => { onAction('delete') }}>{t('cluster.delete')}</button>
       </div>
-    </article>
-  )
-}
-
-function GateCard({ report, t }: { report: ClusterGateReport; t: ReturnType<typeof useT> }) {
-  return (
-    <article className={css.gateCard} data-verdict={report.verdict}>
-      <div className={css.gateHeading}>
-        <strong>{report.gate}</strong>
-        <span className={css.verdict}>{t(verdictKey(report.verdict))}</span>
-      </div>
-      <div className={css.gateMeta}>{report.actorName} · {report.role}{report.taskId === undefined ? '' : ` · ${report.taskId}`}</div>
-      <p className={css.gateEvidence}>{report.evidence}</p>
-      {report.note === undefined ? null : <p className={css.gateNote}>{t('cluster.note')}: {report.note}</p>}
     </article>
   )
 }

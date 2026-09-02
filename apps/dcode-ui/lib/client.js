@@ -5433,7 +5433,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.refresh": "Refresh cluster state",
 			"cluster.loading": "Loading cluster state…",
 			"cluster.empty": "Cluster state is not available for this task.",
-			"cluster.roster": "Agent hierarchy",
+			"cluster.roster": "Agent roster",
 			"cluster.members": "members",
 			"cluster.running": "{count} running",
 			"cluster.tasks": "Shared task board",
@@ -5454,14 +5454,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.complete": "Complete",
 			"cluster.reopen": "Reopen",
 			"cluster.delete": "Delete",
-			"cluster.governance": "Governance receipts",
-			"cluster.gates": "gates",
-			"cluster.noGates": "No governance receipts yet.",
-			"cluster.note": "Note",
 			"cluster.roleLead": "Lead",
 			"cluster.roleTeammate": "Teammate",
-			"cluster.shared": "Shared workspace",
-			"cluster.worktree": "Isolated worktree",
 			"cluster.openMember": "Open agent conversation",
 			"cluster.status.running": "Running",
 			"cluster.status.idle": "Idle",
@@ -5471,9 +5465,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.task.pending": "Pending",
 			"cluster.task.inProgress": "In progress",
 			"cluster.task.completed": "Completed",
-			"cluster.verdict.pass": "Pass",
-			"cluster.verdict.fail": "Fail",
-			"cluster.verdict.blocked": "Blocked",
 			"plan.title": "Plan",
 			"plan.progress": "{done}/{total}",
 			"plan.drafting": "Drafting plan…",
@@ -5749,12 +5740,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.agentWorkflowPromptBody": "The active preset is the source of the system prompt and its role-specific instructions.",
 			"settings.agentWorkflowTools": "Tool orchestration",
 			"settings.agentWorkflowToolsBody": "Capabilities are mounted by the selected composition and remain owned by DSH.",
-			"settings.agentWorkflowToolsCluster": "Team tools + governance",
+			"settings.agentWorkflowToolsCluster": "Team tools",
 			"settings.agentWorkflowToolsStandard": "Core tools + workflows",
-			"settings.agentWorkflowGovernance": "Execution governance",
-			"settings.agentWorkflowGovernanceBody": "Recursive depth, isolation, performance gates, and review roles are enabled by the composition.",
-			"settings.agentWorkflowGovernanceCluster": "Recursive cluster governance",
-			"settings.agentWorkflowGovernanceDefault": "Default Agent governance",
 			"settings.agentPresets": "Agent presets",
 			"settings.theme": "Interface theme",
 			"settings.themeCustom": "Installed themes",
@@ -6444,14 +6431,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.complete": "完成",
 			"cluster.reopen": "重新打开",
 			"cluster.delete": "删除",
-			"cluster.governance": "治理回执",
-			"cluster.gates": "个闸门",
-			"cluster.noGates": "还没有治理回执。",
-			"cluster.note": "备注",
 			"cluster.roleLead": "主 Agent",
 			"cluster.roleTeammate": "成员 Agent",
-			"cluster.shared": "共享工作区",
-			"cluster.worktree": "隔离工作树",
 			"cluster.openMember": "打开 Agent 对话",
 			"cluster.status.running": "运行中",
 			"cluster.status.idle": "空闲",
@@ -6461,9 +6442,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"cluster.task.pending": "待处理",
 			"cluster.task.inProgress": "进行中",
 			"cluster.task.completed": "已完成",
-			"cluster.verdict.pass": "通过",
-			"cluster.verdict.fail": "失败",
-			"cluster.verdict.blocked": "阻塞",
 			"plan.title": "计划",
 			"plan.progress": "{done}/{total}",
 			"plan.drafting": "正在拟定方案…",
@@ -6741,10 +6719,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"settings.agentWorkflowToolsBody": "能力由当前组合挂载，并继续由 DSH 负责生命周期。",
 			"settings.agentWorkflowToolsCluster": "团队工具 + 治理",
 			"settings.agentWorkflowToolsStandard": "核心工具 + 工作流",
-			"settings.agentWorkflowGovernance": "执行治理",
-			"settings.agentWorkflowGovernanceBody": "递归层级、隔离、性能闸门和审查角色由当前组合启用。",
-			"settings.agentWorkflowGovernanceCluster": "递归集群治理",
-			"settings.agentWorkflowGovernanceDefault": "默认 Agent 治理",
 			"settings.agentPresets": "Agent 预设",
 			"settings.theme": "界面主题",
 			"settings.themeCustom": "已安装主题",
@@ -13677,9 +13651,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		}
 		//#endregion
 		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\apps\dcode-ui\src\client\shell\ClusterPanel.module.css.mjs
-		const css$16 = "._Xg0Wq_section{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 68%, transparent);min-width:0;box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex;overflow:hidden}._Xg0Wq_sectionHeader,._Xg0Wq_subsectionHeader,._Xg0Wq_taskHeading,._Xg0Wq_gateHeading{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}._Xg0Wq_sectionToggle{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:40px;padding:0 var(--zx-space-3);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}._Xg0Wq_sectionToggle:hover,._Xg0Wq_memberRow:hover{background:color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-hover));color:var(--zx-label)}._Xg0Wq_sectionToggle:focus-visible,._Xg0Wq_memberRow:focus-visible,._Xg0Wq_taskAction:focus-visible,._Xg0Wq_primaryAction:focus-visible,._Xg0Wq_dangerAction:focus-visible,._Xg0Wq_addButton:focus-visible,._Xg0Wq_refreshButton:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}._Xg0Wq_sectionToggle svg:first-child{color:var(--zx-label-tertiary);transition:transform var(--zx-motion-fast);flex:none}._Xg0Wq_chevronOpen{transform:rotate(90deg)}._Xg0Wq_refreshButton{width:28px;height:28px;margin-right:var(--zx-space-1);border-radius:var(--zx-radius-sm);color:var(--zx-label-tertiary);cursor:pointer;background:0 0;border:0;justify-content:center;align-items:center;padding:0;display:inline-flex}._Xg0Wq_refreshButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._Xg0Wq_runningPill,._Xg0Wq_ready,._Xg0Wq_blocked{border-radius:var(--zx-radius-pill);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;padding:2px 6px}._Xg0Wq_runningPill{background:var(--zx-accent-soft);color:var(--zx-accent)}._Xg0Wq_ready{background:color-mix(in srgb, var(--zx-success) 14%, transparent);color:var(--zx-success)}._Xg0Wq_blocked{background:color-mix(in srgb, var(--zx-warn) 14%, transparent);color:var(--zx-warn)}._Xg0Wq_content{gap:var(--zx-space-3);padding:0 var(--zx-space-2) var(--zx-space-3);flex-direction:column;display:flex}._Xg0Wq_summary{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-bg-surface-1) 75%, transparent);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex-wrap:wrap;display:flex}._Xg0Wq_summary span+span:before{margin-right:var(--zx-space-2);color:var(--zx-label-decor);content:\"·\"}._Xg0Wq_summary strong{color:var(--zx-label);font-weight:var(--zx-weight-semibold)}._Xg0Wq_error{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-error) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 8%, transparent);color:var(--zx-error);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}._Xg0Wq_subsection{gap:var(--zx-space-2);flex-direction:column;min-width:0;display:flex}._Xg0Wq_subsectionHeader{padding:0 var(--zx-space-1);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium)}._Xg0Wq_subsectionHeader>span:first-child{flex:1;min-width:0}._Xg0Wq_addButton{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-card);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;align-items:center;gap:4px;padding:3px 7px;display:inline-flex}._Xg0Wq_addButton:hover{border-color:var(--zx-accent);color:var(--zx-label)}._Xg0Wq_memberList,._Xg0Wq_taskList,._Xg0Wq_gateList{gap:var(--zx-space-2);flex-direction:column;display:flex}._Xg0Wq_memberRow{align-items:flex-start;gap:var(--zx-space-2);min-width:0;min-height:42px;padding:var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}._Xg0Wq_memberRow:disabled{cursor:default;opacity:.82}._Xg0Wq_statusDot{background:var(--zx-label-tertiary);border-radius:50%;flex:none;width:8px;height:8px;margin:5px 4px 0 2px}._Xg0Wq_statusDot[data-status=running]{background:var(--zx-accent);box-shadow:0 0 0 3px var(--zx-accent-soft)}._Xg0Wq_statusDot[data-status=idle]{background:var(--zx-success)}._Xg0Wq_statusDot[data-status=failed]{background:var(--zx-error)}._Xg0Wq_statusDot[data-status=provisioning]{background:var(--zx-warn)}._Xg0Wq_memberCopy{flex-direction:column;flex:1;gap:2px;min-width:0;display:flex}._Xg0Wq_memberName{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._Xg0Wq_memberMeta,._Xg0Wq_memberPath,._Xg0Wq_diagnostic{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._Xg0Wq_memberPath{color:var(--zx-label-faint);font-family:var(--zx-font-mono)}._Xg0Wq_diagnostic{color:var(--zx-error);white-space:normal;overflow-wrap:anywhere}._Xg0Wq_rowChevron{color:var(--zx-label-decor);flex:none;margin-top:4px}._Xg0Wq_taskCard,._Xg0Wq_gateCard{gap:var(--zx-space-2);min-width:0;padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-bg-card) 72%, transparent);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex}._Xg0Wq_taskHeading strong,._Xg0Wq_gateHeading strong{min-width:0;color:var(--zx-label);font-size:var(--zx-text-xs);text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._Xg0Wq_taskStatus,._Xg0Wq_verdict{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex:none}._Xg0Wq_taskStatus[data-status=in_progress]{color:var(--zx-accent)}._Xg0Wq_taskStatus[data-status=completed]{color:var(--zx-success)}._Xg0Wq_taskDescription,._Xg0Wq_gateEvidence,._Xg0Wq_gateNote{color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);overflow-wrap:anywhere;margin:0}._Xg0Wq_taskMeta,._Xg0Wq_gateMeta{gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);flex-wrap:wrap;display:flex}._Xg0Wq_taskMeta code{color:var(--zx-label-faint);font-family:var(--zx-font-mono)}._Xg0Wq_warning{gap:var(--zx-space-2);color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}._Xg0Wq_taskControls{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;display:flex}._Xg0Wq_ownerControl{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);margin-right:auto;display:inline-flex}._Xg0Wq_ownerControl select,._Xg0Wq_taskForm input,._Xg0Wq_taskForm textarea{box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:color-mix(in srgb, var(--zx-bg-surface-1) 82%, transparent);color:var(--zx-label);font:inherit;font-size:var(--zx-text-micro)}._Xg0Wq_ownerControl select{max-width:120px;height:26px;padding:0 5px}._Xg0Wq_taskAction,._Xg0Wq_primaryAction,._Xg0Wq_dangerAction{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-sm);background:var(--zx-bg-card);min-height:26px;color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;justify-content:center;align-items:center;gap:4px;padding:0 7px;display:inline-flex}._Xg0Wq_taskAction:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._Xg0Wq_primaryAction{border-color:color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border-soft));background:var(--zx-accent-soft);color:var(--zx-accent)}._Xg0Wq_primaryAction:hover{background:color-mix(in srgb, var(--zx-accent) 23%, transparent);color:var(--zx-label)}._Xg0Wq_dangerAction{color:var(--zx-error)}._Xg0Wq_dangerAction:hover{background:color-mix(in srgb, var(--zx-error) 10%, transparent)}._Xg0Wq_taskAction:disabled,._Xg0Wq_primaryAction:disabled,._Xg0Wq_dangerAction:disabled,._Xg0Wq_ownerControl select:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}._Xg0Wq_taskForm{gap:var(--zx-space-2);padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);flex-direction:column;display:flex}._Xg0Wq_taskForm input{height:30px;padding:0 var(--zx-space-2)}._Xg0Wq_taskForm textarea{min-height:62px;padding:var(--zx-space-2);resize:vertical}._Xg0Wq_taskForm input:focus,._Xg0Wq_taskForm textarea:focus,._Xg0Wq_ownerControl select:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}._Xg0Wq_formActions{gap:var(--zx-space-2);display:flex}._Xg0Wq_gateCard[data-verdict=pass]{border-color:color-mix(in srgb, var(--zx-success) 32%, var(--zx-border-soft))}._Xg0Wq_gateCard[data-verdict=fail]{border-color:color-mix(in srgb, var(--zx-error) 38%, var(--zx-border-soft))}._Xg0Wq_gateCard[data-verdict=blocked]{border-color:color-mix(in srgb, var(--zx-warn) 38%, var(--zx-border-soft))}._Xg0Wq_gateCard[data-verdict=pass] ._Xg0Wq_verdict{color:var(--zx-success)}._Xg0Wq_gateCard[data-verdict=fail] ._Xg0Wq_verdict{color:var(--zx-error)}._Xg0Wq_gateCard[data-verdict=blocked] ._Xg0Wq_verdict{color:var(--zx-warn)}._Xg0Wq_gateNote{color:var(--zx-label-tertiary)}@media (prefers-reduced-motion:reduce){._Xg0Wq_sectionToggle svg:first-child{transition:none}}";
-		const tagId$15 = "@dsh-portable/dcode-ui/ClusterPanel.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$15) + "]") === null) {
+		const css$18 = "._Xg0Wq_section{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-lg);background:color-mix(in srgb, var(--zx-bg-card) 68%, transparent);min-width:0;box-shadow:var(--zx-shadow-inset-top);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex;overflow:hidden}._Xg0Wq_sectionHeader,._Xg0Wq_subsectionHeader,._Xg0Wq_taskHeading{align-items:center;gap:var(--zx-space-2);min-width:0;display:flex}._Xg0Wq_sectionToggle{align-items:center;gap:var(--zx-space-2);min-width:0;min-height:40px;padding:0 var(--zx-space-3);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-align:left;cursor:pointer;background:0 0;border:0;flex:1;display:flex}._Xg0Wq_sectionToggle:hover,._Xg0Wq_memberRow:hover{background:color-mix(in srgb, var(--zx-accent) 9%, var(--zx-bg-hover));color:var(--zx-label)}._Xg0Wq_sectionToggle:focus-visible,._Xg0Wq_memberRow:focus-visible,._Xg0Wq_taskAction:focus-visible,._Xg0Wq_primaryAction:focus-visible,._Xg0Wq_dangerAction:focus-visible,._Xg0Wq_addButton:focus-visible,._Xg0Wq_refreshButton:focus-visible{box-shadow:inset var(--zx-focus-ring);outline:none}._Xg0Wq_sectionToggle svg:first-child{color:var(--zx-label-tertiary);transition:transform var(--zx-motion-fast);flex:none}._Xg0Wq_chevronOpen{transform:rotate(90deg)}._Xg0Wq_refreshButton{width:28px;height:28px;margin-right:var(--zx-space-1);border-radius:var(--zx-radius-sm);color:var(--zx-label-tertiary);cursor:pointer;background:0 0;border:0;justify-content:center;align-items:center;padding:0;display:inline-flex}._Xg0Wq_refreshButton:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._Xg0Wq_runningPill,._Xg0Wq_ready,._Xg0Wq_blocked{border-radius:var(--zx-radius-pill);font-size:var(--zx-text-micro);font-variant-numeric:tabular-nums;padding:2px 6px}._Xg0Wq_runningPill{background:var(--zx-accent-soft);color:var(--zx-accent)}._Xg0Wq_ready{background:color-mix(in srgb, var(--zx-success) 14%, transparent);color:var(--zx-success)}._Xg0Wq_blocked{background:color-mix(in srgb, var(--zx-warn) 14%, transparent);color:var(--zx-warn)}._Xg0Wq_content{gap:var(--zx-space-3);padding:0 var(--zx-space-2) var(--zx-space-3);flex-direction:column;display:flex}._Xg0Wq_summary{gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-bg-surface-1) 75%, transparent);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex-wrap:wrap;display:flex}._Xg0Wq_summary span+span:before{margin-right:var(--zx-space-2);color:var(--zx-label-decor);content:\"·\"}._Xg0Wq_summary strong{color:var(--zx-label);font-weight:var(--zx-weight-semibold)}._Xg0Wq_error{align-items:flex-start;gap:var(--zx-space-2);padding:var(--zx-space-2) var(--zx-space-3);border:1px solid color-mix(in srgb, var(--zx-error) 35%, var(--zx-border-soft));border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-error) 8%, transparent);color:var(--zx-error);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}._Xg0Wq_subsection{gap:var(--zx-space-2);flex-direction:column;min-width:0;display:flex}._Xg0Wq_subsectionHeader{padding:0 var(--zx-space-1);color:var(--zx-label-secondary);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium)}._Xg0Wq_subsectionHeader>span:first-child{flex:1;min-width:0}._Xg0Wq_addButton{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-pill);background:var(--zx-bg-card);color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;align-items:center;gap:4px;padding:3px 7px;display:inline-flex}._Xg0Wq_addButton:hover{border-color:var(--zx-accent);color:var(--zx-label)}._Xg0Wq_memberList,._Xg0Wq_taskList{gap:var(--zx-space-2);flex-direction:column;display:flex}._Xg0Wq_memberRow{align-items:flex-start;gap:var(--zx-space-2);min-width:0;min-height:42px;padding:var(--zx-space-2);border-radius:var(--zx-radius-md);color:var(--zx-label-secondary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:0;display:flex}._Xg0Wq_memberRow:disabled{cursor:default;opacity:.82}._Xg0Wq_statusDot{background:var(--zx-label-tertiary);border-radius:50%;flex:none;width:8px;height:8px;margin:5px 4px 0 2px}._Xg0Wq_statusDot[data-status=running]{background:var(--zx-accent);box-shadow:0 0 0 3px var(--zx-accent-soft)}._Xg0Wq_statusDot[data-status=idle]{background:var(--zx-success)}._Xg0Wq_statusDot[data-status=failed]{background:var(--zx-error)}._Xg0Wq_statusDot[data-status=provisioning]{background:var(--zx-warn)}._Xg0Wq_memberCopy{flex-direction:column;flex:1;gap:2px;min-width:0;display:flex}._Xg0Wq_memberName{color:var(--zx-label);font-size:var(--zx-text-xs);font-weight:var(--zx-weight-medium);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._Xg0Wq_memberMeta,._Xg0Wq_diagnostic{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}._Xg0Wq_diagnostic{color:var(--zx-error);white-space:normal;overflow-wrap:anywhere}._Xg0Wq_rowChevron{color:var(--zx-label-decor);flex:none;margin-top:4px}._Xg0Wq_taskCard{gap:var(--zx-space-2);min-width:0;padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:color-mix(in srgb, var(--zx-bg-card) 72%, transparent);backdrop-filter:var(--zx-glass-filter);flex-direction:column;display:flex}._Xg0Wq_taskHeading strong{min-width:0;color:var(--zx-label);font-size:var(--zx-text-xs);text-overflow:ellipsis;white-space:nowrap;flex:1;overflow:hidden}._Xg0Wq_taskStatus{color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);flex:none}._Xg0Wq_taskStatus[data-status=in_progress]{color:var(--zx-accent)}._Xg0Wq_taskStatus[data-status=completed]{color:var(--zx-success)}._Xg0Wq_taskDescription{color:var(--zx-label-secondary);font-size:var(--zx-text-xs);line-height:var(--zx-leading-body);overflow-wrap:anywhere;margin:0}._Xg0Wq_taskMeta{gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);flex-wrap:wrap;display:flex}._Xg0Wq_taskMeta code{color:var(--zx-label-faint);font-family:var(--zx-font-mono)}._Xg0Wq_warning{gap:var(--zx-space-2);color:var(--zx-warn);font-size:var(--zx-text-micro);line-height:var(--zx-leading-body);display:flex}._Xg0Wq_taskControls{align-items:center;gap:var(--zx-space-2);flex-wrap:wrap;display:flex}._Xg0Wq_ownerControl{align-items:center;gap:var(--zx-space-2);color:var(--zx-label-tertiary);font-size:var(--zx-text-micro);margin-right:auto;display:inline-flex}._Xg0Wq_ownerControl select,._Xg0Wq_taskForm input,._Xg0Wq_taskForm textarea{box-sizing:border-box;border:1px solid var(--zx-border-control);border-radius:var(--zx-radius-sm);background:color-mix(in srgb, var(--zx-bg-surface-1) 82%, transparent);color:var(--zx-label);font:inherit;font-size:var(--zx-text-micro)}._Xg0Wq_ownerControl select{max-width:120px;height:26px;padding:0 5px}._Xg0Wq_taskAction,._Xg0Wq_primaryAction,._Xg0Wq_dangerAction{border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-sm);background:var(--zx-bg-card);min-height:26px;color:var(--zx-label-secondary);font:inherit;font-size:var(--zx-text-micro);cursor:pointer;justify-content:center;align-items:center;gap:4px;padding:0 7px;display:inline-flex}._Xg0Wq_taskAction:hover{background:var(--zx-bg-hover);color:var(--zx-label)}._Xg0Wq_primaryAction{border-color:color-mix(in srgb, var(--zx-accent) 55%, var(--zx-border-soft));background:var(--zx-accent-soft);color:var(--zx-accent)}._Xg0Wq_primaryAction:hover{background:color-mix(in srgb, var(--zx-accent) 23%, transparent);color:var(--zx-label)}._Xg0Wq_dangerAction{color:var(--zx-error)}._Xg0Wq_dangerAction:hover{background:color-mix(in srgb, var(--zx-error) 10%, transparent)}._Xg0Wq_taskAction:disabled,._Xg0Wq_primaryAction:disabled,._Xg0Wq_dangerAction:disabled,._Xg0Wq_ownerControl select:disabled{cursor:default;opacity:var(--zx-opacity-disabled)}._Xg0Wq_taskForm{gap:var(--zx-space-2);padding:var(--zx-space-3);border:1px solid var(--zx-border-soft);border-radius:var(--zx-radius-md);background:var(--zx-bg-surface-1);flex-direction:column;display:flex}._Xg0Wq_taskForm input{height:30px;padding:0 var(--zx-space-2)}._Xg0Wq_taskForm textarea{min-height:62px;padding:var(--zx-space-2);resize:vertical}._Xg0Wq_taskForm input:focus,._Xg0Wq_taskForm textarea:focus,._Xg0Wq_ownerControl select:focus{border-color:var(--zx-accent);box-shadow:var(--zx-focus-ring);outline:none}._Xg0Wq_formActions{gap:var(--zx-space-2);display:flex}@media (prefers-reduced-motion:reduce){._Xg0Wq_sectionToggle svg:first-child{transition:none}}";
+		const tagId$17 = "@dsh-portable/dcode-ui/ClusterPanel.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$17) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "@dsh-portable/dcode-ui";
 			tag.dataset.pluginCss = tagId$15;
@@ -13695,12 +13669,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"diagnostic": "_Xg0Wq_diagnostic",
 			"error": "_Xg0Wq_error",
 			"formActions": "_Xg0Wq_formActions",
-			"gateCard": "_Xg0Wq_gateCard",
-			"gateEvidence": "_Xg0Wq_gateEvidence",
-			"gateHeading": "_Xg0Wq_gateHeading",
-			"gateList": "_Xg0Wq_gateList",
-			"gateMeta": "_Xg0Wq_gateMeta",
-			"gateNote": "_Xg0Wq_gateNote",
 			"memberCopy": "_Xg0Wq_memberCopy",
 			"memberList": "_Xg0Wq_memberList",
 			"memberMeta": "_Xg0Wq_memberMeta",
@@ -13734,7 +13702,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		};
 		//#endregion
 		//#region src/client/shell/ClusterPanel.tsx
-		/** DCode's Cluster workbench: durable roster, task DAG, worktrees, and gates. */
+		/** DCode's Cluster workbench: durable roster and shared task board. */
 		const EMPTY_DRAFT = {
 			subject: "",
 			description: "",
@@ -13758,13 +13726,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				case "deleted": return "cluster.task.completed";
 			}
 		}
-		function verdictKey(verdict) {
-			switch (verdict) {
-				case "pass": return "cluster.verdict.pass";
-				case "fail": return "cluster.verdict.fail";
-				case "blocked": return "cluster.verdict.blocked";
-			}
-		}
 		function csvItems(value) {
 			return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 		}
@@ -13783,21 +13744,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			if (!result.ok) return result.error.message;
 			if (!result.value.ok) return result.value.error.message;
 		}
-		function memberTree(members, leadId) {
-			const output = [];
-			const visited = /* @__PURE__ */ new Set();
-			const visit = (member, depth) => {
-				if (visited.has(member.id)) return;
-				visited.add(member.id);
-				output.push({
-					member,
-					depth
-				});
-				for (const child of members) if (child.role === "teammate" && (child.parentId ?? leadId) === member.id) visit(child, depth + 1);
-			};
-			for (const member of members) if (member.role === "lead" || member.parentId === void 0) visit(member, 0);
-			for (const member of members) visit(member, 0);
-			return output;
+		function memberTree(members) {
+			return members.map((member) => ({
+				member,
+				depth: member.role === "lead" ? 0 : 1
+			}));
 		}
 		/** Cluster mode's durable orchestration inspector. */
 		function ClusterPanel({ sessionId }) {
@@ -13898,7 +13849,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			]);
 			const openMember = (0, react.useCallback)(async (member) => {
 				if (member.role === "lead" || member.status === "failed" || member.status === "provisioning") return;
-				const parentSessionId = member.parentId ?? leadId;
+				const parentSessionId = leadId;
 				if (parentSessionId === void 0) return;
 				try {
 					await runtime.sessions.refreshSubagents(parentSessionId);
@@ -13983,12 +13934,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 									" ",
 									t("cluster.taskProgress")
 								] }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: gates.length }),
-									" ",
-									t("cluster.gates")
-								] })
-							]
+								" ",
+								t("cluster.taskProgress")
+							] })]
 						}),
 						operationError !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: ClusterPanel_module_css_default.error,
@@ -14009,13 +13957,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								className: ClusterPanel_module_css_default.subsection,
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
 									className: ClusterPanel_module_css_default.subsectionHeader,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.roster") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, { children: members.length })]
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: ClusterPanel_module_css_default.memberList,
-									children: rows.map(({ member, depth }) => {
-										const canOpen = member.role !== "lead" && member.status !== "failed" && member.status !== "provisioning";
-										const role = member.role === "lead" ? t("cluster.roleLead") : member.agentRole ?? t("cluster.roleTeammate");
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.tasks") }),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: ui.grow }),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 											type: "button",
 											className: ClusterPanel_module_css_default.memberRow,
 											style: { paddingLeft: `${8 + depth * 14}px` },
@@ -14025,46 +13970,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 											},
 											title: canOpen ? t("cluster.openMember") : void 0,
 											children: [
-												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: ClusterPanel_module_css_default.statusDot,
-													"data-status": member.status,
-													"aria-hidden": true
-												}),
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: ClusterPanel_module_css_default.memberCopy,
-													children: [
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: ClusterPanel_module_css_default.memberName,
-															children: member.name
-														}),
-														/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-															className: ClusterPanel_module_css_default.memberMeta,
-															children: [
-																role,
-																" · ",
-																t(memberStatusKey(member.status)),
-																member.model === void 0 ? "" : ` · ${member.model}`
-															]
-														}),
-														member.isolation === "worktree" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-															className: ClusterPanel_module_css_default.memberMeta,
-															children: [t("cluster.worktree"), member.branchName === void 0 ? "" : ` · ${member.branchName}`]
-														}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: ClusterPanel_module_css_default.memberMeta,
-															children: t("cluster.shared")
-														}),
-														member.workspacePath === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: ClusterPanel_module_css_default.memberPath,
-															title: member.workspacePath,
-															children: member.workspacePath
-														}),
-														member.diagnostics.map((diagnostic) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-															className: ClusterPanel_module_css_default.diagnostic,
-															children: diagnostic
-														}, diagnostic))
-													]
-												}),
-												canOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, { className: ClusterPanel_module_css_default.rowChevron }) : null
+												/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, { size: 13 }),
+												" ",
+												t("cluster.addTask")
 											]
 										}, member.id);
 									})
@@ -14103,62 +14011,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 											setCreating(false);
 										},
 										t
-									}),
-									tasks.length === 0 && !creating && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("cluster.noTasks") }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-										className: ClusterPanel_module_css_default.taskList,
-										children: tasks.map((task) => editing === task.id ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskForm, {
-											draft: editDraft,
-											setDraft: setEditDraft,
-											pending: busyTask === task.id,
-											onSave: (event) => {
-												event.preventDefault();
-												updateTask(task, {
-													action: "edit",
-													subject: editDraft.subject.trim(),
-													description: editDraft.description.trim(),
-													writeScopes: csvItems(editDraft.scopes)
-												}).then((updated) => {
-													if (updated !== void 0) setEditing(void 0);
-												});
-											},
-											onCancel: () => {
-												setEditing(void 0);
-											},
-											t,
-											editMode: true
-										}, task.id) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TaskCard, {
-											task,
-											assignable: members.filter((member) => member.status !== "failed" && member.status !== "provisioning"),
-											busy: busyTask === task.id,
-											onEdit: () => {
-												beginEdit(task);
-											},
-											onAction: (action, owner) => {
-												updateTask(task, {
-													action,
-													...owner === void 0 || owner === "" ? {} : { owner }
-												});
-											},
-											t
-										}, task.id))
-									})
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-								className: ClusterPanel_module_css_default.subsection,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
-									className: ClusterPanel_module_css_default.subsectionHeader,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("cluster.governance") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, { children: gates.length })]
-								}), gates.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, { children: t("cluster.noGates") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: ClusterPanel_module_css_default.gateList,
-									children: gates.slice().reverse().map((report) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GateCard, {
-										report,
-										t
-									}, report.id))
-								})]
-							})
-						] })
+									}, task.id))
+								})
+							]
+						})] })
 					]
 				}) : null]
 			});
@@ -14341,42 +14197,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 								},
 								children: t("cluster.delete")
 							})
-						]
-					})
-				]
-			});
-		}
-		function GateCard({ report, t }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("article", {
-				className: ClusterPanel_module_css_default.gateCard,
-				"data-verdict": report.verdict,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: ClusterPanel_module_css_default.gateHeading,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: report.gate }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: ClusterPanel_module_css_default.verdict,
-							children: t(verdictKey(report.verdict))
-						})]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: ClusterPanel_module_css_default.gateMeta,
-						children: [
-							report.actorName,
-							" · ",
-							report.role,
-							report.taskId === void 0 ? "" : ` · ${report.taskId}`
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: ClusterPanel_module_css_default.gateEvidence,
-						children: report.evidence
-					}),
-					report.note === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
-						className: ClusterPanel_module_css_default.gateNote,
-						children: [
-							t("cluster.note"),
-							": ",
-							report.note
 						]
 					})
 				]
@@ -23479,30 +23299,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					body: t("settings.agentWorkflowCompositionBody"),
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: SettingsSurface_module_css_default.card,
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingRow, {
-								title: t("settings.agentWorkflowPrompt"),
-								body: t("settings.agentWorkflowPromptBody"),
-								control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: SettingsSurface_module_css_default.badge,
-									children: modeName(currentMode, currentPresetRow?.name ?? currentMode, t)
-								})
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingRow, {
-								title: t("settings.agentWorkflowTools"),
-								body: t("settings.agentWorkflowToolsBody"),
-								control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: SettingsSurface_module_css_default.rowMono,
-									children: currentMode === "crew" ? t("settings.agentWorkflowToolsCluster") : t("settings.agentWorkflowToolsStandard")
-								})
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingRow, {
-								title: t("settings.agentWorkflowGovernance"),
-								body: t("settings.agentWorkflowGovernanceBody"),
-								control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: SettingsSurface_module_css_default.rowMono,
-									children: currentMode === "crew" ? t("settings.agentWorkflowGovernanceCluster") : t("settings.agentWorkflowGovernanceDefault")
-								})
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingRow, {
+							title: t("settings.agentWorkflowPrompt"),
+							body: t("settings.agentWorkflowPromptBody"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: SettingsSurface_module_css_default.badge,
+								children: modeName(currentMode, currentPresetRow?.name ?? currentMode, t)
 							})
 						]
 					})

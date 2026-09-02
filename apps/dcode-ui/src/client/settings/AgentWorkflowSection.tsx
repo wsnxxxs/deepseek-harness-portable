@@ -599,11 +599,6 @@ export function AgentWorkflowSection({ sessionId }: { sessionId: SessionId | und
             body={t('settings.agentWorkflowToolsBody')}
             control={<span className={css.rowMono}>{currentMode === 'crew' ? t('settings.agentWorkflowToolsCluster') : t('settings.agentWorkflowToolsStandard')}</span>}
           />
-          <SettingRow
-            title={t('settings.agentWorkflowGovernance')}
-            body={t('settings.agentWorkflowGovernanceBody')}
-            control={<span className={css.rowMono}>{currentMode === 'crew' ? t('settings.agentWorkflowGovernanceCluster') : t('settings.agentWorkflowGovernanceDefault')}</span>}
-          />
         </div>
       </Section>
 

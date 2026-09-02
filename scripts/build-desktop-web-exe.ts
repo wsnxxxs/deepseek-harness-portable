@@ -512,7 +512,7 @@ class DesktopExeBuild {
       paths: STAGING_INPUT_PATHS,
       excludedDirectoryNames: FINGERPRINT_EXCLUDED_DIRECTORIES,
       salt: [
-        'staging-v1',
+        'staging-v2',
         this.buildKey,
         this.cli.electron ? 'electron' : 'sea',
         this.cli.target.id,

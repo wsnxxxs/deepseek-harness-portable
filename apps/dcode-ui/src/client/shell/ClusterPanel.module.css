@@ -15,8 +15,7 @@
 
 .sectionHeader,
 .subsectionHeader,
-.taskHeading,
-.gateHeading {
+.taskHeading {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -164,8 +163,7 @@
 .addButton:hover { border-color: var(--zx-accent); color: var(--zx-label); }
 
 .memberList,
-.taskList,
-.gateList {
+.taskList {
   display: flex;
   flex-direction: column;
   gap: var(--zx-space-2);
@@ -197,14 +195,11 @@
 .memberCopy { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
 .memberName { overflow: hidden; color: var(--zx-label); font-size: var(--zx-text-xs); font-weight: var(--zx-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
 .memberMeta,
-.memberPath,
 .diagnostic { overflow: hidden; color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); line-height: var(--zx-leading-body); text-overflow: ellipsis; white-space: nowrap; }
-.memberPath { color: var(--zx-label-faint); font-family: var(--zx-font-mono); }
 .diagnostic { color: var(--zx-error); white-space: normal; overflow-wrap: anywhere; }
 .rowChevron { flex: none; margin-top: 4px; color: var(--zx-label-decor); }
 
-.taskCard,
-.gateCard {
+.taskCard {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -217,17 +212,12 @@
   backdrop-filter: var(--zx-glass-filter);
 }
 
-.taskHeading strong,
-.gateHeading strong { overflow: hidden; flex: 1; min-width: 0; color: var(--zx-label); font-size: var(--zx-text-xs); text-overflow: ellipsis; white-space: nowrap; }
-.taskStatus,
-.verdict { flex: none; color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); }
+.taskHeading strong { overflow: hidden; flex: 1; min-width: 0; color: var(--zx-label); font-size: var(--zx-text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.taskStatus { flex: none; color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); }
 .taskStatus[data-status='in_progress'] { color: var(--zx-accent); }
 .taskStatus[data-status='completed'] { color: var(--zx-success); }
-.taskDescription,
-.gateEvidence,
-.gateNote { margin: 0; color: var(--zx-label-secondary); font-size: var(--zx-text-xs); line-height: var(--zx-leading-body); overflow-wrap: anywhere; }
-.taskMeta,
-.gateMeta { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); line-height: var(--zx-leading-body); }
+.taskDescription { margin: 0; color: var(--zx-label-secondary); font-size: var(--zx-text-xs); line-height: var(--zx-leading-body); overflow-wrap: anywhere; }
+.taskMeta { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); color: var(--zx-label-tertiary); font-size: var(--zx-text-micro); line-height: var(--zx-leading-body); }
 .taskMeta code { color: var(--zx-label-faint); font-family: var(--zx-font-mono); }
 .warning { display: flex; gap: var(--zx-space-2); color: var(--zx-warn); font-size: var(--zx-text-micro); line-height: var(--zx-leading-body); }
 
@@ -279,14 +269,6 @@
 .taskForm textarea:focus,
 .ownerControl select:focus { outline: none; border-color: var(--zx-accent); box-shadow: var(--zx-focus-ring); }
 .formActions { display: flex; gap: var(--zx-space-2); }
-
-.gateCard[data-verdict='pass'] { border-color: color-mix(in srgb, var(--zx-success) 32%, var(--zx-border-soft)); }
-.gateCard[data-verdict='fail'] { border-color: color-mix(in srgb, var(--zx-error) 38%, var(--zx-border-soft)); }
-.gateCard[data-verdict='blocked'] { border-color: color-mix(in srgb, var(--zx-warn) 38%, var(--zx-border-soft)); }
-.gateCard[data-verdict='pass'] .verdict { color: var(--zx-success); }
-.gateCard[data-verdict='fail'] .verdict { color: var(--zx-error); }
-.gateCard[data-verdict='blocked'] .verdict { color: var(--zx-warn); }
-.gateNote { color: var(--zx-label-tertiary); }
 
 @media (prefers-reduced-motion: reduce) {
   .sectionToggle svg:first-child { transition: none; }
