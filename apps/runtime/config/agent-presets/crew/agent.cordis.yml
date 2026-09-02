@@ -126,8 +126,6 @@
   config:
     freshProvider: spawn
     forkProvider: fork
-    autonomous: true
-    roleCatalog: true
 
 # ── plan mode ───────────────────────────────────────────────────────────────
 
@@ -185,10 +183,9 @@
 # rows in `standard`, omitting them here is the entire fix: no host patch, and
 # every other mode keeps them untouched.
 #
-# Both subagent tools are `one-shot` so the host-plane `tool-subagent-report`
-# contributes nothing here: it installs `report` only into CONTINUABLE children.
-# Anonymous one-shot fan-out stays available for work too small to be a task;
-# work worth tracking becomes a teammate and a board entry instead.
+# Both subagent tools remain `one-shot`, keeping lightweight fan-out separate
+# from durable named teammates. Work worth tracking becomes a teammate and a
+# board entry instead.
 - id: delegation
   name: cordis:group
   group: true

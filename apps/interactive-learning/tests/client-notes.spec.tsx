@@ -28,8 +28,8 @@ function renderNotes(
   render(
     <>
       <Bridge
-        session={{ sessionId: SESSION_ID }}
-        input={{ phase: 'plain' }}
+        sessionId={SESSION_ID}
+        useInput={(select: (value: unknown) => unknown) => select({ phase: 'plain' })}
         inputActions={input}
       />
       <View

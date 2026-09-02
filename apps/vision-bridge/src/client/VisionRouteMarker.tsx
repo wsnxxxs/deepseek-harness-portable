@@ -19,7 +19,8 @@ export type VisionRouteMarkerProps =
   & PropsLocale<'vision-bridge'>
   & InjectFace<VisionCardFace>
 
-export function VisionRouteMarker({ input, t, useVisionCard }: VisionRouteMarkerProps) {
+export function VisionRouteMarker({ useInput, t, useVisionCard }: VisionRouteMarkerProps) {
+  const input = useInput(state => state)
   const enabled = useVisionCard(state => state.enabled)
   const plan = planVisionTurn(input.imageIds)
   if (!enabled || plan.kind === 'text') return null

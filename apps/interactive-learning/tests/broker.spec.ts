@@ -176,7 +176,7 @@ describe('non-blocking Learning Agent v4.1', () => {
     expect(switched.contexts.find(context => context.name === 'learning:turn-route')?.text)
       .toContain('intent=not-learn; route=direct')
     expect(ctx.learningActivities.learningSegmentActive(agent)).toBe(false)
-    expect(agent.session.events.at(-1)).toMatchObject({
+    expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
       type: 'learning/segment',
       data: { route: 'learn', segment: 'closed', turn: 4 },
     })
@@ -672,7 +672,7 @@ describe('Learning checkpoint broker', () => {
           independence: 'unknown',
         })
         expect(state.mastery).toBe('unseen')
-        const metricEvents = agent.session.events
+        const metricEvents = agent.session.snapshotEvents()
           .filter(event => event.type === LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE)
         expect(metricEvents).toHaveLength(1)
         expect(JSON.stringify(metricEvents)).not.toContain('B leaves first')
@@ -816,8 +816,8 @@ describe('Learning checkpoint broker', () => {
       lastMove: 'none',
       mastery: 'unseen',
     })
-    expect(agent.session.events.filter(event => event.type === 'learning/state')).toHaveLength(1)
-    expect(agent.session.events.filter(event => event.type === 'learning/state').at(-1))
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'learning/state')).toHaveLength(1)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'learning/state').at(-1))
       .toMatchObject({ data: { reason: 'reset' } })
   })
 
@@ -856,8 +856,8 @@ describe('Learning checkpoint broker', () => {
       evidence: [],
       lastMove: 'none',
     })
-    expect(original.session.events.filter(event => event.type === 'learning/state')).toHaveLength(0)
-    expect(replacement.session.events.filter(event => event.type === 'learning/state')).toHaveLength(0)
+    expect(original.session.snapshotEvents().filter(event => event.type === 'learning/state')).toHaveLength(0)
+    expect(replacement.session.snapshotEvents().filter(event => event.type === 'learning/state')).toHaveLength(0)
 
     const replacementPending = ctx.learningActivities.presentCheckpoint({
       checkpoint: checkpoint(),

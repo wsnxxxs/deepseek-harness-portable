@@ -54,15 +54,14 @@ semantics. Because they are **preset** rows in `standard`, omitting them from
 contract rather than by comment, so a later edit that reintroduces either fails
 compilation instead of silently reassigning three tool names.
 
-Both subagent rows are `one-shot`, which is what stops the host-plane
-`tool-subagent-report` contributing `report`: it installs only into *continuable*
-children. Anonymous fan-out stays available for work too small to be a task;
-work worth tracking becomes a teammate and a board entry.
+Both subagent rows are `one-shot`, keeping lightweight fan-out separate from
+durable named teammates. Work worth tracking becomes a teammate and a board
+entry instead.
 
 ### The alpha dependency, and why it is safe
 
-`agent-team` is upstream `experimental`, version `0.1.2-alpha.1`. A submodule
-bump could rename or drop it.
+`agent-team` is upstream `experimental`, pinned here at `0.1.2-alpha.4`. A
+future submodule bump could rename or drop it.
 
 `apps/runtime/src/capability-report.ts` therefore probes `crew.agent-team` — can
 the package be resolved from this build's runtime closure — and both crew

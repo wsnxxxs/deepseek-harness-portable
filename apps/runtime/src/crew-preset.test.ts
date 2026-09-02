@@ -12,8 +12,8 @@
  * - `tool-subagent-control` and `tool-subagent-list-agents` must stay out. They
  *   register `send_message`, `interrupt_agent` and `list_agents`, the same three
  *   names the Team tools claim with durable-roster semantics.
- * - both subagent rows must be `one-shot`, which is what keeps the host-plane
- *   `tool-subagent-report` from installing `report` into a Team child.
+ * - both subagent rows must be `one-shot`, keeping lightweight fan-out
+ *   separate from durable named teammates.
  * - the mode must be gated on `crew.agent-team`, so an upstream bump that drops
  *   the experimental package degrades this mode out of the roster instead of
  *   failing the Loader on first use.
@@ -111,7 +111,7 @@ test('the Team service is host-plane, so the preset publishes no service of its 
   assert.ok(composed.includes("'@deepseek-ai/dsh-experimental-tool-agent-team'"))
 })
 
-test('delegation stays one-shot so report is never installed into a Team child', async () => {
+test('delegation stays one-shot so lightweight fan-out stays separate from Team membership', async () => {
   const mode = await definition()
   const composed = await composeModeVariant(directory, mode, mode.variants[0] as never)
   const backgroundModes = [...composed.matchAll(/^\s+backgroundMode:\s*(\S+)/gmu)].map(match => match[1])

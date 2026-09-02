@@ -31,7 +31,7 @@ function agentIn(cwd: string | undefined, userText = 'test input'): Agent {
     session: {
       id: 'material-session',
       header: { delegationDepth: 0, ...(cwd === undefined ? {} : { cwd }) },
-      get events() { return Object.freeze([...log]) },
+      snapshotEvents() { return Object.freeze([...log]) },
     },
   } as unknown as Agent
 }

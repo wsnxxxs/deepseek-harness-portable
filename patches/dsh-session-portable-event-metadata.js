@@ -1,6 +1,6 @@
 'use strict'
 
-/** Preserve the rc7 append contract while allowing explicit informational-event metadata. */
+/** Preserve the alpha.4 append contract while allowing explicit informational-event metadata. */
 function patchSessionPortableEventMetadata(source) {
   if (source.includes('...eventOpts?.ignorable === true ? { ignorable: true } : {}')) return source
   if (source.includes('...sessionEventOpts?.ignorable === true ? { ignorable: true } : {}')) return source
@@ -15,7 +15,7 @@ function patchSessionPortableEventMetadata(source) {
 \t\t\t...eventOpts?.ignorable === true ? { ignorable: true } : {},
 \t\t\t...surfaceOpts?.sourceEventSeqs === void 0 ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },`
   if (!source.includes(marker)) {
-    throw new Error('dsh-session append source no longer matches the reviewed rc7 bundle')
+    throw new Error('dsh-session append source no longer matches the reviewed alpha.4 bundle')
   }
   const output = source.replace(marker, replacement)
   if (!output.includes('...eventOpts?.ignorable === true ? { ignorable: true } : {}')) {

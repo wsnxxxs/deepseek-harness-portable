@@ -355,7 +355,7 @@ describe('learning_visual refuses an ungrounded study map', () => {
       session: {
         id: 'visual-session',
         header: { delegationDepth: 0, cwd },
-        get events() { return Object.freeze([...log]) },
+        snapshotEvents() { return Object.freeze([...log]) },
         append: () => undefined,
       },
     } as unknown as Agent

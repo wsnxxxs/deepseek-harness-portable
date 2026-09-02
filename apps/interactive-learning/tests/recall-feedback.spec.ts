@@ -20,7 +20,7 @@ function stubAgent(id: string): Agent {
   const session = {
     id,
     header: { delegationDepth: 0 },
-    get events() { return Object.freeze([...log]) },
+    snapshotEvents() { return Object.freeze([...log]) },
     append(type: string, data: unknown) {
       const event = Object.freeze({ type, seq: log.length, time: Date.now(), data: structuredClone(data) })
       log.push(event)

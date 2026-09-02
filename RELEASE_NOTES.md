@@ -19,7 +19,7 @@ Windows x64 desktop release · 2026-08-30
 
 - Distribution: 1.6.0
 - Desktop shell: 0.1.0-shell.2
-- Runtime kernel: 0.1.2-alpha.3 (`dsh-v0.1.2-alpha.3`)
+- Runtime kernel: 0.1.2-alpha.4 (`dsh-v0.1.2-alpha.4`)
 - Tag: v1.6.0
 
 ## Checksums and security

@@ -8,7 +8,6 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
-import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -28,6 +27,7 @@ import { canonicalModeId } from './mode-catalog.js'
 import type { RuntimeModeTrace } from './mode-catalog.js'
 import {
   appendPortableModeResolution,
+  installPortableAgentPresetCompatibility,
   PORTABLE_MODE_RESOLUTION_EVENT_TYPE,
   registerPackagedSessionCompatibility,
   registerPortableSessionCompatibility,
@@ -121,7 +121,7 @@ test('portable reader accepts only its registered legacy unmarked event type', a
   }
 })
 
-test('portable mode-resolution writes are explicitly ignorable', () => {
+test('portable mode-resolution writes use the alpha.4 append surface', () => {
   const trace: RuntimeModeTrace = {
     modeId: 'ptc',
     variantId: 'native',
@@ -133,14 +133,13 @@ test('portable mode-resolution writes are explicitly ignorable', () => {
   }
   let captured: unknown
   appendPortableModeResolution({
-    append(type: string, data: RuntimeModeTrace, opts: { ignorable: true }) {
-      captured = { type, data, opts }
+    append(type: string, data: RuntimeModeTrace) {
+      captured = { type, data }
     },
   }, trace)
   assert.deepEqual(captured, {
     type: PORTABLE_MODE_RESOLUTION_EVENT_TYPE,
     data: trace,
-    opts: { ignorable: true },
   })
 })
 
@@ -183,10 +182,10 @@ test('packaged compatibility registers required Learning state before configured
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
 
     const agent = await waitFor(() => ctx.agents.get(id))
-    const event = agent.session.events.find(item => item.type === LEARNER_STATE_SESSION_EVENT_TYPE)
+    const event = agent.session.snapshotEvents().find(item => item.type === LEARNER_STATE_SESSION_EVENT_TYPE)
     assert.ok(event, 'configured startup resume must retain the required Learning state event')
     assert.equal(event.ignorable, true)
-    const folded = foldLearnerStateSession(id, agent.session.events)
+    const folded = foldLearnerStateSession(id, agent.session.snapshotEvents())
     assert.equal(folded.goal, 'Resume learning safely')
     assert.equal(folded.revision, 1)
   } finally {
@@ -249,12 +248,10 @@ test('cold resume maps the retired code preset to ptc without rewriting the dura
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
+    installPortableAgentPresetCompatibility(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
-    // Register the projection alone: this asserts the kernel's persisted-id
-    // compatibility, not the preset roster's filesystem composition.
-    ctx.sessionProjections.register(agentPresetProjectionDefinition)
     ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
     await ctx.plugin(AgentLoop, {
       agents: [

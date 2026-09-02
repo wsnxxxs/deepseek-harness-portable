@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { LegacyConversationSlice } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConvViewProps, InputActions, InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { isExplicitLearningBoundary } from '../learning-boundary.ts'
 import { learningScope } from './tokens.ts'
@@ -23,7 +23,9 @@ type LearningNotesViewProps = ConvViewProps
   & InjectFace<LearningNotesViewInjected>
   & PropsLocale<'interactive-learning'>
 
-type LearningInputBridgeSnapshot = Pick<LearningNotesProps, 'input' | 'inputActions'> & {
+type LearningInputBridgeSnapshot = {
+  input: InputState
+  inputActions: InputActions
   sessionId: string
 }
 
@@ -48,10 +50,11 @@ function readInputBridge(): LearningInputBridgeSnapshot | undefined {
  * the tab own a second input machine. The bridge paints nothing; it only shares
  * the same session-scoped action face with the view ring.
  */
-export function LearningInputBridge({ session, input, inputActions }: LearningNotesProps): null {
+export function LearningInputBridge({ useInput, inputActions, sessionId }: LearningNotesProps): null {
+  const input = useInput(state => state)
   useEffect(() => {
     const next: LearningInputBridgeSnapshot = {
-      sessionId: String(session.sessionId),
+      sessionId: String(sessionId),
       input,
       inputActions,
     }
@@ -62,7 +65,7 @@ export function LearningInputBridge({ session, input, inputActions }: LearningNo
       inputBridgeSnapshot = undefined
       notifyInputBridge()
     }
-  }, [input, inputActions, session.sessionId])
+  }, [input, inputActions, sessionId])
   return null
 }
 
@@ -407,8 +410,8 @@ function routeProgress(
 }
 
 function sendIntent(
-  inputActions: LearningNotesProps['inputActions'],
-  input: LearningNotesProps['input'],
+  inputActions: InputActions,
+  input: InputState,
   prompt: string,
 ): void {
   // Keep the action on the normal composer path. A busy input owns its draft;

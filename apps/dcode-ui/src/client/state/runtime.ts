@@ -22,7 +22,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { IWorkspaces, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ChatNodeProcessSource, ChatNodeSource, ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
@@ -53,11 +53,24 @@ export type { SessionListState, SessionSummary, WorkspaceSnapshot }
 export type { SessionLogDownloadState }
 
 const EMPTY_LIST: readonly never[] = []
+const EMPTY_CHAT_NODE_SOURCE: ChatNodeSource = {
+  getSnapshot: () => undefined,
+  subscribe: () => () => {},
+}
+const EMPTY_CHAT_NODE_PROCESS_SOURCE: ChatNodeProcessSource = {
+  getSnapshot: () => undefined,
+  subscribe: () => () => {},
+}
 
 /** Stable empty Chat value used while the Conversation target is starting. */
 export const EMPTY_CHAT_SNAPSHOT: ChatSnapshot = {
   order: EMPTY_LIST,
-  nodes: { get: () => undefined, values: () => EMPTY_LIST },
+  nodes: {
+    get: () => undefined,
+    source: () => EMPTY_CHAT_NODE_SOURCE,
+    processSource: () => EMPTY_CHAT_NODE_PROCESS_SOURCE,
+    values: () => EMPTY_LIST,
+  },
   locations: { getTurn: () => EMPTY_LIST, getStep: () => EMPTY_LIST },
   navigation: { items: () => EMPTY_LIST },
   timeline: { turnOrder: EMPTY_LIST, turns: new Map() } satisfies ConversationTimelineSnapshot,

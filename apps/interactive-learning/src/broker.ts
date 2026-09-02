@@ -58,9 +58,8 @@ import { readLearnerMemory, upsertLearnerConcept } from './learner-memory.ts'
 import { resolveTopicVault } from './topic-vault.ts'
 import { handleVaultEndpoint, isVaultEndpoint } from './vault-rpc.ts'
 
-// Register eagerly when the package is present. Persisted snapshots are also
-// optional log projections, so the compatibility path can retain older/newer
-// snapshots even when a Host attaches this package after session loading.
+// Register eagerly when the package is present, before a Host can restore a
+// session containing the package-owned event vocabulary.
 registerInteractiveLearningSessionCompatibility()
 
 export const INTERACTIVE_LEARNING_PACKAGE = '@dsh-portable/interactive-learning'
@@ -326,10 +325,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * evidence tied to a turn that actually contained a direct human message;
  * injected plugin context and assistant/tool messages never qualify.
  */
-function realUserTurns(session: Pick<Agent['session'], 'events'>): Set<number> {
+function realUserTurns(session: Pick<Agent['session'], 'snapshotEvents'>): Set<number> {
   const turns = new Set<number>()
   let openTurn: number | undefined
-  for (const event of session.events as readonly SessionEvent[]) {
+  for (const event of session.snapshotEvents() as readonly SessionEvent[]) {
     if (event.type === 'turn/start') {
       const turn = event.data.turn
       openTurn = Number.isSafeInteger(turn) && turn >= 0 ? turn : undefined
@@ -344,7 +343,7 @@ function realUserTurns(session: Pick<Agent['session'], 'events'>): Set<number> {
   return turns
 }
 
-function assertRealUserTurn(session: Pick<Agent['session'], 'events'>, turn: number | undefined): number {
+function assertRealUserTurn(session: Pick<Agent['session'], 'snapshotEvents'>, turn: number | undefined): number {
   if (!Number.isSafeInteger(turn) || (turn as number) < 0) {
     throw new TypeError('learner evidence requires a non-negative observation.turn')
   }
@@ -361,7 +360,7 @@ function assertTurnNumber(turn: number | undefined): number {
   return turn as number
 }
 
-function latestRealUserTurn(session: Pick<Agent['session'], 'events'>): number | undefined {
+function latestRealUserTurn(session: Pick<Agent['session'], 'snapshotEvents'>): number | undefined {
   const turns = realUserTurns(session)
   return turns.size === 0 ? undefined : Math.max(...turns)
 }
@@ -384,9 +383,10 @@ function cloneCheckpointAggregate(value: LearningCheckpointAggregate): LearningC
   }
 }
 
-function latestCheckpointAggregate(session: Pick<Agent['session'], 'events'>): LearningCheckpointAggregate {
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index]
+function latestCheckpointAggregate(session: Pick<Agent['session'], 'snapshotEvents'>): LearningCheckpointAggregate {
+  const events = session.snapshotEvents()
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
     if (event?.type !== LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE || !isRecord(event.data)) continue
     const data = event.data as Record<string, unknown>
     if (data.protocol !== LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL || !isRecord(data.aggregate)) continue
@@ -539,11 +539,11 @@ export class LearningActivityBroker extends Service {
     const session = agent.session
     const sessionId = String(session.id)
     const current = this.learnerStates.get(sessionId)
-    if (current?.session === session && current.eventCount === session.events.length) {
+    if (current?.session === session && current.eventCount === session.snapshotEvents().length) {
       return current.state
     }
-    const state = foldLearnerStateSession(sessionId, session.events)
-    this.learnerStates.set(sessionId, { session, eventCount: session.events.length, state })
+    const state = foldLearnerStateSession(sessionId, session.snapshotEvents())
+    this.learnerStates.set(sessionId, { session, eventCount: session.snapshotEvents().length, state })
     return state
   }
 
@@ -575,7 +575,7 @@ export class LearningActivityBroker extends Service {
     const resolvedTurn = turn === undefined
       ? assertRealUserTurn(session, latestRealUserTurn(session))
       : assertTurnNumber(turn)
-    const prior = [...session.events].reverse().find(event => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE)
+    const prior = [...session.snapshotEvents()].reverse().find(event => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE)
     if (prior?.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE
       && prior.data.protocol === LEARNING_SEGMENT_EVENT_PROTOCOL
       && prior.data.segment === segment
@@ -588,10 +588,9 @@ export class LearningActivityBroker extends Service {
         segment,
         turn: resolvedTurn,
       },
-      { ignorable: true },
     )
     const current = this.learnerStates.get(String(session.id))
-    if (current?.session === session) current.eventCount = session.events.length
+    if (current?.session === session) current.eventCount = session.snapshotEvents().length
   }
 
   /**
@@ -605,7 +604,7 @@ export class LearningActivityBroker extends Service {
     const state = this.learnerState(agent)
     if (state.phase === 'complete' || state.nextMove === 'complete') return false
 
-    const anchorEvent = [...agent.session.events]
+    const anchorEvent = [...agent.session.snapshotEvents()]
       .reverse()
       .find(event => event.type === LEARNING_SEGMENT_SESSION_EVENT_TYPE)
     if (anchorEvent === undefined || !isRecord(anchorEvent.data)) return false
@@ -759,11 +758,10 @@ export class LearningActivityBroker extends Service {
     session.append(
       LEARNER_STATE_SESSION_EVENT_TYPE,
       createLearnerStateSnapshotEvent(state, reason),
-      { ignorable: true },
     )
     this.learnerStates.set(String(session.id), {
       session,
-      eventCount: session.events.length,
+      eventCount: session.snapshotEvents().length,
       state,
     })
   }
@@ -787,10 +785,9 @@ export class LearningActivityBroker extends Service {
     agent.session.append(
       LEARNING_CHECKPOINT_METRICS_SESSION_EVENT_TYPE,
       { protocol: LEARNING_CHECKPOINT_METRICS_EVENT_PROTOCOL, aggregate },
-      { ignorable: true },
     )
     const current = this.learnerStates.get(String(agent.session.id))
-    if (current?.session === agent.session) current.eventCount = agent.session.events.length
+    if (current?.session === agent.session) current.eventCount = agent.session.snapshotEvents().length
   }
 
   private recordAutomaticEvents(agent: Agent, events: readonly LearnerStateEvent[]): void {

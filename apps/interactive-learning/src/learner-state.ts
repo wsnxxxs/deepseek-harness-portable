@@ -428,8 +428,8 @@ declare module '@deepseek-ai/dsh-session/types' {
 /**
  * Registers the Learning log event with persistence readers.
  * Startup owns calling this function; it is idempotent and does not append.
- * Writers mark snapshots `ignorable: true` as a forward-compatible envelope
- * fallback for hosts that restore before this optional package is attached.
+ * The alpha.4 Session API requires this registration before restoring or
+ * appending the package-owned log events.
  */
 export function registerLearningSessionEventType(): void {
   ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(LEARNER_STATE_SESSION_EVENT_TYPE)

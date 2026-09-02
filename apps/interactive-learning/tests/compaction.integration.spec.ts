@@ -103,7 +103,7 @@ describe('learner state survives message-surface compaction', () => {
     expect(before.goal).toBe('Understand why gradients vanish')
     expect(before.gap).toBe('notation')
 
-    const events = structuredClone(session.events) as SessionEvent[]
+    const events = structuredClone(session.snapshotEvents()) as SessionEvent[]
     const stateEvents = events.filter(event => event.type === LEARNER_STATE_SESSION_EVENT_TYPE)
     expect(stateEvents).toHaveLength(OBSERVATIONS.length)
     expect(events.length).toBeGreaterThan(stateEvents.length)
@@ -155,7 +155,7 @@ describe('learner state survives message-surface compaction', () => {
     // The dependency is precise: surface events are irrelevant to the fold, and
     // `learning/state` events are the whole of it. A backend that discarded them
     // would silently reset the lesson's memory rather than fail loudly.
-    const events = structuredClone(session.events) as SessionEvent[]
+    const events = structuredClone(session.snapshotEvents()) as SessionEvent[]
     const withoutState = events.filter(event => event.type !== LEARNER_STATE_SESSION_EVENT_TYPE)
     const lost = foldLearnerStateSession(String(sessionId), withoutState)
     expect(lost.revision).toBe(0)

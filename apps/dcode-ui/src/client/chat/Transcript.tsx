@@ -30,7 +30,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
 import { useChatSnapshot, useSessionSnapshot } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
@@ -438,7 +438,7 @@ function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachment
 
 type PreviewImage = PendingSubmission['images'][number]
 
-/** Render official alpha.3 image attachments without changing the DCode layout. */
+/** Render official alpha.4 image attachments without changing the DCode layout. */
 function MessageAttachments(props: {
   sessionId: SessionId
   content?: readonly unknown[]
@@ -1073,7 +1073,7 @@ export function Transcript({ navigation, sessionId, cwd, blank, compact = false 
     const face = runtime.binding(sessionId)?.session
     if (face === undefined) return
     historyLoadSessionRef.current = sessionId
-    void face.loadThrough(Number.MIN_SAFE_INTEGER)
+    void face.loadThrough(SessionSeq(0))
   }, [runtime, session?.hasMore, session?.openState, sessionId])
 
   const navigateToTurn = useCallback((index: number) => {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -10,7 +10,6 @@ import SessionStore, {
   type SessionEvent,
 } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { logPath } from '../../../vendor/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
@@ -97,43 +96,18 @@ describe('Learning state durable load order', () => {
       agent: originalAgent,
     })
     expect(update).toMatchObject({ isError: false, value: { status: 'updated', revision: 1 } })
-    expect(originalSession.events.at(-1)).toMatchObject({
+    expect(originalSession.snapshotEvents().at(-1)).toMatchObject({
       type: 'learning/state',
-      ignorable: true,
       data: { snapshot: { goal: 'Understand queue invariants', revision: 1 } },
     })
     await first.sessions.flush(originalSession)
     disposeOriginalAgent()
     await first.fiber.dispose()
 
-    // Emulate a snapshot written before the ignorable envelope marker shipped.
-    // The exact legacy learning projection remains retainable even when the
-    // package has not registered yet; unrelated unknown required events do not.
-    const durablePath = logPath(root, originalSession.header.cwd, sessionId, 'none')
-    const legacyRows = (await readFile(durablePath, 'utf8')).trimEnd().split('\n').map(line => {
-      const row = JSON.parse(line) as Record<string, unknown>
-      if (row.type === 'learning/state') delete row.ignorable
-      return JSON.stringify(row)
-    })
-    await writeFile(durablePath, `${legacyRows.join('\n')}\n`)
-
-    // Simulate the next process's empty downstream registration. A lazy Host
-    // must still be able to load the log because the projection is explicitly
-    // ignorable; the Learning package can attach and fold it afterwards.
-    known.delete('learning/state')
-    expect(known.has('learning/state')).toBe(false)
-
     const second = await mountPersistence(root)
-    const loadedBeforeLearning = await second.sessionPersistence.load(sessionId)
-    expect(loadedBeforeLearning.events).toContainEqual(expect.objectContaining({
-      type: 'learning/state',
-    }))
-    expect(loadedBeforeLearning.events.find(event => event.type === 'learning/state')?.ignorable)
-      .toBeUndefined()
 
-    // The normal packaged Host still registers the event before constructing
-    // the restored Session; this is strict validation/folding, not the only
-    // way to preserve the history.
+    // Alpha.4 requires the package event vocabulary to be registered before
+    // the persisted Session is restored.
     await import('../src/preset.ts?durable-reboot-preboot')
     expect(known.has('learning/state')).toBe(true)
     const loaded = await second.sessionPersistence.load(sessionId)

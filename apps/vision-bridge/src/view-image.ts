@@ -371,8 +371,8 @@ export function findHistoricalImageRef(
 
 /** Get the live session event log without coupling this package to a session package. */
 function sessionEvents(exec: ToolExecution): readonly unknown[] {
-  const candidate = (exec.agent as { session?: { events?: unknown } } | undefined)?.session?.events
-  return Array.isArray(candidate) ? candidate : []
+  const session = (exec.agent as { session?: { snapshotEvents?: () => readonly unknown[] } } | undefined)?.session
+  return session?.snapshotEvents?.() ?? []
 }
 
 /** Render a stable, non-path display key for a history-backed image. */

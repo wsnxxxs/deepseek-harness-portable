@@ -71,6 +71,7 @@ import { createCachedProfileFallbackHealer } from './profile-fallback-cache.js'
 import { composeAfterManagedFallback } from './profile-startup.js'
 import {
   appendPortableModeResolution,
+  installPortableAgentPresetCompatibility,
   PORTABLE_MODE_RESOLUTION_EVENT_TYPE,
   registerPackagedSessionCompatibility,
 } from './session-compatibility.js'
@@ -743,11 +744,10 @@ function installRuntimeEvidenceSurface(ctx: Context, state: MaterializedPresetSt
     ctx: Context
     session: {
       header: { agentPreset?: string }
-      events: ReadonlyArray<{ type: string; data: unknown }>
+      snapshotEvents(): ReadonlyArray<{ type: string; data: unknown }>
       append(
         type: typeof PORTABLE_MODE_RESOLUTION_EVENT_TYPE,
         data: RuntimeModeTrace,
-        opts: { ignorable: true },
       ): unknown
     }
   }
@@ -758,8 +758,9 @@ function installRuntimeEvidenceSurface(ctx: Context, state: MaterializedPresetSt
     const trace = state.modeCatalog.modes[presetId]?.trace
     if (trace === undefined) return
     let previous: RuntimeModeTrace | undefined
-    for (let index = agent.session.events.length - 1; index >= 0; index -= 1) {
-      const event = agent.session.events[index]
+    const events = agent.session.snapshotEvents()
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index]
       if (event?.type !== PORTABLE_MODE_RESOLUTION_EVENT_TYPE) continue
       previous = event.data as RuntimeModeTrace
       break
@@ -893,6 +894,7 @@ async function main(): Promise<void> {
   // bare config specifiers go through HostResolvedRootInclude's override.
   const prepare = (hostCtx: Context): void => {
     app.current = hostCtx
+    installPortableAgentPresetCompatibility(hostCtx)
     // Before any config-tree entry mounts, so plugins resolve all launch-time
     // environment values from the same immutable provenance snapshot.
     hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, loadLayeredEnv(NAME) satisfies LaunchEnvironmentSnapshot)

@@ -948,7 +948,7 @@ function modelStepPosition(exec: ToolCallContext): ModelStepPosition | undefined
   const agent = exec.agent
   if (agent === undefined) return undefined
   const callId = String(exec.callId)
-  for (const event of [...agent.session.events].reverse()) {
+  for (const event of [...agent.session.snapshotEvents()].reverse()) {
     if (event.type !== 'tool/call' || String(event.data.callId) !== callId) continue
     return { turn: event.data.turn, step: event.data.step }
   }
@@ -958,14 +958,14 @@ function modelStepPosition(exec: ToolCallContext): ModelStepPosition | undefined
 /** Include calls already logged and calls still waiting in the assistant step. */
 function modelStepToolNames(agent: Agent, position: ModelStepPosition): readonly string[] {
   const names: string[] = []
-  for (const event of agent.session.events) {
+  for (const event of agent.session.snapshotEvents()) {
     if (event.type === 'tool/call'
       && event.data.turn === position.turn
       && event.data.step === position.step) {
       names.push(event.data.name)
     }
   }
-  const assistant = [...agent.session.events].reverse().find(event => (
+  const assistant = [...agent.session.snapshotEvents()].reverse().find(event => (
     event.type === 'assistant/message'
       && event.data.turn === position.turn
       && event.data.step === position.step
@@ -982,7 +982,7 @@ function modelStepToolNames(agent: Agent, position: ModelStepPosition): readonly
 
 function completedToolCallIds(agent: Agent, position: ModelStepPosition): ReadonlySet<string> {
   const ids = new Set<string>()
-  for (const event of agent.session.events) {
+  for (const event of agent.session.snapshotEvents()) {
     if (event.type !== 'tool/result'
       || event.data.turn !== position.turn
       || event.data.step !== position.step) continue
@@ -1009,7 +1009,7 @@ function hasPendingStateUpdateInModelStep(exec: ToolCallContext): boolean {
   if (agent === undefined || position === undefined) return false
   const names = modelStepToolNames(agent, position)
   if (!names.includes('learning_state_update')) return false
-  const calls = agent.session.events.filter(event => (
+  const calls = agent.session.snapshotEvents().filter(event => (
     event.type === 'tool/call'
       && event.data.turn === position.turn
       && event.data.step === position.step

@@ -7,7 +7,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  TeamGateReport, TeamMemberView, TeamTaskAction, TeamTaskId, TeamTaskMutationResult, TeamTaskView, TeamView,
+  TeamMemberView, TeamTaskAction, TeamTaskId, TeamTaskMutationResult, TeamTaskView, TeamView,
   UpdateTeamTaskRequest,
 } from '@deepseek-ai/dsh-experimental-agent-team/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
@@ -25,6 +25,34 @@ interface TaskDraft {
 }
 
 const EMPTY_DRAFT: TaskDraft = { subject: '', description: '', blockers: '', scopes: '' }
+
+/** Optional fields retained by older DCode Cluster payloads. */
+type ClusterMemberView = Omit<TeamMemberView, 'status'> & {
+  readonly status: TeamMemberView['status'] | 'killed'
+  readonly parentId?: SessionId
+  readonly agentRole?: string
+  readonly isolation?: 'shared' | 'worktree'
+  readonly branchName?: string
+  readonly workspacePath?: string
+  readonly result?: string
+}
+
+/** Optional governance records retained by older DCode Cluster payloads. */
+interface ClusterGateReport {
+  readonly id: string
+  readonly gate: string
+  readonly verdict: 'pass' | 'fail' | 'blocked'
+  readonly actorName: string
+  readonly role: string
+  readonly taskId?: TeamTaskId
+  readonly evidence: string
+  readonly note?: string
+}
+
+type ClusterView = Omit<TeamView, 'members'> & {
+  readonly members: ClusterMemberView[]
+  readonly gates?: readonly ClusterGateReport[]
+}
 
 type MemberStatusKey =
   | 'cluster.status.running'
@@ -44,7 +72,7 @@ type VerdictKey =
   | 'cluster.verdict.fail'
   | 'cluster.verdict.blocked'
 
-function memberStatusKey(status: TeamMemberView['status']): MemberStatusKey {
+function memberStatusKey(status: ClusterMemberView['status']): MemberStatusKey {
   switch (status) {
     case 'running': return 'cluster.status.running'
     case 'idle': return 'cluster.status.idle'
@@ -65,7 +93,7 @@ function taskStatusKey(status: TeamTaskView['status']): TaskStatusKey {
   }
 }
 
-function verdictKey(verdict: TeamGateReport['verdict']): VerdictKey {
+function verdictKey(verdict: ClusterGateReport['verdict']): VerdictKey {
   switch (verdict) {
     case 'pass': return 'cluster.verdict.pass'
     case 'fail': return 'cluster.verdict.fail'
@@ -95,10 +123,10 @@ function mutationError(result: RemoteResult<TeamTaskMutationResult>): string | u
   return undefined
 }
 
-function memberTree(members: readonly TeamMemberView[], leadId: SessionId | undefined): readonly { member: TeamMemberView; depth: number }[] {
-  const output: Array<{ member: TeamMemberView; depth: number }> = []
+function memberTree(members: readonly ClusterMemberView[], leadId: SessionId | undefined): readonly { member: ClusterMemberView; depth: number }[] {
+  const output: Array<{ member: ClusterMemberView; depth: number }> = []
   const visited = new Set<SessionId>()
-  const visit = (member: TeamMemberView, depth: number): void => {
+  const visit = (member: ClusterMemberView, depth: number): void => {
     if (visited.has(member.id)) return
     visited.add(member.id)
     output.push({ member, depth })
@@ -127,12 +155,12 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
   const [busyTask, setBusyTask] = useState<string | undefined>()
   const [operationError, setOperationError] = useState<string | undefined>()
 
-  const loaded = useAsync(async (signal): Promise<TeamView | undefined> => {
+  const loaded = useAsync(async (signal): Promise<ClusterView | undefined> => {
     if (cluster === undefined || leadId === undefined) return undefined
     signal.throwIfAborted()
     const result = await cluster.view(leadId)
     if (!result.ok) throw new Error(result.error.message)
-    return result.value
+    return result.value as ClusterView
   }, [cluster, leadId])
 
   useEffect(() => {
@@ -201,7 +229,7 @@ export function ClusterPanel({ sessionId }: { readonly sessionId: SessionId | un
     }
   }, [cluster, draft, leadId, loaded.reload])
 
-  const openMember = useCallback(async (member: TeamMemberView): Promise<void> => {
+  const openMember = useCallback(async (member: ClusterMemberView): Promise<void> => {
     if (member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning' || member.status === 'killed') return
     const parentSessionId = member.parentId ?? leadId
     if (parentSessionId === undefined) return
@@ -410,7 +438,7 @@ function TaskCard({
   task, assignable, busy, onEdit, onAction, t,
 }: {
   task: TeamTaskView
-  assignable: readonly TeamMemberView[]
+  assignable: readonly ClusterMemberView[]
   busy: boolean
   onEdit: () => void
   onAction: (action: TeamTaskAction, owner?: string) => void
@@ -465,7 +493,7 @@ function TaskCard({
   )
 }
 
-function GateCard({ report, t }: { report: TeamGateReport; t: ReturnType<typeof useT> }) {
+function GateCard({ report, t }: { report: ClusterGateReport; t: ReturnType<typeof useT> }) {
   return (
     <article className={css.gateCard} data-verdict={report.verdict}>
       <div className={css.gateHeading}>

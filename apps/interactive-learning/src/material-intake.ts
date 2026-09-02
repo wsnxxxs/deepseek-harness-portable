@@ -44,14 +44,15 @@ export function parseFileMentions(text: string): readonly string[] {
 }
 
 interface SessionLike {
-  readonly events: readonly { type: string; data: unknown }[]
+  snapshotEvents(): readonly { type: string; data: unknown }[]
 }
 
 /** Every path the learner mentioned across the recent user messages. */
 export function mentionedPaths(session: SessionLike): readonly string[] {
+  const events = session.snapshotEvents()
   const texts: string[] = []
-  for (let index = session.events.length - 1; index >= 0 && texts.length < MENTION_LOOKBACK; index -= 1) {
-    const event = session.events[index]
+  for (let index = events.length - 1; index >= 0 && texts.length < MENTION_LOOKBACK; index -= 1) {
+    const event = events[index]
     if (event?.type !== 'user/message') continue
     const data = event.data as { source?: { kind?: string }; content?: readonly { type?: string; text?: string }[] }
     if (data.source?.kind !== 'user') continue
@@ -102,7 +103,7 @@ export async function syncMentionedMaterial(
   // The current user message is still in the inbox while the first prompt is
   // assembled, so callers may pass its parsed mentions explicitly. A cache
   // from the previous event count must not hide that new attachment.
-  if (extraMentions.length === 0 && cached?.count === session.events.length) return cached.results
+  if (extraMentions.length === 0 && cached?.count === session.snapshotEvents().length) return cached.results
 
   const mentions = [...mentionedPaths(session)]
   for (const mention of extraMentions) {
@@ -144,7 +145,7 @@ export async function syncMentionedMaterial(
 
   const settled = results.filter(result => result.status !== 'unchanged')
   synced.set(agent, {
-    count: session.events.length,
+    count: session.snapshotEvents().length,
     results: settled,
     reportedUnsupported: [...reportedUnsupported],
   })

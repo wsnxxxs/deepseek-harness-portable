@@ -3,8 +3,11 @@
 import {
   KNOWN_SESSION_EVENT_TYPES,
 } from '@deepseek-ai/dsh-session'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
+import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-session-projection'
 import { registerInteractiveLearningSessionCompatibility } from '@dsh-portable/interactive-learning/bootstrap'
-import type { RuntimeModeTrace } from './mode-catalog.js'
+import { canonicalModeId, type RuntimeModeTrace } from './mode-catalog.js'
 
 /** Exact durable discriminator used by portable mode-resolution diagnostics. */
 export const PORTABLE_MODE_RESOLUTION_EVENT_TYPE = 'portable-runtime/mode-resolution' as const
@@ -22,19 +25,40 @@ declare module '@deepseek-ai/dsh-session' {
 
 /** Register the exact legacy portable event understood by this distribution. */
 export function registerPortableSessionCompatibility(): void {
-  // rc7 exposes the catalog as ReadonlySet, but the runtime value is the
+  // Alpha.4 exposes the catalog as ReadonlySet, but the runtime value is the
   // process-wide Set also read by persistence. Extend only this exact event.
   ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add(PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
 }
 
 /** Register every required event understood by the packaged runtime before persistence can read. */
 export function registerPackagedSessionCompatibility(): void {
-  // Learning state is registered for strict validation/folding when the package
-  // is present. Writers also mark this log-only projection ignorable so a host
-  // can resume a session before a lazily loaded Learning package registers it;
-  // the persistence reader retains the event for a later fold.
+  // Learning state is registered for strict validation/folding before a
+  // packaged Host can restore a session.
   registerInteractiveLearningSessionCompatibility()
   registerPortableSessionCompatibility()
+}
+
+/** The projection used by the portable roster, including the retired `code` id. */
+export const portableAgentPresetProjectionDefinition = {
+  ...agentPresetProjectionDefinition,
+  init: (header: Parameters<typeof agentPresetProjectionDefinition.init>[0]) => {
+    const preset = agentPresetProjectionDefinition.init(header)
+    return preset === null ? null : canonicalModeId(preset)
+  },
+  apply: (
+    state: Parameters<typeof agentPresetProjectionDefinition.apply>[0],
+    event: Parameters<typeof agentPresetProjectionDefinition.apply>[1],
+  ) => {
+    const preset = agentPresetProjectionDefinition.apply(state, event)
+    return preset === null ? null : canonicalModeId(preset)
+  },
+}
+
+/** Register the portable projection before the upstream AgentPresets service. */
+export function installPortableAgentPresetCompatibility(ctx: Context): void {
+  ctx.inject(['sessionProjections'], (projectionCtx) => {
+    projectionCtx.sessionProjections.register(portableAgentPresetProjectionDefinition)
+  })
 }
 
 /** Minimal append capability required by the portable diagnostic producer. */
@@ -42,7 +66,6 @@ export interface PortableModeResolutionWriter {
   append(
     type: typeof PORTABLE_MODE_RESOLUTION_EVENT_TYPE,
     data: RuntimeModeTrace,
-    opts: { ignorable: true },
   ): unknown
 }
 
@@ -52,5 +75,5 @@ export interface PortableModeResolutionWriter {
  * @param trace - Resolved portable mode trace.
  */
 export function appendPortableModeResolution(session: unknown, trace: RuntimeModeTrace): void {
-  ;(session as PortableModeResolutionWriter).append(PORTABLE_MODE_RESOLUTION_EVENT_TYPE, trace, { ignorable: true })
+  ;(session as PortableModeResolutionWriter).append(PORTABLE_MODE_RESOLUTION_EVENT_TYPE, trace)
 }

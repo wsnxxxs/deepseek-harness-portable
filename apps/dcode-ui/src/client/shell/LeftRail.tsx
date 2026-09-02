@@ -60,7 +60,6 @@ function SessionRow(props: {
   current: boolean
   onOpen: () => void
   onArchive: () => void
-  onDelete: () => void
   onRename: () => void
   age: string
 }) {
@@ -108,13 +107,6 @@ function SessionRow(props: {
             label: t('session.archive'),
             icon: <IconArchiveOutline20 size={16} />,
             onSelect: props.onArchive,
-          },
-          {
-            id: 'delete',
-            label: t('session.delete'),
-            icon: <IconTrashOutline16 />,
-            danger: true,
-            onSelect: props.onDelete,
           },
         ]}
       />
@@ -225,9 +217,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   const [removeTarget, setRemoveTarget] = useState<WorkspaceGroup | undefined>()
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState<string | undefined>()
-  const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | undefined>()
 
   const toggleGroup = useCallback((id: string) => {
     setCollapsed((previous) => {
@@ -378,33 +367,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
       .finally(() => { setRemoving(false) })
   }, [removing, removeTarget, runtime])
 
-  const openDelete = useCallback((session: SessionSummary) => {
-    setDeleteTarget(session)
-    setDeleteError(undefined)
-  }, [])
-
-  const closeDelete = useCallback(() => {
-    if (deleting) return
-    setDeleteTarget(undefined)
-    setDeleteError(undefined)
-  }, [deleting])
-
-  const confirmDelete = useCallback(() => {
-    const target = deleteTarget
-    if (target === undefined || deleting) return
-    setDeleting(true)
-    setDeleteError(undefined)
-    void runtime.sessions.delete(target.id)
-      .then(() => {
-        if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear()
-        setDeleteTarget(undefined)
-      })
-      .catch((cause: unknown) => {
-        setDeleteError(cause instanceof Error ? cause.message : t('session.deleteFailed', { error: String(cause) }))
-      })
-      .finally(() => { setDeleting(false) })
-  }, [deleteTarget, deleting, runtime, t])
-
   return (
     <nav className={css.rail} aria-label={t('app.title')}>
       {/* Only search and the primary action are pinned. Everything else —
@@ -506,7 +468,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
                         onOpen={() => { openSession(session) }}
                         onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.workspaces.archiveSession(session.id) }}
-                        onDelete={() => { openDelete(session) }}
                       />
                     ))}
                 </div>
@@ -527,7 +488,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
                         onOpen={() => { openSession(session) }}
                         onRename={() => { openSessionRename(session) }}
                         onArchive={() => { void runtime.workspaces.archiveSession(session.id) }}
-                        onDelete={() => { openDelete(session) }}
                       />
                     ))}
                   </div>
@@ -641,31 +601,6 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
       >
         {removing ? <div className={css.workspaceStatus} role="status">{t('workspace.removePending')}</div> : null}
         {removeError === undefined ? null : <div className={css.workspaceError} role="alert">{removeError}</div>}
-      </FocusingModal>
-      <FocusingModal
-        open={deleteTarget !== undefined}
-        onClose={closeDelete}
-        title={t('session.deleteTitle')}
-        closeLabel={t('common.close')}
-        description={t('session.deleteBody')}
-        footer={(
-          <>
-            <PrimitiveButton variant="outline" disabled={deleting} onClick={closeDelete}>
-              {t('common.cancel')}
-            </PrimitiveButton>
-            <PrimitiveButton
-              variant="outline"
-              className={css.deleteConfirm}
-              disabled={deleting}
-              onClick={confirmDelete}
-            >
-              {deleting ? t('common.saving') : t('session.delete')}
-            </PrimitiveButton>
-          </>
-        )}
-      >
-        {deleting ? <div className={css.workspaceStatus} role="status">{t('common.saving')}</div> : null}
-        {deleteError === undefined ? null : <div className={css.workspaceError} role="alert">{deleteError}</div>}
       </FocusingModal>
     </nav>
   )
