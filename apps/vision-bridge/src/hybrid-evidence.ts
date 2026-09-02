@@ -209,8 +209,9 @@ function normalizeSemantics(value: unknown): VisionSemanticEvidence[] {
  * Providers commonly wrap JSON in a markdown fence or a short preamble.
  */
 function jsonCandidate(text: string): unknown {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)
-  const source = (fenced?.[1] ?? text).trim()
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(stripped)
+  const source = (fenced?.[1] ?? stripped).trim()
   try {
     return JSON.parse(source) as unknown
   } catch {
@@ -259,7 +260,8 @@ function jsonCandidate(text: string): unknown {
  * deterministic empty arrays instead of changing shape between providers.
  */
 export function parseVisualEvidence(input: unknown): StructuredVisualEvidence {
-  const sourceText = typeof input === 'string' ? input.trim() : ''
+  const rawText = typeof input === 'string' ? input.trim() : ''
+  const sourceText = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
   const candidate = typeof input === 'string' ? jsonCandidate(input) : input
   const object = record(candidate)
   const summary = object === undefined
@@ -289,7 +291,17 @@ export function serializeVisualEvidence(input: StructuredVisualEvidence | unknow
 /** Render evidence as a clearly delimited model-facing text block. */
 export function formatVisualEvidenceForModel(input: StructuredVisualEvidence | unknown): string {
   const evidence = parseVisualEvidence(input)
-  return `<visual_evidence schema_version="${String(evidence.schemaVersion)}">\n${JSON.stringify(evidence, null, 2)}\n</visual_evidence>`
+  const pruned: Record<string, unknown> = {
+    schemaVersion: evidence.schemaVersion,
+    summary: evidence.summary,
+  }
+  if (evidence.ocr.length > 0) pruned.ocr = evidence.ocr
+  if (evidence.layout.length > 0) pruned.layout = evidence.layout
+  if (evidence.objects.length > 0) pruned.objects = evidence.objects
+  if (evidence.coordinates.length > 0) pruned.coordinates = evidence.coordinates
+  if (evidence.semantics.length > 0) pruned.semantics = evidence.semantics
+
+  return `<visual_evidence schema_version="${String(evidence.schemaVersion)}">\n${JSON.stringify(pruned, null, 2)}\n</visual_evidence>`
 }
 
 /** Short alias for callers that already use the evidence vocabulary. */

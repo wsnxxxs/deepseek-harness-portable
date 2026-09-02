@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { LlmModelInfo } from '@deepseek-ai/dsh-llm'
 import {
   declaresImageInput,
   deniesImageInput,
+  getCachedCatalog,
   imageCapableModels,
   selectVisionRoute,
 } from '../src/model-selection.ts'
@@ -91,5 +92,35 @@ describe('vision route selection', () => {
       ok: true,
       route: { provider: 'deepseek-official', model: 'deepseek-v4-flash-vision-exp' },
     })
+  })
+})
+
+describe('catalog caching', () => {
+  it('reuses in-flight promises and respects TTL to avoid redundant provider queries', async () => {
+    const listModels = vi.fn(async () => [vision])
+    const fakeLlm = {
+      listProviders: () => [{ id: 'p1' }],
+      listModels,
+    }
+
+    const first = await getCachedCatalog(fakeLlm)
+    const second = await getCachedCatalog(fakeLlm)
+
+    expect(first).toEqual([vision])
+    expect(second).toEqual([vision])
+    expect(listModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('tolerates individual provider failures gracefully', async () => {
+    const fakeLlm = {
+      listProviders: () => [{ id: 'working' }, { id: 'broken' }],
+      listModels: async (provider: string) => {
+        if (provider === 'broken') throw new Error('network timeout')
+        return [textOnly]
+      },
+    }
+
+    const result = await getCachedCatalog(fakeLlm)
+    expect(result).toEqual([textOnly])
   })
 })

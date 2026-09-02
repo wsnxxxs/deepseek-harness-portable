@@ -270,7 +270,8 @@ function normalizeSemantics(value) {
 * Providers commonly wrap JSON in a markdown fence or a short preamble.
 */
 function jsonCandidate(text) {
-	const source = (/```(?:json)?\s*([\s\S]*?)```/i.exec(text)?.[1] ?? text).trim();
+	const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+	const source = (/```(?:json)?\s*([\s\S]*?)```/i.exec(stripped)?.[1] ?? stripped).trim();
 	try {
 		return JSON.parse(source);
 	} catch {}
@@ -312,7 +313,7 @@ function jsonCandidate(text) {
 * deterministic empty arrays instead of changing shape between providers.
 */
 function parseVisualEvidence(input) {
-	const sourceText = typeof input === "string" ? input.trim() : "";
+	const sourceText = (typeof input === "string" ? input.trim() : "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 	const object = record(typeof input === "string" ? jsonCandidate(input) : input);
 	const summary = object === void 0 ? sourceText : firstText(object, [
 		"summary",
@@ -341,7 +342,16 @@ function serializeVisualEvidence(input) {
 /** Render evidence as a clearly delimited model-facing text block. */
 function formatVisualEvidenceForModel(input) {
 	const evidence = parseVisualEvidence(input);
-	return `<visual_evidence schema_version="${String(evidence.schemaVersion)}">\n${JSON.stringify(evidence, null, 2)}\n</visual_evidence>`;
+	const pruned = {
+		schemaVersion: evidence.schemaVersion,
+		summary: evidence.summary
+	};
+	if (evidence.ocr.length > 0) pruned.ocr = evidence.ocr;
+	if (evidence.layout.length > 0) pruned.layout = evidence.layout;
+	if (evidence.objects.length > 0) pruned.objects = evidence.objects;
+	if (evidence.coordinates.length > 0) pruned.coordinates = evidence.coordinates;
+	if (evidence.semantics.length > 0) pruned.semantics = evidence.semantics;
+	return `<visual_evidence schema_version="${String(evidence.schemaVersion)}">\n${JSON.stringify(pruned, null, 2)}\n</visual_evidence>`;
 }
 /** Short alias for callers that already use the evidence vocabulary. */
 const renderVisualEvidence = formatVisualEvidenceForModel;
@@ -409,23 +419,24 @@ function selectVisionRoute(config, catalog) {
 		reason: "VISION_BRIDGE_DISABLED",
 		message: "Vision Bridge is disabled. Enable it in Settings → Plugins before using view_image."
 	};
-	if (config.model !== "") {
-		const pinned = catalog.find((entry) => entry.id === config.model) ?? (() => {
-			const separator = config.model.indexOf("/");
-			if (separator <= 0 || separator === config.model.length - 1) return void 0;
-			const provider = config.model.slice(0, separator);
-			const model = config.model.slice(separator + 1);
+	const pinnedModel = config.model.trim();
+	if (pinnedModel !== "") {
+		const pinned = catalog.find((entry) => entry.id === pinnedModel) ?? (() => {
+			const separator = pinnedModel.indexOf("/");
+			if (separator <= 0 || separator === pinnedModel.length - 1) return void 0;
+			const provider = pinnedModel.slice(0, separator);
+			const model = pinnedModel.slice(separator + 1);
 			return catalog.find((entry) => entry.provider === provider && entry.id === model);
 		})();
 		if (pinned === void 0) return {
 			ok: false,
 			reason: "VISION_MODEL_UNAVAILABLE",
-			message: `Model ${config.model} is not available from a configured provider. Choose a model from Settings → Models.`
+			message: `Model ${pinnedModel} is not available from a configured provider. Choose a model from Settings → Models.`
 		};
 		if (deniesImageInput(pinned)) return {
 			ok: false,
 			reason: "VISION_MODEL_NOT_IMAGE_CAPABLE",
-			message: `Model ${config.model} does not accept image input. Choose an image-capable model in Settings → Plugins.`
+			message: `Model ${pinnedModel} does not accept image input. Choose an image-capable model in Settings → Plugins.`
 		};
 		return {
 			ok: true,
@@ -452,6 +463,33 @@ function selectVisionRoute(config, catalog) {
 /** Catalog entries an operator can reasonably pin as the vision route. */
 function imageCapableModels(catalog) {
 	return catalog.filter(declaresImageInput);
+}
+const CATALOG_CACHE_TTL_MS = 45e3;
+const catalogCaches = /* @__PURE__ */ new WeakMap();
+/**
+* Enumerate every model the configured providers report, with in-flight deduplication and TTL cache.
+* @param llm - runtime providing listProviders and listModels.
+* @param ttlMs - cache time-to-live in milliseconds (defaults to 45s).
+*/
+async function getCachedCatalog(llm, ttlMs = CATALOG_CACHE_TTL_MS) {
+	const now = Date.now();
+	const existing = catalogCaches.get(llm);
+	if (existing !== void 0 && now - existing.timestamp < ttlMs) return existing.promise;
+	const promise = (async () => {
+		const providers = llm.listProviders();
+		return (await Promise.all(providers.map(async (provider) => {
+			try {
+				return await llm.listModels(provider.id);
+			} catch {
+				return [];
+			}
+		}))).flat();
+	})();
+	catalogCaches.set(llm, {
+		timestamp: now,
+		promise
+	});
+	return promise;
 }
 //#endregion
 //#region lib/types/hybrid-routing.js
@@ -533,19 +571,28 @@ function replaceImagesWithEvidence(messages, evidence, turnMessages = currentTur
 	const turnIds = new Set(turnMessages.map((message) => String(message.id)));
 	const evidenceText = formatVisualEvidenceForModel(evidence);
 	let emittedEvidence = false;
+	let turnImageCount = 0;
 	return messages.map((message) => {
 		const isCurrentTurn = turnIds.has(String(message.id));
 		const content = replaceBlocks(message.content, (block) => {
-			if (isCurrentTurn && !emittedEvidence) {
-				emittedEvidence = true;
+			if (isCurrentTurn) {
+				turnImageCount += 1;
+				if (!emittedEvidence) {
+					emittedEvidence = true;
+					return {
+						type: "text",
+						text: evidenceText
+					};
+				}
+				const identity = block.attachment.name ?? block.attachment.attachmentId;
 				return {
 					type: "text",
-					text: evidenceText
+					text: `[additional image #${String(turnImageCount)}${identity ? ` (${identity})` : ""} represented by the visual evidence above]`
 				};
 			}
 			return {
 				type: "text",
-				text: isCurrentTurn ? "[additional image represented by the visual evidence above]" : offloadedImageText(block.attachment)
+				text: offloadedImageText(block.attachment)
 			};
 		});
 		return content === message.content ? message : {
@@ -610,19 +657,12 @@ const VISUAL_EVIDENCE_INSTRUCTION = [
 function routeConfig(config) {
 	return {
 		enabled: config.enabled === true,
-		model: config.model ?? ""
+		model: (config.model ?? "").trim()
 	};
 }
 async function catalogOf(runtime, options) {
 	if (options.catalog !== void 0) return await options.catalog();
-	const providers = runtime.listProviders();
-	return (await Promise.all(providers.map(async (provider) => {
-		try {
-			return await runtime.listModels(provider.id);
-		} catch {
-			return [];
-		}
-	}))).flat();
+	return await getCachedCatalog(runtime);
 }
 function routeFromAssembly(assembly) {
 	const provider = assembly.variables.provider;
@@ -641,14 +681,9 @@ function routeFromAgent(agent) {
 		model
 	};
 }
-function evidenceMessage(evidence, original) {
-	const text = original.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");
-	const evidenceText = formatVisualEvidenceForModel(evidence);
+function modelSurfaceMessage(original) {
 	return createUserMessage({
-		content: [{
-			type: "text",
-			text: text === "" ? evidenceText : `${text}\n\n${evidenceText}`
-		}],
+		content: original.content,
 		source: {
 			kind: "plugin",
 			plugin: "vision-bridge"
@@ -679,17 +714,22 @@ async function analyzeWithRuntime(runtime, route, messages, signal) {
 		}
 	});
 	let text = "";
-	for await (const chunk of runtime.stream({
-		provider: route.provider,
-		model: route.model,
-		messages: [instruction, ...messages],
-		temperature: 0,
-		signal
-	})) {
-		if (chunk.type === "text-delta") text += chunk.text;
-		if (chunk.type === "block-end" && chunk.block.type === "text" && text === "") text = chunk.block.text;
-		if (chunk.type === "finish" && (chunk.reason.kind === "error" || chunk.reason.kind === "aborted")) throw new Error(chunk.reason.failure.message);
+	try {
+		for await (const chunk of runtime.stream({
+			provider: route.provider,
+			model: route.model,
+			messages: [instruction, ...messages],
+			temperature: 0,
+			signal
+		})) {
+			if (chunk.type === "text-delta") text += chunk.text;
+			if (chunk.type === "block-end" && chunk.block.type === "text" && text === "") text = chunk.block.text;
+			if (chunk.type === "finish" && (chunk.reason.kind === "error" || chunk.reason.kind === "aborted")) throw new Error(chunk.reason.failure.message);
+		}
+	} catch (error) {
+		throw new Error(`Vision analysis failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 	}
+	if (text.trim().length === 0) throw new Error("Vision analysis returned an empty response.");
 	return text;
 }
 /**
@@ -743,16 +783,19 @@ function installHybridVisionRouting(ctx, getConfig, runtime, options = {}) {
 			messages: turnMessages,
 			signal: payload.signal
 		}));
+		if (evidence.summary.trim().length === 0 && evidence.ocr.length === 0 && evidence.layout.length === 0 && evidence.objects.length === 0 && evidence.coordinates.length === 0 && evidence.semantics.length === 0) throw new Error("Vision analysis returned no usable evidence.");
+		const rewritten = replaceImagesWithEvidence(turnMessages, evidence, turnMessages);
 		const remaining = [];
 		let replacedImageMessage = false;
-		for (const message of turnMessages) {
+		for (const [index, message] of turnMessages.entries()) {
 			if (!contentHasImage(message.content)) {
 				remaining.push(message);
 				continue;
 			}
 			replacedImageMessage = true;
 			const originalEvent = payload.agent.session.append("user/message", message, { surfaceOp: "append" });
-			payload.agent.session.append("user/message", evidenceMessage(evidence, message), {
+			const modelMessage = rewritten[index] ?? message;
+			payload.agent.session.append("user/message", modelSurfaceMessage(modelMessage), {
 				surfaceOp: {
 					op: "replace",
 					start: originalEvent.seq,
@@ -848,6 +891,8 @@ async function renderPdfPage(filePath, page, signal) {
 	if (pageCount !== void 0 && page > pageCount) throw new PdfRenderError("VISION_PDF_RENDER_FAILED", `PDF page ${String(page)} is out of range; the document has ${String(pageCount)} page${pageCount === 1 ? "" : "s"}.`);
 	const directory = await mkdtemp(join(tmpdir(), "dsh-view-pdf-"));
 	const outputBase = join(directory, "page");
+	const errors = [];
+	let missingCount = 0;
 	for (const renderer of PDF_RENDERERS) {
 		try {
 			await execFileAsync(renderer, [
@@ -868,12 +913,19 @@ async function renderPdfPage(filePath, page, signal) {
 				maxBuffer: 1024 * 1024
 			});
 		} catch (error) {
-			if (isMissingExecutable(error)) continue;
-			await rm(directory, {
-				recursive: true,
-				force: true
-			});
-			throw new PdfRenderError("VISION_PDF_RENDER_FAILED", `PDF page ${String(page)} could not be rendered: ${errorMessage(error)}`, { cause: error });
+			if (signal?.aborted) {
+				await rm(directory, {
+					recursive: true,
+					force: true
+				}).catch(() => void 0);
+				throw error;
+			}
+			if (isMissingExecutable(error)) {
+				missingCount += 1;
+				continue;
+			}
+			errors.push(`${renderer}: ${errorMessage(error)}`);
+			continue;
 		}
 		const imagePath = `${outputBase}.png`;
 		try {
@@ -882,18 +934,17 @@ async function renderPdfPage(filePath, page, signal) {
 				imagePath,
 				pageCount
 			};
-		} catch {}
-		await rm(directory, {
-			recursive: true,
-			force: true
-		});
-		throw new PdfRenderError("VISION_PDF_RENDER_FAILED", `PDF renderer ${renderer} completed without producing page ${String(page)}.`);
+			errors.push(`${renderer}: completed without producing page ${String(page)}`);
+		} catch {
+			errors.push(`${renderer}: completed without producing page ${String(page)}`);
+		}
 	}
 	await rm(directory, {
 		recursive: true,
 		force: true
 	});
-	throw new PdfRenderError("VISION_PDF_RENDERER_UNAVAILABLE", "PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.");
+	if (missingCount === PDF_RENDERERS.length) throw new PdfRenderError("VISION_PDF_RENDERER_UNAVAILABLE", "PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.");
+	throw new PdfRenderError("VISION_PDF_RENDER_FAILED", `PDF page ${String(page)} could not be rendered: ${errors.join("; ")}`);
 }
 /**
 * Detect the attachment media type for a path from its extension.
@@ -909,13 +960,7 @@ function mediaTypeForPath(filePath) {
 * @returns catalog entries in provider order; a provider that cannot list is skipped.
 */
 async function visionModelCatalog(llm) {
-	const catalog = [];
-	for (const provider of llm.listProviders()) try {
-		catalog.push(...await llm.listModels(provider.id));
-	} catch {
-		continue;
-	}
-	return catalog;
+	return await getCachedCatalog(llm);
 }
 /**
 * Prefer the current conversation model when its catalog entry accepts images.
@@ -1045,7 +1090,10 @@ function findHistoricalImageRef(events, attachmentId) {
 }
 /** Get the live session event log without coupling this package to a session package. */
 function sessionEvents(exec) {
-	return (exec.agent?.session)?.snapshotEvents?.() ?? [];
+	const session = exec.agent?.session;
+	if (typeof session?.snapshotEvents === "function") return session.snapshotEvents();
+	if (Array.isArray(session?.events)) return session.events;
+	return [];
 }
 /** Render a stable, non-path display key for a history-backed image. */
 function historyDisplayPath(attachmentId) {
@@ -1088,14 +1136,24 @@ async function analyzeAttachment(ref, instruction, cfg, runtime, signal, routeOv
 			plugin: "vision-bridge"
 		}
 	});
-	const analysis = await collectAnalysis(runtime.llm.stream({
-		provider: selection.route.provider,
-		model: selection.route.model,
-		messages: [message],
-		system: DEFAULT_SYSTEM_PROMPT,
-		temperature: .1,
-		signal: combined
-	}));
+	let analysis;
+	try {
+		analysis = await collectAnalysis(runtime.llm.stream({
+			provider: selection.route.provider,
+			model: selection.route.model,
+			messages: [message],
+			system: DEFAULT_SYSTEM_PROMPT,
+			temperature: .1,
+			signal: combined
+		}));
+	} catch (error) {
+		return {
+			ok: false,
+			message: `Vision analysis failed: ${errorMessage(error)}`,
+			reason: "VISION_ANALYSIS_FAILED",
+			route: selection.route
+		};
+	}
 	return analysis.ok ? {
 		ok: true,
 		text: analysis.text,
@@ -1166,7 +1224,30 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
 		page,
 		pageCount
 	});
-	const data = await readFile(targetPath);
+	const instruction = instructionFor(args);
+	const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+	if (!selected.ok) return failure({
+		message: selected.message,
+		reason: selected.reason,
+		path: resultPath,
+		source: "local",
+		page,
+		pageCount
+	});
+	let data;
+	try {
+		data = await readFile(targetPath);
+	} catch (error) {
+		return failure({
+			message: `Image file could not be read at "${resultPath}": ${errorMessage(error)}`,
+			reason: "VISION_IMAGE_UNREADABLE",
+			path: resultPath,
+			bytes: fileStat.size,
+			source: "local",
+			page,
+			pageCount
+		});
+	}
 	let ref;
 	try {
 		const [saved] = await runtime.attachments.saveImages([{
@@ -1187,17 +1268,6 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
 			pageCount
 		});
 	}
-	const instruction = instructionFor(args);
-	const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
-	if (!selected.ok) return failure({
-		message: selected.message,
-		reason: selected.reason,
-		path: resultPath,
-		ref,
-		source: "local",
-		page,
-		pageCount
-	});
 	if (selected.kind === "native") return nativeImageResult(ref, instruction, resultPath, selected.route, "local", page, pageCount);
 	const analysis = await analyzeAttachment(ref, instruction, cfg, runtime, exec.signal, selected.route);
 	if (!analysis.ok) return failure({
@@ -1376,8 +1446,8 @@ const inject = [
 	"llm"
 ];
 const Config = z.object({
-	enabled: z.boolean().default(true),
-	model: z.string().default("")
+	enabled: z.boolean().default(true).description("Whether hybrid image routing and the explicit view_image tool are enabled."),
+	model: z.string().default("").description("Model id to pin; empty selects the first image-capable model. \"provider/model\" disambiguates duplicates.")
 });
 const VISION_SETTINGS_NAMESPACE = "vision";
 /**
@@ -1569,4 +1639,4 @@ function apply(ctx, config = {}) {
 	});
 }
 //#endregion
-export { Config, VISION_SETTINGS_NAMESPACE, VISUAL_EVIDENCE_INSTRUCTION, VISUAL_EVIDENCE_SCHEMA_VERSION, apply, currentRouteAcceptsImages, currentTurnHasImage, currentTurnMessages, declaresImageInput, deniesImageInput, findCatalogModel, formatVisualEvidenceForModel, hasCurrentTurnImage, imageCapableModels, imageInputCapability, inject, installHybridVisionRouting, modelSupportsImages, name, parseVisualEvidence, parseVisualEvidenceResponse, prepareHybridRequest, renderVisualEvidence, replaceImagesWithEvidence, rewriteImagesAsEvidence, selectHybridModelRoute, selectHybridRoute, selectVisionRoute, serializeVisualEvidence, visualEvidenceText };
+export { Config, VISION_SETTINGS_NAMESPACE, VISUAL_EVIDENCE_INSTRUCTION, VISUAL_EVIDENCE_SCHEMA_VERSION, apply, currentRouteAcceptsImages, currentTurnHasImage, currentTurnMessages, declaresImageInput, deniesImageInput, findCatalogModel, formatVisualEvidenceForModel, getCachedCatalog, hasCurrentTurnImage, imageCapableModels, imageInputCapability, inject, installHybridVisionRouting, modelSupportsImages, name, parseVisualEvidence, parseVisualEvidenceResponse, prepareHybridRequest, renderVisualEvidence, replaceImagesWithEvidence, rewriteImagesAsEvidence, selectHybridModelRoute, selectHybridRoute, selectVisionRoute, serializeVisualEvidence, visualEvidenceText };

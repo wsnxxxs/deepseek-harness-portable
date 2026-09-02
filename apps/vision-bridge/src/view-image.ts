@@ -19,7 +19,7 @@ import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deeps
 import type { LlmModelInfo, LlmRuntime, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { selectVisionRoute, type VisionRoute, type TextRoute } from './model-selection.ts'
+import { getCachedCatalog, selectVisionRoute, type VisionRoute, type TextRoute } from './model-selection.ts'
 import { selectHybridRoute } from './hybrid-routing.ts'
 import type { ViewImageArgs, ViewImageResult, VisionConfig } from './types.ts'
 
@@ -113,6 +113,9 @@ async function renderPdfPage(filePath: string, page: number, signal?: AbortSigna
   const directory = await mkdtemp(join(tmpdir(), 'dsh-view-pdf-'))
   const outputBase = join(directory, 'page')
 
+  const errors: string[] = []
+  let missingCount = 0
+
   for (const renderer of PDF_RENDERERS) {
     try {
       await execFileAsync(renderer, [
@@ -130,33 +133,39 @@ async function renderPdfPage(filePath: string, page: number, signal?: AbortSigna
         maxBuffer: 1024 * 1024,
       })
     } catch (error: unknown) {
-      if (isMissingExecutable(error)) continue
-      await rm(directory, { recursive: true, force: true })
-      throw new PdfRenderError(
-        'VISION_PDF_RENDER_FAILED',
-        `PDF page ${String(page)} could not be rendered: ${errorMessage(error)}`,
-        { cause: error },
-      )
+      if (signal?.aborted) {
+        await rm(directory, { recursive: true, force: true }).catch(() => undefined)
+        throw error
+      }
+      if (isMissingExecutable(error)) {
+        missingCount += 1
+        continue
+      }
+      errors.push(`${renderer}: ${errorMessage(error)}`)
+      continue
     }
 
     const imagePath = `${outputBase}.png`
     try {
       const imageStat = await stat(imagePath)
       if (imageStat.isFile()) return { directory, imagePath, pageCount }
+      errors.push(`${renderer}: completed without producing page ${String(page)}`)
     } catch {
       // The renderer exited successfully but did not produce the promised file.
+      errors.push(`${renderer}: completed without producing page ${String(page)}`)
     }
-    await rm(directory, { recursive: true, force: true })
-    throw new PdfRenderError(
-      'VISION_PDF_RENDER_FAILED',
-      `PDF renderer ${renderer} completed without producing page ${String(page)}.`,
-    )
   }
 
   await rm(directory, { recursive: true, force: true })
+  if (missingCount === PDF_RENDERERS.length) {
+    throw new PdfRenderError(
+      'VISION_PDF_RENDERER_UNAVAILABLE',
+      'PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.',
+    )
+  }
   throw new PdfRenderError(
-    'VISION_PDF_RENDERER_UNAVAILABLE',
-    'PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.',
+    'VISION_PDF_RENDER_FAILED',
+    `PDF page ${String(page)} could not be rendered: ${errors.join('; ')}`,
   )
 }
 
@@ -188,16 +197,8 @@ export function mediaTypeForPath(filePath: string): ImageMediaType | undefined {
  * @returns catalog entries in provider order; a provider that cannot list is skipped.
  */
 export async function visionModelCatalog(llm: VisionRuntime['llm']): Promise<LlmModelInfo[]> {
-  const catalog: LlmModelInfo[] = []
-  for (const provider of llm.listProviders()) {
-    try {
-      catalog.push(...await llm.listModels(provider.id))
-    } catch {
-      // A provider that cannot list its models must not hide the ones that can.
-      continue
-    }
-  }
-  return catalog
+  const catalog = await getCachedCatalog(llm)
+  return catalog as LlmModelInfo[]
 }
 
 type ViewImageRouteSelection =
@@ -371,8 +372,14 @@ export function findHistoricalImageRef(
 
 /** Get the live session event log without coupling this package to a session package. */
 function sessionEvents(exec: ToolExecution): readonly unknown[] {
-  const session = (exec.agent as { session?: { snapshotEvents?: () => readonly unknown[] } } | undefined)?.session
-  return session?.snapshotEvents?.() ?? []
+  const session = (exec.agent as { session?: { snapshotEvents?: () => readonly unknown[]; events?: readonly unknown[] } } | undefined)?.session
+  if (typeof session?.snapshotEvents === 'function') {
+    return session.snapshotEvents()
+  }
+  if (Array.isArray(session?.events)) {
+    return session.events
+  }
+  return []
 }
 
 /** Render a stable, non-path display key for a history-backed image. */
@@ -419,14 +426,24 @@ export async function analyzeAttachment(
     ],
     source: { kind: 'plugin', plugin: 'vision-bridge' },
   })
-  const analysis = await collectAnalysis(runtime.llm.stream({
-    provider: selection.route.provider,
-    model: selection.route.model,
-    messages: [message],
-    system: DEFAULT_SYSTEM_PROMPT,
-    temperature: 0.1,
-    signal: combined,
-  }))
+  let analysis: AnalysisOutcome
+  try {
+    analysis = await collectAnalysis(runtime.llm.stream({
+      provider: selection.route.provider,
+      model: selection.route.model,
+      messages: [message],
+      system: DEFAULT_SYSTEM_PROMPT,
+      temperature: 0.1,
+      signal: combined,
+    }))
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      message: `Vision analysis failed: ${errorMessage(error)}`,
+      reason: 'VISION_ANALYSIS_FAILED',
+      route: selection.route,
+    }
+  }
   return analysis.ok
     ? { ok: true, text: analysis.text, route: selection.route }
     : { ok: false, message: analysis.message, reason: analysis.reason, route: selection.route }
@@ -522,7 +539,33 @@ async function executeImageFile(
     })
   }
 
-  const data = await readFile(targetPath)
+  const instruction = instructionFor(args)
+  const selected = await selectViewImageRoute(cfg, runtime, exec.agent)
+  if (!selected.ok) {
+    return failure({
+      message: selected.message,
+      reason: selected.reason,
+      path: resultPath,
+      source: 'local',
+      page,
+      pageCount,
+    })
+  }
+
+  let data: Buffer
+  try {
+    data = await readFile(targetPath)
+  } catch (error: unknown) {
+    return failure({
+      message: `Image file could not be read at "${resultPath}": ${errorMessage(error)}`,
+      reason: 'VISION_IMAGE_UNREADABLE',
+      path: resultPath,
+      bytes: fileStat.size,
+      source: 'local',
+      page,
+      pageCount,
+    })
+  }
   let ref: ImageAttachmentRef
   try {
     // Admission decodes the raster, so the declared media type, the pixel
@@ -547,19 +590,6 @@ async function executeImageFile(
     })
   }
 
-  const instruction = instructionFor(args)
-  const selected = await selectViewImageRoute(cfg, runtime, exec.agent)
-  if (!selected.ok) {
-    return failure({
-      message: selected.message,
-      reason: selected.reason,
-      path: resultPath,
-      ref,
-      source: 'local',
-      page,
-      pageCount,
-    })
-  }
   if (selected.kind === 'native') {
     return nativeImageResult(ref, instruction, resultPath, selected.route, 'local', page, pageCount)
   }

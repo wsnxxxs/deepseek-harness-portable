@@ -128,6 +128,25 @@ describe('structured visual evidence', () => {
     expect(parsed.summary).toBe('A red dialog with a Save button.')
     expect(formatVisualEvidenceForModel(parsed)).toContain('<visual_evidence schema_version="1">')
   })
+
+  it('strips thinking blocks from reasoning models before parsing JSON or prose', () => {
+    const raw = '<think>I see a button with coordinates {x: 10, y: 20} but wait let me format as json</think>```json\n{"summary":"Clean dialog","ocr":[{"text":"OK"}]}\n```'
+    const parsed = parseVisualEvidence(raw)
+    expect(parsed.summary).toBe('Clean dialog')
+    expect(parsed.ocr).toEqual([{ text: 'OK' }])
+
+    const proseWithThink = '<think>Let me think about this image...</think>A simple diagram.'
+    expect(parseVisualEvidence(proseWithThink).summary).toBe('A simple diagram.')
+  })
+
+  it('prunes empty evidence arrays in model formatting to save context tokens', () => {
+    const parsed = parseVisualEvidence('A clean screenshot.')
+    const formatted = formatVisualEvidenceForModel(parsed)
+    expect(formatted).toContain('<visual_evidence schema_version="1">')
+    expect(formatted).not.toContain('"ocr": []')
+    expect(formatted).not.toContain('"coordinates": []')
+    expect(formatted).not.toContain('"semantics": []')
+  })
 })
 
 describe('text-only evidence handoff', () => {

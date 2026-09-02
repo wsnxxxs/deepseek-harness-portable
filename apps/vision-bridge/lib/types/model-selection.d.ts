@@ -74,4 +74,15 @@ export declare function deniesImageInput(model: LlmModelInfo): boolean;
 export declare function selectVisionRoute(config: VisionRouteConfig, catalog: readonly LlmModelInfo[]): VisionRouteOutcome;
 /** Catalog entries an operator can reasonably pin as the vision route. */
 export declare function imageCapableModels(catalog: readonly LlmModelInfo[]): LlmModelInfo[];
+/**
+ * Enumerate every model the configured providers report, with in-flight deduplication and TTL cache.
+ * @param llm - runtime providing listProviders and listModels.
+ * @param ttlMs - cache time-to-live in milliseconds (defaults to 45s).
+ */
+export declare function getCachedCatalog(llm: {
+    listProviders(): readonly {
+        id: string;
+    }[];
+    listModels(provider: string): Promise<readonly LlmModelInfo[]>;
+}, ttlMs?: number): Promise<readonly LlmModelInfo[]>;
 //# sourceMappingURL=model-selection.d.ts.map

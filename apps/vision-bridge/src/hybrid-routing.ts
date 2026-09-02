@@ -169,18 +169,25 @@ export function replaceImagesWithEvidence(
   const turnIds = new Set(turnMessages.map(message => String(message.id)))
   const evidenceText = formatVisualEvidenceForModel(evidence)
   let emittedEvidence = false
+  let turnImageCount = 0
   return messages.map((message) => {
     const isCurrentTurn = turnIds.has(String(message.id))
     const content = replaceBlocks(message.content, (block) => {
-      if (isCurrentTurn && !emittedEvidence) {
-        emittedEvidence = true
-        return { type: 'text', text: evidenceText }
+      if (isCurrentTurn) {
+        turnImageCount += 1
+        if (!emittedEvidence) {
+          emittedEvidence = true
+          return { type: 'text', text: evidenceText }
+        }
+        const identity = block.attachment.name ?? block.attachment.attachmentId
+        return {
+          type: 'text',
+          text: `[additional image #${String(turnImageCount)}${identity ? ` (${identity})` : ''} represented by the visual evidence above]`,
+        }
       }
       return {
         type: 'text',
-        text: isCurrentTurn
-          ? '[additional image represented by the visual evidence above]'
-          : offloadedImageText(block.attachment),
+        text: offloadedImageText(block.attachment),
       }
     })
     return content === message.content ? message : { ...message, content }

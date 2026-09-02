@@ -15,7 +15,7 @@ import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { selectVisionRoute } from "./model-selection.js";
+import { getCachedCatalog, selectVisionRoute } from "./model-selection.js";
 import { selectHybridRoute } from "./hybrid-routing.js";
 /** File extensions the attachment store's version-one image path accepts. */
 const SUPPORTED_MEDIA_TYPES = {
@@ -86,6 +86,8 @@ async function renderPdfPage(filePath, page, signal) {
     }
     const directory = await mkdtemp(join(tmpdir(), 'dsh-view-pdf-'));
     const outputBase = join(directory, 'page');
+    const errors = [];
+    let missingCount = 0;
     for (const renderer of PDF_RENDERERS) {
         try {
             await execFileAsync(renderer, [
@@ -104,25 +106,34 @@ async function renderPdfPage(filePath, page, signal) {
             });
         }
         catch (error) {
-            if (isMissingExecutable(error))
+            if (signal?.aborted) {
+                await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+                throw error;
+            }
+            if (isMissingExecutable(error)) {
+                missingCount += 1;
                 continue;
-            await rm(directory, { recursive: true, force: true });
-            throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF page ${String(page)} could not be rendered: ${errorMessage(error)}`, { cause: error });
+            }
+            errors.push(`${renderer}: ${errorMessage(error)}`);
+            continue;
         }
         const imagePath = `${outputBase}.png`;
         try {
             const imageStat = await stat(imagePath);
             if (imageStat.isFile())
                 return { directory, imagePath, pageCount };
+            errors.push(`${renderer}: completed without producing page ${String(page)}`);
         }
         catch {
             // The renderer exited successfully but did not produce the promised file.
+            errors.push(`${renderer}: completed without producing page ${String(page)}`);
         }
-        await rm(directory, { recursive: true, force: true });
-        throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF renderer ${renderer} completed without producing page ${String(page)}.`);
     }
     await rm(directory, { recursive: true, force: true });
-    throw new PdfRenderError('VISION_PDF_RENDERER_UNAVAILABLE', 'PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.');
+    if (missingCount === PDF_RENDERERS.length) {
+        throw new PdfRenderError('VISION_PDF_RENDERER_UNAVAILABLE', 'PDF page rendering requires pdftoppm or pdftocairo on PATH. Install Poppler (for example through TeX Live) and retry.');
+    }
+    throw new PdfRenderError('VISION_PDF_RENDER_FAILED', `PDF page ${String(page)} could not be rendered: ${errors.join('; ')}`);
 }
 /**
  * Detect the attachment media type for a path from its extension.
@@ -138,16 +149,7 @@ export function mediaTypeForPath(filePath) {
  * @returns catalog entries in provider order; a provider that cannot list is skipped.
  */
 export async function visionModelCatalog(llm) {
-    const catalog = [];
-    for (const provider of llm.listProviders()) {
-        try {
-            catalog.push(...await llm.listModels(provider.id));
-        }
-        catch {
-            // A provider that cannot list its models must not hide the ones that can.
-            continue;
-        }
-    }
+    const catalog = await getCachedCatalog(llm);
     return catalog;
 }
 /**
@@ -284,7 +286,13 @@ export function findHistoricalImageRef(events, attachmentId) {
 /** Get the live session event log without coupling this package to a session package. */
 function sessionEvents(exec) {
     const session = exec.agent?.session;
-    return session?.snapshotEvents?.() ?? [];
+    if (typeof session?.snapshotEvents === 'function') {
+        return session.snapshotEvents();
+    }
+    if (Array.isArray(session?.events)) {
+        return session.events;
+    }
+    return [];
 }
 /** Render a stable, non-path display key for a history-backed image. */
 function historyDisplayPath(attachmentId) {
@@ -314,14 +322,25 @@ export async function analyzeAttachment(ref, instruction, cfg, runtime, signal, 
         ],
         source: { kind: 'plugin', plugin: 'vision-bridge' },
     });
-    const analysis = await collectAnalysis(runtime.llm.stream({
-        provider: selection.route.provider,
-        model: selection.route.model,
-        messages: [message],
-        system: DEFAULT_SYSTEM_PROMPT,
-        temperature: 0.1,
-        signal: combined,
-    }));
+    let analysis;
+    try {
+        analysis = await collectAnalysis(runtime.llm.stream({
+            provider: selection.route.provider,
+            model: selection.route.model,
+            messages: [message],
+            system: DEFAULT_SYSTEM_PROMPT,
+            temperature: 0.1,
+            signal: combined,
+        }));
+    }
+    catch (error) {
+        return {
+            ok: false,
+            message: `Vision analysis failed: ${errorMessage(error)}`,
+            reason: 'VISION_ANALYSIS_FAILED',
+            route: selection.route,
+        };
+    }
     return analysis.ok
         ? { ok: true, text: analysis.text, route: selection.route }
         : { ok: false, message: analysis.message, reason: analysis.reason, route: selection.route };
@@ -394,7 +413,33 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
             pageCount,
         });
     }
-    const data = await readFile(targetPath);
+    const instruction = instructionFor(args);
+    const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
+    if (!selected.ok) {
+        return failure({
+            message: selected.message,
+            reason: selected.reason,
+            path: resultPath,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
+    let data;
+    try {
+        data = await readFile(targetPath);
+    }
+    catch (error) {
+        return failure({
+            message: `Image file could not be read at "${resultPath}": ${errorMessage(error)}`,
+            reason: 'VISION_IMAGE_UNREADABLE',
+            path: resultPath,
+            bytes: fileStat.size,
+            source: 'local',
+            page,
+            pageCount,
+        });
+    }
     let ref;
     try {
         // Admission decodes the raster, so the declared media type, the pixel
@@ -415,19 +460,6 @@ async function executeImageFile(targetPath, resultPath, attachmentName, mediaTyp
             reason: 'VISION_IMAGE_REJECTED',
             path: resultPath,
             bytes: data.byteLength,
-            source: 'local',
-            page,
-            pageCount,
-        });
-    }
-    const instruction = instructionFor(args);
-    const selected = await selectViewImageRoute(cfg, runtime, exec.agent);
-    if (!selected.ok) {
-        return failure({
-            message: selected.message,
-            reason: selected.reason,
-            path: resultPath,
-            ref,
             source: 'local',
             page,
             pageCount,

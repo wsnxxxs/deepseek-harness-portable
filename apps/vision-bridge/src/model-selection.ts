@@ -111,30 +111,31 @@ export function selectVisionRoute(
       message: 'Vision Bridge is disabled. Enable it in Settings → Plugins before using view_image.',
     }
   }
-  if (config.model !== '') {
+  const pinnedModel = config.model.trim()
+  if (pinnedModel !== '') {
     // Keep the original bare-id setting compatible. When two providers expose
     // the same id, `provider/model` selects the exact provider without adding
     // another settings field.
-    const pinned = catalog.find(entry => entry.id === config.model)
+    const pinned = catalog.find(entry => entry.id === pinnedModel)
       ?? (() => {
-        const separator = config.model.indexOf('/')
-        if (separator <= 0 || separator === config.model.length - 1) return undefined
-        const provider = config.model.slice(0, separator)
-        const model = config.model.slice(separator + 1)
+        const separator = pinnedModel.indexOf('/')
+        if (separator <= 0 || separator === pinnedModel.length - 1) return undefined
+        const provider = pinnedModel.slice(0, separator)
+        const model = pinnedModel.slice(separator + 1)
         return catalog.find(entry => entry.provider === provider && entry.id === model)
       })()
     if (pinned === undefined) {
       return {
         ok: false,
         reason: 'VISION_MODEL_UNAVAILABLE',
-        message: `Model ${config.model} is not available from a configured provider. Choose a model from Settings → Models.`,
+        message: `Model ${pinnedModel} is not available from a configured provider. Choose a model from Settings → Models.`,
       }
     }
     if (deniesImageInput(pinned)) {
       return {
         ok: false,
         reason: 'VISION_MODEL_NOT_IMAGE_CAPABLE',
-        message: `Model ${config.model} does not accept image input. Choose an image-capable model in Settings → Plugins.`,
+        message: `Model ${pinnedModel} does not accept image input. Choose an image-capable model in Settings → Plugins.`,
       }
     }
     return { ok: true, route: { provider: pinned.provider, model: pinned.id } }
@@ -153,4 +154,44 @@ export function selectVisionRoute(
 /** Catalog entries an operator can reasonably pin as the vision route. */
 export function imageCapableModels(catalog: readonly LlmModelInfo[]): LlmModelInfo[] {
   return catalog.filter(declaresImageInput)
+}
+
+const CATALOG_CACHE_TTL_MS = 45_000
+
+interface CachedCatalogEntry {
+  timestamp: number
+  promise: Promise<readonly LlmModelInfo[]>
+}
+
+const catalogCaches = new WeakMap<object, CachedCatalogEntry>()
+
+/**
+ * Enumerate every model the configured providers report, with in-flight deduplication and TTL cache.
+ * @param llm - runtime providing listProviders and listModels.
+ * @param ttlMs - cache time-to-live in milliseconds (defaults to 45s).
+ */
+export async function getCachedCatalog(
+  llm: { listProviders(): readonly { id: string }[]; listModels(provider: string): Promise<readonly LlmModelInfo[]> },
+  ttlMs = CATALOG_CACHE_TTL_MS,
+): Promise<readonly LlmModelInfo[]> {
+  const now = Date.now()
+  const existing = catalogCaches.get(llm)
+  if (existing !== undefined && now - existing.timestamp < ttlMs) {
+    return existing.promise
+  }
+
+  const promise = (async () => {
+    const providers = llm.listProviders()
+    const modelArrays = await Promise.all(providers.map(async (provider) => {
+      try {
+        return await llm.listModels(provider.id)
+      } catch {
+        return []
+      }
+    }))
+    return modelArrays.flat()
+  })()
+
+  catalogCaches.set(llm, { timestamp: now, promise })
+  return promise
 }

@@ -9,19 +9,20 @@ import {
   type Message,
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
+import { parseVisualEvidence } from './hybrid-evidence.ts'
 import {
-  formatVisualEvidenceForModel,
-  parseVisualEvidence,
-} from './hybrid-evidence.ts'
-import {
+  getCachedCatalog,
   modelSupportsImages,
   selectVisionRoute,
   type TextRoute,
   type VisionRoute,
   type VisionRouteConfig,
 } from './model-selection.ts'
-import type { VisionConfig, StructuredVisualEvidence } from './types.ts'
-import { VISUAL_EVIDENCE_INSTRUCTION } from './hybrid-routing.ts'
+import type { VisionConfig } from './types.ts'
+import {
+  replaceImagesWithEvidence,
+  VISUAL_EVIDENCE_INSTRUCTION,
+} from './hybrid-routing.ts'
 
 /** The small portion of LlmRuntime used by the installer. */
 export interface HybridHostRuntime {
@@ -101,7 +102,7 @@ interface PreStepDecisionLike {
 function routeConfig(config: VisionConfig | VisionRouteConfig): VisionRouteConfig {
   return {
     enabled: config.enabled === true,
-    model: config.model ?? '',
+    model: (config.model ?? '').trim(),
   }
 }
 
@@ -110,15 +111,7 @@ async function catalogOf(
   options: HybridHostOptions,
 ): Promise<readonly LlmModelInfo[]> {
   if (options.catalog !== undefined) return await options.catalog()
-  const providers = runtime.listProviders()
-  const models = await Promise.all(providers.map(async (provider) => {
-    try {
-      return await runtime.listModels(provider.id)
-    } catch {
-      return []
-    }
-  }))
-  return models.flat()
+  return await getCachedCatalog(runtime)
 }
 
 function routeFromAssembly(assembly: PromptAssemblyLike): TextRoute | undefined {
@@ -138,19 +131,9 @@ function routeFromAgent(agent: PreStepAgentLike): TextRoute | undefined {
     : { provider, model }
 }
 
-function evidenceMessage(
-  evidence: StructuredVisualEvidence,
-  original: Message,
-): Message {
-  // Keep ordinary text from a mixed text+image user message visible after its
-  // image-bearing event is replaced on the model surface.
-  const text = original.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('\n')
-  const evidenceText = formatVisualEvidenceForModel(evidence)
+function modelSurfaceMessage(original: Message): Message {
   return createUserMessage({
-    content: [{ type: 'text', text: text === '' ? evidenceText : `${text}\n\n${evidenceText}` }],
+    content: original.content,
     source: { kind: 'plugin', plugin: 'vision-bridge' },
   })
 }
@@ -170,25 +153,30 @@ async function analyzeWithRuntime(
   route: VisionRoute,
   messages: readonly Message[],
   signal: AbortSignal,
-): Promise<unknown> {
+): Promise<string> {
   const instruction = createUserMessage({
     content: [{ type: 'text', text: VISUAL_EVIDENCE_INSTRUCTION }],
     source: { kind: 'plugin', plugin: 'vision-bridge' },
   })
   let text = ''
-  for await (const chunk of runtime.stream({
-    provider: route.provider,
-    model: route.model,
-    messages: [instruction, ...messages],
-    temperature: 0,
-    signal,
-  })) {
-    if (chunk.type === 'text-delta') text += chunk.text
-    if (chunk.type === 'block-end' && chunk.block.type === 'text' && text === '') text = chunk.block.text
-    if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
-      throw new Error(chunk.reason.failure.message)
+  try {
+    for await (const chunk of runtime.stream({
+      provider: route.provider,
+      model: route.model,
+      messages: [instruction, ...messages],
+      temperature: 0,
+      signal,
+    })) {
+      if (chunk.type === 'text-delta') text += chunk.text
+      if (chunk.type === 'block-end' && chunk.block.type === 'text' && text === '') text = chunk.block.text
+      if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
+        throw new Error(chunk.reason.failure.message)
+      }
     }
+  } catch (error: unknown) {
+    throw new Error(`Vision analysis failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
+  if (text.trim().length === 0) throw new Error('Vision analysis returned an empty response.')
   return text
 }
 
@@ -270,18 +258,30 @@ export function installHybridVisionRouting(
         ? await analyzeWithRuntime(runtime, vision.route, turnMessages, payload.signal)
         : await options.analyze({ route: vision.route, messages: turnMessages, signal: payload.signal })
       const evidence = parseVisualEvidence(rawEvidence)
+      if (
+        evidence.summary.trim().length === 0
+        && evidence.ocr.length === 0
+        && evidence.layout.length === 0
+        && evidence.objects.length === 0
+        && evidence.coordinates.length === 0
+        && evidence.semantics.length === 0
+      ) {
+        throw new Error('Vision analysis returned no usable evidence.')
+      }
+      const rewritten = replaceImagesWithEvidence(turnMessages, evidence, turnMessages)
       const remaining: Message[] = []
       let replacedImageMessage = false
-      for (const message of turnMessages) {
+      for (const [index, message] of turnMessages.entries()) {
         if (!contentHasImage(message.content)) {
           remaining.push(message)
           continue
         }
         replacedImageMessage = true
         const originalEvent = payload.agent.session.append('user/message', message, { surfaceOp: 'append' })
+        const modelMessage = rewritten[index] ?? message
         payload.agent.session.append(
           'user/message',
-          evidenceMessage(evidence, message),
+          modelSurfaceMessage(modelMessage),
           {
             surfaceOp: { op: 'replace', start: originalEvent.seq, end: originalEvent.seq },
             sourceEventSeqs: [originalEvent.seq],

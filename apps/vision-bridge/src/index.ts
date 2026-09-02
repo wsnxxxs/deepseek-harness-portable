@@ -30,8 +30,8 @@ export const inject = ['tools', 'systemPrompt', 'attachments', 'llm']
 export type Config = VisionConfig
 
 export const Config: z<VisionConfig> = z.object({
-  enabled: z.boolean().default(true),
-  model: z.string().default(''),
+  enabled: z.boolean().default(true).description('Whether hybrid image routing and the explicit view_image tool are enabled.'),
+  model: z.string().default('').description('Model id to pin; empty selects the first image-capable model. "provider/model" disambiguates duplicates.'),
 })
 
 export const VISION_SETTINGS_NAMESPACE = 'vision' as SettingsNamespace
