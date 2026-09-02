@@ -1415,6 +1415,15 @@
   flex-direction: column;
 }
 
+.inventoryActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--zx-space-2);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
 .inventoryId {
   margin-top: var(--zx-space-1);
   color: var(--zx-label-tertiary);
@@ -1496,6 +1505,11 @@
 
 :global([data-dcode-layout='compact']) .inventoryStatus {
   align-self: flex-start;
+}
+
+:global([data-dcode-layout='compact']) .inventoryActions {
+  align-items: flex-end;
+  flex-direction: column;
 }
 
 :global([data-dcode-layout='compact']) .inventoryId {
