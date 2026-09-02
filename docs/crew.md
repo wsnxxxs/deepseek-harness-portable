@@ -23,6 +23,13 @@ composition, not the persona:
 | Cross-session recall | — | `tool-session-query` |
 | Attached material | — | `dossier_map` / `dossier_read` / `dossier_search` |
 
+The Team topology is intentionally flat: the Lead owns the user-facing mission
+and named teammates are direct reports. “Multi-wave” means that the Lead can
+run independent tasks in parallel and release dependent tasks after their
+predecessors finish; it does not mean that teammates recursively create more
+durable Teams. The ordinary `subagent` rows remain one-shot helpers and are not
+substitutes for board-tracked teammates.
+
 ### Why the Team service is host-plane
 
 `@deepseek-ai/dsh-experimental-agent-team` provides `agentTeams`, and the

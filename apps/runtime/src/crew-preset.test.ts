@@ -33,6 +33,10 @@ async function definition() {
   return parseModeDefinition(await readFile(join(directory, 'mode.yml'), 'utf8'), 'crew/mode.yml')
 }
 
+async function personaSource() {
+  return readFile(join(directory, 'agent.cordis.yml'), 'utf8')
+}
+
 /** Row ids of a composed entry list, including rows nested inside groups. */
 function rowIds(composed: string): string[] {
   return [...composed.matchAll(/^\s*-\s+id:\s*['"]?([^\s'"]+)/gmu)].map(match => match[1] as string)
@@ -69,6 +73,17 @@ test('crew declares a native variant per target, each gated on the Team runtime'
       `${variant.id} must require the Team runtime, or the mode cannot degrade when it is absent`,
     )
   }
+})
+
+test('the Crew persona is role-aware and describes the real flat Team topology', async () => {
+  const persona = await personaSource()
+
+  assert.doesNotMatch(persona, /You are DSH's Lead coordinator/)
+  assert.doesNotMatch(persona, /recursive decomposition/)
+  assert.match(persona, /flat, Lead-led Team/)
+  assert.match(persona, /Teammate: execute only the assigned board task/)
+  assert.match(persona, /claim its current revision before execution/)
+  assert.match(persona, /does not create another durable Team/)
 })
 
 test('every crew variant satisfies the contract and mounts the distinguishing rows', async () => {
