@@ -17,8 +17,8 @@ Chinese guide: 使用说明.txt
    Run dsh clean or update.cmd clean to purge committed update backups and temporary update cache.
 
 4. Release Notes
-   Open the tray menu to read the current release, release history, and component
-   versions. The desktop shell uses the GitHub mirror and a bundled local fallback.
+   Open the tray menu to read the current release and release history. The desktop
+   shell uses the GitHub mirror and a bundled local fallback.
    Update notices are centered below the title bar, slide away and are destroyed
    after seven seconds or dismissal, and can be suppressed per version.
    If an online check fails, the Update Hub shows an error state with a retry

@@ -2,7 +2,7 @@
 
 [中文](RELEASE_NOTES.zh.md)
 
-Windows x64 desktop release · 2026-08-30
+Cross-platform desktop release · 2026-08-30
 
 ## Changes
 
@@ -15,14 +15,7 @@ Windows x64 desktop release · 2026-08-30
 
 > Roadmap note: Learning Mode and the Library will change substantially in future releases. Their v1.6.0 design is not final.
 
-## Components
-
-- Distribution: 1.6.0
-- Desktop shell: 0.1.0-shell.2
-- Runtime kernel: 0.1.2-alpha.4 (`dsh-v0.1.2-alpha.4`)
-- Tag: v1.6.0
-
 ## Checksums and security
 
-- SHA-256 values for the Windows portable ZIP and Setup installer are recorded in `SHA256SUMS.txt`.
-- This release is not signed by a trusted commercial CA, so Windows may show a security warning.
+- SHA-256 values for each target's packages are recorded in `SHA256SUMS-<target>.txt`.
+- Packages are unsigned and macOS is not notarized, so the operating system may show a security warning.

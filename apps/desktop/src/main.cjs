@@ -573,6 +573,11 @@ function decodeWslDistroList(raw) {
 }
 
 function probeShellAvailability() {
+  if (process.platform !== 'win32') {
+    shellState = nativeShellState()
+    sendShellState()
+    return Promise.resolve(shellState)
+  }
   return new Promise((resolve) => {
     const child = spawn('wsl.exe', ['-l', '-q'], {
       windowsHide: true,
@@ -607,8 +612,9 @@ async function showShellGuideDialog(sender) {
   await probeShellAvailability().catch(() => {})
   const isInstalled = shellState.available
   const title = desktopText('shell.dialogTitle')
-  const message = desktopText(isInstalled ? 'shell.readyMessage' : 'shell.missingMessage')
-  const detail = desktopText(isInstalled ? 'shell.readyDetail' : 'shell.missingDetail', {
+  const native = shellState.native === true
+  const message = desktopText(native ? 'shell.nativeReadyMessage' : isInstalled ? 'shell.readyMessage' : 'shell.missingMessage')
+  const detail = desktopText(native ? 'shell.nativeReadyDetail' : isInstalled ? 'shell.readyDetail' : 'shell.missingDetail', {
     distros: shellState.distros.join(', ') || 'Default',
   })
   const buttons = isInstalled
@@ -625,7 +631,7 @@ async function showShellGuideDialog(sender) {
     cancelId: isInstalled ? 0 : 1,
   })
 
-  if (!isInstalled && result.response === 0) {
+  if (!isInstalled && !native && result.response === 0) {
     clipboard.writeText('wsl --install')
     sendDiagnosticsResult(sender, { kind: 'success', message: desktopText('shell.cmdCopied') })
   }
@@ -633,6 +639,9 @@ async function showShellGuideDialog(sender) {
 
 function diagnosticsText() {
   const release = getLocalReleaseInfo()
+  const shellDescription = shellState.native
+    ? 'native /bin/bash'
+    : `WSL available: ${shellState.available ? `yes (${shellState.distros.join(', ') || 'default'})` : 'no'}`
   return [
     `${APP_NAME} diagnostics`,
     `Generated: ${new Date().toISOString()}`,
@@ -644,7 +653,7 @@ function diagnosticsText() {
     `Chrome: ${process.versions.chrome || 'unknown'}`,
     `Node: ${process.versions.node || 'unknown'}`,
     `Platform: ${process.platform} ${process.arch}`,
-    `Shell: WSL available: ${shellState.available ? `yes (${shellState.distros.join(', ') || 'default'})` : 'no'}`,
+    `Shell: ${shellDescription}`,
     `Workspace: ${workspace()}`,
     `Harness URL: ${harnessUrl || 'unavailable'}`,
     '',
@@ -1256,8 +1265,8 @@ function normalizePortableRelease(value) {
   const targetAssetName = platformReleaseAssetName(normalized.version)
   return {
     ...normalized,
-    // The shared release-notes parser has a historical Windows ZIP fallback,
-    // which is exactly the asset this target installs.
+    // The shared release-notes parser has a historical Windows ZIP fallback;
+    // this target-specific name keeps each platform on its own release asset.
     assetName: targetAssetName || explicitAssetName || normalized.assetName,
     assetUrl: safeHttpsUrl(source.assetUrl || source.browser_download_url),
     assetDigest: typeof source.assetDigest === 'string' ? source.assetDigest.trim() : '',
@@ -1379,7 +1388,7 @@ async function queryReleaseHistory() {
         const platformAsset = Array.isArray(release.assets)
           ? release.assets.find(asset => asset?.name === platformReleaseAssetName(version))
           : undefined
-        // Do not advertise a release without the Windows portable asset.
+        // Do not advertise a release without this target's platform asset.
         if (platformAsset === undefined) return undefined
         return normalizeReleaseNotes({
           ...release,

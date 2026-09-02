@@ -19,6 +19,25 @@ test('the shell starts unprobed and WSL-backed', () => {
   })
 })
 
+test('POSIX targets use the native Bash shell', () => {
+  assert.deepEqual(nativeShellState('darwin'), {
+    platform: 'darwin',
+    native: true,
+    available: true,
+    probed: true,
+    distros: [],
+    executable: '/bin/bash',
+  })
+  assert.deepEqual(nativeShellState('linux'), {
+    platform: 'linux',
+    native: true,
+    available: true,
+    probed: true,
+    distros: [],
+    executable: '/bin/bash',
+  })
+})
+
 test('the browser opens through the Windows shell', () => {
   assert.deepEqual(browserCommand('https://example.test'), {
     command: 'cmd.exe',
@@ -27,11 +46,29 @@ test('the browser opens through the Windows shell', () => {
   })
 })
 
+test('POSIX targets open URLs with their native browser command', () => {
+  assert.deepEqual(browserCommand('https://example.test', 'darwin'), {
+    command: 'open',
+    args: ['https://example.test'],
+    options: {},
+  })
+  assert.deepEqual(browserCommand('https://example.test', 'linux'), {
+    command: 'xdg-open',
+    args: ['https://example.test'],
+    options: {},
+  })
+})
+
 test('release assets name the Windows portable ZIP', () => {
   assert.equal(releaseAssetName('1.2.3'), 'DeepSeek-Harness-1.2.3-win32-x64.zip')
   assert.equal(releaseAssetName('0.0.0'), undefined)
   assert.equal(releaseAssetName('not-a-version'), undefined)
   assert.equal(releaseAssetName(undefined), undefined)
+})
+
+test('release assets use the native installer for POSIX targets', () => {
+  assert.equal(releaseAssetName('1.2.3', 'darwin'), 'DeepSeek-Harness-1.2.3-darwin-arm64.dmg')
+  assert.equal(releaseAssetName('1.2.3', 'linux'), 'DeepSeek-Harness-1.2.3-linux-x64.AppImage')
 })
 
 test('window build numbers come out of the release string', () => {

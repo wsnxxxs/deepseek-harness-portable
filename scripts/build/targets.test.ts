@@ -28,6 +28,18 @@ test('target specs own native assets, release formats, updater, and mode expecta
       limitations: ['process-tree-unobservable', 'process-group-signals-emulated'],
     },
   )
+
+  const macos = getTargetSpec('darwin-arm64')
+  assert.ok(macos.nativeAssets.some(asset => asset.package === 'node-pty' && asset.source === 'prebuilds/darwin-arm64'))
+  assert.deepEqual(macos.formats, ['dmg'])
+  assert.equal(macos.updaterAdapter, 'manual-release-page')
+  assert.equal(macos.signing.adapter, 'codesign-notarization')
+
+  const linux = getTargetSpec('linux-x64')
+  assert.ok(linux.nativeAssets.some(asset => asset.package === 'node-pty' && asset.source === 'prebuilds/linux-x64'))
+  assert.deepEqual(linux.formats, ['app-image', 'deb'])
+  assert.equal(linux.updaterAdapter, 'manual-release-page')
+  assert.equal(linux.signing.adapter, 'external-package-signing')
 })
 
 test('legacy platform/arch resolution goes through the target registry', () => {

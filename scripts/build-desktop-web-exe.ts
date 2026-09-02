@@ -8,9 +8,8 @@
  * desktop shell, and apply the
  * platform application icon.
  *
- * Windows is a documented non-goal of the Python SDK distribution; this
- * script is the local/personal channel for portable desktop distributions of
- * the dsh web surface and is not part of the repository gates.
+ * Each Electron target is packaged on its native host so the final runtime
+ * smoke test exercises the same native addons shipped to users.
  */
 
 import { spawn, spawnSync } from 'node:child_process'
@@ -19,7 +18,7 @@ import { copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, st
 import { homedir } from 'node:os'
 import { delimiter, dirname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
-import type { NativeAssetRule, TargetSpec } from '../packages/platform-contract/src/index.js'
+import type { NativeAssetRule, PackageFormat, TargetSpec } from '../packages/platform-contract/src/index.js'
 import { createReleaseManifest, serializeReleaseManifest } from '../packages/release-manifest/src/index.js'
 import { collectArtifactInventory } from './build/artifact-inventory.js'
 import { writeArtifactVerification } from './build/artifact-verification.js'
@@ -181,6 +180,10 @@ const BUILD_INPUT_PATHS = [
   'apps/dcode-ui/tsconfig.json',
   'apps/dcode-ui/tsdown.config.ts',
   'apps/dcode-ui/src',
+  'apps/cluster-ui/package.json',
+  'apps/cluster-ui/tsconfig.json',
+  'apps/cluster-ui/tsdown.config.ts',
+  'apps/cluster-ui/src',
   'vendor/deepseek-harness/package.json',
   'vendor/deepseek-harness/pnpm-lock.yaml',
   'vendor/deepseek-harness/pnpm-workspace.yaml',
@@ -212,6 +215,8 @@ const STAGING_INPUT_PATHS = [
 const CONTAINER_INPUT_PATHS = [
   'LICENSE',
   'THIRD_PARTY_NOTICES.md',
+  'apps/desktop/package.json',
+  'scripts/build/targets.ts',
   'scripts/setup.iss',
   'scripts/setup-runtime-preflight.ps1',
   'scripts/setup-launch-after-exit.ps1',
@@ -922,7 +927,14 @@ class DesktopExeBuild {
 
     const nodePty = join(this.staging, 'node_modules', 'node-pty')
     const target = `${this.cli.platform}-${this.cli.arch}`
-    const nodePtyPlatforms = ['win32-arm64', 'win32-x64']
+    const nodePtyPlatforms = [
+      'darwin-arm64',
+      'darwin-x64',
+      'linux-arm64',
+      'linux-x64',
+      'win32-arm64',
+      'win32-x64',
+    ]
     await Promise.all(nodePtyPlatforms
       .filter(platform => platform !== target)
       .map(platform => rm(join(nodePty, 'prebuilds', platform), { recursive: true, force: true })))
@@ -939,8 +951,8 @@ class DesktopExeBuild {
   private async pruneUnusedNativePackages(target: string): Promise<void> {
     const nodeModules = join(this.staging, 'node_modules')
     const groups = [
-      { scope: '@img', pattern: /^(?:sharp|sharp-libvips)-win32-/ },
-      { scope: '@koromix', pattern: /^koffi-win32-/ },
+      { scope: '@img', pattern: /^(?:sharp|sharp-libvips)-(?:darwin|linux|win32)-/ },
+      { scope: '@koromix', pattern: /^koffi-(?:darwin|linux|win32)-/ },
     ]
     let removed = 0
     for (const { scope, pattern } of groups) {
@@ -994,7 +1006,7 @@ class DesktopExeBuild {
   /** Keep only the locales shipped by the product's supported UI languages. */
   async pruneElectronLocales(product: string): Promise<void> {
     if (!this.cli.electron || this.cli.dryRun) return
-    const localesDir = join(dirname(product), 'locales')
+    const localesDir = join(dirname(this.appResourcesDir(product)), 'locales')
     if (!existsSync(localesDir)) return
     const keep = new Set(['en-US.pak', 'zh-CN.pak', 'zh-TW.pak'])
     let removed = 0
@@ -1045,6 +1057,22 @@ class DesktopExeBuild {
     }
   }
 
+  private electronRootPath(): string {
+    return join(this.electronOutDir, `${ELECTRON_APP_NAME}-${this.cli.target.id}`)
+  }
+
+  private electronExecutableName(): string {
+    return this.cli.platform === 'linux' ? 'dsh' : ELECTRON_APP_NAME
+  }
+
+  private electronProductPath(rootPath: string): string {
+    if (this.cli.platform === 'darwin') {
+      return join(rootPath, `${ELECTRON_APP_NAME}.app`, 'Contents', 'MacOS', this.electronExecutableName())
+    }
+    if (this.cli.platform === 'win32') return join(rootPath, `${ELECTRON_APP_NAME}.exe`)
+    return join(rootPath, this.electronExecutableName())
+  }
+
   /**
    * Package the selected target; SEA mode remains Windows-only.
    * @returns the executable or application bundle path.
@@ -1052,7 +1080,7 @@ class DesktopExeBuild {
   async pack(): Promise<string> {
     const version = desktopVersion()
     const product = this.cli.electron
-      ? join(this.electronOutDir, `${ELECTRON_APP_NAME}-win32-${this.cli.arch}`, 'runtime', `${ELECTRON_APP_NAME}.exe`)
+      ? this.electronProductPath(join(this.electronRootPath(), 'runtime'))
       : join(this.outDir, `${OUTPUT_BASENAME}-${version}-win-x64.exe`)
     const artifactKey = await fingerprintPaths({
       baseDir: root,
@@ -1110,12 +1138,22 @@ class DesktopExeBuild {
   /** Return the immutable container paths for the selected Electron target. */
   platformContainerPaths(): readonly string[] {
     if (!this.cli.electron) return []
-    const artifactDir = resolve(this.electronOutDir, 'windows-artifacts')
+    const artifactDirectoryName = this.cli.platform === 'win32' ? 'windows-artifacts' : `${this.cli.platform}-artifacts`
+    const artifactDir = resolve(this.electronOutDir, artifactDirectoryName)
     const version = distributionVersion()
-    return [
-      join(artifactDir, `DeepSeek-Harness-${version}-win32-x64.zip`),
-      join(artifactDir, `DeepSeek-Harness-Setup-${version}-win32-x64.exe`),
-    ]
+    return this.cli.target.formats.map(format => join(artifactDir, this.platformArtifactName(format, version)))
+  }
+
+  private platformArtifactName(format: PackageFormat, version: string): string {
+    const target = this.cli.target.id
+    switch (format) {
+      case 'portable-zip': return `DeepSeek-Harness-${version}-${target}.zip`
+      case 'inno-setup': return `DeepSeek-Harness-Setup-${version}-${target}.exe`
+      case 'dmg': return `DeepSeek-Harness-${version}-${target}.dmg`
+      case 'app-image': return `DeepSeek-Harness-${version}-${target}.AppImage`
+      case 'deb': return `DeepSeek-Harness-${version}-${target}.deb`
+    }
+    throw new Error(`build-desktop-web-exe: unsupported package format ${format}`)
   }
 
   /** Fingerprint the final manifest and container tooling without re-hashing the whole app tree. */
@@ -1146,11 +1184,14 @@ class DesktopExeBuild {
   }
 
   private appResourcesDir(product: string): string {
-    return join(dirname(product), 'resources', 'app')
+    const runtimeRoot = join(this.artifactRoot(product), 'runtime')
+    return this.cli.platform === 'darwin'
+      ? join(runtimeRoot, `${ELECTRON_APP_NAME}.app`, 'Contents', 'Resources', 'app')
+      : join(runtimeRoot, 'resources', 'app')
   }
 
   private artifactRoot(product: string): string {
-    return dirname(dirname(product))
+    return this.cli.electron ? this.electronRootPath() : dirname(dirname(product))
   }
 
   /** Write the same release identity schema into every unpacked target. */
@@ -1201,7 +1242,7 @@ class DesktopExeBuild {
     const serialized = serializeReleaseManifest(manifest)
     const destinations = [
       join(resources, 'release-manifest.json'),
-      join(dirname(dirname(product)), 'release-manifest.json'),
+      join(this.artifactRoot(product), 'release-manifest.json'),
     ]
     for (const destination of new Set(destinations)) {
       await mkdir(dirname(destination), { recursive: true })
@@ -1313,6 +1354,41 @@ class DesktopExeBuild {
       console.log('build-desktop-web-exe: Windows Setup embeds the exact verified portable ZIP bytes')
       return
     }
+
+    if (evidence === undefined) {
+      throw new Error(`build-desktop-web-exe: ${this.cli.target.id} container verification requires final-byte runtime evidence`)
+    }
+    for (const artifact of artifacts) {
+      if (!existsSync(artifact) || statSync(artifact).size === 0) {
+        throw new Error(`build-desktop-web-exe: ${this.cli.target.id} container is missing or empty: ${artifact}`)
+      }
+    }
+    if (this.cli.platform === 'darwin') {
+      const dmg = artifacts.find(path => path.toLowerCase().endsWith('.dmg'))
+      if (dmg === undefined) throw new Error('build-desktop-web-exe: macOS container verification requires a DMG')
+      await this.run('macOS DMG verification', 'hdiutil', ['verify', dmg])
+      console.log('build-desktop-web-exe: macOS DMG passed hdiutil verification')
+      return
+    }
+    if (this.cli.platform === 'linux') {
+      const appImage = artifacts.find(path => path.toLowerCase().endsWith('.appimage'))
+      const deb = artifacts.find(path => path.toLowerCase().endsWith('.deb'))
+      if (appImage === undefined || deb === undefined) {
+        throw new Error('build-desktop-web-exe: Linux container verification requires an AppImage and a deb package')
+      }
+      const appImageHeader = await readFile(appImage)
+      if (appImageHeader.subarray(0, 4).toString('latin1') !== '\x7fELF') {
+        throw new Error('build-desktop-web-exe: Linux AppImage does not have an ELF header')
+      }
+      const debHeader = await readFile(deb, { encoding: 'utf8' })
+      if (!debHeader.startsWith('!<arch>\n')) {
+        throw new Error('build-desktop-web-exe: Linux deb package does not have an ar archive header')
+      }
+      await this.run('Linux deb verification', 'dpkg-deb', ['--info', deb])
+      console.log('build-desktop-web-exe: Linux AppImage and deb passed container verification')
+      return
+    }
+    throw new Error(`build-desktop-web-exe: unsupported container verification platform ${this.cli.platform}`)
   }
 
   /** Package the single-file SEA executable. */
@@ -1347,15 +1423,15 @@ class DesktopExeBuild {
 
   /** Package the staged runtime into the selected Electron application layout. */
   private async packElectron(): Promise<string> {
-    const target = `win32-${this.cli.arch}`
-    const portableRoot = join(this.electronOutDir, `${ELECTRON_APP_NAME}-${target}`)
+    const target = this.cli.target.id
+    const portableRoot = this.electronRootPath()
     const packagerOutDir = join(this.electronOutDir, '.packager')
     const nextPortableRoot = join(this.electronOutDir, `.portable-next-${process.pid}`)
     const previousPortableRoot = join(this.electronOutDir, `.portable-previous-${process.pid}`)
     const packagedRoot = join(packagerOutDir, `${ELECTRON_APP_NAME}-${target}`)
-    const packagedProduct = join(packagedRoot, `${ELECTRON_APP_NAME}.exe`)
+    const packagedProduct = this.electronProductPath(packagedRoot)
     const runtimeRoot = join(portableRoot, 'runtime')
-    const product = join(runtimeRoot, `${ELECTRON_APP_NAME}.exe`)
+    const product = this.electronProductPath(runtimeRoot)
     if (!this.cli.dryRun) {
       await Promise.all([
         rm(packagerOutDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 }),
@@ -1393,8 +1469,9 @@ class DesktopExeBuild {
       this.cli.arch,
       '--electron-version',
       electronVersion(),
-      '--icon',
-      DESKTOP_ICON,
+      '--executable-name',
+      this.electronExecutableName(),
+      ...(this.cli.platform === 'win32' ? ['--icon', DESKTOP_ICON] : []),
       '--out',
       packagerOutDir,
       '--overwrite',
@@ -1513,6 +1590,99 @@ class DesktopExeBuild {
     ])
     if (!existsSync(zip) || !existsSync(setup)) throw new Error('build-desktop-web-exe: Windows packaging did not produce both ZIP and Setup.exe')
     return [zip, setup]
+  }
+
+  /** Create the declared macOS or Linux packages from the verified app tree. */
+  async createElectronBuilderPackages(product: string): Promise<string[] | undefined> {
+    if (!this.cli.electron || this.cli.platform === 'win32') return undefined
+    const expected = this.platformContainerPaths()
+    if (expected.length === 0) throw new Error(`build-desktop-web-exe: ${this.cli.target.id} declares no platform containers`)
+    const artifactDir = dirname(expected[0])
+    const configPath = join(this.electronOutDir, `.electron-builder-${this.cli.target.id}.json`)
+    const version = distributionVersion()
+    const config = this.cli.platform === 'darwin'
+      ? {
+          appId: 'com.deepseek.harness',
+          productName: ELECTRON_APP_NAME,
+          executableName: this.electronExecutableName(),
+          directories: { output: artifactDir },
+          mac: {
+            target: [{ target: 'dmg', arch: ['arm64'] }],
+            identity: null,
+            artifactName: `DeepSeek-Harness-${version}-darwin-arm64.\${ext}`,
+          },
+        }
+      : {
+          appId: 'com.deepseek.harness',
+          productName: ELECTRON_APP_NAME,
+          executableName: this.electronExecutableName(),
+          directories: { output: artifactDir },
+          linux: {
+            target: [
+              { target: 'AppImage', arch: ['x64'] },
+              { target: 'deb', arch: ['x64'] },
+            ],
+            category: 'Utility',
+            maintainer: 'DeepSeek Harness',
+            artifactName: `DeepSeek-Harness-${version}-linux-x64.\${ext}`,
+          },
+        }
+    if (this.cli.dryRun) {
+      console.log(`build-desktop-web-exe: [dry-run] create ${this.cli.target.formats.join('/')} with electron-builder from ${product}`)
+      return [...expected]
+    }
+
+    await rm(artifactDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 })
+    await mkdir(artifactDir, { recursive: true })
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`)
+    const prepackaged = this.cli.platform === 'darwin'
+      ? join(this.artifactRoot(product), 'runtime', `${ELECTRON_APP_NAME}.app`)
+      : join(this.artifactRoot(product), 'runtime')
+    const electronBuilderBin = join(
+      root,
+      'node_modules',
+      '.pnpm',
+      'node_modules',
+      '.bin',
+      process.platform === 'win32' ? 'electron-builder.CMD' : 'electron-builder',
+    )
+    const builderArgs = [
+      '--prepackaged',
+      prepackaged,
+      '--projectDir',
+      this.appResourcesDir(product),
+      '--config',
+      configPath,
+      this.cli.platform === 'darwin' ? '--mac' : '--linux',
+      this.cli.platform === 'darwin' ? '--arm64' : '--x64',
+      '--publish',
+      'never',
+    ]
+    try {
+      if (existsSync(electronBuilderBin)) {
+        await this.run(`Electron ${ELECTRON_APP_NAME} ${this.cli.target.id} containers`, electronBuilderBin, builderArgs)
+      } else {
+        await this.run(`Electron ${ELECTRON_APP_NAME} ${this.cli.target.id} containers`, pnpmBin(), [
+          'exec',
+          'electron-builder',
+          ...builderArgs,
+        ])
+      }
+    } finally {
+      await rm(configPath, { force: true })
+    }
+    for (const artifact of expected) {
+      if (!existsSync(artifact) || statSync(artifact).size === 0) {
+        throw new Error(`build-desktop-web-exe: electron-builder did not produce a non-empty artifact: ${artifact}`)
+      }
+    }
+    return [...expected]
+  }
+
+  /** Dispatch immutable container creation from the registered target formats. */
+  async createPlatformPackages(product: string): Promise<string[] | undefined> {
+    if (this.cli.platform === 'win32') return this.createWindowsPackages(product)
+    return this.createElectronBuilderPackages(product)
   }
 
   /** Embed the same icon used by the Electron shell into the portable exe. */
@@ -1823,8 +1993,8 @@ async function main(): Promise<void> {
         return
       }
       console.log(`build-desktop-web-exe: container cache ${cli.noCache ? 'bypassed' : 'miss'}${containerKey.length === 0 ? '' : ` (${containerKey.slice(0, 12)})`}`)
-      const windows = await pipeline.createWindowsPackages(product())
-      current.finalPackages = [...(windows ?? [])]
+      const packages = await pipeline.createPlatformPackages(product())
+      current.finalPackages = [...(packages ?? [])]
     } },
     { id: 'verify-platform-containers', run: async current => {
       await pipeline.verifyPlatformContainers(current.finalPackages, current.verified)

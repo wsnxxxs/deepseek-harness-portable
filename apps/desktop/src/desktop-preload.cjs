@@ -208,6 +208,7 @@ if (!isSplashDocument) {
   }
 
   function shellEnvironmentLabel() {
+    if (state.shellState?.native === true) return desktopText('shell.menuStatusNative')
     return state.shellState?.available
       ? desktopText('shell.menuStatusReady', { distros: state.shellState?.distros?.[0] || 'Default' })
       : desktopText('shell.menuStatusMissing')

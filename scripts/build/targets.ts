@@ -11,6 +11,12 @@ const commonNativeAssets = (platform: BuildPlatform, arch: BuildArchitecture): N
   const target = `${platform}-${arch}`
   return [
     {
+      package: 'node-pty',
+      source: `prebuilds/${target}`,
+      storePrefix: 'node-pty@',
+      strategy: 'copy-directory',
+    },
+    {
       package: `@img/sharp-${target}`,
       source: 'lib',
       storePrefix: `@img+sharp-${target}@`,
@@ -40,12 +46,6 @@ export const TARGET_SPECS = [
     electron: { platform: 'win32', arch: 'x64' },
     nativeAssets: [
       ...commonNativeAssets('win32', 'x64'),
-      {
-        package: 'node-pty',
-        source: 'prebuilds/win32-x64',
-        storePrefix: 'node-pty@',
-        strategy: 'copy-directory',
-      },
     ],
     launchers: ['cmd', 'powershell'],
     formats: ['portable-zip', 'inno-setup'],
@@ -61,6 +61,48 @@ export const TARGET_SPECS = [
       variant: 'win32-wsl',
       runtimeRequirements: ['WSL distribution', 'Bash inside WSL'],
       limitations: ['process-tree-unobservable', 'process-group-signals-emulated'],
+    }),
+  }),
+  defineTarget({
+    id: 'darwin-arm64',
+    platform: 'darwin',
+    arch: 'arm64',
+    electron: { platform: 'darwin', arch: 'arm64' },
+    nativeAssets: commonNativeAssets('darwin', 'arm64'),
+    launchers: ['posix'],
+    formats: ['dmg'],
+    updaterAdapter: 'manual-release-page',
+    signing: {
+      adapter: 'codesign-notarization',
+      officialReleaseRequiresEvidence: true,
+      credentialEnvironment: ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'],
+    },
+    requiredModeSupport: commonModes({
+      mode: 'minimal',
+      minimum: 'native',
+      variant: 'posix-bash',
+      runtimeRequirements: ['/bin/bash', 'native POSIX PTY'],
+    }),
+  }),
+  defineTarget({
+    id: 'linux-x64',
+    platform: 'linux',
+    arch: 'x64',
+    electron: { platform: 'linux', arch: 'x64' },
+    nativeAssets: commonNativeAssets('linux', 'x64'),
+    launchers: ['posix'],
+    formats: ['app-image', 'deb'],
+    updaterAdapter: 'manual-release-page',
+    signing: {
+      adapter: 'external-package-signing',
+      officialReleaseRequiresEvidence: true,
+      credentialEnvironment: ['LINUX_PACKAGE_SIGNING_KEY', 'LINUX_PACKAGE_SIGNING_PASSWORD'],
+    },
+    requiredModeSupport: commonModes({
+      mode: 'minimal',
+      minimum: 'native',
+      variant: 'posix-bash',
+      runtimeRequirements: ['/bin/bash', 'native POSIX PTY'],
     }),
   }),
 ] as const satisfies readonly TargetSpec[]

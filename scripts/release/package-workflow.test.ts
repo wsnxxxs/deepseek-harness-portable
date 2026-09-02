@@ -18,6 +18,8 @@ interface Workflow {
 
 const targets = [
   { id: 'win32-x64', job: 'windows-x64-wsl', script: 'desktop:package:win' },
+  { id: 'darwin-arm64', job: 'macos-arm64', script: 'desktop:package:mac' },
+  { id: 'linux-x64', job: 'linux-x64', script: 'desktop:package:linux' },
 ] as const
 
 test('native package jobs upload the exact verified output produced by their package command', () => {
@@ -74,4 +76,20 @@ test('Windows packaging asserts a native win32-x64 runner with a working WSL dis
   assert.match(gateStep.run ?? '', /wsl\.exe --status/)
   assert.ok(packageStep, 'Windows packaging must run the Windows package command')
   assert.ok(steps.indexOf(packageStep) > steps.indexOf(gateStep), 'the runner gate must precede packaging')
+})
+
+test('POSIX packaging asserts a native runner before packaging', () => {
+  const workflow = load(readFileSync(resolve(root, '.github', 'workflows', 'package.yml'), 'utf8')) as Workflow
+  for (const target of [
+    { job: 'macos-arm64', script: 'desktop:package:mac', host: 'darwin-arm64' },
+    { job: 'linux-x64', script: 'desktop:package:linux', host: 'linux-x64' },
+  ]) {
+    const steps = workflow.jobs[target.job]?.steps ?? []
+    const gateStep = steps.find(step => step.run?.includes("process.platform + '-' + process.arch"))
+    const packageStep = steps.find(step => step.run === `pnpm run ${target.script}`)
+    assert.ok(gateStep, `${target.job} must assert its native runner before packaging`)
+    assert.match(gateStep.run ?? '', new RegExp(target.host))
+    assert.ok(packageStep, `${target.job} must run its package command`)
+    assert.ok(steps.indexOf(packageStep) > steps.indexOf(gateStep), `${target.job} must gate before packaging`)
+  }
 })

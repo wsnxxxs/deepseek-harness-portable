@@ -86,9 +86,6 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 | Item | Version |
 | --- | --- |
 | Release | DeepSeek Harness Desktop **v1.6.0** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.0)) |
-| Distribution | 1.6.0 |
-| Desktop shell | 0.1.0-shell.2 |
-| Kernel | 0.1.2-alpha.4 (`dsh-v0.1.2-alpha.4`) |
 
 Read the [English release notes](RELEASE_NOTES.md) or open **Release Notes** from the desktop tray menu.
 

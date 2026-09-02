@@ -1,6 +1,6 @@
 # DeepSeek Harness Desktop v1.6.0
 
-Windows x64 桌面版 · 2026-08-30
+跨平台桌面版 · 2026-08-30
 
 ## 更新内容
 
@@ -13,17 +13,11 @@ Windows x64 桌面版 · 2026-08-30
 
 > 后续计划：学习模式和资料库将进行较大幅度调整，本版本中的相关功能不视为最终形态。
 
-## 组件版本
-
-- 分发：1.6.0
-- 桌面外壳：0.1.0-shell.2
-- 运行时内核：0.1.2-alpha.4（`dsh-v0.1.2-alpha.4`）
-
 ---
 
 ## English Release Notes
 
-Windows x64 desktop release · 2026-08-30
+Cross-platform desktop release · 2026-08-30
 
 ### Changes
 
@@ -36,14 +30,8 @@ Windows x64 desktop release · 2026-08-30
 
 > Roadmap note: Learning Mode and the Library will change substantially in future releases. Their v1.6.0 design is not final.
 
-### Component Versions
-
-- Distribution: 1.6.0
-- Desktop shell: 0.1.0-shell.2
-- Runtime kernel: 0.1.2-alpha.4 (`dsh-v0.1.2-alpha.4`)
-
 ---
 
-SHA-256 校验值见 `SHA256SUMS.txt`。产物：`DeepSeek-Harness-1.6.0-win32-x64.zip`、`DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`。
+各目标安装包的 SHA-256 校验值见 `SHA256SUMS-<target>.txt`。产物包括 `DeepSeek-Harness-1.6.0-win32-x64.zip`、`DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`、`DeepSeek-Harness-1.6.0-darwin-arm64.dmg`、`DeepSeek-Harness-1.6.0-linux-x64.AppImage` 与 `DeepSeek-Harness-1.6.0-linux-x64.deb`。
 
-SHA-256 checksums are in `SHA256SUMS.txt`. Artifacts: `DeepSeek-Harness-1.6.0-win32-x64.zip`, `DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`.
+Target-specific SHA-256 checksums are in `SHA256SUMS-<target>.txt`. Artifacts include `DeepSeek-Harness-1.6.0-win32-x64.zip`, `DeepSeek-Harness-Setup-1.6.0-win32-x64.exe`, `DeepSeek-Harness-1.6.0-darwin-arm64.dmg`, `DeepSeek-Harness-1.6.0-linux-x64.AppImage`, and `DeepSeek-Harness-1.6.0-linux-x64.deb`.

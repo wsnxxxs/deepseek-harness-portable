@@ -18,15 +18,22 @@ test('the approved product version is synchronized across release metadata and d
     `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`,
   ].sort()
   const requiredText = new Map<string, readonly string[]>([
-    ['README.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`, `| Distribution | ${approvedReleaseVersion} |`]],
-    ['README.zh.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`, `| 分发版本 | ${approvedReleaseVersion} |`]],
-    ['apps/desktop/README.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `Distribution: ${approvedReleaseVersion}`]],
-    ['apps/desktop/README.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `分发：${approvedReleaseVersion}`]],
+    ['README.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`]],
+    ['README.zh.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`]],
+    ['apps/desktop/README.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
+    ['apps/desktop/README.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
     ['apps/desktop/使用说明.txt', [`DeepSeek Harness for Win v${approvedReleaseVersion}`]],
     ['apps/desktop/使用说明.en.txt', [`DeepSeek Harness for Win v${approvedReleaseVersion}`]],
-    ['RELEASE_NOTES.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `Distribution: ${approvedReleaseVersion}`, `Tag: v${approvedReleaseVersion}`]],
-    ['RELEASE_NOTES.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `分发：${approvedReleaseVersion}`, `标签：v${approvedReleaseVersion}`]],
-    ['RELEASE_NOTES.bilingual.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`, `分发：${approvedReleaseVersion}`, `Distribution: ${approvedReleaseVersion}`, `DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`, `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`]],
+    ['RELEASE_NOTES.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
+    ['RELEASE_NOTES.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
+    ['RELEASE_NOTES.bilingual.md', [
+      `DeepSeek Harness Desktop v${approvedReleaseVersion}`,
+      `DeepSeek-Harness-${approvedReleaseVersion}-win32-x64.zip`,
+      `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`,
+      `DeepSeek-Harness-${approvedReleaseVersion}-darwin-arm64.dmg`,
+      `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.AppImage`,
+      `DeepSeek-Harness-${approvedReleaseVersion}-linux-x64.deb`,
+    ]],
     ['SHA256SUMS.txt', expectedReleaseArtifacts],
   ])
   for (const [path, needles] of requiredText) {
@@ -47,7 +54,10 @@ test('Setup and packaging derive release identity from distributionVersion', () 
   const setup = readText('scripts/setup.iss')
   assert.ok(build.includes('const version = distributionVersion()'))
   assert.ok(build.includes('`DeepSeek-Harness-${version}-win32-x64.zip`'))
-  assert.ok(build.includes('`DeepSeek-Harness-Setup-${version}-win32-x64.exe`'))
+  assert.ok(build.includes("case 'inno-setup': return `DeepSeek-Harness-Setup-${version}-${target}.exe`"))
+  assert.ok(build.includes("case 'dmg': return `DeepSeek-Harness-${version}-${target}.dmg`"))
+  assert.ok(build.includes("case 'app-image': return `DeepSeek-Harness-${version}-${target}.AppImage`"))
+  assert.ok(build.includes("case 'deb': return `DeepSeek-Harness-${version}-${target}.deb`"))
   assert.ok(build.includes('`/DMyAppVersion=${version}`'))
   assert.ok(setup.includes('AppVersion={#MyAppVersion}'))
   assert.ok(setup.includes('OutputBaseFilename=DeepSeek-Harness-Setup-{#MyAppVersion}-win32-x64'))

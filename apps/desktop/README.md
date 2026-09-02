@@ -16,7 +16,7 @@ This workspace package builds the native Electron desktop shell for DeepSeek Har
 - Fuses the native sidebar logo with the desktop menu: expanded left click opens the menu, while collapsed left click expands the sidebar and right click opens the menu.
 - Uses a Windows 11 Mica title-bar overlay where supported, native macOS title/menu behavior, system theme synchronization, startup splash, and persisted multi-monitor-safe window bounds.
 - Runs Minimal mode through WSL Bash on Windows and native `/bin/bash` through a POSIX PTY on Linux/macOS; Linux sandbox-capable modes retain the upstream bwrap/Landlock fail-closed chain.
-- Carries the optional Swarm (`crew`) preset when the Agent Teams runtime is present; DCode's Agent workspace exposes its host-owned teammates, task board, and dossier state through the Cluster orchestration panel.
+- Carries the optional Swarm (`crew`) preset when the Agent Teams runtime is present; the `@dsh-portable/cluster-ui` plugin exposes its host-owned teammates, task board, and dossier state through the Cluster orchestration panel — seated in DCode's Agent workspace, and in the official conversation header.
 - Preinstalls the pinned `dsh-plugin-marketplace` once per Web profile; users can disable or remove it without the distribution restoring it on restart.
 - Bundles the DSH plugin CLI and pnpm behind Electron's Node mode, so marketplace operations do not require a system Node.js toolchain.
 
@@ -79,11 +79,8 @@ Publishing is a separate copy-only step. It re-hashes the exact files named by `
 ## Release identity
 
 - Release: DeepSeek Harness Desktop v1.6.0
-- Distribution: 1.6.0
-- Desktop shell: 0.1.0-shell.2
-- Kernel: read from the packaged @deepseek-ai/dsh-web-app manifest
 
-The release manifest is written beside runtime and records the distribution, desktop shell, kernel, kernel Git commit, and bundled release notes.
+The release manifest is written beside runtime and records the release identity, kernel Git commit, and bundled release notes.
 
 ## User data and security
 
