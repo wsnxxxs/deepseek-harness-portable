@@ -1,8 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import type { LegacyConversationSlice } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConvViewProps, InputActions, InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { isExplicitLearningBoundary } from '../learning-boundary.ts'
 import { learningScope } from './tokens.ts'
 import css from './LearningNotes.module.css'
@@ -13,15 +13,8 @@ type LearningNotesProps = PropsRuntime<'conversation.composer.dock'> & PropsLoca
 /** The small Chat projection consumed by the learning notes renderer. */
 export type LearningNotesSource = Pick<LegacyConversationSlice, 'nodes' | 'runningCalls'>
 
-/** Business face for the learner's current-session notes view. */
-export interface LearningNotesViewInjected {
-  cwd: string | undefined
-  call: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
-}
-
-type LearningNotesViewProps = ConvViewProps
-  & InjectFace<LearningNotesViewInjected>
-  & PropsLocale<'interactive-learning'>
+/** Current-session learning progress view. */
+type LearningNotesViewProps = ConvViewProps & PropsLocale<'interactive-learning'>
 
 type LearningInputBridgeSnapshot = {
   input: InputState
@@ -421,25 +414,6 @@ function sendIntent(
   inputActions.submit()
 }
 
-function savedSessionNoteBody(notes: LearningNotesProjection, t: LearningNotesViewProps['t']): string {
-  const evidence = notes.evidence.length === 0
-    ? `- ${t('learningNotesNoEvidence')}`
-    : notes.evidence.map(item => `- ${item}`).join('\n')
-  const route = routeProgress(notes, t)
-  return [
-    `# ${notes.goal ?? t('learningNotesUnknown')}`,
-    '',
-    `## ${t('learningNotesEvidence')}`,
-    evidence,
-    '',
-    `## ${t('learningNotesRoute')}`,
-    route,
-    notes.plan?.objective ?? '',
-    '',
-    `> ${notes.verifiedTransfer ? t('learningResultTransfer') : t('learningResultTransferPending')}`,
-  ].filter((line, index, lines) => line !== '' || lines[index - 1] !== '').join('\n').trim()
-}
-
 function planRatio(notes: LearningNotesProjection): number {
   if (notes.plan === null || notes.plan.steps.length === 0) return 0
   const completed = notes.plan.steps.filter(step => notes.plan?.completedStepIds.has(step.id)).length
@@ -447,53 +421,19 @@ function planRatio(notes: LearningNotesProjection): number {
 }
 
 /**
- * The full current-session note. It lives in the conversation view ring so
- * the header reads `对话 / 轨迹 / 笔记`; the composer only remains responsible
- * for entering the next learner message.
+ * The full current-session learning progress. It lives in the conversation
+ * view ring; the composer remains responsible for entering the next learner
+ * message.
  */
 export function LearningNotesView({
-  useSession, useChat, sessionId, cwd, call, t,
+  useSession, useChat, sessionId, t,
 }: LearningNotesViewProps) {
   const session = useSession(state => state)
   const chat = useChat(state => state.legacy)
   const notes = projectLearningNotes(chat)
   const bridge = useLearningInputBridge(sessionId)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [failure, setFailure] = useState('')
   const disabled = session.removed || session.running || bridge?.input.phase !== 'plain'
   const progress = planRatio(notes)
-
-  const save = (): void => {
-    if (saving || saved || cwd === undefined || cwd === '' || !notes.visible) return
-    setSaving(true)
-    setFailure('')
-    void (async () => {
-      try {
-        const answer = await call('notes/save', {
-          cwd,
-          title: notes.goal ?? t('learningNotesTitle'),
-          body: savedSessionNoteBody(notes, t),
-          kind: 'note',
-          sessionId: String(sessionId),
-        })
-        const record = typeof answer === 'object' && answer !== null
-          ? answer as { ok?: unknown; value?: { status?: unknown } }
-          : undefined
-        if (record?.ok === true && record.value?.status === 'ok') {
-          setSaved(true)
-        } else if (record?.value?.status === 'no-vault') {
-          setFailure(t('learningNotesSaveNoVault'))
-        } else {
-          setFailure(t('learningNotesSaveFailed'))
-        }
-      } catch (cause) {
-        setFailure(cause instanceof Error ? cause.message : t('learningNotesSaveFailed'))
-      } finally {
-        setSaving(false)
-      }
-    })()
-  }
 
   if (!notes.visible) {
     return (
@@ -628,17 +568,7 @@ export function LearningNotesView({
             >{t('learningResultNewTopic')}</button>
           </>
         )}
-        <button
-          type="button"
-          className={css.actionSave}
-          data-lx-control="primary"
-          {...(saved ? { 'data-lx-state': 'done' } : {})}
-          disabled={saving || saved || cwd === undefined || cwd === ''}
-          data-learning-save="session-note"
-          onClick={save}
-        >{saving ? t('learningNotesSaving') : saved ? t('learningNotesSaved') : t('learningNotesSave')}</button>
       </footer>
-      {failure !== '' && <p className={css.viewError} role="alert">{failure}</p>}
     </main>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { LEARNING_PRESET_ID } from './vault-gate.ts'
+import { LEARNING_PRESET_ID } from './learning-gate.ts'
 import { learningScope } from './tokens.ts'
 import css from './LearningSurface.module.css'
 

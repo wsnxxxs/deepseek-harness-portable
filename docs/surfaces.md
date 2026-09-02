@@ -129,8 +129,9 @@ official pages as the source of truth while the Agent workspace owns only its
 presentation and orchestration controls.
 
 Learning mode remains a first-class surface in the workbench rail, driving the
-existing Interactive Learning pack: the same `learning` agent preset, the same
-`/interactive-learning` channel, and the pack's own `VaultLibrary` component.
+existing Interactive Learning pack through the same `learning` agent preset.
+Materials are supplied from the learning conversation; the workbench does not
+expose a separate resource or learning library.
 
 ## Where the pieces live
 

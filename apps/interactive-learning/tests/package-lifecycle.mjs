@@ -284,12 +284,11 @@ try {
   // a clean consumer without depending on any generated staging directory.
   await writeFile(join(consumerRoot, 'types-smoke.ts'), [
     "import type { LearnerStateSnapshot, LearningCheckpointV1 } from '@dsh-portable/interactive-learning'",
-    "import type { VaultViewInjected, LearningUiLifecycleEvent } from '@dsh-portable/interactive-learning/client'",
+    "import type { LearningUiLifecycleEvent } from '@dsh-portable/interactive-learning/client'",
     'declare const checkpoint: LearningCheckpointV1',
     'declare const snapshot: LearnerStateSnapshot',
-    'declare const injected: VaultViewInjected',
     'declare const lifecycle: LearningUiLifecycleEvent',
-    'void [checkpoint, snapshot, injected, lifecycle]',
+    'void [checkpoint, snapshot, lifecycle]',
   ].join('\n'))
   const packageRequire = createRequire(import.meta.url)
   run(process.execPath, [

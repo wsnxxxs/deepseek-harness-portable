@@ -180,14 +180,6 @@
   white-space: nowrap;
 }
 
-.library {
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-lg);
-  background: var(--zx-bg-card);
-  overflow: hidden;
-  min-height: 420px;
-}
-
 .note {
   color: var(--zx-label-muted);
   font-size: var(--zx-text-xs);

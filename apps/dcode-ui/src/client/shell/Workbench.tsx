@@ -16,7 +16,7 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { dcodeScope } from '../tokens.ts'
 import {
-  compactOverlayOf, RESOURCE_LIBRARY_ENABLED, useNavigation, type CompactOverlay, type NavigationStore,
+  compactOverlayOf, useNavigation, type CompactOverlay, type NavigationStore,
   type TaskContext,
 } from '../state/navigation.ts'
 import {
@@ -49,7 +49,7 @@ import { CommandPalette } from './CommandPalette.tsx'
 import { DirectoryPicker } from './DirectoryPicker.tsx'
 import { Button, EmptyState } from './ui.tsx'
 import { Transcript } from '../chat/Transcript.tsx'
-import { ResourceLibraryHome } from '../library/ResourceLibraryHome.tsx'
+import { LearningHome } from '../learning/LearningHome.tsx'
 import { PluginsHome } from '../plugins/PluginsHome.tsx'
 import { SettingsSurface } from '../settings/SettingsSurface.tsx'
 import { useModelReadiness, type ModelReadiness } from '../settings/readiness.ts'
@@ -538,10 +538,10 @@ export function Workbench({ navigation }: WorkbenchProps) {
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [dismissCompactOverlay, navigation, newTask, openWorkspace, restoreOverlayFocus])
 
-  // Plugins is the only full-frame surface. Settings and the resource library
-  // are modal cards over the workspace so the operator can return without
-  // losing the current task context.
-  const fullSurface = state.view === 'plugins'
+  // Learning and Plugins are focused full-frame surfaces. Settings remains a
+  // card over the workspace so the operator can return without losing the
+  // current task context.
+  const fullSurface = state.view === 'plugins' || state.view === 'learning'
   // Compact holds both side panels over the conversation instead of beside
   // it, so there they need a scrim to dismiss against.
   const overlayOpen = compactOverlay !== undefined
@@ -566,7 +566,9 @@ export function Workbench({ navigation }: WorkbenchProps) {
       {fullSurface
         ? (
           <div className={css.surface}>
-            <PluginsHome navigation={navigation} />
+            {state.view === 'learning'
+              ? <LearningHome navigation={navigation} cwd={cwd} sessionId={sessionId} />
+              : <PluginsHome navigation={navigation} />}
           </div>
         )
         : (
@@ -698,16 +700,6 @@ export function Workbench({ navigation }: WorkbenchProps) {
             </div>
           </>
         )}
-      {RESOURCE_LIBRARY_ENABLED && (state.view === 'library' || state.view === 'learning')
-        ? (
-          <ResourceLibraryHome
-            navigation={navigation}
-            cwd={cwd}
-            sessionId={sessionId}
-            onOpenWorkspace={openWorkspace}
-          />
-        )
-        : null}
       {state.view === 'settings'
         ? (
           <SettingsBoundary

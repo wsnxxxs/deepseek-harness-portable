@@ -78,7 +78,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 - Vision Bridge 的 `view_image` 可以分析本地 PNG、JPEG、WebP、GIF 和 PDF 页面。它会自动选择已配置的图片模型，也允许在插件设置中固定模型。
 - 会话输入框会把图片附件保留为图片数据，文本和 Office 文件通过内核 Session Remote 上传；上游 `@file` 路径引用仍可直接使用。
-- Learning 模式围绕资料锚点组织讲解、会话笔记、概念卡和复习。语义图示与理解检查按需出现，不阻塞普通对话；长期内容保存在独立学习库中。
+- Learning 模式提供概念讲解、疑惑澄清和材料学习。语义图示与理解检查按需出现，不阻塞普通对话；材料从学习会话中附加和使用。
 - 使用量设置页从持久化运行时投影汇总 token 消耗、模型明细、活跃度和会话耗时。
 
 ## 最新发布
@@ -183,7 +183,7 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 | [界面与前端切换](docs/surfaces.md) | 前端贡献者 | 官方版/工作台、可用性上报和共享界面模式状态 |
 | [Swarm 模式与资料档案](docs/crew.md) | Runtime 与产品维护者 | 团队运行时、任务看板、DCode 集成和资料档案行为 |
 | [交互式学习包](apps/interactive-learning/README.zh.md) | 功能贡献者 | 协议边界、开发流程、启用方式和兼容性 |
-| [学习模式产品说明](docs/product/learning-mode.md) | 产品与功能维护者 | 当前学习流程、学习库边界和后续范围 |
+| [学习模式产品说明](docs/product/learning-mode.md) | 产品与功能维护者 | 当前学习流程和产品边界 |
 | [Vision Bridge](apps/vision-bridge/README.zh.md) | 用户与功能贡献者 | 图片模型路由、配置、失败行为和开发验证 |
 | [发布说明](RELEASE_NOTES.zh.md) | 用户与维护者 | 用户可见变更和升级信息 |
 

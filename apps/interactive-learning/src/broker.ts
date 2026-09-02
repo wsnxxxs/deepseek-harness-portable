@@ -56,7 +56,6 @@ import {
 } from './concept-cards.ts'
 import { readLearnerMemory, upsertLearnerConcept } from './learner-memory.ts'
 import { resolveTopicVault } from './topic-vault.ts'
-import { handleVaultEndpoint, isVaultEndpoint } from './vault-rpc.ts'
 
 // Register eagerly when the package is present, before a Host can restore a
 // session containing the package-owned event vocabulary.
@@ -462,9 +461,6 @@ export class LearningActivityBroker extends Service {
       connectionCtx.effect(() => connection.rpc.handle(
         '/interactive-learning',
         async (endpoint: string, payload: unknown) => {
-          if (isVaultEndpoint(endpoint)) {
-            return handleVaultEndpoint(this.ctx, endpoint, payload)
-          }
           if (endpoint !== 'recall/feedback') {
             return {
               ok: false,

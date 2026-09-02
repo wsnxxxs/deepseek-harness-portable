@@ -364,7 +364,6 @@
    tokens.module.css; a surface that restyles them here is reintroducing the
    drift that recipe exists to end. */
 .viewActions .actionEnd { margin-inline-start: auto; }
-.viewActions .actionSave { margin-inline-start: auto; }
 
 .viewError {
   color: var(--lx-danger);
@@ -380,6 +379,5 @@
   .viewRoot { padding-inline: var(--lx-space-lg); }
   .viewHeader { flex-direction: column; }
   .noteGrid { grid-template-columns: minmax(0, 1fr); }
-  .viewActions .actionEnd,
-  .viewActions .actionSave { margin-inline-start: 0; }
+  .viewActions .actionEnd { margin-inline-start: 0; }
 }

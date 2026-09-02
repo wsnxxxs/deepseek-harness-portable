@@ -13,7 +13,7 @@ import {
   Button as PrimitiveButton, IconArchiveOutline20, IconCordisPluginOutline14,
   IconChevronDownOutline14, IconChevronRightOutline14,
   IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
-  IconBrowseOutline16, IconFolderOpen16, IconNewChatOutline16,
+  IconFolderOpen16, IconNewChatOutline16,
   IconSearchOutline16, IconSettingsOutline16, IconSparkle16, IconTrashOutline16,
   relativeTime,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -22,7 +22,7 @@ import { commandShortcut } from '../platform.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useSessionList, useWorkspaceGroups, type WorkspaceGroup } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
-import { RESOURCE_LIBRARY_ENABLED, useNavigation, type NavigationStore } from '../state/navigation.ts'
+import { useNavigation, type NavigationStore } from '../state/navigation.ts'
 import { useGitStatus } from '../git/useGit.ts'
 import { EmptyState, FocusingModal, IconButton, Popover, ui } from './ui.tsx'
 import css from './LeftRail.module.css'
@@ -429,18 +429,14 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
             <IconCordisPluginOutline14 size={16} />
             <span className={ui.grow}>{t('nav.plugins')}</span>
           </button>
-          {RESOURCE_LIBRARY_ENABLED
-            ? (
-              <button
-                type="button"
-                className={`${css.action} ${state.view === 'library' || state.view === 'learning' ? css.actionActive : ''}`}
-                onClick={() => { navigation.show('library') }}
-              >
-                <IconBrowseOutline16 />
-                <span className={ui.grow}>{t('nav.library')}</span>
-              </button>
-            )
-            : null}
+          <button
+            type="button"
+            className={`${css.action} ${state.view === 'learning' ? css.actionActive : ''}`}
+            onClick={() => { navigation.show('learning') }}
+          >
+            <IconSparkle16 />
+            <span className={ui.grow}>{t('nav.learning')}</span>
+          </button>
         </div>
         {hasRows ? <div className={css.sectionLabel}>{t('nav.conversations')}</div> : null}
         {hasRows ? <div className={css.treeDivider} aria-hidden /> : null}

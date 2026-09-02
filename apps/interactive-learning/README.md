@@ -13,8 +13,8 @@ guidance.
 
 - Ordinary conversation remains the default; Learning is enabled only when the user selects it.
 - The preset supports concept explanations, question clarification, and source-grounded learning with continuous session context.
-- When a user mentions material with `@`, the Host creates or updates a learning vault in the workspace. The model reads it through confined read-only capabilities.
-- The current session has Conversation / Route / Notes; the external Learning Library has Material / Saved / Concept cards / Review.
+- When a user mentions material with `@`, the Host prepares it for the current learning session. The model reads it through confined read-only capabilities.
+- The current session has Conversation / Route / Notes; there is no separate resource or learning library surface.
 - Semantic visuals and understanding checks are optional enhancements. If a Client cannot render one, the ordinary prose must still carry the answer.
 - Concept cards are proposed only after independent transfer evidence and are written only after confirmation; the model has no filesystem write tool.
 
@@ -23,12 +23,12 @@ guidance.
 1. Select Learning for a new conversation, or continue using ordinary conversation.
 2. Start with Understand a concept, Resolve a question, or Study a material; quick starts insert templates without inventing a topic.
 3. Follow-up questions and short replies inherit the current learning segment. An explicit task switch or ending returns to ordinary routing.
-4. Save a useful answer or session note to the Learning Library when it should persist. Only confirmed concept cards enter Review.
+4. Continue the learning segment, try a fresh example, or start a new topic from the current session.
 
 ## Package boundaries
 
 - `preset/learning/` mounts the Learning persona, teaching Agent, material reading, Skills, and optional Web search. It does not mount shell, editing, or automation tools.
-- The Host owns material ingest, extraction, anchors, and note/concept-card writes. The model can read only within the current learning vault.
+- The Host owns material ingest, extraction, anchors, and learning-state writes. The model can read only within the current learning session's material scope.
 - `LearnerState` is a tentative teaching state for the current session, not a cross-session profile, learning-style classifier, or long-term mastery record.
 - Visuals use declarative native components. The main conversation does not wait for a Client and does not turn every round into a checkpoint ritual.
 
@@ -38,9 +38,9 @@ guidance.
 | --- | --- |
 | `preset/learning/` | Preset descriptor, composition, and teaching Skill |
 | `src/agent.ts`, `src/teaching-policy.ts` | Mode behavior and teaching policy |
-| `src/ingest/`, `src/topic-vault.ts` | Material parsing, vault storage, and anchor infrastructure |
+| `src/ingest/`, `src/topic-vault.ts` | Material parsing, session material storage, and anchor infrastructure |
 | `src/learner-state*`, `src/concept-*` | Session state, concept cards, and confirmation flow |
-| `src/client/` | In-conversation learning UI, Learning Library, and tool-result renderers |
+| `src/client/` | Learning mode UI and tool-result renderers |
 | `src/protocol*` | Versioned declarative activity protocols; retired V1/V2 payloads parse for replay only |
 
 ## Development and verification

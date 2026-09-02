@@ -298,9 +298,8 @@
 
    The card recipe above stopped cards from drifting; controls only shared their
    METRICS (`--lx-control-height-*`, `--lx-control-padding-*`) and drifted
-   anyway — the same "secondary button" was an 8px rect at 34px in the
-   checkpoint, an 8px rect at 30px in the library, and a pill at 34px and 30px
-   in the two note surfaces. The recipes are declared here, on the unhashed
+   anyway — the same "secondary button" drifted between the checkpoint and
+   progress surfaces. The recipes are declared here, on the unhashed
    attribute selector, for the same reason `[data-tone]` and `[data-visual-state]`
    are: the surfaces compile to separate CSS Modules and cannot share a class.
 
@@ -309,8 +308,8 @@
      flow itself — today that is the blank-session quick-start row. It reads as
      a suggestion the learner may take, not as a form to complete.
    - `primary` / `secondary` / `quiet` / `danger` are 8px rects and are for form,
-     panel and dialog buttons — the checkpoint, the library, the keep sheet, and
-     the note panel's segment actions. They read as controls that commit
+     panel and dialog buttons — the checkpoint and the progress panel's segment
+     actions. They read as controls that commit
      something. The segment actions are rects rather than chips because they sit
      in the panel beside the conversation, not in its flow.
 

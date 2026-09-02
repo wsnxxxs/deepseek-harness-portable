@@ -78,7 +78,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 - Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, GIF, and PDF pages. It can select a configured image model automatically or pin one in plugin settings.
 - Conversation input keeps images as image data and uploads text and Office files through the kernel Session Remote. Upstream `@file` path references remain available.
-- Learning mode organizes explanations, session notes, concept cards, and review around source anchors. Semantic visuals and understanding checks appear when useful without blocking the conversation; durable material stays in the separate Learning Library.
+- Learning mode provides guided explanations, question solving, and material study. Semantic visuals and understanding checks appear when useful without blocking the conversation; materials are supplied from the learning session.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
 
 ## Latest release
@@ -183,7 +183,7 @@ Minimal mode runs the requested shell command unchanged. Recursive `grep` over t
 | [Surfaces and interface switching](docs/surfaces.md) | Frontend contributors | Official/Workbench surfaces, availability reporting, and shared UI mode state |
 | [Swarm mode and dossier](docs/crew.md) | Runtime and product contributors | Team runtime, task board, DCode integration, and grounded dossier behavior |
 | [Interactive Learning pack](apps/interactive-learning/README.md) | Feature contributors | Protocol boundaries, development workflow, activation, and compatibility |
-| [Learning mode product notes (Chinese)](docs/product/learning-mode.md) | Product and feature maintainers | Current learning flow, library boundaries, and future scope |
+| [Learning mode product notes (Chinese)](docs/product/learning-mode.md) | Product and feature maintainers | Current learning flow and product boundaries |
 | [Vision Bridge](apps/vision-bridge/README.md) | Users and feature contributors | Image-model routing, configuration, failure behavior, and development checks |
 | [Release notes](RELEASE_NOTES.md) | Users and maintainers | User-visible changes and upgrade information |
 

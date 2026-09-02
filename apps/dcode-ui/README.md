@@ -65,7 +65,7 @@ package introduces no mirrored state:
 | Plugin settings, MCP | `remote.pluginInventory` + `remote.settings` |
 | Plugin marketplace, installed inventory | the marketplace Host plugin's `/api/market` routes |
 | Settings namespaces | `remote.settings.describe` |
-| Resource library | workspace materials, notes, concept cards and review from the Interactive Learning pack's own `VaultLibrary` and channel; guided learning is one section inside it |
+| Learning mode | the Interactive Learning pack's `learning` preset and guided learning entry points |
 
 Markdown, math, code, diff and terminal rendering come from
 `@deepseek-ai/dsh-client-ui-primitives`, which is a platform module — shared,
@@ -188,8 +188,7 @@ src/
     theme.ts            colour scheme, preference and window backdrop
     chat/               transcript, tool cards, ANSI reader, file-change card
     git/                shared status read, panel, patch reader, diff viewer
-    library/            resource library overview and sections
-    learning/           compatibility entry for the learning section
+    learning/           learning mode entry points and session list
     settings/           settings surface + the official-settings switch row
 ```
 
