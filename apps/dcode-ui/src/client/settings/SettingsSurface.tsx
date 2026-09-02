@@ -971,10 +971,14 @@ function CommandsSection({ sessionId }: { sessionId: SessionId | undefined }) {
 }
 
 /** Manage conversations hidden by the registry-global archive set. */
-function ArchivedChatsSection() {
+function ArchivedChatsSection({ navigation }: { navigation: NavigationStore }) {
+  const runtime = useRuntime()
   const t = useT()
   const sessions = useSessionList()
   const workspaces = useWorkspaces()
+  const [busyId, setBusyId] = useState<SessionId | undefined>()
+  const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
+  const [error, setError] = useState<string | undefined>()
 
   const rows = useMemo(() => workspaces.archivedSessionIds
     .map(id => sessions.byId[id] ?? {
@@ -986,6 +990,41 @@ function ArchivedChatsSection() {
     } satisfies SessionSummary)
     .sort((left, right) => right.updatedAt - left.updatedAt),
   [sessions.byId, workspaces.archivedSessionIds])
+
+  const restore = useCallback((id: SessionId) => {
+    if (busyId !== undefined) return
+    setBusyId(id)
+    setError(undefined)
+    void runtime.workspaces.unarchiveSession(id)
+      .then(() => {
+        if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
+          runtime.sessions.open(id)
+          navigation.show('session')
+        }
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setBusyId(undefined) })
+  }, [busyId, navigation, runtime])
+
+  const closeDelete = useCallback(() => {
+    if (busyId !== undefined) return
+    setDeleteTarget(undefined)
+    setError(undefined)
+  }, [busyId])
+
+  const confirmDelete = useCallback(() => {
+    const target = deleteTarget
+    if (target === undefined || busyId !== undefined) return
+    setBusyId(target.id)
+    setError(undefined)
+    void runtime.sessions.delete(target.id)
+      .then(() => {
+        if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear()
+        setDeleteTarget(undefined)
+      })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
+      .finally(() => { setBusyId(undefined) })
+  }, [busyId, deleteTarget, runtime])
 
   return (
     <Section title={t('settings.archivedChats')} body={t('settings.archivedChatsBody')}>
@@ -1000,10 +1039,43 @@ function ArchivedChatsSection() {
                   key={session.id}
                   title={session.displayTitle}
                   body={session.cwd ?? t('settings.archivedChats')}
+                  control={(
+                    <div className={css.presetActions}>
+                      <Button disabled={busyId !== undefined} onClick={() => { restore(session.id) }}>
+                        {busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore')}
+                      </Button>
+                      <button
+                        type="button"
+                        className={css.dangerButton}
+                        disabled={busyId !== undefined}
+                        onClick={() => { setError(undefined); setDeleteTarget(session) }}
+                      >
+                        {t('settings.archivedChatsDelete')}
+                      </button>
+                    </div>
+                  )}
                 />
               ))}
             </div>
           )}
+      {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
+      <FocusingModal
+        open={deleteTarget !== undefined}
+        onClose={closeDelete}
+        title={t('settings.archivedChatsDeleteTitle')}
+        closeLabel={t('common.close')}
+        description={t('settings.archivedChatsDeleteBody')}
+        footer={(
+          <>
+            <Button onClick={closeDelete} disabled={busyId !== undefined}>{t('common.cancel')}</Button>
+            <button type="button" className={css.dangerButton} disabled={busyId !== undefined} onClick={confirmDelete}>
+              {busyId === undefined ? t('settings.archivedChatsDelete') : t('common.saving')}
+            </button>
+          </>
+        )}
+      >
+        <div className={css.rowTitle}>{deleteTarget?.displayTitle}</div>
+      </FocusingModal>
     </Section>
   )
 }
@@ -1539,7 +1611,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       )
       case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
-      case 'archivedChats': return <ArchivedChatsSection />
+      case 'archivedChats': return <ArchivedChatsSection navigation={navigation} />
       case 'about': return <AboutSection />
       case 'memory':
         return <NamespaceSection title={t('settings.memory')} body={t('settings.memoryBody')} match={/memor|context|compaction/i} />
