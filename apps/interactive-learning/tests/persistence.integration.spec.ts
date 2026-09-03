@@ -100,7 +100,15 @@ describe('Learning state durable load order', () => {
       type: 'learning/state',
       data: { snapshot: { goal: 'Understand queue invariants', revision: 1 } },
     })
-    await first.sessions.flush(originalSession)
+    // The persistence seam is handle-based: nothing is stored until a writer
+    // opens a handle and flushes it. In the product that writer is AgentLoop;
+    // this test mounts the Session store and the backend alone, so it writes
+    // the log itself — the point under test is the JSONL round trip, not who
+    // opens the handle.
+    const writeHandle = await first.sessionPersistence.create(originalSession.header)
+    await writeHandle.append(originalSession.snapshotEvents())
+    await writeHandle.flush()
+    await writeHandle.close()
     disposeOriginalAgent()
     await first.fiber.dispose()
 
@@ -110,11 +118,16 @@ describe('Learning state durable load order', () => {
     // the persisted Session is restored.
     await import('../src/preset.ts?durable-reboot-preboot')
     expect(known.has('learning/state')).toBe(true)
-    const loaded = await second.sessionPersistence.load(sessionId)
-    expect(loaded.events.some(event => event.type === 'learning/state')).toBe(true)
+    // The persistence seam is handle-based: `open` resolves the artifact and
+    // `read` decodes the log against the registered event vocabulary.
+    const handle = await second.sessionPersistence.open(sessionId, 'read')
+    const loadedEvents = await handle.read()
+    const loadedHeader = handle.header
+    await handle.close()
+    expect(loadedEvents.some(event => event.type === 'learning/state')).toBe(true)
     const restoredSession = second.sessions.prepare(sessionId, {
-      seed: structuredClone(loaded.events) as SessionEvent[],
-      meta: structuredClone(loaded.meta),
+      seed: structuredClone(loadedEvents) as SessionEvent[],
+      meta: structuredClone(loadedHeader),
       seedSource: 'persistence',
     })
     const detachSession = second.sessions.enter(restoredSession)

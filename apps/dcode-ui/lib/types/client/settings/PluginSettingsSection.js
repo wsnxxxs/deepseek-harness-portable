@@ -296,12 +296,16 @@ function inventoryName(moduleName) {
         .map(word => word.length <= 4 && word === word.toLowerCase() ? word.toUpperCase() : `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
         .join(' ') || moduleName;
 }
-function isUserExtension(entry) {
+function isExtensionEntry(entry) {
     const moduleName = entry.moduleName.toLowerCase();
     if (moduleName.includes('mcp'))
         return true;
+    // Portable feature packages are user-facing extensions even though they are
+    // shipped with the harness. Keep them in the main list so Vision Bridge,
+    // Learning, Cluster and the UI adapters are discoverable in DCode too.
+    if (moduleName.startsWith('@dsh-portable/'))
+        return true;
     return !moduleName.startsWith('@deepseek-ai/')
-        && !moduleName.startsWith('@dsh-portable/')
         && !moduleName.startsWith('cordis:');
 }
 function packageName(moduleName) {
@@ -382,8 +386,8 @@ function PluginInventory(props) {
     const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
         .toLowerCase()
         .includes(normalizedQuery)), [entries, normalizedQuery]);
-    const extensions = filtered.filter(row => isUserExtension(row.entry));
-    const runtimeModules = filtered.filter(row => !isUserExtension(row.entry));
+    const extensions = filtered.filter(row => isExtensionEntry(row.entry));
+    const runtimeModules = filtered.filter(row => !isExtensionEntry(row.entry));
     const reload = () => {
         props.onReload();
         market.reload();

@@ -31,6 +31,7 @@ const STATIC_WORKSPACE_ROOTS = [
   '@dsh-portable/dcode-ui',
   '@dsh-portable/cluster-ui',
   '@dsh-portable/ui-mode',
+  '@dsh-portable/session-manager',
   '@deepseek-ai/cordis',
   '@deepseek-ai/cordis-plugin-include',
   '@deepseek-ai/cordis-plugin-loader',

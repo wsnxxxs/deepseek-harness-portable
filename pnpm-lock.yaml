@@ -9,7 +9,7 @@ overrides:
   '@deepseek-ai/schemastery': link:vendor/deepseek-harness/vendor/schemastery
 
 patchedDependencies:
-  dsh-plugin-marketplace@0.3.1: a5c12947c6c7d1b75f0a5747d812785d36d68671a16263fedfb3a83127f66e3d
+  dsh-plugin-marketplace@0.3.1: 6f8b84e701d1a40d5c74d8a0373fefa7dc77544db9f32486990cbb099c434a6d
   node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
 
 importers:
@@ -95,6 +95,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: link:../../vendor/deepseek-harness/vendor/schemastery
         version: link:../../vendor/deepseek-harness/vendor/schemastery
+      '@dsh-portable/session-manager':
+        specifier: workspace:^
+        version: link:../../packages/session-manager
       '@dsh-portable/ui-mode':
         specifier: workspace:^
         version: link:../../packages/ui-mode
@@ -1062,6 +1065,9 @@ importers:
       '@dsh-portable/interactive-learning':
         specifier: workspace:^
         version: link:../interactive-learning
+      '@dsh-portable/session-manager':
+        specifier: workspace:^
+        version: link:../../packages/session-manager
       '@dsh-portable/space-kernel':
         specifier: workspace:^
         version: link:../../packages/space-kernel
@@ -1073,7 +1079,7 @@ importers:
         version: link:../vision-bridge
       dsh-plugin-marketplace:
         specifier: github:AwesomeHou/dsh-plugin-marketplace#463e6cb856272018a7f5a76e260a0d1ef5b589e3
-        version: https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=a5c12947c6c7d1b75f0a5747d812785d36d68671a16263fedfb3a83127f66e3d)
+        version: https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=6f8b84e701d1a40d5c74d8a0373fefa7dc77544db9f32486990cbb099c434a6d)
       js-yaml:
         specifier: ^4.2.0
         version: 4.3.1
@@ -1183,6 +1189,61 @@ importers:
       '@dsh-portable/platform-contract':
         specifier: workspace:^
         version: link:../platform-contract
+
+  packages/session-manager:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/vendor/cordis
+    devDependencies:
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/api/session-controller
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/api/workspace-controller
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/locale
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-session
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-settings
+      '@deepseek-ai/dsh-client-ui-settings-models':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-settings-models
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-slots
+      '@deepseek-ai/dsh-client-ui-workspace':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/client/ui-workspace
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../vendor/deepseek-harness/packages/core/session
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.1
+      '@types/react':
+        specifier: ^18.3.18
+        version: 18.3.31
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(oxc-resolver@11.24.2)(publint@0.3.23)(tsx@4.23.12)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
   packages/space-kernel:
     dependencies:
@@ -3165,6 +3226,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots
+      '@deepseek-ai/dsh-client-ui-tool':
+        specifier: workspace:^
+        version: link:../ui-tool
       '@deepseek-ai/dsh-client-ui-trajectory':
         specifier: workspace:^
         version: link:../ui-trajectory
@@ -4669,6 +4733,9 @@ importers:
       '@deepseek-ai/dsh-api-workspace-controller':
         specifier: workspace:^
         version: link:../../api/workspace-controller
+      '@deepseek-ai/dsh-attachment':
+        specifier: workspace:^
+        version: link:../../attachment/attachment
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:^
         version: link:../connection
@@ -6824,9 +6891,6 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
-      '@deepseek-ai/dsh-session-persistence':
-        specifier: workspace:^
-        version: link:../../session/session-persistence
       '@deepseek-ai/dsh-session-persistence-jsonl':
         specifier: workspace:^
         version: link:../../session/session-persistence-jsonl
@@ -6876,9 +6940,6 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
-      '@deepseek-ai/dsh-session-persistence':
-        specifier: workspace:^
-        version: link:../../session/session-persistence
       '@deepseek-ai/dsh-session-persistence-jsonl':
         specifier: workspace:^
         version: link:../../session/session-persistence-jsonl
@@ -8840,9 +8901,6 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
-      '@deepseek-ai/dsh-session-persistence':
-        specifier: workspace:^
-        version: link:../../session/session-persistence
       '@deepseek-ai/dsh-shell':
         specifier: workspace:^
         version: link:../shell
@@ -21400,7 +21458,7 @@ snapshots:
 
   dotenv@16.6.1: {}
 
-  dsh-plugin-marketplace@https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=a5c12947c6c7d1b75f0a5747d812785d36d68671a16263fedfb3a83127f66e3d): {}
+  dsh-plugin-marketplace@https://codeload.github.com/AwesomeHou/dsh-plugin-marketplace/tar.gz/463e6cb856272018a7f5a76e260a0d1ef5b589e3(patch_hash=6f8b84e701d1a40d5c74d8a0373fefa7dc77544db9f32486990cbb099c434a6d): {}
 
   dts-resolver@3.0.0(oxc-resolver@11.24.2):
     optionalDependencies:

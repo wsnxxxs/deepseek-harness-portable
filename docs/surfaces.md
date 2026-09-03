@@ -122,11 +122,27 @@ only for what DSH does not own:
 | Surface | Host-side addition |
 | --- | --- |
 | Workbench | version control, as the `/dcode` Connection RPC channel (`git/status`, `git/diff`, `git/branches`, `git/commit`, `git/undo`, `file/read`) |
+| Both | none — `@dsh-portable/session-manager` claims nothing on the host; the archive set and the usage projections are already the Workspace and Session controllers' own state |
 
 The Workbench deliberately does **not** reimplement the settings catalogue.
 `settings.section` has exactly one declarer, so its settings route keeps the
 official pages as the source of truth while the Agent workspace owns only its
 presentation and orchestration controls.
+
+### Pages that belong to both surfaces
+
+A capability that folds state the Host already publishes belongs to neither
+front end. Archived-chat management and the token-usage report are the two of
+those, and they live in `@dsh-portable/session-manager`: it registers the
+archive page into `settings.section` and the usage card into the Models page's
+`settings.models.footer` seat, and exports the fold (`useArchivedChats`) and the
+card (`UsageCards`) that the Workbench renders in its own token domain.
+
+Both used to be registered from the Workbench's own plugin body, which made two
+pages of the OFFICIAL panel disappear whenever an operator disabled the
+Workbench row — and left the official session menu able to archive a
+conversation with nothing able to restore or delete it. See
+[architecture-layers.md](architecture-layers.md).
 
 Learning mode remains a first-class surface in the workbench rail, driving the
 existing Interactive Learning pack through the same `learning` agent preset.
@@ -140,6 +156,7 @@ expose a separate resource or learning library.
 | Mode vocabulary, store, switch | `packages/ui-mode/` |
 | Dependency-free constants for Electron | `packages/ui-mode/ui-mode-contract.cjs` |
 | Workbench | `apps/dcode-ui/src/client/` |
+| Archive page, usage report, shared folds | `packages/session-manager/` |
 | Git/diff/undo host channel | `apps/dcode-ui/src/host/` |
 | Plugin-graph insertion | `apps/runtime/src/packaged-bin.ts` |
 | Desktop config field | `apps/desktop/src/config-store.cjs` (`uiMode`) |

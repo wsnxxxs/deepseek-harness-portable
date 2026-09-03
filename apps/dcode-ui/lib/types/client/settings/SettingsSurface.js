@@ -22,8 +22,7 @@ import { Button, EmptyState, FocusingModal, Spinner, ui } from "../shell/ui.js";
 import { useModalFocus } from "../shell/use-modal-focus.js";
 import { ThemeSwitch, useAppearance } from "../shell/ThemeSwitch.js";
 import { UiModeSwitch } from "../shell/UiModeSwitch.js";
-import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from "./usage.js";
-import { UsageCards, usageCardStyles } from "./UsageCards.js";
+import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage, useArchivedChats, UsageCards, usageCardStyles, } from '@dsh-portable/session-manager/client';
 import usageCardClasses from './UsageCards.module.css';
 import { SelectMenu } from "./SelectMenu.js";
 import { PluginSettingsSection } from "./PluginSettingsSection.js";
@@ -543,59 +542,28 @@ function ArchivedChatsSection({ navigation }) {
     const t = useT();
     const sessions = useSessionList();
     const workspaces = useWorkspaces();
-    const [busyId, setBusyId] = useState();
-    const [deleteTarget, setDeleteTarget] = useState();
-    const [error, setError] = useState();
-    const rows = useMemo(() => workspaces.archivedSessionIds
-        .map(id => sessions.byId[id] ?? {
-        id,
-        displayTitle: id,
-        running: false,
-        blank: false,
-        updatedAt: 0,
-    })
-        .sort((left, right) => right.updatedAt - left.updatedAt), [sessions.byId, workspaces.archivedSessionIds]);
-    const restore = useCallback((id) => {
-        if (busyId !== undefined)
-            return;
-        setBusyId(id);
-        setError(undefined);
-        void runtime.workspaces.unarchiveSession(id)
-            .then(() => {
+    // The fold is `@dsh-portable/session-manager`'s, shared with the page it
+    // registers in the official settings panel, so both front ends agree about
+    // which conversations are archived and what restore and delete do.
+    const archive = useArchivedChats(sessions, workspaces, {
+        restore: async (id) => {
+            await runtime.workspaces.unarchiveSession(id);
             if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
                 runtime.sessions.open(id);
                 navigation.show('session');
             }
-        })
-            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
-            .finally(() => { setBusyId(undefined); });
-    }, [busyId, navigation, runtime]);
-    const closeDelete = useCallback(() => {
-        if (busyId !== undefined)
-            return;
-        setDeleteTarget(undefined);
-        setError(undefined);
-    }, [busyId]);
-    const confirmDelete = useCallback(() => {
-        const target = deleteTarget;
-        if (target === undefined || busyId !== undefined)
-            return;
-        setBusyId(target.id);
-        setError(undefined);
-        void runtime.sessions.delete(target.id)
-            .then(() => {
-            if (runtime.sessions.list.getSnapshot().current === target.id)
+        },
+        remove: async (id) => {
+            await runtime.sessions.delete(id);
+            if (runtime.sessions.list.getSnapshot().current === id)
                 runtime.sessions.clear();
-            setDeleteTarget(undefined);
-        })
-            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
-            .finally(() => { setBusyId(undefined); });
-    }, [busyId, deleteTarget, runtime]);
-    return (_jsxs(Section, { title: t('settings.archivedChats'), body: t('settings.archivedChatsBody'), children: [workspaces.phase !== 'ready' || sessions.phase !== 'ready'
+        },
+    });
+    return (_jsxs(Section, { title: t('settings.archivedChats'), body: t('settings.archivedChatsBody'), children: [archive.loading
                 ? _jsx(EmptyState, { children: _jsx(Spinner, {}) })
-                : rows.length === 0
+                : archive.rows.length === 0
                     ? _jsx(EmptyState, { children: t('settings.archivedChatsEmpty') })
-                    : (_jsx("div", { className: css.card, children: rows.map(session => (_jsx(Row, { title: session.displayTitle, body: session.cwd ?? t('settings.archivedChats'), control: (_jsxs("div", { className: css.presetActions, children: [_jsx(Button, { disabled: busyId !== undefined, onClick: () => { restore(session.id); }, children: busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: busyId !== undefined, onClick: () => { setError(undefined); setDeleteTarget(session); }, children: t('settings.archivedChatsDelete') })] })) }, session.id))) })), error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsx(FocusingModal, { open: deleteTarget !== undefined, onClose: closeDelete, title: t('settings.archivedChatsDeleteTitle'), closeLabel: t('common.close'), description: t('settings.archivedChatsDeleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(Button, { onClick: closeDelete, disabled: busyId !== undefined, children: t('common.cancel') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: busyId !== undefined, onClick: confirmDelete, children: busyId === undefined ? t('settings.archivedChatsDelete') : t('common.saving') })] })), children: _jsx("div", { className: css.rowTitle, children: deleteTarget?.displayTitle }) })] }));
+                    : (_jsx("div", { className: css.card, children: archive.rows.map(session => (_jsx(Row, { title: session.displayTitle, body: session.cwd ?? t('settings.archivedChats'), control: (_jsxs("div", { className: css.presetActions, children: [_jsx(Button, { disabled: archive.busy, onClick: () => { archive.restore(session.id); }, children: archive.busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: archive.busy, onClick: () => { archive.requestDelete(session); }, children: t('settings.archivedChatsDelete') })] })) }, session.id))) })), archive.error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: archive.error }), _jsx(FocusingModal, { open: archive.deleteTarget !== undefined, onClose: archive.cancelDelete, title: t('settings.archivedChatsDeleteTitle'), closeLabel: t('common.close'), description: t('settings.archivedChatsDeleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(Button, { onClick: archive.cancelDelete, disabled: archive.busy, children: t('common.cancel') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: archive.busy, onClick: archive.confirmDelete, children: archive.busy ? t('common.saving') : t('settings.archivedChatsDelete') })] })), children: _jsx("div", { className: css.rowTitle, children: archive.deleteTarget?.displayTitle }) })] }));
 }
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(runtime, id) {
@@ -814,6 +782,7 @@ function UsageMetric(props) {
 }
 function UsageSection() {
     const t = useT();
+    const runtime = useRuntime();
     const list = useSessionList();
     const totals = useMemo(() => summarizeUsage(aggregateUsage(list)), [list]);
     if (list.phase === 'pending') {
@@ -822,7 +791,7 @@ function UsageSection() {
     return (_jsxs(Section, { title: t('settings.usage'), body: t('settings.usageBody'), children: [_jsxs("div", { className: css.usageTotal, children: [_jsx("span", { className: css.usageTotalTitle, children: t('settings.usageTotal') }), _jsx("strong", { className: css.usageTotalValue, children: formatTokenCount(totals.totalTokens) }), _jsx("span", { className: css.usageTotalScope, children: t('settings.usageScope', {
                             sessions: formatTokenCount(totals.sessions),
                             usageSessions: formatTokenCount(totals.usageSessions),
-                        }) })] }), _jsx(UsageCards, { list: list, t: t, styles: usageCardCss }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
+                        }) })] }), _jsx(UsageCards, { list: list, t: runtime.usageT, styles: usageCardCss }), _jsxs("div", { className: css.usageGrid, children: [_jsx(UsageMetric, { title: t('settings.usageInput'), value: formatTokenCount(totals.promptTokens) }), _jsx(UsageMetric, { title: t('settings.usageOutput'), value: formatTokenCount(totals.outputTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheRead'), value: formatTokenCount(totals.cacheReadTokens) }), _jsx(UsageMetric, { title: t('settings.usageCacheWrite'), value: formatTokenCount(totals.cacheWriteTokens) })] }), _jsxs("div", { className: css.card, children: [_jsx(Row, { title: t('settings.usageSessions'), control: _jsx("span", { className: css.rowMono, children: formatTokenCount(totals.sessions) }) }), _jsx(Row, { title: t('settings.usageTurns'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.turns) : '—' }) }), _jsx(Row, { title: t('settings.usageSteps'), control: _jsx("span", { className: css.rowMono, children: totals.hasStats ? formatTokenCount(totals.steps) : '—' }) }), _jsx(Row, { title: t('settings.usageCacheHit'), control: _jsx("span", { className: css.rowMono, children: totals.cacheHit === null ? '—' : formatPercent(totals.cacheHit) }) })] }), !totals.hasUsage ? _jsx("div", { className: css.usageEmpty, children: t('settings.usageEmpty') }) : null] }));
 }
 /** Map direct actions to the official-first navigation groups shown by the modal. */
 function settingsNavSection(section) {

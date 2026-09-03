@@ -33,6 +33,11 @@ async function bootCatalogHost(): Promise<Context> {
     ...loadOverlayPatches('dsh-learning-isolation', webPatch),
     { id: 'settings', config: { path: settingsFile, watch: false } },
     { id: 'storage-json', config: { root: join(temporaryRoot, 'storages') } },
+    // The base bundle points durable sessions at the real DSH home. Without
+    // this the catalog host writes `learning-isolation-*` logs into the
+    // operator's own session store, and the second run of this test refuses
+    // to create ids the first run left behind.
+    { id: 'session-persistence-jsonl', config: { root: join(temporaryRoot, 'sessions') } },
     { id: 'webserver', disabled: true },
     { id: 'web-runtime', disabled: true },
     { id: 'session-telemetry-otel', disabled: true },

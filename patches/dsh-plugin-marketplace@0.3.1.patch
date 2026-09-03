@@ -1,5 +1,70 @@
+diff --git a/lib/client.js b/lib/client.js
+index 2b25f40e08cebbde724e13ed9cfb49941192fe2b..dea981eb006ad95cd4166177eba7b66c600683a7 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -664,10 +664,9 @@ window.__ModuleLoader__.load({
+       }
+ 
+       var isSelf = function isSelf(p) { return current.self && p.name === current.self.name }
+-      // Only user-installed (third-party) plugins are shown here; built-ins
+-      // ship with the harness. The filter is defensive against a host that is
+-      // not yet restarted (it may still include builtin entries).
+-      var shown = current.plugins.filter(function (p) { return p.kind !== 'builtin' })
++      // The host returns third-party plugins and the user-facing Portable
++      // packages. Keep both kinds visible; only third-party rows are mutable.
++      var shown = current.plugins
+       var updatable = 0
+       shown.forEach(function (p) { if (p.updateAvailable) updatable += 1 })
+ 
+@@ -678,12 +677,12 @@ window.__ModuleLoader__.load({
+           React.createElement('button', { className: 'dsh-market-refresh', onClick: load, disabled: current.loading }, current.loading ? '读取中…' : '刷新'),
+         ),
+         React.createElement(SelfUpdateBanner, null),
+-        React.createElement('div', { className: 'dsh-market-out' }, '本页显示的是已安装的第三方插件；内置插件随 harness 提供，不在此列出。'),
++        React.createElement('div', { className: 'dsh-market-out' }, '本页显示已安装的第三方插件，以及随 harness 提供的 Portable 内置能力。'),
+         current.error ? React.createElement('div', { className: 'dsh-market-err' }, '读取失败: ' + current.error) : null,
+         current.loading && shown.length === 0
+           ? React.createElement('div', { className: 'dsh-market-empty' }, '正在读取…')
+           : (shown.length === 0
+-            ? React.createElement('div', { className: 'dsh-market-empty' }, '还没有安装第三方插件，去「插件市场」标签页安装吧。')
++            ? React.createElement('div', { className: 'dsh-market-empty' }, '还没有可管理的插件，去「插件市场」标签页安装第三方插件吧。')
+             : React.createElement('div', null,
+               shown.map(function (p) {
+                 var self = isSelf(p)
+@@ -691,13 +690,13 @@ window.__ModuleLoader__.load({
+                 var busy = !!a.busy
+                 var done = a.done
+                 var actions = []
+-                if (p.updateAvailable) {
++                if (p.kind !== 'builtin' && p.updateAvailable) {
+                   actions.push(React.createElement('button', {
+                     key: 'update', className: 'dsh-market-act', 'data-kind': 'update',
+                     onClick: function () { run(p.name, 'update') }, disabled: busy,
+                   }, busy ? '更新中…' : '更新到 v' + p.latestVersion))
+                 }
+-                if (!self) {
++                if (!self && p.kind !== 'builtin') {
+                   actions.push(React.createElement('button', {
+                     key: 'toggle', className: 'dsh-market-act', 'data-kind': p.enabled ? 'muted' : 'update',
+                     onClick: function () { run(p.name, 'set-enabled', { name: p.name, enabled: !p.enabled }) }, disabled: busy,
+@@ -719,6 +718,7 @@ window.__ModuleLoader__.load({
+                         ? React.createElement('a', { href: p.homepage, target: '_blank', rel: 'noreferrer' }, p.name)
+                         : React.createElement('strong', null, p.name),
+                       self ? React.createElement('span', { className: 'dsh-market-tag-self' }, '本插件') : null,
++                      p.kind === 'builtin' ? React.createElement('span', { className: 'dsh-market-tag' }, '内置') : null,
+                       p.updateAvailable ? React.createElement('span', { className: 'dsh-market-tag-new' }, '可更新 v' + p.latestVersion) : null,
+                       !p.enabled ? React.createElement('span', { className: 'dsh-market-tag' }, '已关闭') : null,
+                     ),
+@@ -733,6 +733,7 @@ window.__ModuleLoader__.load({
+                     : null,
+                   p.description ? React.createElement('div', { className: 'dsh-market-desc' }, p.description) : null,
+                   self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,
++                  p.kind === 'builtin' ? React.createElement('div', { className: 'dsh-market-out' }, '随 harness 提供的内置能力，不能更新、停用或卸载。') : null,
+                   note,
+                 )
+               }),
 diff --git a/lib/index.js b/lib/index.js
-index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c4de9c065 100644
+index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..f3c2bb5fc81ae51e6fff8677149da4e5ac53362b 100644
 --- a/lib/index.js
 +++ b/lib/index.js
 @@ -62,6 +62,14 @@ const GITHUB_API = 'https://api.github.com/search/repositories'
@@ -17,9 +82,108 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
  // When this host module loaded ≈ when the harness booted this bundle. Used to
  // tell whether an installed plugin was added/modified AFTER this boot (→ it
  // needs a restart to activate) or before it (→ already active, no restart hint).
-@@ -1520,8 +1528,12 @@ export default {
--
+@@ -159,9 +167,22 @@ function writeProfileManifestFile(manifest) {
+ /** Read one installed package's manifest from the profile node_modules. */
+ function installedManifest(name) {
+   const rel = String(name || '').split('/')
+-  const path = join(webProfileDir(), 'node_modules', ...rel, 'package.json')
+-  if (!existsSync(path)) return null
+-  try { return JSON.parse(readFileSync(path, 'utf8')) } catch { return null }
++  // Node resolution walks node_modules up the directory chain, and the profile
++  // is built that way: a marketplace install lands in the profile's own
++  // node_modules, while the harness's own packages resolve from the
++  // installation fallback tree one level above it. Reading only the profile
++  // directory therefore found third-party installs and reported every builtin
++  // as an unknown version. Walk the same chain the loader walked.
++  let dir = webProfileDir()
++  for (;;) {
++    const path = join(dir, 'node_modules', ...rel, 'package.json')
++    if (existsSync(path)) {
++      try { return JSON.parse(readFileSync(path, 'utf8')) } catch { return null }
++    }
++    const parent = dirname(dir)
++    if (parent === dir) return null
++    dir = parent
++  }
+ }
+ 
+ /** This plugin's own package manifest (works from either a link or a registry install). */
+@@ -1435,29 +1456,42 @@ async function mapLimit(items, limit, fn) {
+   return results
+ }
+ 
+-async function buildInstalledList() {
++function loaderPortableEntries(loader) {
++  const found = new Map()
++  const entries = loader && typeof loader.entries === 'function' ? loader.entries() : []
++  for (const entry of entries) {
++    const name = entry && entry.options && entry.options.name
++    if (typeof name !== 'string' || !name.startsWith('@dsh-portable/')) continue
++    found.set(name, entry.disabled !== true)
++  }
++  return found
++}
 +
++async function buildInstalledList(loader) {
+   const manifest = profileManifest()
+   if (!manifest) return { plugins: [], self: null, error: 'web profile manifest not found' }
+   const deps = manifest.dependencies || {}
+   const bundles = Array.isArray(manifest.dsh && manifest.dsh.profile && manifest.dsh.profile.bundles)
+     ? manifest.dsh.profile.bundles
+     : []
+-  const names = new Set([...Object.keys(deps), ...bundles])
++  const loaderBuiltins = loaderPortableEntries(loader)
++  const names = new Set([...Object.keys(deps), ...bundles, ...loaderBuiltins.keys()])
+   const plugins = []
+   const toResolve = [] // { entry, name, spec, inst, version }
+   for (const name of names) {
+     const isDep = Object.prototype.hasOwnProperty.call(deps, name)
+     const isBundle = bundles.includes(name)
++    const isLoaderBuiltin = loaderBuiltins.has(name)
+     const inst = installedManifest(name)
+-    const isPlugin = isBundle || !!(inst && (inst.dsh?.bundle?.patch !== undefined || inst.dsh?.client !== undefined))
++    const isPlugin = isBundle || isLoaderBuiltin || !!(inst && (inst.dsh?.bundle?.patch !== undefined || inst.dsh?.client !== undefined))
+     if (!isPlugin) continue // a plain dependency, not a plugin
+-    const kind = isDep ? 'installed' : 'builtin'
++    const kind = isLoaderBuiltin || !isDep ? 'builtin' : 'installed'
+     const version = inst && typeof inst.version === 'string' ? inst.version : null
+     const entry = {
+       name,
+       spec: isDep ? deps[name] : null,
+       kind,
+-      enabled: isBundle,
++      enabled: isBundle || loaderBuiltins.get(name) === true,
+       version,
+       latestVersion: null,
+       updateAvailable: false,
+@@ -1500,18 +1534,21 @@ async function buildInstalledList() {
+     latestVersion: selfLatest,
+     updateAvailable: versionGt(selfLatest, selfPkg.version) === true,
+   }
+-  // The installed-plugins surface only shows user-installed (third-party)
+-  // plugins; built-ins ship with the harness and are not manageable here.
+-  const installedOnly = plugins.filter((p) => p.kind === 'installed')
++  // Show user-installed plugins and the Portable feature packages that are
++  // mounted directly by the running Loader. Other harness internals remain
++  // implementation details of the profile.
++  const installedOnly = plugins.filter((p) =>
++    p.kind === 'installed' || (p.kind === 'builtin' && String(p.name).startsWith('@dsh-portable/')))
+   installedOnly.sort((a, b) => (b.updateAvailable ? 1 : 0) - (a.updateAvailable ? 1 : 0) || String(a.name).localeCompare(String(b.name)))
+   return { plugins: installedOnly, self, error: null }
+ }
+ 
+ export default {
+-  inject: ['webServer', 'timer', 'tools'],
++  inject: ['webServer', 'timer', 'tools', 'loader'],
+   apply(ctx) {
+     const webServer = ctx.webServer
+     const tools = ctx.tools
++    const loader = ctx.loader
+ 
+     // ── GitHub sync cache ────────────────────────────────────────────────
+     // pageCache[key] = { items, total, fetchedAt }; key = `${q}|${page}|${perPage}`.
+@@ -1520,8 +1557,12 @@ export default {
+ 
      async function fetchPage(q, page, perPage) {
        const params = new URLSearchParams({ q, per_page: String(perPage), page: String(page) })
 -      params.set('sort', 'stars')
@@ -33,11 +197,10 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
        const url = `${GITHUB_API}?${params.toString()}`
        const res = await fetch(url, {
          headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'dsh-plugin-marketplace' },
-@@ -1555,6 +1567,34 @@ export default {
+@@ -1555,6 +1596,34 @@ export default {
        return record
      }
--
-+
+ 
 +    function maintenanceFor(updatedAt) {
 +      const updated = Date.parse(updatedAt)
 +      if (!Number.isFinite(updated)) return 'unknown'
@@ -69,7 +232,7 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
      // ── HTTP feed for the browser half ───────────────────────────────────
      const handler = async (req, res) => {
        try {
-@@ -1563,15 +1603,19 @@ export default {
+@@ -1563,15 +1632,19 @@ export default {
          const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
          const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Number(url.searchParams.get('per_page')) || DEFAULT_PER_PAGE))
          const force = url.searchParams.get('force') === '1'
@@ -92,7 +255,7 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
            const info = installed.get(it.fullName)
            return { ...it, installed: !!info, needsRestart: !!(info && info.needsRestart) }
          })
-@@ -1585,6 +1629,8 @@ export default {
+@@ -1585,6 +1658,8 @@ export default {
            q,
            fetchedAt: record.fetchedAt,
            error: null,
@@ -101,3 +264,21 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..dad7082e9e26ff4222d4637346236b6c
          }))
        } catch (e) {
          res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
+@@ -1656,7 +1731,7 @@ export default {
+     // ── GET /api/market/installed — inventory + update availability ──────
+     const installedHandler = async (req, res) => {
+       try {
+-        const data = await buildInstalledList()
++        const data = await buildInstalledList(loader)
+         json(res, 200, { ok: true, fetchedAt: Date.now(), plugins: data.plugins, self: data.self, error: data.error })
+       } catch (e) {
+         json(res, 500, { ok: false, plugins: [], self: null, error: String((e && e.message) || e) })
+@@ -1958,7 +2033,7 @@ export default {
+         },
+       },
+       async execute() {
+-        const data = await buildInstalledList()
++        const data = await buildInstalledList(loader)
+         return { plugins: data.plugins, self: data.self }
+       },
+     }

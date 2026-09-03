@@ -49,6 +49,18 @@ const NAME = 'dsh-desktop';
 const PROFILE_NAME = 'web';
 /** The session-telemetry row id the DSH_TELEMETRY_DISABLED switch targets. */
 const TELEMETRY_ROW_ID = 'session-telemetry-otel';
+/** Explicit web/desktop selection for the shared workspace directory picker. */
+const DIRECTORY_PICKER_BACKEND_ENV = 'DSH_DIRECTORY_PICKER_BACKEND';
+const DIRECTORY_PICKER_BACKENDS = {
+    native: {
+        host: '@deepseek-ai/dsh-host-directory-picker-native',
+        client: '@deepseek-ai/dsh-client-ui-directory-picker-native',
+    },
+    browse: {
+        host: '@deepseek-ai/dsh-host-directory-picker-browse',
+        client: '@deepseek-ai/dsh-client-ui-directory-picker-browse',
+    },
+};
 /** Shipped agent-preset sources: the portable catalog plus installable experience packs. */
 const SHIPPED_PRESET_SOURCES = [
     { id: 'desktop', path: fileURLToPath(new URL('../config/agent-presets/', import.meta.url)) },
@@ -356,6 +368,17 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
             rows.set(row.id, row);
     }
     const overlays = [];
+    const directoryPickerBackend = process.env[DIRECTORY_PICKER_BACKEND_ENV];
+    if ((directoryPickerBackend === 'native' || directoryPickerBackend === 'browse')
+        && rows.get('directory-picker')?.disabled !== true) {
+        const backend = DIRECTORY_PICKER_BACKENDS[directoryPickerBackend];
+        overlays.push({ id: 'directory-picker', disabled: true }, {
+            insert: [
+                { id: 'directory-picker-backend-portable', name: backend.host },
+                { id: 'directory-picker-surface-portable', name: backend.client },
+            ],
+        });
+    }
     // The SHIPPED preset root is the part of the roster only this package can
     // resolve: it sits beside the packaged entry in the VFS, and the writable
     // root the roster appends is dsh-agent-presets' own default.
@@ -466,6 +489,29 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
                 {
                     id: 'ui-mode',
                     name: '@dsh-portable/ui-mode',
+                },
+            ],
+        });
+    }
+    // Archived-chat management and the token-usage report.
+    //
+    // Its own row rather than a part of the workbench, because both pages join
+    // the OFFICIAL settings panel: the archive page through `settings.section`
+    // and the usage card through the Models page's `settings.models.footer`
+    // seat. Registering them from the workbench made two capabilities of the
+    // official UI vanish with a front end an operator can switch away from, and
+    // the official session row menu can archive a conversation but has never
+    // been able to bring one back.
+    //
+    // It folds state the official Host already publishes (the Workspace
+    // Controller's archive set and the durable per-session usage projections),
+    // so it claims nothing on the host and adds no store of its own.
+    if (!rows.has('session-manager')) {
+        overlays.push({
+            insert: [
+                {
+                    id: 'session-manager',
+                    name: '@dsh-portable/session-manager',
                 },
             ],
         });

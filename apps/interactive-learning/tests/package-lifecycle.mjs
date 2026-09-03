@@ -185,12 +185,14 @@ try {
     sourceTypeClosure,
     'source lib/types must contain exactly the public declaration and map closure',
   )
-  // 41 since the ingest, citation and index machinery moved to
-  // `@dsh-portable/space-kernel`: three modules left this pack's public closure
-  // and `learning-reanchor` joined it. The number is pinned rather than derived
-  // so an accidental widening of the published surface fails here.
-  assert.equal(sourceDeclarations.length, 41, 'source build must retain exactly 41 public declarations')
-  assert.equal(sourceDeclarationMaps.length, 41, 'source build must retain exactly 41 public declaration maps')
+  // 37 since the pack narrowed to Learning mode alone: the ingest, citation and
+  // index machinery had already moved to `@dsh-portable/space-kernel`, and the
+  // surfaces that served the retired library entry point left with it. The
+  // number is pinned rather than derived so an accidental widening of the
+  // published surface fails here; the closure equality above is what proves the
+  // build emitted exactly the public set.
+  assert.equal(sourceDeclarations.length, 37, 'source build must retain exactly 37 public declarations')
+  assert.equal(sourceDeclarationMaps.length, 37, 'source build must retain exactly 37 public declaration maps')
 
   const packRoot = join(smokeRoot, 'pack')
   await mkdir(packRoot, { recursive: true })

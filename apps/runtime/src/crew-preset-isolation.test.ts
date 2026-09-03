@@ -26,8 +26,10 @@ const { patchAgentTeamToolScope } = require('../../../patches/dsh-experimental-t
   patchAgentTeamToolScope(source: string): string
 }
 
+// Every model-facing tool `tool-agent-team` registers. Upstream retired
+// `followup_task`; the list tracks that package's registrations exactly,
+// because the point of the test is that NONE of them reach a non-Crew agent.
 const TEAM_TOOLS = [
-  'followup_task',
   'interrupt_agent',
   'list_agents',
   'send_message',

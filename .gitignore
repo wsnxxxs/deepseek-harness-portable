@@ -12,3 +12,4 @@ apps/desktop/lib/
 *.tsbuildinfo
 .debug/
 .playwright-cli/
+.codex-*/

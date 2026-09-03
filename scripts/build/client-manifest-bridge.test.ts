@@ -26,6 +26,7 @@ test('every out-of-tree client plugin in this repository is discovered', () => {
     '@dsh-portable/cluster-ui',
     '@dsh-portable/dcode-ui',
     '@dsh-portable/interactive-learning',
+    '@dsh-portable/session-manager',
     '@dsh-portable/ui-mode',
     '@dsh-portable/vision-bridge',
   ])

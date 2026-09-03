@@ -474,11 +474,14 @@ function inventoryName(moduleName: string): string {
     .join(' ') || moduleName
 }
 
-function isUserExtension(entry: InventoryEntry): boolean {
+function isExtensionEntry(entry: InventoryEntry): boolean {
   const moduleName = entry.moduleName.toLowerCase()
   if (moduleName.includes('mcp')) return true
+  // Portable feature packages are user-facing extensions even though they are
+  // shipped with the harness. Keep them in the main list so Vision Bridge,
+  // Learning, Cluster and the UI adapters are discoverable in DCode too.
+  if (moduleName.startsWith('@dsh-portable/')) return true
   return !moduleName.startsWith('@deepseek-ai/')
-    && !moduleName.startsWith('@dsh-portable/')
     && !moduleName.startsWith('cordis:')
 }
 
@@ -593,8 +596,8 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean; on
   const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
     .toLowerCase()
     .includes(normalizedQuery)), [entries, normalizedQuery])
-  const extensions = filtered.filter(row => isUserExtension(row.entry))
-  const runtimeModules = filtered.filter(row => !isUserExtension(row.entry))
+  const extensions = filtered.filter(row => isExtensionEntry(row.entry))
+  const runtimeModules = filtered.filter(row => !isExtensionEntry(row.entry))
   const reload = (): void => {
     props.onReload()
     market.reload()

@@ -38,6 +38,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { UI_MODE_NS, type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client'
+import { SESSION_MANAGER_NS, type SessionManagerTranslate } from '@dsh-portable/session-manager/client'
 import {
   createLearningCall, createDcodeApi, createDcodeMemoryApi,
   type RpcCarrier, type DcodeApi, type DcodeMemoryApi,
@@ -328,6 +329,13 @@ export interface DcodeRuntime {
    * than each surface translating the other surfaces' names itself.
    */
   readonly uiModeT: (key: UiModeKey) => string
+  /**
+   * The session-manager pack's own bound translate function, for the same
+   * reason as {@link uiModeT}: the usage card's words belong to
+   * `@dsh-portable/session-manager`, which renders the same card in the
+   * official settings panel.
+   */
+  readonly usageT: SessionManagerTranslate
   /** The active-mode store shared with every switch entry point. */
   readonly mode: UiModeController
   /**
@@ -483,6 +491,7 @@ export function createDcodeRuntime(
     // back to the raw key, which is still readable and never throws.
     learningT: locale?.bind('interactive-learning') ?? (key => key),
     uiModeT: locale?.bind(UI_MODE_NS) ?? (key => key),
+    usageT: locale?.bind(SESSION_MANAGER_NS) ?? (key => key),
     mode,
     binding: sessionId => sessions.binding(sessionId),
     scope: sessionId => sessions.scope(sessionId),

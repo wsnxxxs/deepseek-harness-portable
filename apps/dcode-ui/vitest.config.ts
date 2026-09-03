@@ -17,6 +17,8 @@ export default defineConfig({
       // through the package's `exports` map, so point it at the file itself.
       '@dsh-portable/ui-mode/ui-mode-contract': at('../../packages/ui-mode/ui-mode-contract.cjs'),
       '@dsh-portable/ui-mode': at('../../packages/ui-mode/src/index.ts'),
+      '@dsh-portable/session-manager/client': at('../../packages/session-manager/src/client/index.ts'),
+      '@dsh-portable/session-manager': at('../../packages/session-manager/src/index.ts'),
     },
   },
 })

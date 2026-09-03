@@ -19,7 +19,6 @@ import {
   IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { useRuntime } from '../state/runtime.ts'
 import { useAsync, useSessionList, useWorkspaces } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
@@ -29,8 +28,10 @@ import { useModalFocus } from '../shell/use-modal-focus.ts'
 import { ThemeSwitch, useAppearance } from '../shell/ThemeSwitch.tsx'
 import { UiModeSwitch } from '../shell/UiModeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
-import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage } from './usage.ts'
-import { UsageCards, usageCardStyles } from './UsageCards.tsx'
+import {
+  aggregateUsage, formatPercent, formatTokenCount, summarizeUsage,
+  useArchivedChats, UsageCards, usageCardStyles,
+} from '@dsh-portable/session-manager/client'
 import usageCardClasses from './UsageCards.module.css'
 
 import { SelectMenu } from './SelectMenu.tsx'
@@ -976,79 +977,46 @@ function ArchivedChatsSection({ navigation }: { navigation: NavigationStore }) {
   const t = useT()
   const sessions = useSessionList()
   const workspaces = useWorkspaces()
-  const [busyId, setBusyId] = useState<SessionId | undefined>()
-  const [deleteTarget, setDeleteTarget] = useState<SessionSummary | undefined>()
-  const [error, setError] = useState<string | undefined>()
-
-  const rows = useMemo(() => workspaces.archivedSessionIds
-    .map(id => sessions.byId[id] ?? {
-      id,
-      displayTitle: id,
-      running: false,
-      blank: false,
-      updatedAt: 0,
-    } satisfies SessionSummary)
-    .sort((left, right) => right.updatedAt - left.updatedAt),
-  [sessions.byId, workspaces.archivedSessionIds])
-
-  const restore = useCallback((id: SessionId) => {
-    if (busyId !== undefined) return
-    setBusyId(id)
-    setError(undefined)
-    void runtime.workspaces.unarchiveSession(id)
-      .then(() => {
-        if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
-          runtime.sessions.open(id)
-          navigation.show('session')
-        }
-      })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
-      .finally(() => { setBusyId(undefined) })
-  }, [busyId, navigation, runtime])
-
-  const closeDelete = useCallback(() => {
-    if (busyId !== undefined) return
-    setDeleteTarget(undefined)
-    setError(undefined)
-  }, [busyId])
-
-  const confirmDelete = useCallback(() => {
-    const target = deleteTarget
-    if (target === undefined || busyId !== undefined) return
-    setBusyId(target.id)
-    setError(undefined)
-    void runtime.sessions.delete(target.id)
-      .then(() => {
-        if (runtime.sessions.list.getSnapshot().current === target.id) runtime.sessions.clear()
-        setDeleteTarget(undefined)
-      })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
-      .finally(() => { setBusyId(undefined) })
-  }, [busyId, deleteTarget, runtime])
+  // The fold is `@dsh-portable/session-manager`'s, shared with the page it
+  // registers in the official settings panel, so both front ends agree about
+  // which conversations are archived and what restore and delete do.
+  const archive = useArchivedChats(sessions, workspaces, {
+    restore: async (id) => {
+      await runtime.workspaces.unarchiveSession(id)
+      if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
+        runtime.sessions.open(id)
+        navigation.show('session')
+      }
+    },
+    remove: async (id) => {
+      await runtime.sessions.delete(id)
+      if (runtime.sessions.list.getSnapshot().current === id) runtime.sessions.clear()
+    },
+  })
 
   return (
     <Section title={t('settings.archivedChats')} body={t('settings.archivedChatsBody')}>
-      {workspaces.phase !== 'ready' || sessions.phase !== 'ready'
+      {archive.loading
         ? <EmptyState><Spinner /></EmptyState>
-        : rows.length === 0
+        : archive.rows.length === 0
           ? <EmptyState>{t('settings.archivedChatsEmpty')}</EmptyState>
           : (
             <div className={css.card}>
-              {rows.map(session => (
+              {archive.rows.map(session => (
                 <Row
                   key={session.id}
                   title={session.displayTitle}
                   body={session.cwd ?? t('settings.archivedChats')}
                   control={(
                     <div className={css.presetActions}>
-                      <Button disabled={busyId !== undefined} onClick={() => { restore(session.id) }}>
-                        {busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore')}
+                      <Button disabled={archive.busy} onClick={() => { archive.restore(session.id) }}>
+                        {archive.busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore')}
                       </Button>
                       <button
                         type="button"
                         className={css.dangerButton}
-                        disabled={busyId !== undefined}
-                        onClick={() => { setError(undefined); setDeleteTarget(session) }}
+                        disabled={archive.busy}
+                        onClick={() => { archive.requestDelete(session) }}
                       >
                         {t('settings.archivedChatsDelete')}
                       </button>
@@ -1058,23 +1026,23 @@ function ArchivedChatsSection({ navigation }: { navigation: NavigationStore }) {
               ))}
             </div>
           )}
-      {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
+      {archive.error === undefined ? null : <div className={css.inlineError} role="alert">{archive.error}</div>}
       <FocusingModal
-        open={deleteTarget !== undefined}
-        onClose={closeDelete}
+        open={archive.deleteTarget !== undefined}
+        onClose={archive.cancelDelete}
         title={t('settings.archivedChatsDeleteTitle')}
         closeLabel={t('common.close')}
         description={t('settings.archivedChatsDeleteBody')}
         footer={(
           <>
-            <Button onClick={closeDelete} disabled={busyId !== undefined}>{t('common.cancel')}</Button>
-            <button type="button" className={css.dangerButton} disabled={busyId !== undefined} onClick={confirmDelete}>
-              {busyId === undefined ? t('settings.archivedChatsDelete') : t('common.saving')}
+            <Button onClick={archive.cancelDelete} disabled={archive.busy}>{t('common.cancel')}</Button>
+            <button type="button" className={css.dangerButton} disabled={archive.busy} onClick={archive.confirmDelete}>
+              {archive.busy ? t('common.saving') : t('settings.archivedChatsDelete')}
             </button>
           </>
         )}
       >
-        <div className={css.rowTitle}>{deleteTarget?.displayTitle}</div>
+        <div className={css.rowTitle}>{archive.deleteTarget?.displayTitle}</div>
       </FocusingModal>
     </Section>
   )
@@ -1435,6 +1403,7 @@ function UsageMetric(props: { title: string; value: string }) {
 
 function UsageSection() {
   const t = useT()
+  const runtime = useRuntime()
   const list = useSessionList()
 
   const totals = useMemo(() => summarizeUsage(aggregateUsage(list)), [list])
@@ -1461,7 +1430,7 @@ function UsageSection() {
           })}
         </span>
       </div>
-      <UsageCards list={list} t={t} styles={usageCardCss} />
+      <UsageCards list={list} t={runtime.usageT} styles={usageCardCss} />
       <div className={css.usageGrid}>
         <UsageMetric
           title={t('settings.usageInput')}

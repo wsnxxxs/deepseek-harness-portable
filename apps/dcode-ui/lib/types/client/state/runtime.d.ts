@@ -29,6 +29,7 @@ import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/ds
 import type { SessionLogDownloadState } from '@deepseek-ai/dsh-session-log-export/client';
 import type { SettingsDescribeFace, SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/client';
 import { type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client';
+import { type SessionManagerTranslate } from '@dsh-portable/session-manager/client';
 import { type DcodeApi, type DcodeMemoryApi } from '../rpc.ts';
 import { type AppearanceStore, type ThemeFace } from '../theme.ts';
 import type { MessageFeedbackProvider } from '../chat/message-feedback.ts';
@@ -232,6 +233,13 @@ export interface DcodeRuntime {
      * than each surface translating the other surfaces' names itself.
      */
     readonly uiModeT: (key: UiModeKey) => string;
+    /**
+     * The session-manager pack's own bound translate function, for the same
+     * reason as {@link uiModeT}: the usage card's words belong to
+     * `@dsh-portable/session-manager`, which renders the same card in the
+     * official settings panel.
+     */
+    readonly usageT: SessionManagerTranslate;
     /** The active-mode store shared with every switch entry point. */
     readonly mode: UiModeController;
     /**

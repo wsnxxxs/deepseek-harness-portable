@@ -9,6 +9,7 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { logPath } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
@@ -85,6 +86,24 @@ async function writeLearningStateFixture(root: string, cwd: string, id: SessionI
   await writeFile(target, source)
 }
 
+/**
+ * Read one stored session end to end.
+ *
+ * The persistence seam is handle-based: `open` resolves the artifact and
+ * `read` decodes the log, and either step is where a refusal surfaces.
+ * @param persistence - the mounted backend.
+ * @param id - the stored session to read.
+ * @returns every decoded event in the log.
+ */
+async function readAll(persistence: Context['sessionPersistence'], id: SessionId): Promise<readonly SessionEvent[]> {
+  const handle = await persistence.open(id, 'read')
+  try {
+    return await handle.read()
+  } finally {
+    await handle.close()
+  }
+}
+
 async function waitFor<T>(read: () => T | undefined, timeoutMs = 5_000): Promise<T> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -104,13 +123,13 @@ test('portable reader accepts only its registered legacy unmarked event type', a
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
 
     await writeFixture(root, fixtureId, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
-    const loaded = await ctx.sessionPersistence.load(fixtureId)
-    assert.equal(loaded.events[0]?.type, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
-    assert.equal(loaded.events[0]?.ignorable, undefined)
+    const events = await readAll(ctx.sessionPersistence, fixtureId)
+    assert.equal(events[0]?.type, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
+    assert.equal(events[0]?.ignorable, undefined)
 
     const unknownId = SessionId('session-other-unknown-v0')
     await writeFixture(root, unknownId, 'portable-runtime/future-required')
-    await assert.rejects(ctx.sessionPersistence.load(unknownId), (error: unknown) => {
+    await assert.rejects(readAll(ctx.sessionPersistence, unknownId), (error: unknown) => {
       assert.equal((error as Error).name, 'SessionFormatUnsupportedError')
       assert.match((error as Error).message, /portable-runtime\/future-required.*unknown to this harness/)
       return true

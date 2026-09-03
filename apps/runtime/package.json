@@ -253,6 +253,7 @@
     "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
+    "@dsh-portable/session-manager": "workspace:^",
     "@dsh-portable/space-kernel": "workspace:^",
     "@dsh-portable/ui-mode": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",

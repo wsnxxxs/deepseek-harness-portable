@@ -43,10 +43,12 @@ if not exist "%RUNTIME_EXE%" (
 set "ELECTRON_RUN_AS_NODE=1"
 
 if "%~1"=="" (
+    set "DSH_DIRECTORY_PICKER_BACKEND=browse"
     "%RUNTIME_EXE%" "%PACKAGED_WEB%"
     exit /b %ERRORLEVEL%
 )
 if /I "%~1"=="web" (
+    set "DSH_DIRECTORY_PICKER_BACKEND=browse"
     "%RUNTIME_EXE%" "%PACKAGED_WEB%" %*
     exit /b %ERRORLEVEL%
 )

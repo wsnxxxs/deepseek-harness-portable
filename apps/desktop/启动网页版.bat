@@ -11,6 +11,7 @@ if exist "%~dp0.update-transaction.json" (
         )
     )
 )
+set "DSH_DIRECTORY_PICKER_BACKEND=browse"
 where node >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
     node "%~dp0runtime\resources\app\lib\packaged-bin.js" %*

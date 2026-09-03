@@ -27,7 +27,6 @@ import { createDcodeRuntime, DcodeRuntimeProvider } from "./state/runtime.js";
 import { bindTranslate, TranslateProvider } from "./state/i18n.js";
 import { DCODE_NS, en, zh } from "./locales.js";
 import { Workbench } from "./shell/Workbench.js";
-import { ModelsUsageCard } from "./settings/ModelsUsageCard.js";
 export { Workbench } from "./shell/Workbench.js";
 export { createNavigationStore } from "./state/navigation.js";
 export { createDcodeRuntime } from "./state/runtime.js";
@@ -81,8 +80,6 @@ export const inject = [
  * the moment one registration is being swapped for another.
  */
 const ROOT_PRIORITY = -1000;
-/** Order of the usage card in the classic Models page footer area. */
-const SETTINGS_MODELS_FOOTER_ORDER = 0;
 /**
  * Register the workbench root, and re-register it whenever the mode changes.
  * @param ctx - client root context.
@@ -152,16 +149,11 @@ export function apply(ctx) {
     // assembly without the Cluster plugin renders the same workbench minus one
     // section.
     ctx.effect(() => bindRootRegistration(ctx, ctx.uiMode), 'dcode-ui: root surface');
-    // The usage card on the classic Models page. `settings.models.footer` is the
-    // seat that page declares for out-of-tree plugins, so the official section
-    // itself stays untouched. Registration is unconditional: while the workbench
-    // owns `root` the official page never renders, so the card appears exactly
-    // in the classic UI.
-    ctx.slots.inject('settings.models.footer', () => ctx.slots.register({
-        name: 'settings.models.footer',
-        id: 'dcode-model-usage',
-        order: SETTINGS_MODELS_FOOTER_ORDER,
-        locale: DCODE_NS,
-    }, ModelsUsageCard));
+    // Nothing else. The usage card on the official Models page and the archive
+    // page in official settings used to be registered from here, which made two
+    // capabilities of the OFFICIAL panel disappear with a front end an operator
+    // can disable. They are `@dsh-portable/session-manager`'s rows now; this
+    // surface imports the same fold and the same card and renders them in its
+    // own token domain.
 }
 //# sourceMappingURL=index.js.map

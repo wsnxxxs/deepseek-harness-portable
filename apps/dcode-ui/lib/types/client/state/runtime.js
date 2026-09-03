@@ -16,6 +16,7 @@
  */
 import { createContext, useContext } from 'react';
 import { UI_MODE_NS } from '@dsh-portable/ui-mode/client';
+import { SESSION_MANAGER_NS } from '@dsh-portable/session-manager/client';
 import { createLearningCall, createDcodeApi, createDcodeMemoryApi, } from "../rpc.js";
 import { createAppearanceStore } from "../theme.js";
 const EMPTY_LIST = [];
@@ -208,6 +209,7 @@ export function createDcodeRuntime(ctx, mode) {
         // back to the raw key, which is still readable and never throws.
         learningT: locale?.bind('interactive-learning') ?? (key => key),
         uiModeT: locale?.bind(UI_MODE_NS) ?? (key => key),
+        usageT: locale?.bind(SESSION_MANAGER_NS) ?? (key => key),
         mode,
         binding: sessionId => sessions.binding(sessionId),
         scope: sessionId => sessions.scope(sessionId),

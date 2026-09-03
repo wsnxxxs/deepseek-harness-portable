@@ -255,15 +255,15 @@ function pluginLoadable(name) {
   return bundles.includes(name) && pluginAvailable(name)
 }`
 
-const SERVER_ENTRY = `      enabled: isBundle,
+const SERVER_ENTRY = `      enabled: isBundle || loaderBuiltins.get(name) === true,
       version,`
 
-const SERVER_ENTRY_PATCHED = `      enabled: isBundle,
+const SERVER_ENTRY_PATCHED = `      enabled: isBundle || loaderBuiltins.get(name) === true,
       available: pluginAvailable(name),
-      activated: isBundle,
+      activated: isBundle || loaderBuiltins.get(name) === true,
       exposure: MARKETPLACE_BOOT_BUNDLES.has(name)
         ? (needsRestart(name) ? 'stale' : 'boot-configured')
-        : (isBundle ? 'pending-restart' : 'inactive'),
+        : (isBundle ? 'pending-restart' : (loaderBuiltins.get(name) === true ? 'boot-configured' : 'inactive')),
       version,`
 
 /** Expose a conservative lifecycle projection from facts the marketplace already owns. */

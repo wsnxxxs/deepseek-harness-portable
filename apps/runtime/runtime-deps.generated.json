@@ -50,11 +50,12 @@
     "@dsh-portable/dcode-ui",
     "@dsh-portable/desktop-protocol",
     "@dsh-portable/interactive-learning",
+    "@dsh-portable/session-manager",
     "@dsh-portable/space-kernel",
     "@dsh-portable/ui-mode",
     "@dsh-portable/vision-bridge"
   ],
-  "closureHash": "sha256:62a6f02f443122af9f954167fabf186b2f19f1fed3bead20bbd10b44910b21f7",
+  "closureHash": "sha256:554435e1ed3ac2823a57587cfa12ba49e0f0404c22080d9751dda35f3c5f2fd2",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -1232,6 +1233,11 @@
       "path": "apps/interactive-learning"
     },
     {
+      "name": "@dsh-portable/session-manager",
+      "version": "0.1.0",
+      "path": "packages/session-manager"
+    },
+    {
       "name": "@dsh-portable/space-kernel",
       "version": "0.1.0",
       "path": "packages/space-kernel"
@@ -1483,6 +1489,7 @@
     "@dsh-portable/dcode-ui": "workspace:^",
     "@dsh-portable/desktop-protocol": "workspace:^",
     "@dsh-portable/interactive-learning": "workspace:^",
+    "@dsh-portable/session-manager": "workspace:^",
     "@dsh-portable/space-kernel": "workspace:^",
     "@dsh-portable/ui-mode": "workspace:^",
     "@dsh-portable/vision-bridge": "workspace:^",

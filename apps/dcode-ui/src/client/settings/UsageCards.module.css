@@ -1,7 +1,9 @@
-/* Workbench face of the shared usage card (see UsageCards.tsx). It stays in
-   the DCode `--zx-*` scale; the official-settings face lives in
-   ModelsUsageCard.module.css and carries the same class contract in the
-   `--dsw-alias-*` domain. */
+/* Workbench face of the shared usage card. The card itself belongs to
+   `@dsh-portable/session-manager`, which also registers it into the official
+   Models page; this file is only the face that renders it in the DCode `--zx-*`
+   scale. The official-settings face is that package's own
+   ModelsUsageCard.module.css, in the `--dsw-alias-*` domain, and both satisfy
+   the one UsageCardStyles class contract. */
 
 .card {
   display: flex;
