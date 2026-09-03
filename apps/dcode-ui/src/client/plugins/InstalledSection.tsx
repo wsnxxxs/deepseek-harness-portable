@@ -102,6 +102,7 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
               </a>
             )}
           {props.self ? <Pill className={css.tagAccent}>{t('plugins.selfTag')}</Pill> : null}
+          {plugin.kind === 'builtin' ? <Pill className={css.tagAccent}>{t('plugins.builtinTag')}</Pill> : null}
           {plugin.updateAvailable && plugin.latestVersion !== undefined
             ? (
               <Pill className={css.tagAccent}>
@@ -129,9 +130,13 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
                 <Button disabled={busy} onClick={props.onToggle}>
                   {busy ? t('plugins.working') : t(plugin.enabled ? 'plugins.disable' : 'plugins.enable')}
                 </Button>
-                <Button className={css.dangerConfirm} disabled={busy} onClick={props.onUninstall}>
-                  {t('plugins.uninstall')}
-                </Button>
+                {plugin.kind === 'builtin'
+                  ? null
+                  : (
+                    <Button className={css.dangerConfirm} disabled={busy} onClick={props.onUninstall}>
+                      {t('plugins.uninstall')}
+                    </Button>
+                  )}
               </>
             )}
         </div>
@@ -156,6 +161,7 @@ function InstalledCard(props: InstalledCardProps): ReactNode {
       <Lifecycle plugin={plugin} />
 
       {props.self ? <div className={css.statusLine}>{t('plugins.selfNote')}</div> : null}
+      {plugin.kind === 'builtin' ? <div className={css.statusLine}>{t('plugins.builtinNote')}</div> : null}
 
       {operation === undefined
         ? null

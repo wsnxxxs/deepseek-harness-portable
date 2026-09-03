@@ -148,10 +148,9 @@ export declare function normalizeMarketPage(raw: unknown, page: number): MarketP
 /**
  * Read the profile inventory.
  *
- * Built-in plugins are dropped here rather than in the view: they ship with
- * the harness, were not installed from the marketplace and cannot be removed
- * by it, so giving them a row of disabled buttons would only ask the operator
- * to work out why.
+ * Upstream built-ins remain hidden, but the Portable feature packages are
+ * user-facing and share the marketplace's enable/disable lifecycle. They are
+ * still not removable because they are shipped with the harness.
  * @param raw - the `/api/market/installed` body.
  * @returns the third-party plugins, the marketplace's own package, and any
  *   error the Host reported alongside them.

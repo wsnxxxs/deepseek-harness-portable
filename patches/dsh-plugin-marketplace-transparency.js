@@ -183,11 +183,19 @@ const CLIENT_TAGS_PATCHED = `${CLIENT_TAGS}
                   }),`
 
 const CLIENT_INSTALLED_DESCRIPTION = `                  p.description ? React.createElement('div', { className: 'dsh-market-desc' }, p.description) : null,
-                  self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,`
+                  self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,
+                  p.kind === 'builtin' ? React.createElement('div', { className: 'dsh-market-out' }, '随 harness 提供的内置能力，可启用或停用；修改后需要重启 harness。') : null,`
+
+const CLIENT_BUILTIN_UNINSTALL = `                  actions.push(React.createElement('button', {
+                    key: 'uninstall', className: 'dsh-market-act', 'data-kind': 'danger',`
+
+const CLIENT_BUILTIN_UNINSTALL_PATCHED = `                  if (p.kind !== 'builtin') actions.push(React.createElement('button', {
+                    key: 'uninstall', className: 'dsh-market-act', 'data-kind': 'danger',`
 
 const CLIENT_INSTALLED_DESCRIPTION_PATCHED = `                  p.description ? React.createElement('div', { className: 'dsh-market-desc' }, p.description) : null,
                   React.createElement(PluginLifecycle, { plugin: p }),
-                  self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,`
+                  self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,
+                  p.kind === 'builtin' ? React.createElement('div', { className: 'dsh-market-out' }, '随 harness 提供的内置能力，可启用或停用；修改后需要重启 harness。') : null,`
 
 /** Add reviewed pre-install disclosure, explicit confirmation, and lifecycle UI. */
 export function patchMarketplaceTransparencyClient(source) {
@@ -196,6 +204,9 @@ export function patchMarketplaceTransparencyClient(source) {
   output = replaceReviewed(output, CLIENT_PAGE_SIZE, CLIENT_AUDITS, 'client audit model')
   output = replaceReviewed(output, CLIENT_BUTTON, CLIENT_BUTTON_PATCHED, 'client install entry')
   output = replaceReviewed(output, CLIENT_TAGS, CLIENT_TAGS_PATCHED, 'client review panel')
+  if (output.includes(CLIENT_BUILTIN_UNINSTALL)) {
+    output = replaceReviewed(output, CLIENT_BUILTIN_UNINSTALL, CLIENT_BUILTIN_UNINSTALL_PATCHED, 'builtin toggle lifecycle')
+  }
   output = replaceReviewed(output, CLIENT_INSTALLED_DESCRIPTION, CLIENT_INSTALLED_DESCRIPTION_PATCHED, 'client lifecycle panel')
   return output
 }
@@ -255,15 +266,18 @@ function pluginLoadable(name) {
   return bundles.includes(name) && pluginAvailable(name)
 }`
 
-const SERVER_ENTRY = `      enabled: isBundle || loaderBuiltins.get(name) === true,
+const SERVER_ENTRY = `      enabled: isBundle || (isLoaderBuiltin && portablePluginEnabled(manifest, name, loaderBuiltins.get(name) === true)),
       version,`
 
-const SERVER_ENTRY_PATCHED = `      enabled: isBundle || loaderBuiltins.get(name) === true,
+const SERVER_ENTRY_PATCHED = `      enabled: isBundle || (isLoaderBuiltin && portablePluginEnabled(manifest, name, loaderBuiltins.get(name) === true)),
       available: pluginAvailable(name),
       activated: isBundle || loaderBuiltins.get(name) === true,
-      exposure: MARKETPLACE_BOOT_BUNDLES.has(name)
-        ? (needsRestart(name) ? 'stale' : 'boot-configured')
-        : (isBundle ? 'pending-restart' : (loaderBuiltins.get(name) === true ? 'boot-configured' : 'inactive')),
+      exposure: isLoaderBuiltin
+        ? (portablePluginEnabled(manifest, name, loaderBuiltins.get(name) === true) === (loaderBuiltins.get(name) === true)
+          ? 'boot-configured' : 'pending-restart')
+        : MARKETPLACE_BOOT_BUNDLES.has(name)
+          ? (needsRestart(name) ? 'stale' : 'boot-configured')
+          : (isBundle ? 'pending-restart' : 'inactive'),
       version,`
 
 /** Expose a conservative lifecycle projection from facts the marketplace already owns. */

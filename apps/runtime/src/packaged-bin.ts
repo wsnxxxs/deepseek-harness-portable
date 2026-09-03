@@ -99,6 +99,15 @@ const DIRECTORY_PICKER_BACKENDS = {
     client: '@deepseek-ai/dsh-client-ui-directory-picker-browse',
   },
 } as const
+/** Portable feature rows shown in the shared plugin inventory. */
+const PORTABLE_PLUGIN_ROWS = [
+  { id: 'vision-bridge', name: '@dsh-portable/vision-bridge' },
+  { id: 'interactive-learning', name: '@dsh-portable/interactive-learning' },
+  { id: 'ui-mode', name: '@dsh-portable/ui-mode' },
+  { id: 'session-manager', name: '@dsh-portable/session-manager' },
+  { id: 'dcode-ui', name: '@dsh-portable/dcode-ui' },
+  { id: 'cluster-ui', name: '@dsh-portable/cluster-ui' },
+] as const
 /** Shipped agent-preset sources: the portable catalog plus installable experience packs. */
 const SHIPPED_PRESET_SOURCES = [
   { id: 'desktop', path: fileURLToPath(new URL('../config/agent-presets/', import.meta.url)) },
@@ -445,6 +454,10 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
   })
   const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
   const bundlePatches = profile.layers.flatMap(layer => layer.patches)
+  const profileManifest = readProfileManifest(NAME, profileDir)
+  const portablePreferences = (profileManifest.dsh?.profile as unknown as {
+    portablePlugins?: Record<string, unknown>
+  } | undefined)?.portablePlugins
   const rows = new Map<string, PatchOptions>()
   for (const row of composeEntries([bundlePatches, profile.patches, homePatches])) {
     if (typeof row.id === 'string') rows.set(row.id, row)
@@ -505,29 +518,19 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
       },
     })
   }
-  // These portable features are default-injected extension rows. A matching
-  // row in either user layer is authoritative, so an operator can keep the
-  // default or add `disabled: true` to remove one from the assembly.
-  if (!rows.has('vision-bridge')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'vision-bridge',
-          name: '@dsh-portable/vision-bridge',
-        },
-      ],
-    })
-  }
-  if (!rows.has('interactive-learning')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'interactive-learning',
-          name: '@dsh-portable/interactive-learning',
-        },
-      ],
-    })
-  }
+  // These portable features are default-injected extension rows. The
+  // marketplace stores an explicit false value in the profile manifest when
+  // an operator disables one; keeping the row with `disabled: true` means the
+  // official inventory can still report it and the same setting can be turned
+  // back on later.
+  const portableInserts = PORTABLE_PLUGIN_ROWS
+    .filter(row => !rows.has(row.id))
+    .map(row => ({
+      id: row.id,
+      name: row.name,
+      ...(portablePreferences?.[row.name] === false ? { disabled: true } : {}),
+    }))
+  if (portableInserts.length > 0) overlays.push({ insert: portableInserts })
   // The Agent Teams runtime, on the HOST plane.
   //
   // It provides `agentTeams`, which the Gateway resolves from the host context
@@ -564,77 +567,9 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
       ],
     })
   }
-  // The shared interface vocabulary. It renders no surface of its own; it
-  // owns the one mode store every surface reads and the one interface switch
-  // in official settings, so it must be present even when every extension
-  // surface fails to load — that switch is how an operator gets back.
-  if (!rows.has('ui-mode')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'ui-mode',
-          name: '@dsh-portable/ui-mode',
-        },
-      ],
-    })
-  }
-  // Archived-chat management and the token-usage report.
-  //
-  // Its own row rather than a part of the workbench, because both pages join
-  // the OFFICIAL settings panel: the archive page through `settings.section`
-  // and the usage card through the Models page's `settings.models.footer`
-  // seat. Registering them from the workbench made two capabilities of the
-  // official UI vanish with a front end an operator can switch away from, and
-  // the official session row menu can archive a conversation but has never
-  // been able to bring one back.
-  //
-  // It folds state the official Host already publishes (the Workspace
-  // Controller's archive set and the durable per-session usage projections),
-  // so it claims nothing on the host and adds no store of its own.
-  if (!rows.has('session-manager')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'session-manager',
-          name: '@dsh-portable/session-manager',
-        },
-      ],
-    })
-  }
-  // The modern workbench ships beside the official UI, never instead of it:
-  // its client half shadows the `root` slot only while the operator has
-  // selected it, and its host half serves the `/dcode` git channel.
-  if (!rows.has('dcode-ui')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'dcode-ui',
-          name: '@dsh-portable/dcode-ui',
-        },
-      ],
-    })
-  }
-  // Cluster mode: the Agent Teams roster and shared task board.
-  //
-  // Its own row rather than a part of any surface. The browser half mounts the
-  // Team Remote namespace, publishes the panel as `ctx.cluster` for whichever
-  // surface wants to seat it, and registers its own entry in the official
-  // conversation header — so the capability survives a surface being trimmed,
-  // and a surface survives this row being disabled.
-  //
-  // `reconcileCrewRuntime` disables it beside the `agent-team` host row when
-  // Crew did not pass capability measurement: with no host service to answer
-  // `agentTeams.*` there is nothing for this plugin to show.
-  if (!rows.has('cluster-ui')) {
-    overlays.push({
-      insert: [
-        {
-          id: 'cluster-ui',
-          name: '@dsh-portable/cluster-ui',
-        },
-      ],
-    })
-  }
+  // The shared interface, session-management, workbench, and cluster rows all
+  // follow the same preference path above; only the Crew host row has its own
+  // capability-gated insertion below.
   const telemetryPatch = resolveTelemetryPatch(process.env.DSH_TELEMETRY_DISABLED, rows.has(TELEMETRY_ROW_ID))
   if (telemetryPatch !== undefined) overlays.push(telemetryPatch)
   return {

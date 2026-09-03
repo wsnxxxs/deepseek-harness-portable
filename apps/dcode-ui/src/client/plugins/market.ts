@@ -291,10 +291,9 @@ function normalizeInstalledPlugin(raw: unknown): InstalledPlugin | undefined {
 /**
  * Read the profile inventory.
  *
- * Built-in plugins are dropped here rather than in the view: they ship with
- * the harness, were not installed from the marketplace and cannot be removed
- * by it, so giving them a row of disabled buttons would only ask the operator
- * to work out why.
+ * Upstream built-ins remain hidden, but the Portable feature packages are
+ * user-facing and share the marketplace's enable/disable lifecycle. They are
+ * still not removable because they are shipped with the harness.
  * @param raw - the `/api/market/installed` body.
  * @returns the third-party plugins, the marketplace's own package, and any
  *   error the Host reported alongside them.
@@ -304,7 +303,10 @@ export function normalizeInstalled(raw: unknown): InstalledSnapshot {
   const plugins = Array.isArray(source['plugins'])
     ? source['plugins'].flatMap((entry) => {
       const plugin = normalizeInstalledPlugin(entry)
-      return plugin === undefined || plugin.kind === 'builtin' ? [] : [plugin]
+      return plugin === undefined
+        || (plugin.kind === 'builtin' && !plugin.name.startsWith('@dsh-portable/'))
+        ? []
+        : [plugin]
     })
     : []
   const rawSelf = source['self']

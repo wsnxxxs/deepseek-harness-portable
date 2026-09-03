@@ -1722,7 +1722,7 @@ window.__ModuleLoader__.load({
 			"plugins.progress.label": "Plugin installation progress",
 			"plugins.progress.indeterminate": "Installation progress is unavailable",
 			"plugins.installedTitle": "Installed plugins",
-			"plugins.installedBody": "Third-party plugins installed into the web profile. Built-in plugins ship with the harness and are configured under Configuration.",
+			"plugins.installedBody": "Third-party plugins and Portable built-in features available to this web profile.",
 			"plugins.installedCount": "{count} installed",
 			"plugins.updatableCount": "{count} updatable",
 			"plugins.emptyInstalled": "No third-party plugin is installed yet.",
@@ -1739,6 +1739,8 @@ window.__ModuleLoader__.load({
 			"plugins.uninstallBody": "This removes the package from the web profile. It takes effect after the harness restarts.",
 			"plugins.selfTag": "This marketplace",
 			"plugins.selfNote": "The marketplace runs this page, so it cannot disable or uninstall itself here.",
+			"plugins.builtinTag": "Built-in",
+			"plugins.builtinNote": "Ships with the harness. Enable or disable it here; the change applies after restart.",
 			"plugins.disabledTag": "Disabled",
 			"plugins.updateTag": "v{version} available",
 			"plugins.pendingTag": "Pending restart",
@@ -2602,7 +2604,7 @@ window.__ModuleLoader__.load({
 			"plugins.progress.label": "插件安装进度",
 			"plugins.progress.indeterminate": "暂时无法获取安装进度",
 			"plugins.installedTitle": "已安装插件",
-			"plugins.installedBody": "这里是安装到 web 配置的第三方插件。内置插件随 harness 提供，请在「插件配置」中调整。",
+			"plugins.installedBody": "这里管理第三方插件，以及随 harness 提供、可按需启停的 Portable 内置能力。",
 			"plugins.installedCount": "已安装 {count} 个",
 			"plugins.updatableCount": "{count} 个可更新",
 			"plugins.emptyInstalled": "还没有安装第三方插件。",
@@ -2619,6 +2621,8 @@ window.__ModuleLoader__.load({
 			"plugins.uninstallBody": "这会从 web 配置中移除该插件包，重启 harness 后生效。",
 			"plugins.selfTag": "当前插件市场",
 			"plugins.selfNote": "本页由插件市场提供，因此它不能在这里停用或卸载自己。",
+			"plugins.builtinTag": "内置",
+			"plugins.builtinNote": "随 harness 提供，可在这里启用或停用；修改后重启 harness 生效。",
 			"plugins.disabledTag": "已停用",
 			"plugins.updateTag": "可更新 v{version}",
 			"plugins.pendingTag": "待重启",
@@ -14296,10 +14300,9 @@ window.__ModuleLoader__.load({
 		/**
 		* Read the profile inventory.
 		*
-		* Built-in plugins are dropped here rather than in the view: they ship with
-		* the harness, were not installed from the marketplace and cannot be removed
-		* by it, so giving them a row of disabled buttons would only ask the operator
-		* to work out why.
+		* Upstream built-ins remain hidden, but the Portable feature packages are
+		* user-facing and share the marketplace's enable/disable lifecycle. They are
+		* still not removable because they are shipped with the harness.
 		* @param raw - the `/api/market/installed` body.
 		* @returns the third-party plugins, the marketplace's own package, and any
 		*   error the Host reported alongside them.
@@ -14308,7 +14311,7 @@ window.__ModuleLoader__.load({
 			const source = isRecord(raw) ? raw : {};
 			const plugins = Array.isArray(source["plugins"]) ? source["plugins"].flatMap((entry) => {
 				const plugin = normalizeInstalledPlugin(entry);
-				return plugin === void 0 || plugin.kind === "builtin" ? [] : [plugin];
+				return plugin === void 0 || plugin.kind === "builtin" && !plugin.name.startsWith("@dsh-portable/") ? [] : [plugin];
 			}) : [];
 			const rawSelf = source["self"];
 			const selfName = isRecord(rawSelf) ? text(rawSelf, "name") : "";
@@ -16813,6 +16816,10 @@ window.__ModuleLoader__.load({
 								className: PluginsHome_module_css_default.tagAccent,
 								children: t("plugins.selfTag")
 							}) : null,
+							plugin.kind === "builtin" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
+								className: PluginsHome_module_css_default.tagAccent,
+								children: t("plugins.builtinTag")
+							}) : null,
 							plugin.updateAvailable && plugin.latestVersion !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Pill, {
 								className: PluginsHome_module_css_default.tagAccent,
 								children: t("plugins.updateTag", { version: plugin.latestVersion })
@@ -16837,7 +16844,7 @@ window.__ModuleLoader__.load({
 							disabled: busy,
 							onClick: props.onToggle,
 							children: busy ? t("plugins.working") : t(plugin.enabled ? "plugins.disable" : "plugins.enable")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+						}), plugin.kind === "builtin" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 							className: PluginsHome_module_css_default.dangerConfirm,
 							disabled: busy,
 							onClick: props.onUninstall,
@@ -16859,6 +16866,10 @@ window.__ModuleLoader__.load({
 						props.self ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: PluginsHome_module_css_default.statusLine,
 							children: t("plugins.selfNote")
+						}) : null,
+						plugin.kind === "builtin" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: PluginsHome_module_css_default.statusLine,
+							children: t("plugins.builtinNote")
 						}) : null,
 						operation === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(JobProgress, {

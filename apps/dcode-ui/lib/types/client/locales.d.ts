@@ -808,7 +808,7 @@ export declare const en: {
     readonly 'plugins.progress.label': "Plugin installation progress";
     readonly 'plugins.progress.indeterminate': "Installation progress is unavailable";
     readonly 'plugins.installedTitle': "Installed plugins";
-    readonly 'plugins.installedBody': "Third-party plugins installed into the web profile. Built-in plugins ship with the harness and are configured under Configuration.";
+    readonly 'plugins.installedBody': "Third-party plugins and Portable built-in features available to this web profile.";
     readonly 'plugins.installedCount': "{count} installed";
     readonly 'plugins.updatableCount': "{count} updatable";
     readonly 'plugins.emptyInstalled': "No third-party plugin is installed yet.";
@@ -825,6 +825,8 @@ export declare const en: {
     readonly 'plugins.uninstallBody': "This removes the package from the web profile. It takes effect after the harness restarts.";
     readonly 'plugins.selfTag': "This marketplace";
     readonly 'plugins.selfNote': "The marketplace runs this page, so it cannot disable or uninstall itself here.";
+    readonly 'plugins.builtinTag': "Built-in";
+    readonly 'plugins.builtinNote': "Ships with the harness. Enable or disable it here; the change applies after restart.";
     readonly 'plugins.disabledTag': "Disabled";
     readonly 'plugins.updateTag': "v{version} available";
     readonly 'plugins.pendingTag': "Pending restart";

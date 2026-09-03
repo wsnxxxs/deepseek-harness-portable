@@ -57,7 +57,7 @@ function InstalledCard(props) {
     const busy = operation?.status === 'running';
     return (_jsxs("article", { className: css.card, children: [_jsxs("div", { className: `${css.cardHead} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.identity, children: [plugin.homepage === undefined
                                 ? _jsx("span", { className: css.name, children: plugin.name })
-                                : (_jsx("a", { className: css.name, href: plugin.homepage, target: "_blank", rel: "noreferrer", children: plugin.name })), props.self ? _jsx(Pill, { className: css.tagAccent, children: t('plugins.selfTag') }) : null, plugin.updateAvailable && plugin.latestVersion !== undefined
+                                : (_jsx("a", { className: css.name, href: plugin.homepage, target: "_blank", rel: "noreferrer", children: plugin.name })), props.self ? _jsx(Pill, { className: css.tagAccent, children: t('plugins.selfTag') }) : null, plugin.kind === 'builtin' ? _jsx(Pill, { className: css.tagAccent, children: t('plugins.builtinTag') }) : null, plugin.updateAvailable && plugin.latestVersion !== undefined
                                 ? (_jsx(Pill, { className: css.tagAccent, children: t('plugins.updateTag', { version: plugin.latestVersion }) }))
                                 : null, plugin.enabled ? null : _jsx(Pill, { className: css.tagMuted, children: t('plugins.disabledTag') }), pendingRestart(plugin)
                                 ? _jsx(Pill, { className: css.tagWarn, children: t('plugins.pendingTag') })
@@ -65,13 +65,15 @@ function InstalledCard(props) {
                                 ? (_jsx(Button, { primary: true, disabled: busy, onClick: props.onUpdate, children: busy ? t('plugins.updating') : t('plugins.update', { version: plugin.latestVersion }) }))
                                 : null, props.self
                                 ? null
-                                : (_jsxs(_Fragment, { children: [_jsx(Button, { disabled: busy, onClick: props.onToggle, children: busy ? t('plugins.working') : t(plugin.enabled ? 'plugins.disable' : 'plugins.enable') }), _jsx(Button, { className: css.dangerConfirm, disabled: busy, onClick: props.onUninstall, children: t('plugins.uninstall') })] }))] })] }), _jsxs("div", { className: css.cardBody, children: [_jsxs("div", { className: css.facts, children: [_jsx(Pill, { children: plugin.version === undefined
+                                : (_jsxs(_Fragment, { children: [_jsx(Button, { disabled: busy, onClick: props.onToggle, children: busy ? t('plugins.working') : t(plugin.enabled ? 'plugins.disable' : 'plugins.enable') }), plugin.kind === 'builtin'
+                                            ? null
+                                            : (_jsx(Button, { className: css.dangerConfirm, disabled: busy, onClick: props.onUninstall, children: t('plugins.uninstall') }))] }))] })] }), _jsxs("div", { className: css.cardBody, children: [_jsxs("div", { className: css.facts, children: [_jsx(Pill, { children: plugin.version === undefined
                                     ? t('plugins.versionUnknown')
                                     : t('plugins.version', { version: plugin.version }) }), plugin.latestVersion === undefined || plugin.latestVersion === plugin.version
                                 ? null
                                 : _jsx(Pill, { children: t('plugins.latestVersion', { version: plugin.latestVersion }) })] }), plugin.description === undefined
                         ? null
-                        : _jsx("p", { className: css.description, children: plugin.description }), _jsx(Lifecycle, { plugin: plugin }), props.self ? _jsx("div", { className: css.statusLine, children: t('plugins.selfNote') }) : null, operation === undefined
+                        : _jsx("p", { className: css.description, children: plugin.description }), _jsx(Lifecycle, { plugin: plugin }), props.self ? _jsx("div", { className: css.statusLine, children: t('plugins.selfNote') }) : null, plugin.kind === 'builtin' ? _jsx("div", { className: css.statusLine, children: t('plugins.builtinNote') }) : null, operation === undefined
                         ? null
                         : (_jsxs(_Fragment, { children: [_jsx(JobProgress, { operation: operation, onCancel: props.onCancel }), operation.status === 'done'
                                     ? _jsx("div", { className: `${css.statusLine} ${css.statusOk}`, children: t('plugins.actionDone') })

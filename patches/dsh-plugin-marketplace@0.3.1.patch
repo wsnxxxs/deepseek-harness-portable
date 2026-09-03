@@ -2,7 +2,7 @@ diff --git a/lib/client.js b/lib/client.js
 index 2b25f40e08cebbde724e13ed9cfb49941192fe2b..dea981eb006ad95cd4166177eba7b66c600683a7 100644
 --- a/lib/client.js
 +++ b/lib/client.js
-@@ -664,10 +664,9 @@ window.__ModuleLoader__.load({
+@@ -664,10 +664,10 @@ window.__ModuleLoader__.load({
        }
  
        var isSelf = function isSelf(p) { return current.self && p.name === current.self.name }
@@ -11,7 +11,8 @@ index 2b25f40e08cebbde724e13ed9cfb49941192fe2b..dea981eb006ad95cd4166177eba7b66c
 -      // not yet restarted (it may still include builtin entries).
 -      var shown = current.plugins.filter(function (p) { return p.kind !== 'builtin' })
 +      // The host returns third-party plugins and the user-facing Portable
-+      // packages. Keep both kinds visible; only third-party rows are mutable.
++      // packages. Keep both kinds visible; Portable built-ins support the same
++      // enable/disable lifecycle, while package replacement stays third-party only.
 +      var shown = current.plugins
        var updatable = 0
        shown.forEach(function (p) { if (p.updateAvailable) updatable += 1 })
@@ -43,11 +44,17 @@ index 2b25f40e08cebbde724e13ed9cfb49941192fe2b..dea981eb006ad95cd4166177eba7b66c
                    }, busy ? '更新中…' : '更新到 v' + p.latestVersion))
                  }
 -                if (!self) {
-+                if (!self && p.kind !== 'builtin') {
++                if (!self) {
                    actions.push(React.createElement('button', {
                      key: 'toggle', className: 'dsh-market-act', 'data-kind': p.enabled ? 'muted' : 'update',
                      onClick: function () { run(p.name, 'set-enabled', { name: p.name, enabled: !p.enabled }) }, disabled: busy,
-@@ -719,6 +718,7 @@ window.__ModuleLoader__.load({
+@@ -705,4 +705,4 @@ window.__ModuleLoader__.load({
+-                  actions.push(React.createElement('button', {
++                  if (p.kind !== 'builtin') actions.push(React.createElement('button', {
+                     key: 'uninstall', className: 'dsh-market-act', 'data-kind': 'danger',
+                     onClick: function () { onUninstall(p.name) }, disabled: busy,
+                   }, busy ? '卸载中…' : (a.confirmUninstall ? '确认卸载？' : '卸载')))
+@@ -719,6 +719,7 @@ window.__ModuleLoader__.load({
                          ? React.createElement('a', { href: p.homepage, target: '_blank', rel: 'noreferrer' }, p.name)
                          : React.createElement('strong', null, p.name),
                        self ? React.createElement('span', { className: 'dsh-market-tag-self' }, '本插件') : null,
@@ -59,7 +66,7 @@ index 2b25f40e08cebbde724e13ed9cfb49941192fe2b..dea981eb006ad95cd4166177eba7b66c
                      : null,
                    p.description ? React.createElement('div', { className: 'dsh-market-desc' }, p.description) : null,
                    self ? React.createElement('div', { className: 'dsh-market-out' }, '当前正在使用的插件，不能关闭或卸载。') : null,
-+                  p.kind === 'builtin' ? React.createElement('div', { className: 'dsh-market-out' }, '随 harness 提供的内置能力，不能更新、停用或卸载。') : null,
++                  p.kind === 'builtin' ? React.createElement('div', { className: 'dsh-market-out' }, '随 harness 提供的内置能力，可启用或停用；修改后需要重启 harness。') : null,
                    note,
                  )
                }),
@@ -108,7 +115,62 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..f3c2bb5fc81ae51e6fff8677149da4e5
  }
  
  /** This plugin's own package manifest (works from either a link or a registry install). */
-@@ -1435,29 +1456,42 @@ async function mapLimit(items, limit, fn) {
+@@ -1347,32 +1368,52 @@ async function setPluginEnabled(name, enabled) {
+-async function setPluginEnabled(name, enabled) {
++async function setPluginEnabled(name, enabled, loader) {
+   return withManifestLock(async () => {
+     const manifest = profileManifest()
+     if (!manifest) return { ok: false, name, enabled: !!enabled, requiresRestart: false, error: 'web profile manifest not found' }
+     const deps = manifest.dependencies || {}
+-    if (!(name in deps)) {
++    const isPortableBuiltin = name.startsWith('@dsh-portable/')
++      && loaderPortableEntries(loader).has(name)
++    if (!(name in deps) && !isPortableBuiltin) {
+       return { ok: false, name, enabled: !!enabled, requiresRestart: false, error: `${name} 不是后安装的插件；内置插件不能关闭/卸载` }
+     }
++    if (isPortableBuiltin) {
++      const actual = loaderPortableEntries(loader).get(name) === true
++      const target = !!enabled
++      const current = portablePluginEnabled(manifest, name, actual)
++      if (target === current) return { ok: true, name, enabled: target, changed: false, requiresRestart: false, error: null }
++      manifest.dsh = {
++        ...manifest.dsh,
++        profile: {
++          ...(manifest.dsh && manifest.dsh.profile),
++          portablePlugins: {
++            ...portablePluginPreferences(manifest),
++            [name]: target,
++          },
++        },
++      }
++      writeProfileManifestFile(manifest)
++      return { ok: true, name, enabled: target, changed: true, requiresRestart: true, error: null }
++    }
+     const bundles = Array.isArray(manifest.dsh && manifest.dsh.profile && manifest.dsh.profile.bundles)
+       ? manifest.dsh.profile.bundles
+       : []
+     const has = bundles.includes(name)
+     const target = !!enabled
+     if (target === has) return { ok: true, name, enabled: target, changed: false, requiresRestart: false, error: null }
+     // Only promote actual plugins (packages declaring dsh.bundle/dsh.client)
+     // into the loader's bundle layer list; a plain dependency cannot be a
+     // bundle and would fail to boot.
+     if (target) {
+       const inst = installedManifest(name)
+       const isPlugin = !!(inst && (inst.dsh?.bundle?.patch !== undefined || inst.dsh?.client !== undefined))
+       if (!isPlugin) {
+         return { ok: false, name, enabled: false, requiresRestart: false, error: `${name} 不是插件（未声明 dsh.bundle/dsh.client），无法启用` }
+       }
+       bundles.push(name)
+     } else {
+       bundles.splice(bundles.indexOf(name), 1)
+     }
+     manifest.dsh = { ...manifest.dsh, profile: { ...(manifest.dsh && manifest.dsh.profile), bundles } }
+     writeProfileManifestFile(manifest)
+     return { ok: true, name, enabled: target, changed: true, requiresRestart: true, error: null }
+   })
+ }
+@@ -1435,29 +1456,57 @@ async function mapLimit(items, limit, fn) {
    return results
  }
  
@@ -122,6 +184,21 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..f3c2bb5fc81ae51e6fff8677149da4e5
 +    found.set(name, entry.disabled !== true)
 +  }
 +  return found
++}
++
++function portablePluginPreferences(manifest) {
++  const profile = manifest && manifest.dsh && manifest.dsh.profile
++  const preferences = profile && profile.portablePlugins
++  return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
++    ? preferences
++    : {}
++}
++
++function portablePluginEnabled(manifest, name, fallback) {
++  const preferences = portablePluginPreferences(manifest)
++  return Object.prototype.hasOwnProperty.call(preferences, name)
++    ? preferences[name] === true
++    : fallback
 +}
 +
 +async function buildInstalledList(loader) {
@@ -152,7 +229,7 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..f3c2bb5fc81ae51e6fff8677149da4e5
        spec: isDep ? deps[name] : null,
        kind,
 -      enabled: isBundle,
-+      enabled: isBundle || loaderBuiltins.get(name) === true,
++      enabled: isBundle || (isLoaderBuiltin && portablePluginEnabled(manifest, name, loaderBuiltins.get(name) === true)),
        version,
        latestVersion: null,
        updateAvailable: false,
@@ -273,6 +350,22 @@ index 6c97c9e16e2c040311e93ca6ea6c9e87f98de9ae..f3c2bb5fc81ae51e6fff8677149da4e5
          json(res, 200, { ok: true, fetchedAt: Date.now(), plugins: data.plugins, self: data.self, error: data.error })
        } catch (e) {
          json(res, 500, { ok: false, plugins: [], self: null, error: String((e && e.message) || e) })
+@@ -1704,14 +1814,14 @@ export default {
+     // ── POST /api/market/set-enabled — 关闭/启用 an installed plugin ─────
+     const setEnabledHandler = async (req, res) => {
+       try {
+         if ((req.method || 'GET').toUpperCase() !== 'POST') { json(res, 405, { ok: false, error: 'method not allowed' }); return }
+         const body = await readJsonBody(req)
+         const name = String((body && body.name) || '').trim()
+         if (!validPluginName(name)) { json(res, 400, { ok: false, error: 'invalid plugin name' }); return }
+         if (typeof (body && body.enabled) !== 'boolean') { json(res, 400, { ok: false, error: 'enabled must be a boolean' }); return }
+-        const result = await setPluginEnabled(name, body.enabled)
++        const result = await setPluginEnabled(name, body.enabled, loader)
+         json(res, result.ok ? 200 : 400, result)
+       } catch (e) {
+         json(res, 500, { ok: false, name: '', enabled: false, requiresRestart: false, error: String((e && e.message) || e) })
+       }
+     }
 @@ -1958,7 +2033,7 @@ export default {
          },
        },

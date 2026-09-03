@@ -63,15 +63,16 @@ test('a Host that omits hasMore still paginates', () => {
   assert.equal(normalizeMarketPage({ items: [], total: 120, page: 1, hasMore: false }, 1).hasMore, false)
 })
 
-test('built-in plugins never reach the manage list', () => {
+test('upstream built-ins stay hidden while Portable built-ins are manageable', () => {
   const snapshot = normalizeInstalled({
     plugins: [
       { name: 'dsh-plugin-shell', kind: 'builtin', enabled: true },
+      { name: '@dsh-portable/ui-mode', kind: 'builtin', enabled: true },
       { name: 'third-party', kind: 'installed', enabled: true, exposure: 'boot-configured' },
     ],
     self: { name: 'dsh-plugin-marketplace', version: '0.3.1', latestVersion: '0.4.0', updateAvailable: true },
   })
-  assert.deepEqual(snapshot.plugins.map(plugin => plugin.name), ['third-party'])
+  assert.deepEqual(snapshot.plugins.map(plugin => plugin.name), ['@dsh-portable/ui-mode', 'third-party'])
   assert.equal(snapshot.self.name, 'dsh-plugin-marketplace')
   assert.equal(snapshot.self.updateAvailable, true)
 })
