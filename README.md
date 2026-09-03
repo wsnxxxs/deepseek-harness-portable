@@ -85,7 +85,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 | Item | Version |
 | --- | --- |
-| Release | DeepSeek Harness Desktop **v1.6.1** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.1)) |
+| Release | DeepSeek Harness Desktop **v1.6.2** ([download](https://github.com/wsnxxxs/deepseek-harness-portable/releases/tag/v1.6.2)) |
 
 Read the [English release notes](RELEASE_NOTES.md) or open **Release Notes** from the desktop tray menu.
 
@@ -216,13 +216,13 @@ launcher and updater checks are in the platform suite:
 
     pnpm run desktop:package:win
 
-For a disposable Windows x64 test build using the current 1.6.1 product identity,
+For a disposable Windows x64 test build using the current 1.6.2 product identity,
 write the output to a separate directory:
 
-    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.1-test --no-cache
+    pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.6.2-test --no-cache
 
 The test ZIP and Setup installer will be under
-`dist-desktop/electron-v1.6.1-test/windows-artifacts/`; the unpacked app and its
+`dist-desktop/electron-v1.6.2-test/windows-artifacts/`; the unpacked app and its
 verified bundle are in the same output root.
 
 The verified Windows bundle is written to `dist-desktop/electron/verified/win32-x64/`. Publishing is a separate copy-only operation and requires that directory explicitly:

@@ -1,4 +1,4 @@
-# DeepSeek Harness Desktop v1.6.1
+# DeepSeek Harness Desktop v1.6.2
 
 [English](RELEASE_NOTES.md)
 
@@ -8,6 +8,8 @@
 
 - 优化 DCode 工作台、悬浮输入框、消息导航、变更审阅与终端体验，并改善不同窗口尺寸下的布局。
 - 新增可选的集群编排（英文界面：Swarm mode，运行时 id：`crew`）：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。
+- 更新内置 DeepSeek Harness runtime 至 0.1.2-rc.1。
+- 统一 DCode 设置与插件市场中的 Portable 内置能力管理；内置能力支持启用或停用，重启后生效。
 - DCode UI、Vision Bridge、Cluster 和 Learning 保持默认注入但可自行移除；移除可选插件后不再阻塞桌面核心外壳启动。
 - 将集群模式拆为独立的 `@dsh-portable/cluster-ui` 插件，官方界面和兼容的其他界面都可以承载队伍名册与任务看板。
 - 抽出可复用的资料库内核，让 Learning 与资料档案任务共享材料摄入、锚点、重锚和词法检索能力。
