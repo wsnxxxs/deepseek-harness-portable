@@ -7,7 +7,6 @@ import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   KNOWN_SESSION_EVENT_TYPES,
   SessionId,
-  type SessionEvent,
 } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -100,38 +99,27 @@ describe('Learning state durable load order', () => {
       type: 'learning/state',
       data: { snapshot: { goal: 'Understand queue invariants', revision: 1 } },
     })
-    // The persistence seam is handle-based: nothing is stored until a writer
-    // opens a handle and flushes it. In the product that writer is AgentLoop;
-    // this test mounts the Session store and the backend alone, so it writes
-    // the log itself — the point under test is the JSONL round trip, not who
-    // opens the handle.
-    const writeHandle = await first.sessionPersistence.create(originalSession.header)
-    await writeHandle.append(originalSession.snapshotEvents())
-    await writeHandle.flush()
-    await writeHandle.close()
+    // Flush through the SessionStore-owned durability checkpoint so the
+    // persistence plugin drains the events captured from the live Session.
+    await first.sessions.flush(originalSession)
     disposeOriginalAgent()
     await first.fiber.dispose()
 
     const second = await mountPersistence(root)
 
-    // Alpha.4 requires the package event vocabulary to be registered before
-    // the persisted Session is restored.
+    // The package event vocabulary must be registered before the persisted
+    // Session is restored.
     await import('../src/preset.ts?durable-reboot-preboot')
     expect(known.has('learning/state')).toBe(true)
-    // The persistence seam is handle-based: `open` resolves the artifact and
-    // `read` decodes the log against the registered event vocabulary.
-    const handle = await second.sessionPersistence.open(sessionId, 'read')
-    const loadedEvents = await handle.read()
-    const loadedHeader = handle.header
-    await handle.close()
+    // Inspect decodes the log against the registered event vocabulary.
+    const inspection = await second.sessionPersistence.inspect(sessionId)
+    const loadedEvents = inspection.events
     expect(loadedEvents.some(event => event.type === 'learning/state')).toBe(true)
-    const restoredSession = second.sessions.prepare(sessionId, {
-      seed: structuredClone(loadedEvents) as SessionEvent[],
-      meta: structuredClone(loadedHeader),
-      seedSource: 'persistence',
-    })
+    const preparation = await second.sessionPersistence.prepare(sessionId)
+    const restoredSession = preparation.session
     const detachSession = second.sessions.enter(restoredSession)
     second.sessions.announce(restoredSession)
+    preparation[Symbol.dispose]()
 
     await mountLearningServices(second)
     const restoredAgent = agentFor(restoredSession)

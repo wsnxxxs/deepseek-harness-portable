@@ -89,19 +89,15 @@ async function writeLearningStateFixture(root: string, cwd: string, id: SessionI
 /**
  * Read one stored session end to end.
  *
- * The persistence seam is handle-based: `open` resolves the artifact and
- * `read` decodes the log, and either step is where a refusal surfaces.
+ * The persistence seam returns a validated immutable inspection, and the
+ * inspection is where a format refusal surfaces.
  * @param persistence - the mounted backend.
  * @param id - the stored session to read.
  * @returns every decoded event in the log.
  */
 async function readAll(persistence: Context['sessionPersistence'], id: SessionId): Promise<readonly SessionEvent[]> {
-  const handle = await persistence.open(id, 'read')
-  try {
-    return await handle.read()
-  } finally {
-    await handle.close()
-  }
+  const inspection = await persistence.inspect(id)
+  return inspection.events
 }
 
 async function waitFor<T>(read: () => T | undefined, timeoutMs = 5_000): Promise<T> {
@@ -140,7 +136,7 @@ test('portable reader accepts only its registered legacy unmarked event type', a
   }
 })
 
-test('portable mode-resolution writes use the alpha.4 append surface', () => {
+test('portable mode-resolution writes use the session append surface', () => {
   const trace: RuntimeModeTrace = {
     modeId: 'ptc',
     variantId: 'native',
