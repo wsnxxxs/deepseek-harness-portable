@@ -8,18 +8,35 @@
   "author": "wsnxxxs",
   "tagline": "石墨与纸白 · 分层工作区 · 安静的建筑光影",
   "description": "从 DCode 工作台提取的外观资产：纸白亮色与石墨暗色、清晰的侧栏分界、圆角输入区和原创建筑光影背景。保留宿主布局与插件功能，仅通过标准主题变量和语义属性呈现。",
-  "tags": ["dcode", "graphite", "minimal", "workspace", "light", "dark"],
+  "tags": [
+    "dcode",
+    "graphite",
+    "minimal",
+    "workspace",
+    "light",
+    "dark"
+  ],
   "accent": "#25282d",
   "license": "MIT",
-  "sourceUrl": "https://github.com/wsnxxxs/deepseek-harness-portable/tree/main/skins/dcode",
+  "sourceUrl": "https://github.com/wsnxxxs/deepseek-harness-portable",
   "attribution": "Original vector artwork and styling by the deepseek-harness-portable contributors.",
-  "preview": { "light": "preview/light.jpg", "dark": "preview/dark.jpg" },
+  "preview": {
+    "light": "preview/light.jpg",
+    "dark": "preview/dark.jpg"
+  },
   "contributes": {
     "stylesheet": "skin.css",
     "patches": "patches.css",
     "backgroundMedia": {
-      "light": { "type": "image", "src": "assets/graphite-light.svg" },
-      "dark": { "type": "image", "src": "assets/graphite-dark.svg" }
+      "light": {
+        "type": "image",
+        "src": "assets/graphite-light.svg"
+      },
+      "dark": {
+        "type": "image",
+        "src": "assets/graphite-dark.svg"
+      }
     }
-  }
+  },
+  "order": 102
 }
