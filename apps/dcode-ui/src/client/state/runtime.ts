@@ -40,7 +40,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { UI_MODE_NS, type UiModeController, type UiModeKey } from '@dsh-portable/ui-mode/client'
 import { SESSION_MANAGER_NS, type SessionManagerTranslate } from '@dsh-portable/session-manager/client'
 import {
-  createLearningCall, createDcodeApi, createDcodeMemoryApi,
+  createDcodeApi, createDcodeMemoryApi,
   type RpcCarrier, type DcodeApi, type DcodeMemoryApi,
 } from '../rpc.ts'
 import { createAppearanceStore, type AppearanceStore, type ThemeFace } from '../theme.ts'
@@ -314,17 +314,8 @@ export interface DcodeRuntime {
   readonly git: DcodeApi
   /** Durable memory controls over the `/dcode` channel. */
   readonly memory: DcodeMemoryApi
-  /** The Interactive Learning channel caller, shared with the official UI's learning views. */
-  readonly learningCall: (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>
   /**
-   * The learning pack's own bound translate function. Its surfaces carry their
-   * own dictionary; reusing it keeps one copy of the learning vocabulary
-   * instead of a second translation of the same words.
-   */
-  readonly learningT: (key: string, params?: Record<string, unknown>) => string
-  /**
-   * The interface switch's own bound translate function, for the same reason
-   * as {@link learningT}: the roster of surfaces and their names belong to
+   * The interface switch's own bound translate function: the roster of surfaces and their names belong to
    * `@dsh-portable/ui-mode`, so every switch renders one set of words rather
    * than each surface translating the other surfaces' names itself.
    */
@@ -486,10 +477,6 @@ export function createDcodeRuntime(
     sessionLogDownload,
     git: createDcodeApi(carrier),
     memory: createDcodeMemoryApi(carrier),
-    learningCall: createLearningCall(carrier),
-    // The pack registers this namespace itself; an assembly without it falls
-    // back to the raw key, which is still readable and never throws.
-    learningT: locale?.bind('interactive-learning') ?? (key => key),
     uiModeT: locale?.bind(UI_MODE_NS) ?? (key => key),
     usageT: locale?.bind(SESSION_MANAGER_NS) ?? (key => key),
     mode,

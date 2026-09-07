@@ -1,1 +1,0 @@
-{"version":3,"file":"ClusterPanel.d.ts","sourceRoot":"","sources":["../../../../src/client/shell/ClusterPanel.tsx"],"names":[],"mappings":"AAAA,uEAAuE;AAOvE,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,gCAAgC,CAAA;AA+E/D,sDAAsD;AACtD,wBAAgB,YAAY,CAAC,EAAE,SAAS,EAAE,EAAE;IAAE,QAAQ,CAAC,SAAS,EAAE,SAAS,GAAG,SAAS,CAAA;CAAE,sCA0PxF"}

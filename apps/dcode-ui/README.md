@@ -101,6 +101,30 @@ directory.
 
 ## Appearance
 
+The separately distributable [DCode Graphite skin](../../skins/dcode/README.md)
+is a Skin Center v2 asset pack. It can be installed on stock DSH Web without
+this workbench. This package remains the Portable interface plugin, with its
+Git and memory host channel; it is not itself a Workshop skin asset.
+
+The workbench publishes Skin Center's standard `data-dsh-surface` attributes
+for root, sidebar, conversation, session header, composer, details and settings,
+and uses the matched primary-button fill/foreground tokens. This lets skins
+style those regions without depending on CSS Module class names.
+
+Runtime dependencies are split by actual use:
+
+| Dependency | Role |
+| --- | --- |
+| Official DSH client services in `dsh.client.inject` | Shared conversation, settings, rendering and navigation |
+| `@dsh-portable/ui-mode` | Required interface selection service and shared client exports |
+| `@dsh-portable/session-manager` | Required shared usage components and translations |
+| Interactive Learning | Optional host preset; the learning page checks the live preset list before offering a start action |
+| Cluster UI | Optional service, observed independently |
+| Skin Center | Optional appearance loader; required only when installing a v2 asset skin |
+
+Interactive Learning is neither imported nor a client module activation
+dependency. Disabling it therefore does not prevent the workbench from loading.
+
 The workbench owns no theme. `ui-theme` resolves the preference (`light`,
 `dark`, `system`) and publishes one snapshot; `ui-layout`'s presenter projects
 it as the `--dsw-alias-*` variables every workbench token reads. The switch —

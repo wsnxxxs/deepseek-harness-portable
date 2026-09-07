@@ -14,7 +14,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useRuntime } from '../state/runtime.ts'
-import { useSessionList } from '../state/hooks.ts'
+import { useAsync, useSessionList } from '../state/hooks.ts'
 import { useT } from '../state/i18n.ts'
 import type { NavigationStore } from '../state/navigation.ts'
 import { EmptyState } from '../shell/ui.tsx'
@@ -49,6 +49,9 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
   const runtime = useRuntime()
   const t = useT()
   const list = useSessionList()
+  const roster = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime])
+  const learningAvailable = roster.value?.ok === true
+    && roster.value.value.presets.some(preset => preset.id === LEARNING_PRESET)
   const [section, setSection] = useState<LearningSection>('start')
   const [starting, setStarting] = useState(false)
   const [failure, setFailure] = useState<string | undefined>()
@@ -65,7 +68,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
 
   const start = useCallback((mode: LearningMode) => {
     const nav = runtime.navigation
-    if (nav === undefined || starting) return
+    if (nav === undefined || starting || !learningAvailable) return
     setStarting(true)
     setFailure(undefined)
     void (async () => {
@@ -104,7 +107,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
         setStarting(false)
       }
     })()
-  }, [cwd, navigation, runtime, sessionId, starting, t])
+  }, [cwd, learningAvailable, navigation, runtime, sessionId, starting, t])
 
   return (
     <div className={css.surface}>
@@ -144,7 +147,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
                       key={mode.id}
                       type="button"
                       className={css.mode}
-                      disabled={starting || runtime.navigation === undefined}
+                      disabled={starting || !learningAvailable || runtime.navigation === undefined}
                       onClick={() => { start(mode) }}
                     >
                       <span className={css.modeTitle}>
@@ -158,6 +161,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
                   ))}
                 </div>
                 {failure === undefined ? null : <p className={css.note} role="alert">{failure}</p>}
+                {!learningAvailable && !roster.loading ? <p className={css.note} role="status">{t('learning.unavailable')}</p> : null}
                 {cwd === undefined ? <p className={css.note}>{t('learning.needsWorkspace')}</p> : null}
               </>
             )

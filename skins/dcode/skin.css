@@ -1,0 +1,137 @@
+/* DCode Graphite. L1 theme tokens and L2 semantic surfaces only. */
+:root {
+  color-scheme: light;
+  --dcode-paper: #f6f6f3;
+  --dcode-panel: #eeeeeadf;
+  --dcode-canvas: #f6f6f370;
+  --dcode-card: #ffffffed;
+  --dcode-line: #25282d26;
+  --dcode-shadow: 0 8px 28px #20232812;
+  --dsw-alias-bg-base: #f6f6f3;
+  --dsw-alias-bg-layer-1: #ffffff;
+  --dsw-alias-bg-layer-2: #eeefec;
+  --dsw-alias-bg-layer-3: #e4e5e1;
+  --dsw-alias-bg-overlay: #ffffff;
+  --dsw-alias-bg-module-platform: #eeefec;
+  --dsw-alias-bg-mask-1: #20232855;
+  --dsw-alias-bg-mask-2: #20232833;
+  --dsw-alias-bg-mask-3: #20232888;
+  --dsw-alias-border-l1: #25282d16;
+  --dsw-alias-border-l2: #25282d29;
+  --dsw-alias-border-l3: #25282d40;
+  --dsw-alias-border-l4: #25282d66;
+  --dsw-alias-label-primary: #25282d;
+  --dsw-alias-label-secondary: #555b64;
+  --dsw-alias-label-tertiary: #686e76;
+  --dsw-alias-label-dimmed: #767c83;
+  --dsw-alias-label-primary-dimmed: #555b64;
+  --dsw-alias-label-primary-inverted: #ffffff;
+  --dsw-alias-label-primary-foreground: #ffffff;
+  --dsw-alias-brand-primary: #25282d;
+  --dsw-alias-brand-primary-invert: #ffffff;
+  --dsw-alias-brand-text: #315ab2;
+  --dsw-alias-button-primary-fill: #25282d;
+  --dsw-alias-button-primary-hover: #3e444c;
+  --dsw-alias-button-primary-dimmed: #25282d66;
+  --dsw-alias-button-elevated-fill: #ffffff;
+  --dsw-alias-button-floating-fill: #ffffff;
+  --dsw-alias-button-floating-hover: #eeefec;
+  --dsw-alias-button-contrast-fill: #25282d;
+  --dsw-alias-interactive-bg-hover: #25282d0c;
+  --dsw-alias-interactive-bg-active: #25282d18;
+  --dsw-alias-interactive-bg-hover-solid: #e8e9e5;
+  --dsw-alias-state-success-primary: #26714c;
+  --dsw-alias-state-error-primary: #b83a38;
+  --dsw-alias-state-warn-primary: #8a5b19;
+  --dsw-alias-markdown-code-block: #eceeea;
+  --dsw-alias-markdown-code-block-banner: #e2e5df;
+  --dsw-alias-markdown-inline-code: #e6e9e3;
+  --dsw-alias-markdown-link: #315ab2;
+  --dsw-specific-menu: #ffffff;
+  --dsw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body[data-ds-dark-theme] {
+  color-scheme: dark;
+  --dcode-paper: #17191c;
+  --dcode-panel: #1d2024ed;
+  --dcode-canvas: #17191c80;
+  --dcode-card: #25292ef5;
+  --dcode-line: #e6e8e52b;
+  --dcode-shadow: 0 8px 28px #00000040;
+  --dsw-alias-bg-base: #17191c;
+  --dsw-alias-bg-layer-1: #202328;
+  --dsw-alias-bg-layer-2: #292d33;
+  --dsw-alias-bg-layer-3: #343a42;
+  --dsw-alias-bg-overlay: #292d33;
+  --dsw-alias-bg-module-platform: #202328;
+  --dsw-alias-bg-mask-1: #00000066;
+  --dsw-alias-bg-mask-2: #00000044;
+  --dsw-alias-bg-mask-3: #00000099;
+  --dsw-alias-border-l1: #e6e8e51a;
+  --dsw-alias-border-l2: #e6e8e52e;
+  --dsw-alias-border-l3: #e6e8e547;
+  --dsw-alias-border-l4: #e6e8e570;
+  --dsw-alias-label-primary: #e6e8e5;
+  --dsw-alias-label-secondary: #b5bac2;
+  --dsw-alias-label-tertiary: #9aa1ab;
+  --dsw-alias-label-dimmed: #8e959f;
+  --dsw-alias-label-primary-dimmed: #b5bac2;
+  --dsw-alias-label-primary-inverted: #17191c;
+  --dsw-alias-label-primary-foreground: #17191c;
+  --dsw-alias-brand-primary: #e6e8e5;
+  --dsw-alias-brand-primary-invert: #17191c;
+  --dsw-alias-brand-text: #a4c2ff;
+  --dsw-alias-button-primary-fill: #e6e8e5;
+  --dsw-alias-button-primary-hover: #ffffff;
+  --dsw-alias-button-primary-dimmed: #e6e8e566;
+  --dsw-alias-button-elevated-fill: #292d33;
+  --dsw-alias-button-floating-fill: #292d33;
+  --dsw-alias-button-floating-hover: #343a42;
+  --dsw-alias-button-contrast-fill: #e6e8e5;
+  --dsw-alias-interactive-bg-hover: #e6e8e50e;
+  --dsw-alias-interactive-bg-active: #e6e8e51c;
+  --dsw-alias-interactive-bg-hover-solid: #30353c;
+  --dsw-alias-state-success-primary: #8bd3a9;
+  --dsw-alias-state-error-primary: #ffa39b;
+  --dsw-alias-state-warn-primary: #e8bc79;
+  --dsw-alias-markdown-code-block: #202328;
+  --dsw-alias-markdown-code-block-banner: #292d33;
+  --dsw-alias-markdown-inline-code: #30353c;
+  --dsw-alias-markdown-link: #a4c2ff;
+  --dsw-specific-menu: #292d33;
+}
+
+[data-dsh-surface="root"] { background: transparent; }
+[data-dsh-surface="conversation"] { background: var(--dcode-canvas); }
+[data-dsh-surface="sidebar"] {
+  background: var(--dcode-panel);
+  border-inline-end: 1px solid var(--dcode-line);
+}
+[data-dsh-surface="details"] {
+  background: var(--dcode-panel);
+  border-inline-start: 1px solid var(--dcode-line);
+}
+[data-dsh-surface="session-header"] {
+  background: var(--dcode-panel);
+  border-bottom: 1px solid var(--dcode-line);
+}
+[data-dsh-surface="composer"] {
+  background: var(--dcode-card);
+  border: 1px solid var(--dcode-line);
+  border-radius: 18px;
+  box-shadow: var(--dcode-shadow);
+}
+[data-dsh-surface="settings"], [data-dsh-surface="overlay"] {
+  background: var(--dsw-alias-bg-overlay);
+  color: var(--dsw-alias-label-primary);
+}
+[data-dsh-part="new-session"] {
+  border-radius: 8px;
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+[data-dsh-part="new-session"]:hover {
+  background: var(--dsw-alias-button-primary-hover);
+}
+[data-dsh-part="composer-input"] { caret-color: var(--dsw-alias-label-primary); }

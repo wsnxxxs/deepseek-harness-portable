@@ -550,6 +550,8 @@ export function Workbench({ navigation }: WorkbenchProps) {
     <div
       ref={setFrame}
       className={css.root}
+      data-dsh-surface="root"
+      data-dsh-plugin="dcode-ui"
       {...dcodeScope}
       data-dcode-scheme={scheme}
       data-dcode-layout={state.layout}
@@ -608,7 +610,7 @@ export function Workbench({ navigation }: WorkbenchProps) {
                 )
                 : null}
             </div>
-            <div className={`${css.center} ${blank ? css.centerBlank : ''}`}>
+            <div className={`${css.center} ${blank ? css.centerBlank : ''}`} data-dsh-surface="conversation">
               <TopBar navigation={navigation} sessionId={sessionId} cwd={cwd} context={taskContext} />
               <SummaryCard
                 navigation={navigation}

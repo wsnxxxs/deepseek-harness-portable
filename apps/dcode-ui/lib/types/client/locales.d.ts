@@ -438,6 +438,7 @@ export declare const en: {
     readonly 'learning.current': "Current learning session";
     readonly 'learning.currentNone': "No learning session is open.";
     readonly 'learning.needsWorkspace': "Open a workspace before starting a learning session.";
+    readonly 'learning.unavailable': "Enable the Interactive Learning plugin in the standard interface, then reopen this page.";
     readonly 'settings.title': "Settings";
     readonly 'settings.group.basics': "Basics";
     readonly 'settings.group.agent': "Agent capabilities";

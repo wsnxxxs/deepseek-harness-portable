@@ -132,20 +132,3 @@ export function createDcodeMemoryApi(carrier: RpcCarrier | undefined): DcodeMemo
     forget: id => call('memory/forget', { id }),
   }
 }
-
-/**
- * The learning channel's browser face, reused verbatim from the existing
- * Interactive Learning host broker: the workbench's learning surfaces call
- * the very same endpoints the official UI's learning views call, so there is
- * exactly one learning backend and one vault state.
- * @param carrier - the Connection service.
- * @returns an endpoint caller, or one that rejects when no carrier exists.
- */
-export function createLearningCall(
-  carrier: RpcCarrier | undefined,
-): (endpoint: string, payload: Record<string, unknown>) => Promise<unknown> {
-  return async (endpoint, payload) => {
-    if (carrier === undefined) throw new Error('the learning channel is unavailable on this connection')
-    return await carrier.rpc.call('/interactive-learning', endpoint, payload)
-  }
-}

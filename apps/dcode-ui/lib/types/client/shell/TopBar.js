@@ -68,7 +68,7 @@ export function TopBar({ navigation, sessionId, cwd, context }) {
     const shareClass = shareStatus === 'success'
         ? css.shareSuccess
         : shareStatus === 'error' ? css.shareError : '';
-    return (_jsxs("header", { className: css.bar, children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, dataFocusTarget: "rail", onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), _jsx(AgentIdentity, { navigation: navigation, sessionId: sessionId }), workspace === undefined
+    return (_jsxs("header", { className: css.bar, "data-dsh-surface": "session-header", children: [_jsx(IconButton, { label: state.railOpen ? t('nav.collapse') : t('nav.expand'), active: state.railOpen, dataFocusTarget: "rail", onClick: () => { navigation.toggleRail(); }, children: _jsx(IconPanelLeftOutline16, {}) }), _jsx("span", { className: `${css.title} ${title === undefined ? css.titleMuted : ''}`, title: title, children: title ?? t('top.noSession') }), _jsx(AgentIdentity, { navigation: navigation, sessionId: sessionId }), workspace === undefined
                 ? null
                 : (_jsx(Popover, { label: t('top.workspaceMenu'), placement: "down", triggerClassName: css.workspaceTrigger, trigger: (_jsxs(_Fragment, { children: [_jsx(IconFolderOpenOutline16, {}), _jsx("span", { className: css.chipLabel, children: workspace.title }), _jsx(IconChevronDownOutline14, {})] })), rows: groups.map(group => ({
                         id: String(group.workspaceId),

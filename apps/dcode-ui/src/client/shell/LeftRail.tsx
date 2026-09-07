@@ -368,7 +368,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
   }, [removing, removeTarget, runtime])
 
   return (
-    <nav className={css.rail} aria-label={t('app.title')}>
+    <nav className={css.rail} data-dsh-surface="sidebar" aria-label={t('app.title')}>
       {/* Only search and the primary action are pinned. Everything else —
           optional actions and the task tree — belongs to one scroll, so a long
           task list can reclaim the rail's whole height instead of squeezing it
@@ -403,7 +403,7 @@ export function LeftRail({ navigation, onNewTask }: LeftRailProps) {
           />
           <span className={css.searchShortcut}>/</span>
         </label>
-        <button type="button" className={css.action} onClick={() => { onNewTask() }}>
+        <button type="button" className={css.action} data-dsh-part="new-session" onClick={() => { onNewTask() }}>
           <IconNewChatOutline16 />
           <span className={ui.grow}>{t('nav.newTask')}</span>
           <span className={css.shortcut}>{commandShortcut('N')}</span>

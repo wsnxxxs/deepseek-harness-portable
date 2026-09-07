@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schemas.linxin666.org/dsh-skin/v2.json",
+  "skinManifestVersion": 2,
+  "id": "dcode",
+  "name": "DCode 石墨工作台",
+  "nameEn": "DCode Graphite",
+  "version": "0.1.0",
+  "author": "wsnxxxs",
+  "tagline": "石墨与纸白 · 分层工作区 · 安静的建筑光影",
+  "description": "从 DCode 工作台提取的外观资产：纸白亮色与石墨暗色、清晰的侧栏分界、圆角输入区和原创建筑光影背景。保留宿主布局与插件功能，仅通过标准主题变量和语义属性呈现。",
+  "tags": ["dcode", "graphite", "minimal", "workspace", "light", "dark"],
+  "accent": "#25282d",
+  "license": "MIT",
+  "sourceUrl": "https://github.com/wsnxxxs/deepseek-harness-portable/tree/main/skins/dcode",
+  "attribution": "Original vector artwork and styling by the deepseek-harness-portable contributors.",
+  "preview": { "light": "preview/light.jpg", "dark": "preview/dark.jpg" },
+  "contributes": {
+    "stylesheet": "skin.css",
+    "patches": "patches.css",
+    "backgroundMedia": {
+      "light": { "type": "image", "src": "assets/graphite-light.svg" },
+      "dark": { "type": "image", "src": "assets/graphite-dark.svg" }
+    }
+  }
+}

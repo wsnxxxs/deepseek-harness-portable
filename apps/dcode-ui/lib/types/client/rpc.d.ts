@@ -65,13 +65,4 @@ export interface DcodeMemoryApi {
 export declare function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi;
 /** Build the durable-memory client face over the same trusted channel. */
 export declare function createDcodeMemoryApi(carrier: RpcCarrier | undefined): DcodeMemoryApi;
-/**
- * The learning channel's browser face, reused verbatim from the existing
- * Interactive Learning host broker: the workbench's learning surfaces call
- * the very same endpoints the official UI's learning views call, so there is
- * exactly one learning backend and one vault state.
- * @param carrier - the Connection service.
- * @returns an endpoint caller, or one that rejects when no carrier exists.
- */
-export declare function createLearningCall(carrier: RpcCarrier | undefined): (endpoint: string, payload: Record<string, unknown>) => Promise<unknown>;
 //# sourceMappingURL=rpc.d.ts.map

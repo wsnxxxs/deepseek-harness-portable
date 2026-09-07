@@ -10,7 +10,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useCallback, useMemo, useState } from 'react';
 import { IconChevronLeftOutline14, IconGoalOutline16, IconQuestionOutline14, IconSkillOutline16, IconSparkle16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
-import { useSessionList } from "../state/hooks.js";
+import { useAsync, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { EmptyState } from "../shell/ui.js";
 import css from './LearningHome.module.css';
@@ -26,6 +26,9 @@ export function LearningHome({ navigation, cwd, sessionId }) {
     const runtime = useRuntime();
     const t = useT();
     const list = useSessionList();
+    const roster = useAsync(async () => await runtime.remote.agentPresets.list(), [runtime]);
+    const learningAvailable = roster.value?.ok === true
+        && roster.value.value.presets.some(preset => preset.id === LEARNING_PRESET);
     const [section, setSection] = useState('start');
     const [starting, setStarting] = useState(false);
     const [failure, setFailure] = useState();
@@ -35,7 +38,7 @@ export function LearningHome({ navigation, cwd, sessionId }) {
         && summary.projectionValues?.agentPreset === LEARNING_PRESET)), [list]);
     const start = useCallback((mode) => {
         const nav = runtime.navigation;
-        if (nav === undefined || starting)
+        if (nav === undefined || starting || !learningAvailable)
             return;
         setStarting(true);
         setFailure(undefined);
@@ -77,14 +80,14 @@ export function LearningHome({ navigation, cwd, sessionId }) {
                 setStarting(false);
             }
         })();
-    }, [cwd, navigation, runtime, sessionId, starting, t]);
+    }, [cwd, learningAvailable, navigation, runtime, sessionId, starting, t]);
     return (_jsxs("div", { className: css.surface, children: [_jsxs("nav", { className: css.rail, "aria-label": t('learning.title'), children: [_jsxs("button", { type: "button", className: css.back, onClick: () => { navigation.show('session'); }, children: [_jsx(IconChevronLeftOutline14, {}), t('nav.backToWorkspace')] }), [
                         ['start', t('learning.title')],
                         ['current', t('learning.current')],
                     ].map(([id, label]) => (_jsx("button", { type: "button", className: `${css.railItem} ${section === id ? css.railItemActive : ''}`, onClick: () => { setSection(id); }, "aria-current": section === id ? 'page' : undefined, children: label }, id)))] }), _jsx("div", { className: css.body, children: _jsx("div", { className: css.inner, children: section === 'start'
-                        ? (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('learning.title') }), _jsx("p", { className: css.subtitle, children: t('learning.subtitle') })] }), _jsx("div", { className: css.grid, children: MODES.map(mode => (_jsxs("button", { type: "button", className: css.mode, disabled: starting || runtime.navigation === undefined, onClick: () => { start(mode); }, children: [_jsxs("span", { className: css.modeTitle, children: [mode.id === 'concept'
+                        ? (_jsxs(_Fragment, { children: [_jsxs("div", { children: [_jsx("div", { className: css.title, children: t('learning.title') }), _jsx("p", { className: css.subtitle, children: t('learning.subtitle') })] }), _jsx("div", { className: css.grid, children: MODES.map(mode => (_jsxs("button", { type: "button", className: css.mode, disabled: starting || !learningAvailable || runtime.navigation === undefined, onClick: () => { start(mode); }, children: [_jsxs("span", { className: css.modeTitle, children: [mode.id === 'concept'
                                                         ? _jsx(IconSparkle16, {})
-                                                        : mode.id === 'problem' ? _jsx(IconQuestionOutline14, { size: 16 }) : _jsx(IconSkillOutline16, {}), t(mode.titleKey)] }), _jsx("span", { className: css.modeBody, children: t(mode.bodyKey) })] }, mode.id))) }), failure === undefined ? null : _jsx("p", { className: css.note, role: "alert", children: failure }), cwd === undefined ? _jsx("p", { className: css.note, children: t('learning.needsWorkspace') }) : null] }))
+                                                        : mode.id === 'problem' ? _jsx(IconQuestionOutline14, { size: 16 }) : _jsx(IconSkillOutline16, {}), t(mode.titleKey)] }), _jsx("span", { className: css.modeBody, children: t(mode.bodyKey) })] }, mode.id))) }), failure === undefined ? null : _jsx("p", { className: css.note, role: "alert", children: failure }), !learningAvailable && !roster.loading ? _jsx("p", { className: css.note, role: "status", children: t('learning.unavailable') }) : null, cwd === undefined ? _jsx("p", { className: css.note, children: t('learning.needsWorkspace') }) : null] }))
                         : (_jsxs(_Fragment, { children: [_jsx("div", { className: css.title, children: t('learning.current') }), learningSessions.length === 0
                                     ? _jsx(EmptyState, { children: t('learning.currentNone') })
                                     : learningSessions.map(summary => (_jsxs("button", { type: "button", className: css.sessionRow, onClick: () => {

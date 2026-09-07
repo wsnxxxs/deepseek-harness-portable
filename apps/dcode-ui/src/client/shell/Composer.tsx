@@ -897,6 +897,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         : null}
       <div
         ref={shellRef}
+        data-dsh-surface="composer"
         className={`${css.shell} ${compact ? css.shellCompact : css.shellExpanded} ${focused ? css.shellFocused : ''} ${activeReferenceQuery === undefined ? '' : css.referenceActive} ${dragActive ? css.dropActive : ''}`}
         onDragEnter={event => {
           if (event.dataTransfer.types.includes('Files')) setDragActive(true)
@@ -987,6 +988,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
               </div>
             )}
           <textarea
+            data-dsh-part="composer-input"
             ref={inputRef}
             className={css.input}
             rows={1}

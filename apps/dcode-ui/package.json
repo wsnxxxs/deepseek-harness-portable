@@ -40,12 +40,10 @@
         "@deepseek-ai/dsh-client-ui-trajectory",
         "@deepseek-ai/dsh-client-ui-workspace",
         "@deepseek-ai/dsh-session-log-export",
-        "@dsh-portable/interactive-learning",
         "@dsh-portable/session-manager",
         "@dsh-portable/ui-mode"
       ],
       "external": [
-        "@dsh-portable/interactive-learning/client",
         "@dsh-portable/session-manager/client",
         "@dsh-portable/ui-mode/client"
       ],
@@ -103,7 +101,6 @@
     "@deepseek-ai/dsh-message-feedback": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-util-values": "workspace:^",
-    "@dsh-portable/interactive-learning": "workspace:^",
     "@types/node": "^22.13.10",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.7",

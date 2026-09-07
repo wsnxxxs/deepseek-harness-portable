@@ -1,0 +1,16 @@
+/* L3 compatibility for shells and static previews without the L2 adapter.
+   Stable data anchors only; preserve host geometry and interaction. */
+[data-dsh-frame], [data-phase="hero"] { background: transparent; }
+[data-pane="conversation"] { background: var(--dcode-canvas); }
+[data-pane="sidebar"] {
+  background: var(--dcode-panel);
+  border-inline-end: 1px solid var(--dcode-line);
+}
+[data-pane="details"] {
+  background: var(--dcode-panel);
+  border-inline-start: 1px solid var(--dcode-line);
+}
+textarea[data-phase]::placeholder {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 1;
+}

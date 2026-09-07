@@ -197,9 +197,6 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../vendor/deepseek-harness/packages/util/values
-      '@dsh-portable/interactive-learning':
-        specifier: workspace:^
-        version: link:../interactive-learning
       '@types/node':
         specifier: ^22.13.10
         version: 22.20.1

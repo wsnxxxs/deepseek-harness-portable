@@ -192,7 +192,7 @@
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label));
+  background: var(--dsw-alias-button-primary-hover, color-mix(in srgb, var(--zx-accent) 86%, var(--zx-label)));
 }
 
 .pill {

@@ -1526,6 +1526,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       <div className={css.mask} aria-hidden="true" onClick={close} />
       <div
         ref={panelRef}
+        data-dsh-surface="settings"
         className={css.panel}
         role="dialog"
         aria-modal="true"

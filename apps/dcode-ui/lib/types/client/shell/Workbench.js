@@ -470,7 +470,7 @@ export function Workbench({ navigation }) {
     // Compact holds both side panels over the conversation instead of beside
     // it, so there they need a scrim to dismiss against.
     const overlayOpen = compactOverlay !== undefined;
-    return (_jsxs("div", { ref: setFrame, className: css.root, ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, "data-aside-resizing": asideResizing ? '' : undefined, style: {
+    return (_jsxs("div", { ref: setFrame, className: css.root, "data-dsh-surface": "root", "data-dsh-plugin": "dcode-ui", ...dcodeScope, "data-dcode-scheme": scheme, "data-dcode-layout": state.layout, "data-rail-resizing": railResizing ? '' : undefined, "data-aside-resizing": asideResizing ? '' : undefined, style: {
             '--zx-rail-width': `${railWidth}px`,
             '--zx-aside-width': `${asideWidth}px`,
             '--zx-font-size-base': `${fontSize}px`,
@@ -483,7 +483,7 @@ export function Workbench({ navigation }) {
                             ? (_jsx("div", { className: css.scrim, role: "presentation", onClick: dismissCompactOverlay }))
                             : null, _jsxs("div", { className: `${css.rail} ${state.railOpen ? '' : css.railCollapsed}`, children: [_jsx(LeftRail, { navigation: navigation, onNewTask: newTask }), state.railOpen && state.layout !== 'compact'
                                     ? (_jsx("div", { className: css.railResizeHandle, role: "separator", "aria-label": t('nav.resize'), "aria-orientation": "vertical", "aria-valuemin": RAIL_WIDTH.min, "aria-valuemax": RAIL_WIDTH.max, "aria-valuenow": railWidth, tabIndex: 0, onPointerDown: startRailResize, onPointerMove: moveRailResize, onPointerUp: finishRailResize, onPointerCancel: finishRailResize, onKeyDown: resizeRailWithKeyboard, onDoubleClick: () => { resizeRail(RAIL_WIDTH.default, true); } }))
-                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), fullSubagentConversation === undefined
+                                    : null] }), _jsxs("div", { className: `${css.center} ${blank ? css.centerBlank : ''}`, "data-dsh-surface": "conversation", children: [_jsx(TopBar, { navigation: navigation, sessionId: sessionId, cwd: cwd, context: taskContext }), _jsx(SummaryCard, { navigation: navigation, sessionId: sessionId, cwd: cwd, open: state.summaryOpen, compact: state.layout === 'compact' }), fullSubagentConversation === undefined
                                     ? (_jsx(Transcript, { navigation: navigation, sessionId: sessionId, cwd: cwd, blank: blank, compact: state.layout === 'compact' }))
                                     : null, _jsxs("div", { className: css.composerSeat, children: [_jsx(PlanCard, { sessionId: sessionId }, sessionId), blank
                                             ? (_jsx(ReadinessCard, { hasWorkspace: groups.length > 0, hasSession: sessionId !== undefined, model: modelReadiness, onOpenWorkspace: openWorkspace, onNewTask: () => { newTask(groups[0]?.workspaceId); }, onSelectModel: selectModel, onConfigureProvider: configureProvider, t: t }))

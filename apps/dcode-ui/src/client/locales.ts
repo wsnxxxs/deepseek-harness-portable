@@ -451,6 +451,7 @@ export const en = {
   'learning.current': 'Current learning session',
   'learning.currentNone': 'No learning session is open.',
   'learning.needsWorkspace': 'Open a workspace before starting a learning session.',
+  'learning.unavailable': 'Enable the Interactive Learning plugin in the standard interface, then reopen this page.',
 
   'settings.title': 'Settings',
   'settings.group.basics': 'Basics',
@@ -1359,6 +1360,7 @@ export const zh: Record<DcodeKey, string> = {
   'learning.current': '当前学习会话',
   'learning.currentNone': '当前没有进行中的学习会话。',
   'learning.needsWorkspace': '先打开工作区，再开始学习会话。',
+  'learning.unavailable': '请在标准界面启用交互式学习插件，再重新打开此页面。',
 
   'settings.title': '设置',
   'settings.group.basics': '基础设置',

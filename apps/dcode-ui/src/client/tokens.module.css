@@ -115,15 +115,9 @@
   --zx-label-faint: color-mix(in srgb, var(--zx-label-secondary) 74%, var(--zx-bg-surface-0));
   --zx-label-decor: var(--zx-label-faint);
 
-  /* Accents.
-
-     The accent follows the Host's brand alias, which some themes set to their
-     label colour rather than a hue. `--zx-on-accent` is therefore the app
-     ground, not white: it stays readable whichever end of the ramp the theme
-     puts the accent on, where a hardcoded white would vanish on a light
-     accent. */
-  --zx-accent: var(--dsw-alias-brand-primary, #4c8dff);
-  --zx-on-accent: var(--dsw-alias-bg-base, #0d0d0f);
+  /* Use the skin contract's matched primary fill and foreground. */
+  --zx-accent: var(--dsw-alias-button-primary-fill, #4c8dff);
+  --zx-on-accent: var(--dsw-alias-label-primary-foreground, #0d0d0f);
   --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #4c8dff) 18%, transparent);
   --zx-on-accent-soft: #8ab4ff;
   --zx-success: var(--dsw-alias-state-success-primary, #3fb950);
@@ -191,10 +185,10 @@
   --zx-aside-width: 320px;
   --zx-topbar-height: 44px;
   --zx-reading-width: 760px;
+}
 
-  /* Official setting controls render their portal under body. Rebind the
-     surface-level DSH tokens there so those menus and editors use the same
-     workbench glass treatment while DCode owns the page. */
+/* Keep the workbench's default portal treatment when no asset skin owns it. */
+html:not([data-dsh-skin]) [data-dcode-scope] {
   --dsw-specific-menu: var(--zx-bg-overlay);
   --dsw-alias-border-inverted: var(--zx-border);
   --dsw-alias-interactive-bg-hover: var(--zx-bg-hover);
@@ -249,8 +243,8 @@
   --zx-label-faint: color-mix(in srgb, var(--zx-label-secondary) 84%, var(--zx-bg-surface-0));
   --zx-label-decor: var(--zx-label-faint);
 
-  --zx-accent: var(--dsw-alias-brand-primary, #2563eb);
-  --zx-on-accent: #ffffff;
+  --zx-accent: var(--dsw-alias-button-primary-fill, #2563eb);
+  --zx-on-accent: var(--dsw-alias-label-primary-foreground, #ffffff);
   --zx-accent-soft: color-mix(in srgb, var(--dsw-alias-brand-primary, #2563eb) 12%, transparent);
   --zx-on-accent-soft: #1a45b0;
   --zx-focus-ring: 0 0 0 2px color-mix(in srgb, var(--zx-accent) 55%, transparent);

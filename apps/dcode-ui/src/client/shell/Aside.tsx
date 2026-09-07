@@ -434,7 +434,7 @@ export function Aside({ navigation, sessionId, cwd, context, onOpenSubagentConve
   }
 
   return (
-    <aside className={css.aside} aria-label={t('aside.title')}>
+    <aside className={css.aside} data-dsh-surface="details" aria-label={t('aside.title')}>
       <header className={`${css.header} ${ui.cardHeader}`}>
         <span className={css.headerTitle}>{t('aside.title')}</span>
         <button

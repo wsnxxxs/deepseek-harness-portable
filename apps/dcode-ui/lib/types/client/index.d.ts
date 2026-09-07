@@ -48,7 +48,7 @@ export declare const name = "dcode-ui-client";
  * so an omission here is a runtime throw inside whichever panel touches it,
  * not a compile error.
  *
- * `uiWorkspace`, `theme` and `connection` are deliberately absent: each drives
+ * `uiWorkspace` and `theme` are deliberately absent: each drives
  * one optional surface and is probed at runtime, so a trimmed assembly still
  * boots this plugin with that surface disabled rather than leaving the page
  * frameless.

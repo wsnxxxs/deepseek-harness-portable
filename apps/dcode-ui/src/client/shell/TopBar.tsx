@@ -98,7 +98,7 @@ export function TopBar({ navigation, sessionId, cwd, context }: TopBarProps) {
     : shareStatus === 'error' ? css.shareError : ''
 
   return (
-    <header className={css.bar}>
+    <header className={css.bar} data-dsh-surface="session-header">
       <IconButton
         label={state.railOpen ? t('nav.collapse') : t('nav.expand')}
         active={state.railOpen}

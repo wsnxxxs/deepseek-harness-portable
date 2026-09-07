@@ -271,7 +271,7 @@ export function LeftRail({ navigation, onNewTask }) {
         })
             .finally(() => { setRemoving(false); });
     }, [removing, removeTarget, runtime]);
-    return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsxs("div", { className: css.top, children: [_jsxs("div", { className: css.brand, children: [_jsx("span", { className: css.brandMark, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("span", { className: css.brandCopy, children: [_jsx("strong", { children: "DCode" }), _jsx("span", { children: t('nav.agentWorkspace') })] })] }), _jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: searchRef, type: "search", className: css.searchInput, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); }, onKeyDown: (event) => {
+    return (_jsxs("nav", { className: css.rail, "data-dsh-surface": "sidebar", "aria-label": t('app.title'), children: [_jsxs("div", { className: css.top, children: [_jsxs("div", { className: css.brand, children: [_jsx("span", { className: css.brandMark, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("span", { className: css.brandCopy, children: [_jsx("strong", { children: "DCode" }), _jsx("span", { children: t('nav.agentWorkspace') })] })] }), _jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: searchRef, type: "search", className: css.searchInput, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); }, onKeyDown: (event) => {
                                     if (event.key === 'Escape' && query !== '') {
                                         event.preventDefault();
                                         setQuery('');
@@ -280,7 +280,7 @@ export function LeftRail({ navigation, onNewTask }) {
                                         event.preventDefault();
                                         moveSession(event.key === 'ArrowDown' ? 1 : -1, true);
                                     }
-                                } }), _jsx("span", { className: css.searchShortcut, children: "/" })] }), _jsxs("button", { type: "button", className: css.action, onClick: () => { onNewTask(); }, children: [_jsx(IconNewChatOutline16, {}), _jsx("span", { className: ui.grow, children: t('nav.newTask') }), _jsx("span", { className: css.shortcut, children: commandShortcut('N') })] })] }), _jsxs("div", { ref: treeRef, className: `${css.tree} ${ui.scroll}`, onKeyDown: (event) => {
+                                } }), _jsx("span", { className: css.searchShortcut, children: "/" })] }), _jsxs("button", { type: "button", className: css.action, "data-dsh-part": "new-session", onClick: () => { onNewTask(); }, children: [_jsx(IconNewChatOutline16, {}), _jsx("span", { className: ui.grow, children: t('nav.newTask') }), _jsx("span", { className: css.shortcut, children: commandShortcut('N') })] })] }), _jsxs("div", { ref: treeRef, className: `${css.tree} ${ui.scroll}`, onKeyDown: (event) => {
                     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
                         return;
                     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
