@@ -157,50 +157,6 @@ function PluginSettingsCard(props) {
                                     setDraft(previous => ({ ...previous, [field.key]: event.target.value }));
                                 } }), _jsx("span", { className: css.fieldHint, children: field.hint })] }, field.key))), error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setDraft(Object.fromEntries(props.fields.map(field => [field.key, fieldText(props.namespace.value, field.key)]))); setResetFields(new Set()); setCredentialDraft(''); setError(undefined); }, disabled: saving || !dirty, children: t('settings.plugins.discard') }), _jsx(Button, { primary: true, onClick: () => { void save(); }, disabled: saving || !canSave || !dirty, children: saving ? t('settings.plugins.saving') : t('settings.plugins.save') })] })] })] }));
 }
-function VisionBridgeCard(props) {
-    const runtime = useRuntime();
-    const t = useT();
-    const effectiveEnabled = typeof fieldValue(props.namespace.value, 'enabled') === 'boolean'
-        ? fieldValue(props.namespace.value, 'enabled')
-        : true;
-    const effectiveModel = fieldText(props.namespace.value, 'model').trim();
-    const [enabled, setEnabled] = useState(effectiveEnabled);
-    const [model, setModel] = useState(effectiveModel);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState();
-    const dirty = enabled !== effectiveEnabled || model.trim() !== effectiveModel;
-    const routeKind = !enabled ? 'disabled' : model.trim() === '' ? 'auto' : 'pinned';
-    const routeClass = routeKind === 'disabled'
-        ? css.visionRouteDisabled
-        : routeKind === 'auto'
-            ? css.visionRouteAuto
-            : css.visionRoutePinned;
-    const routeLabel = routeKind === 'disabled'
-        ? t('settings.plugins.visionRouteDisabled')
-        : routeKind === 'auto'
-            ? t('settings.plugins.visionRouteAutomatic')
-            : t('settings.plugins.visionRoutePinned');
-    const save = () => {
-        if (!props.writable || saving || !dirty)
-            return;
-        setSaving(true);
-        setError(undefined);
-        const ops = [];
-        if (enabled !== effectiveEnabled)
-            ops.push({ op: 'set', path: ['enabled'], value: enabled });
-        if (model.trim() !== effectiveModel)
-            ops.push({ op: 'set', path: ['model'], value: model.trim() });
-        void runtime.remote.settings.mutate(props.namespace.ns, ops, props.namespace.revision)
-            .then((result) => {
-            if (!result.ok)
-                throw new Error(result.error.message);
-            props.onReload();
-        })
-            .catch((cause) => { setError(cause instanceof Error ? cause.message : String(cause)); })
-            .finally(() => { setSaving(false); });
-    };
-    return (_jsxs("section", { className: css.pluginCard, children: [_jsxs("header", { className: `${css.pluginCardHeader} ${ui.cardHeader}`, children: [_jsxs("div", { className: css.rowText, children: [_jsx("h3", { className: css.rowTitle, children: t('settings.plugins.visionTitle') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionDescription') })] }), props.writable ? _jsx("span", { className: css.badge, children: props.namespace.applies }) : _jsx("span", { className: css.badge, children: t('common.readOnly') })] }), _jsxs("div", { className: css.pluginCardBody, children: [_jsxs("div", { className: css.visionRoute + ' ' + routeClass, role: "status", "aria-live": "polite", children: [_jsx("span", { className: css.statusDot, "aria-hidden": "true" }), _jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: routeLabel }), _jsx("div", { className: css.rowBody, children: model.trim() === '' ? t('settings.plugins.visionRouteAutomaticHint') : model.trim() })] })] }), _jsx("div", { className: css.notice, children: t('settings.plugins.visionSharedProvider') }), _jsxs("div", { className: css.switchRow, children: [_jsxs("div", { className: css.rowText, children: [_jsx("div", { className: css.rowTitle, children: t('settings.plugins.visionEnabled') }), _jsx("div", { className: css.rowBody, children: t('settings.plugins.visionEnabledHint') })] }), _jsx("button", { type: "button", role: "switch", "aria-label": t('settings.plugins.visionEnabled'), "aria-checked": enabled, className: css.switch + ' ' + (enabled ? css.switchOn : ''), disabled: saving || !props.writable, onClick: () => { setEnabled(value => !value); }, children: _jsx("span", { className: css.switchThumb }) })] }), _jsxs("label", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('settings.plugins.visionModel') }), _jsx("input", { className: css.fieldInput, type: "text", value: model, placeholder: t('settings.plugins.visionModelPlaceholder'), disabled: saving || !props.writable, onChange: event => { setModel(event.target.value); } }), _jsx("span", { className: css.fieldHint, children: t('settings.plugins.visionModelHint') })] }), model.trim() !== '' ? _jsx(Button, { className: css.resetButton, onClick: () => { setModel(''); }, disabled: saving || !props.writable, children: t('settings.plugins.visionUseAutomatic') }) : null, error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: error }), _jsxs("div", { className: css.editorActions, children: [_jsx(Button, { onClick: () => { setEnabled(effectiveEnabled); setModel(effectiveModel); setError(undefined); }, disabled: saving || !dirty, children: t('settings.plugins.discard') }), _jsx(Button, { primary: true, onClick: save, disabled: saving || !props.writable || !dirty, children: saving ? t('settings.plugins.saving') : t('settings.plugins.save') })] })] })] }));
-}
 function SubagentModelCard(props) {
     const runtime = useRuntime();
     const t = useT();
@@ -263,9 +219,6 @@ function PluginConfigSection(props) {
     const namespaces = props.data.settings?.namespaces ?? [];
     const find = (ns) => namespaces.find(namespace => namespace.ns === ns);
     const cards = [];
-    const vision = find('vision');
-    if (vision !== undefined)
-        cards.push(_jsx(VisionBridgeCard, { namespace: vision, writable: props.data.settings?.writable === true, onReload: props.onReload }, vision.ns));
     const shell = find('shell');
     if (shell !== undefined)
         cards.push(_jsx(PluginSettingsCard, { namespace: shell, writable: props.data.settings?.writable === true, title: t('settings.plugins.shellTitle'), description: t('settings.plugins.shellDescription'), fields: [{ key: 'timeoutMs', label: t('settings.plugins.shellTimeout'), hint: t('settings.plugins.shellTimeoutHint'), type: 'number' }, { key: 'maxOutputBytes', label: t('settings.plugins.shellOutput'), hint: t('settings.plugins.shellOutputHint'), type: 'number' }], onReload: props.onReload }, shell.ns));

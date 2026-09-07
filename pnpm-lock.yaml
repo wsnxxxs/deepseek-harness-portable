@@ -1070,9 +1070,6 @@ importers:
       '@dsh-portable/ui-mode':
         specifier: workspace:^
         version: link:../../packages/ui-mode
-      '@dsh-portable/vision-bridge':
-        specifier: workspace:^
-        version: link:../vision-bridge
       '@linxin666/dsh-i18n':
         specifier: 0.3.16
         version: 0.3.16
@@ -1095,67 +1092,6 @@ importers:
       '@types/node':
         specifier: ^22.20.0
         version: 22.20.1
-
-  apps/vision-bridge:
-    dependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/vendor/cordis
-      '@deepseek-ai/dsh-attachment':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/attachment/attachment
-      '@deepseek-ai/dsh-llm':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/llm/llm
-      '@deepseek-ai/dsh-settings':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/settings/settings
-      '@deepseek-ai/dsh-tools':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/core/tools
-      '@deepseek-ai/schemastery':
-        specifier: link:../../vendor/deepseek-harness/vendor/schemastery
-        version: link:../../vendor/deepseek-harness/vendor/schemastery
-    devDependencies:
-      '@deepseek-ai/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/locale
-      '@deepseek-ai/dsh-client-store':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/store
-      '@deepseek-ai/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-conversation
-      '@deepseek-ai/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-renderer
-      '@deepseek-ai/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-settings
-      '@deepseek-ai/dsh-client-ui-settings-plugins':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-settings-plugins
-      '@deepseek-ai/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../../vendor/deepseek-harness/packages/client/ui-slots
-      '@types/node':
-        specifier: ^22.13.10
-        version: 22.20.1
-      '@types/react':
-        specifier: ^18.3.18
-        version: 18.3.31
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(oxc-resolver@11.24.2)(publint@0.3.23)(tsx@4.23.12)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.8.2
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.8
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(happy-dom@20.11.8)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.3.0))(lightningcss@1.33.0)(supports-color@9.4.0)(tsx@4.23.12)(yaml@2.9.0)
 
   packages/crew-dossier:
     dependencies:

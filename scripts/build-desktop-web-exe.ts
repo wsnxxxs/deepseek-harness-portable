@@ -164,10 +164,6 @@ const BUILD_INPUT_PATHS = [
   'apps/runtime/config',
   'packages/desktop-protocol',
   'scripts/runtime',
-  'apps/vision-bridge/package.json',
-  'apps/vision-bridge/tsconfig.json',
-  'apps/vision-bridge/tsdown.config.ts',
-  'apps/vision-bridge/src',
   'apps/interactive-learning/package.json',
   'apps/interactive-learning/README.md',
   'apps/interactive-learning/README.zh.md',
@@ -486,7 +482,6 @@ class DesktopExeBuild {
     const learningPackage = join(root, 'apps', 'interactive-learning')
     const required = [
       join(root, 'apps', 'runtime', ENTRY_BIN),
-      join(root, 'apps', 'vision-bridge', 'lib', 'index.js'),
       ...interactiveLearningPackageRequiredPaths(learningPackage),
       join(root, 'vendor', 'deepseek-harness', 'apps', 'web', 'dist', 'index.html'),
       join(root, 'vendor', 'deepseek-harness', 'packages', 'bundle', 'web-app', 'lib', 'index.js'),

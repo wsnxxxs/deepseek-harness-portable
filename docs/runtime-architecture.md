@@ -4,7 +4,7 @@ This distribution uses one repository, one mode contract model, and target-speci
 
 ## Runtime boundary
 
-`apps/runtime` owns runtime startup, capability measurement, mode compilation, mode availability, and the loopback diagnostics API. `apps/desktop` owns the Electron process boundary and supervises the stdout runtime protocol. `packages/platform-contract` owns build targets and their minimum support/signing policy. Interactive Learning and Vision Bridge remain independent feature modules; runtime mode work must not rewrite their application behavior.
+`apps/runtime` owns runtime startup, capability measurement, mode compilation, mode availability, and the loopback diagnostics API. `apps/desktop` owns the Electron process boundary and supervises the stdout runtime protocol. `packages/platform-contract` owns build targets and their minimum support/signing policy. Interactive Learning remains an independent feature module. Image understanding is supplied by the bundled dsh-web-all plugin.
 
 The desktop/runtime protocol remains stdout-only and versioned. Packaged verification launches Electron in Node mode, decodes the real `hello`/`listening` stream, waits for the loopback readiness endpoint, and rejects malformed protocol output or early exit.
 

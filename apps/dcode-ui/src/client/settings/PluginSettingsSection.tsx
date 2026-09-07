@@ -242,93 +242,6 @@ function PluginSettingsCard(props: {
   )
 }
 
-function VisionBridgeCard(props: {
-  namespace: SettingsNamespaceView
-  writable: boolean
-  onReload: () => void
-}) {
-  const runtime = useRuntime()
-  const t = useT()
-  const effectiveEnabled = typeof fieldValue(props.namespace.value, 'enabled') === 'boolean'
-    ? fieldValue(props.namespace.value, 'enabled') as boolean
-    : true
-  const effectiveModel = fieldText(props.namespace.value, 'model').trim()
-  const [enabled, setEnabled] = useState(effectiveEnabled)
-  const [model, setModel] = useState(effectiveModel)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | undefined>()
-  const dirty = enabled !== effectiveEnabled || model.trim() !== effectiveModel
-  const routeKind = !enabled ? 'disabled' : model.trim() === '' ? 'auto' : 'pinned'
-  const routeClass = routeKind === 'disabled'
-    ? css.visionRouteDisabled
-    : routeKind === 'auto'
-      ? css.visionRouteAuto
-      : css.visionRoutePinned
-  const routeLabel = routeKind === 'disabled'
-    ? t('settings.plugins.visionRouteDisabled')
-    : routeKind === 'auto'
-      ? t('settings.plugins.visionRouteAutomatic')
-      : t('settings.plugins.visionRoutePinned')
-
-  const save = (): void => {
-    if (!props.writable || saving || !dirty) return
-    setSaving(true)
-    setError(undefined)
-    const ops: SettingsPathOpView[] = []
-    if (enabled !== effectiveEnabled) ops.push({ op: 'set', path: ['enabled'], value: enabled })
-    if (model.trim() !== effectiveModel) ops.push({ op: 'set', path: ['model'], value: model.trim() as JsonValue })
-    void runtime.remote.settings.mutate(props.namespace.ns, ops, props.namespace.revision)
-      .then((result) => {
-        if (!result.ok) throw new Error(result.error.message)
-        props.onReload()
-      })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : String(cause)) })
-      .finally(() => { setSaving(false) })
-  }
-
-  return (
-    <section className={css.pluginCard}>
-      <header className={`${css.pluginCardHeader} ${ui.cardHeader}`}>
-        <div className={css.rowText}>
-          <h3 className={css.rowTitle}>{t('settings.plugins.visionTitle')}</h3>
-          <div className={css.rowBody}>{t('settings.plugins.visionDescription')}</div>
-        </div>
-        {props.writable ? <span className={css.badge}>{props.namespace.applies}</span> : <span className={css.badge}>{t('common.readOnly')}</span>}
-      </header>
-      <div className={css.pluginCardBody}>
-        <div className={css.visionRoute + ' ' + routeClass} role="status" aria-live="polite">
-          <span className={css.statusDot} aria-hidden="true" />
-          <div className={css.rowText}>
-            <div className={css.rowTitle}>{routeLabel}</div>
-            <div className={css.rowBody}>{model.trim() === '' ? t('settings.plugins.visionRouteAutomaticHint') : model.trim()}</div>
-          </div>
-        </div>
-        <div className={css.notice}>{t('settings.plugins.visionSharedProvider')}</div>
-        <div className={css.switchRow}>
-          <div className={css.rowText}>
-            <div className={css.rowTitle}>{t('settings.plugins.visionEnabled')}</div>
-            <div className={css.rowBody}>{t('settings.plugins.visionEnabledHint')}</div>
-          </div>
-          <button type="button" role="switch" aria-label={t('settings.plugins.visionEnabled')} aria-checked={enabled} className={css.switch + ' ' + (enabled ? css.switchOn : '')} disabled={saving || !props.writable} onClick={() => { setEnabled(value => !value) }}>
-            <span className={css.switchThumb} />
-          </button>
-        </div>
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('settings.plugins.visionModel')}</span>
-          <input className={css.fieldInput} type="text" value={model} placeholder={t('settings.plugins.visionModelPlaceholder')} disabled={saving || !props.writable} onChange={event => { setModel(event.target.value) }} />
-          <span className={css.fieldHint}>{t('settings.plugins.visionModelHint')}</span>
-        </label>
-        {model.trim() !== '' ? <Button className={css.resetButton} onClick={() => { setModel('') }} disabled={saving || !props.writable}>{t('settings.plugins.visionUseAutomatic')}</Button> : null}
-        {error === undefined ? null : <div className={css.inlineError} role="alert">{error}</div>}
-        <div className={css.editorActions}>
-          <Button onClick={() => { setEnabled(effectiveEnabled); setModel(effectiveModel); setError(undefined) }} disabled={saving || !dirty}>{t('settings.plugins.discard')}</Button>
-          <Button primary onClick={save} disabled={saving || !props.writable || !dirty}>{saving ? t('settings.plugins.saving') : t('settings.plugins.save')}</Button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 function SubagentModelCard(props: {
   namespace: SettingsNamespaceView
   writable: boolean
@@ -428,8 +341,6 @@ function PluginConfigSection(props: { data: PluginSettingsData; onReload: () => 
   const namespaces = props.data.settings?.namespaces ?? []
   const find = (ns: string): SettingsNamespaceView | undefined => namespaces.find(namespace => namespace.ns === ns)
   const cards: ReactNode[] = []
-  const vision = find('vision')
-  if (vision !== undefined) cards.push(<VisionBridgeCard key={vision.ns} namespace={vision} writable={props.data.settings?.writable === true} onReload={props.onReload} />)
   const shell = find('shell')
   if (shell !== undefined) cards.push(<PluginSettingsCard key={shell.ns} namespace={shell} writable={props.data.settings?.writable === true} title={t('settings.plugins.shellTitle')} description={t('settings.plugins.shellDescription')} fields={[{ key: 'timeoutMs', label: t('settings.plugins.shellTimeout'), hint: t('settings.plugins.shellTimeoutHint'), type: 'number' }, { key: 'maxOutputBytes', label: t('settings.plugins.shellOutput'), hint: t('settings.plugins.shellOutputHint'), type: 'number' }]} onReload={props.onReload} />)
   const agentLoop = find('agent-loop')
@@ -475,7 +386,7 @@ function isExtensionEntry(entry: InventoryEntry): boolean {
   const moduleName = entry.moduleName.toLowerCase()
   if (moduleName.includes('mcp')) return true
   // Portable feature packages are user-facing extensions even though they are
-  // shipped with the harness. Keep them in the main list so Vision Bridge,
+  // shipped with the harness. Keep them in the main list so Learning,
   // Learning, Cluster and the UI adapters are discoverable in DCode too.
   if (moduleName.startsWith('@dsh-portable/')) return true
   return !moduleName.startsWith('@deepseek-ai/')

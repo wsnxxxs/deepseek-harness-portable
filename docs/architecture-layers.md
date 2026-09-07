@@ -24,7 +24,6 @@ row in the composed `web` profile:
 
 | Row id | Package | What it owns |
 | --- | --- | --- |
-| `vision-bridge` | `@dsh-portable/vision-bridge` | hybrid image routing and the `view_image` tool |
 | `interactive-learning` | `@dsh-portable/interactive-learning` | Learning mode: the agent preset, its tools, and its conversation surfaces |
 | `ui-mode` | `@dsh-portable/ui-mode` | the front-end vocabulary, the page-wide mode store, and the interface switch |
 | `session-manager` | `@dsh-portable/session-manager` | shared token-usage presentation for DCode |
@@ -59,8 +58,11 @@ catalogue/install queue/API adapter, and the portable archive/official usage pag
 DCode links to the standard interface for community plugin operations and archive
 management. Its usage cards remain a presentation helper in `session-manager`.
 
-Retained capabilities are not equivalent to the bundle: Vision Bridge reuses the
-model catalogue and routes image turns; Learning owns material and exercise tools;
+Image understanding is owned by the bundle's `describe_image` plugin. Configure
+its endpoint and model in its Web Plugins settings page. Old `vision` settings
+are left on disk but are no longer read; legacy loader rows are disabled.
+
+Retained capabilities are not equivalent to the bundle: Learning owns material and exercise tools;
 Cluster reads Agent Teams rather than independent scheduled tasks; DCode remains
 an alternate conversation surface. The portable plugin manager owns the
 `dsh.profile.portablePlugins` switches, which the community manager does not write.

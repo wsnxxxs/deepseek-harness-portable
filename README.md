@@ -33,8 +33,8 @@ This is a community distribution. It is not Microsoft-signed, Apple-notarized, o
 | --- | --- |
 | Ready-to-run desktop packages | Packages include the Electron/Node.js runtime. Regular users do not need to prepare Node.js, pnpm, or a container environment. Windows offers Setup and portable ZIP packages, with native artifacts for Linux and macOS. |
 | A dedicated coding workbench | DCode brings sessions, workspaces, environment summaries, terminals, file changes, and previews into one responsive interface that works in compact and wide windows. |
-| Optional, removable extensions | The bundled dsh-web-all ecosystem provides plugin installation, enable/disable, update, and uninstall controls. Vision Bridge, Learning, and the optional Swarm (`crew`) mode integrate as separate capabilities without rewriting the default behavior of Standard, Code, Minimal, or Cordis. |
-| Reuse of existing model settings | Vision Bridge uses the kernel's attachments, model catalog, and invocation path. A text model can hand image work to an already configured vision model without another endpoint or API key. |
+| Optional, removable extensions | The bundled dsh-web-all ecosystem provides plugin installation, enable/disable, update, and uninstall controls. Learning and the optional Swarm (`crew`) mode integrate as separate capabilities without rewriting the default behavior of Standard, Code, Minimal, or Cordis. |
+| Image understanding | The bundled `describe_image` plugin provides image analysis. Configure its endpoint and model under Settings → Web Plugins → Image Understanding. |
 | Explicit data and update boundaries | Sessions, credentials, settings, and attachments stay outside the application directory. The Web service binds only to loopback, and the desktop shell reports updates without replacing or rolling back application files. |
 | Inspectable release artifacts | Packaging probes real target capabilities, smoke-tests the final application, and records file inventories and hashes. Publishing only copies artifacts that have already passed verification. |
 
@@ -76,7 +76,7 @@ Before first launch, verify the checksum published alongside the artifact. Windo
 
 ### Images, files, and learning
 
-- Vision Bridge's `view_image` analyzes local PNG, JPEG, WebP, GIF, and PDF pages. It can select a configured image model automatically or pin one in plugin settings.
+- The bundled `describe_image` analyzes PNG, JPEG, WebP and GIF images, URLs and image attachment references. PDF material is indexed by Learning; render individual pages to images when visual inspection is needed.
 - Conversation input keeps images as image data and uploads text and Office files through the kernel Session Remote. Upstream `@file` path references remain available.
 - Learning mode provides guided explanations, question solving, and material study. Semantic visuals and understanding checks appear when useful without blocking the conversation; materials are supplied from the learning session.
 - Usage settings summarize token consumption, model breakdowns, activity, and session timing from durable runtime projections.
@@ -181,7 +181,7 @@ Minimal mode runs the requested shell command unchanged. Recursive `grep` over t
 | [Swarm mode and dossier](docs/crew.md) | Runtime and product contributors | Team runtime, task board, DCode integration, and grounded dossier behavior |
 | [Interactive Learning pack](apps/interactive-learning/README.md) | Feature contributors | Protocol boundaries, development workflow, activation, and compatibility |
 | [Learning mode product notes (Chinese)](docs/product/learning-mode.md) | Product and feature maintainers | Current learning flow and product boundaries |
-| [Vision Bridge](apps/vision-bridge/README.md) | Users and feature contributors | Image-model routing, configuration, failure behavior, and development checks |
+
 | [Release notes](RELEASE_NOTES.md) | Users and maintainers | User-visible changes and upgrade information |
 
 ## Build and release

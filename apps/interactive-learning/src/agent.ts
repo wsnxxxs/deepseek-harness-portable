@@ -406,13 +406,6 @@ function textFromUserMessage(message: UserMessage): string {
     .trim()
 }
 
-/** The generic vision bridge reads one PDF page at a time. */
-function isPdfViewImageArguments(value: unknown): boolean {
-  if (value === null || typeof value !== 'object') return false
-  const path = (value as { path?: unknown }).path
-  return typeof path === 'string' && path.trim().toLowerCase().endsWith('.pdf')
-}
-
 function lowConfidenceRouteContext(decision: LearningTurnRouteDecision): string[] {
   const suggested = decision.intent.intent === 'learn'
     ? `tentative intent=learn; suggested route=${decision.route}; trigger=${decision.intent.trigger}; reason=${decision.reason}.`
@@ -1115,15 +1108,6 @@ export function apply(ctx: Context): void {
     }
     if (isConfidentNotLearn(decision) && execution.name.startsWith(LEARNING_TOOL_PREFIX)) {
       return Promise.resolve({ kind: 'deny' as const, reason: 'learning tools are disabled for an ordinary turn' })
-    }
-    if (decision?.intent.intent === 'learn'
-      && execution.name === 'view_image'
-      && isPdfViewImageArguments(execution.arguments)
-      && (agent === undefined || vaultHasMaterial.get(agent) !== true)) {
-      return Promise.resolve({
-        kind: 'deny' as const,
-        reason: 'index the supplied PDF with learning_material_map before viewing an individual page',
-      })
     }
     if (decision?.intent.intent === 'learn'
       && agent !== undefined

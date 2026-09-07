@@ -62,7 +62,6 @@ const DIRECTORY_PICKER_BACKENDS = {
 };
 /** Portable feature rows shown in the shared plugin inventory. */
 const PORTABLE_PLUGIN_ROWS = [
-    { id: 'vision-bridge', name: '@dsh-portable/vision-bridge' },
     { id: 'interactive-learning', name: '@dsh-portable/interactive-learning' },
     { id: 'ui-mode', name: '@dsh-portable/ui-mode' },
     { id: 'session-manager', name: '@dsh-portable/session-manager' },
@@ -311,6 +310,12 @@ async function composeProfile(shippedPresetRoot, virtualRuntime) {
             rows.set(row.id, row);
     }
     const overlays = [];
+    // Older profile/home patches may still name the retired portable package.
+    // Keep their config on disk while preventing an import of removed code.
+    for (const row of rows.values()) {
+        if (row.name === '@dsh-portable/vision-bridge')
+            overlays.push({ id: row.id, disabled: true });
+    }
     const directoryPickerBackend = process.env[DIRECTORY_PICKER_BACKEND_ENV];
     if ((directoryPickerBackend === 'native' || directoryPickerBackend === 'browse')
         && rows.get('directory-picker')?.disabled !== true) {

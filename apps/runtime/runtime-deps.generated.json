@@ -52,10 +52,9 @@
     "@dsh-portable/interactive-learning",
     "@dsh-portable/session-manager",
     "@dsh-portable/space-kernel",
-    "@dsh-portable/ui-mode",
-    "@dsh-portable/vision-bridge"
+    "@dsh-portable/ui-mode"
   ],
-  "closureHash": "sha256:f4995081f3b950fda8e2f2343673b34b7ba9d57d3ac51b0e8232933798f8857e",
+  "closureHash": "sha256:b697d7937479c3ac504d7b53398dac930679b8949b01f33e2181236dcac8b95e",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -1246,11 +1245,6 @@
       "name": "@dsh-portable/ui-mode",
       "version": "0.1.0",
       "path": "packages/ui-mode"
-    },
-    {
-      "name": "@dsh-portable/vision-bridge",
-      "version": "0.1.0",
-      "path": "apps/vision-bridge"
     }
   ],
   "dependencies": {
@@ -1492,7 +1486,6 @@
     "@dsh-portable/session-manager": "workspace:^",
     "@dsh-portable/space-kernel": "workspace:^",
     "@dsh-portable/ui-mode": "workspace:^",
-    "@dsh-portable/vision-bridge": "workspace:^",
     "@linxin666/dsh-i18n": "0.3.16",
     "@linxin666/dsh-web-all": "0.3.16",
     "dsh-better-sidebar": "0.18.0",

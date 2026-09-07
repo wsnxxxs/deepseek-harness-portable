@@ -22,7 +22,7 @@ Electron main (main.cjs)
              │    ├─ ensureWebAllProfile()  ← 注册内置聚合包，无启动时网络安装
              │    ├─ healProfilesModuleFallback()     ← 每次启动 BFS 读整个依赖闭包的全部 package.json
              │    └─ loadProfile() + Loader boot      ← 导入完整插件图 (dsh-base + web-app + marketplace
-             │                                           + interactive-learning + vision-bridge 及闭包)
+             │                                           + interactive-learning + dsh-web-all 及闭包)
              └─ listening
      ├─ probeHarnessHealth()  (fetch ×2)
      ├─ window.loadURL(url)                       ← 端口每次随机(port 0) → renderer 的 HTTP 缓存

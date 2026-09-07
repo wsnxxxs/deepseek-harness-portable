@@ -17,7 +17,6 @@ export const packageVersions = {
   'apps/desktop/package.json': '0.1.0-shell.2',
   'apps/runtime/package.json': '0.1.0',
   'apps/interactive-learning/package.json': '0.1.0',
-  'apps/vision-bridge/package.json': '0.1.0',
   'apps/dcode-ui/package.json': '0.1.0',
   'apps/cluster-ui/package.json': '0.1.0',
   'packages/platform-contract/package.json': '0.1.0',

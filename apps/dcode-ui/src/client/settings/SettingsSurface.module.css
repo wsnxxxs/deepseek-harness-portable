@@ -1300,28 +1300,6 @@
   font-size: var(--zx-text-micro);
 }
 
-.visionRoute {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--zx-space-3);
-  padding: var(--zx-space-3) var(--zx-space-4);
-  border: 1px solid var(--zx-border-soft);
-  border-radius: var(--zx-radius-md);
-  background: var(--zx-bg-card);
-}
-
-.visionRouteAuto {
-  border-color: color-mix(in srgb, var(--zx-accent) 32%, var(--zx-border-soft));
-}
-
-.visionRoutePinned {
-  border-color: color-mix(in srgb, var(--zx-success, #49b77a) 35%, var(--zx-border-soft));
-}
-
-.visionRouteDisabled {
-  opacity: 0.78;
-}
-
 .modelList {
   display: flex;
   flex-direction: column;

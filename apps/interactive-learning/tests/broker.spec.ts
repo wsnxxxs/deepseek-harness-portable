@@ -57,34 +57,6 @@ describe('LearningActivityBroker compatibility boundary', () => {
 })
 
 describe('non-blocking Learning Agent v4.1', () => {
-  it('requires a supplied PDF to be indexed before direct page inspection', async () => {
-    const ctx = await setupBroker(false)
-    await ctx.plugin(ToolRuntime)
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(learningAgent)
-    const agent = stubAgent('pdf-visual-gate')
-    ctx.emit('agent/inbox/claimed', {
-      agent,
-      message: {
-        id: 'pdf-visual-gate-message',
-        role: 'user',
-        source: { kind: 'user' },
-        content: [{ type: 'text', text: '教我这份 PDF' }],
-      },
-      turn: 1,
-    } as never)
-
-    const denied = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: ToolCallId('pdf-visual-gate-call'),
-      name: 'view_image',
-      arguments: { path: 'C:/tmp/lesson.pdf', page: 1 },
-      agent,
-    })
-    expect(denied.isError).toBe(true)
-    expect(JSON.stringify(denied.content)).toContain('index the supplied PDF')
-  })
-
   it('applies the deterministic route to the production prompt surface', async () => {
     const ctx = await setupBroker(true)
     await ctx.plugin(ToolRuntime)

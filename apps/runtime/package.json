@@ -256,7 +256,6 @@
     "@dsh-portable/session-manager": "workspace:^",
     "@dsh-portable/space-kernel": "workspace:^",
     "@dsh-portable/ui-mode": "workspace:^",
-    "@dsh-portable/vision-bridge": "workspace:^",
     "@linxin666/dsh-i18n": "0.3.16",
     "@linxin666/dsh-web-all": "0.3.16",
     "dsh-better-sidebar": "0.18.0",

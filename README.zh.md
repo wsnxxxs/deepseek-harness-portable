@@ -33,8 +33,8 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 | --- | --- |
 | 开箱即用的桌面分发 | 安装包自带 Electron/Node.js runtime。普通用户无需准备 Node.js、pnpm 或容器环境，Windows 可选择 Setup 或便携 ZIP，Linux/macOS 也有原生安装产物。 |
 | 专门的编码工作台 | DCode 把会话和工作区放进同一个响应式界面，环境摘要和终端，以及文件变更与预览也集中于此，紧凑窗口和宽屏都能使用。 |
-| 能力可以按需扩展 | 内置 dsh-web-all 插件生态支持安装、启停、更新和卸载；Vision Bridge、Learning 与可选的集群（Swarm，运行时 id 为 `crew`）模式作为独立能力接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
-| 复用已有模型配置 | Vision Bridge 复用内核的附件、模型目录与调用链。文本模型需要看图时可以转交已配置的视觉模型，无需再维护一套端点和 API 密钥。 |
+| 能力可以按需扩展 | 内置 dsh-web-all 插件生态支持安装、启停、更新和卸载；Learning 与可选的集群（Swarm，运行时 id 为 `crew`）模式作为独立能力接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
+| 图像理解 | 内置插件的 `describe_image` 提供图片分析，在“设置 → Web 插件 → 图像理解”中统一配置端点和模型。 |
 | 数据与更新边界明确 | 会话与凭据，以及设置和附件都保存在应用目录之外；Web 服务只绑定回环地址，桌面外壳只提示新版本，不会自行替换或回滚应用文件。 |
 | 发布过程可检查 | 打包流程会探测目标平台的真实能力，对最终应用执行冒烟检查并记录文件清单与哈希；发布步骤只复制已经验证的产物。 |
 
@@ -76,7 +76,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 ### 图片、文件与学习
 
-- Vision Bridge 的 `view_image` 可以分析本地 PNG、JPEG、WebP、GIF 和 PDF 页面。它会自动选择已配置的图片模型，也允许在插件设置中固定模型。
+- 内置插件的 `describe_image` 分析 PNG、JPEG、WebP、GIF 图片、图片 URL 和附件引用。PDF 材料通过 Learning 索引，需要查看页面图像时先渲染为图片。
 - 会话输入框会把图片附件保留为图片数据，文本和 Office 文件通过内核 Session Remote 上传；上游 `@file` 路径引用仍可直接使用。
 - Learning 模式提供概念讲解、疑惑澄清和材料学习。语义图示与理解检查按需出现，不阻塞普通对话；材料从学习会话中附加和使用。
 - 使用量设置页从持久化运行时投影汇总 token 消耗、模型明细、活跃度和会话耗时。
@@ -181,7 +181,7 @@ Smart App Control 可能直接阻止未签名的应用。如果设备已启用�
 | [Swarm 模式与资料档案](docs/crew.md) | Runtime 与产品维护者 | 团队运行时、任务看板、DCode 集成和资料档案行为 |
 | [交互式学习包](apps/interactive-learning/README.zh.md) | 功能贡献者 | 协议边界、开发流程、启用方式和兼容性 |
 | [学习模式产品说明](docs/product/learning-mode.md) | 产品与功能维护者 | 当前学习流程和产品边界 |
-| [Vision Bridge](apps/vision-bridge/README.zh.md) | 用户与功能贡献者 | 图片模型路由、配置、失败行为和开发验证 |
+
 | [发布说明](RELEASE_NOTES.zh.md) | 用户与维护者 | 用户可见变更和升级信息 |
 
 ## 构建与发布

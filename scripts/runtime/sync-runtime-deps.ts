@@ -27,7 +27,6 @@ const STATIC_WORKSPACE_ROOTS = [
   '@dsh-portable/space-kernel',
   '@dsh-portable/crew-dossier',
   '@dsh-portable/interactive-learning',
-  '@dsh-portable/vision-bridge',
   '@dsh-portable/dcode-ui',
   '@dsh-portable/cluster-ui',
   '@dsh-portable/ui-mode',

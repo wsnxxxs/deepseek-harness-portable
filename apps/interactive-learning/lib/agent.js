@@ -1,4 +1,4 @@
-import { E as material_receipts_exports, H as buildConceptStudyMap, T as syncMentionedMaterial, X as readConceptCards, Z as readLearnerMemoryWithCards, _ as MATERIAL_TOOL_NAMES, ct as conceptRecordFromState, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, ft as renderLearnerMemory, g as validateStudyMapAgainstVault, gt as LEARNING_INTENT_ROUTING_GUIDANCE, h as formatStudyMapViolations, ht as topic_vault_exports, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, p as registerConceptTools, pt as upsertLearnerConcept, vt as LEARN_INTENT_MODEL_GUIDANCE, w as parseFileMentions, x as registerMaterialTools } from "./teaching-policy-BUhKcKN3.js";
+import { E as material_receipts_exports, H as buildConceptStudyMap, T as syncMentionedMaterial, X as readConceptCards, Z as readLearnerMemoryWithCards, _ as MATERIAL_TOOL_NAMES, ct as conceptRecordFromState, d as routeLearningTurn, f as CONCEPT_TOOL_NAMES, ft as renderLearnerMemory, g as validateStudyMapAgainstVault, gt as LEARNING_INTENT_ROUTING_GUIDANCE, h as formatStudyMapViolations, ht as topic_vault_exports, i as LEARNING_MATERIAL_POLICY, l as buildLearningTeachingPolicy, m as validateRecallDeckAgainstVault, p as registerConceptTools, pt as upsertLearnerConcept, vt as LEARN_INTENT_MODEL_GUIDANCE, w as parseFileMentions, x as registerMaterialTools } from "./teaching-policy-DfQIYCoR.js";
 import { D as learningCheckpointParametersOneStepV1, E as VISUAL_RESULT_PROTOCOL_V4, O as learningVisualParametersV4, b as LEARNING_VISUAL_RESULT_SCHEMA_V4, f as parseLearningVisualV4, l as parseLearningCheckpointV1, p as LearningProtocolError, v as LEARNING_CHECKPOINT_RESULT_SCHEMA_V1, y as LEARNING_VISUAL_KINDS_V4 } from "./protocol-current-Cyp6-wYL.js";
 import { realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
@@ -903,12 +903,6 @@ const RICH_VISUAL_ROUTING_GUIDANCE = "When a tree, graph, process, causal chain,
 function textFromUserMessage(message) {
 	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("\n").trim();
 }
-/** The generic vision bridge reads one PDF page at a time. */
-function isPdfViewImageArguments(value) {
-	if (value === null || typeof value !== "object") return false;
-	const path = value.path;
-	return typeof path === "string" && path.trim().toLowerCase().endsWith(".pdf");
-}
 function lowConfidenceRouteContext(decision) {
 	return [
 		"## Current turn route",
@@ -1405,10 +1399,6 @@ function apply(ctx) {
 		if (isConfidentNotLearn(decision) && execution.name.startsWith(LEARNING_TOOL_PREFIX)) return Promise.resolve({
 			kind: "deny",
 			reason: "learning tools are disabled for an ordinary turn"
-		});
-		if (decision?.intent.intent === "learn" && execution.name === "view_image" && isPdfViewImageArguments(execution.arguments) && (agent === void 0 || vaultHasMaterial.get(agent) !== true)) return Promise.resolve({
-			kind: "deny",
-			reason: "index the supplied PDF with learning_material_map before viewing an individual page"
 		});
 		if (decision?.intent.intent === "learn" && agent !== void 0 && execution.name === STATE_DERIVED_MATERIAL_TOOL && hasPendingStateUpdateInModelStep(execution)) return Promise.resolve({
 			kind: "deny",
