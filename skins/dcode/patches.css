@@ -14,3 +14,38 @@ textarea[data-phase]::placeholder {
   color: var(--dsw-alias-label-secondary);
   opacity: 1;
 }
+
+/* The static facade exposes pane anchors before the runtime L2 adapter. */
+[data-pane="sidebar"]:not([data-dsh-surface]),
+[data-pane="details"]:not([data-dsh-surface]) {
+  -webkit-backdrop-filter: var(--dcode-glass);
+  backdrop-filter: var(--dcode-glass);
+}
+
+[data-composer-card]:not([data-dsh-surface]):not([data-dsh-surface="composer"] *) {
+  background: var(--dcode-card);
+  border: 1px solid var(--dcode-line);
+  border-radius: 22px;
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight);
+  -webkit-backdrop-filter: var(--dcode-glass);
+  backdrop-filter: var(--dcode-glass);
+  transition: border-color var(--dcode-motion), box-shadow var(--dcode-motion);
+}
+[data-composer-card]:not([data-dsh-surface]):not([data-dsh-surface="composer"] *):focus-within {
+  border-color: var(--dsw-alias-button-primary-fill);
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight), 0 0 0 3px color-mix(in srgb, var(--dsw-alias-button-primary-fill) 16%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-composer-card]:not([data-dsh-surface]) { transition: none; }
+}
+
+/* ARIA menu/listbox roots also cover portals outside the workbench root. */
+[role="menu"], [role="listbox"] {
+  background: var(--dcode-overlay);
+  color: var(--dsw-alias-label-primary);
+  border: .5px solid var(--dcode-line);
+  border-radius: 18px;
+  box-shadow: var(--dcode-floating-shadow), var(--dcode-highlight);
+  -webkit-backdrop-filter: var(--dcode-glass);
+  backdrop-filter: var(--dcode-glass);
+}

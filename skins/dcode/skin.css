@@ -2,11 +2,21 @@
 :root {
   color-scheme: light;
   --dcode-paper: #f6f6f3;
-  --dcode-panel: #eeeeeadf;
-  --dcode-canvas: #f6f6f370;
-  --dcode-card: #ffffffed;
+  --dcode-panel: #ffffffbd;
+  --dcode-canvas: #f6f6f3ad;
+  --dcode-card: #ffffffcc;
   --dcode-line: #25282d26;
-  --dcode-shadow: 0 8px 28px #20232812;
+  --dcode-shadow: 0 1px 3px #0f172a0a, 0 1px 2px #0f172a05;
+  --dcode-floating-shadow: 0 4px 16px #0f172a14, 0 1px 3px #0f172a0a;
+  --dcode-dialog-shadow: 0 20px 48px #0f172a24, 0 4px 12px #0f172a0f;
+  --dcode-highlight: inset 0 1px 0 #ffffffcc;
+  --dcode-overlay: #ffffffdb;
+  --dcode-glass: blur(16px) saturate(140%);
+  --dcode-motion: 120ms cubic-bezier(.2, 0, .2, 1);
+  --dsw-shadow-lv1: var(--dcode-shadow);
+  --dsw-shadow-lv2: var(--dcode-shadow);
+  --dsw-shadow-lv3: var(--dcode-floating-shadow);
+  --dsw-specific-input-major: var(--dcode-card);
   --dsw-alias-bg-base: #f6f6f3;
   --dsw-alias-bg-layer-1: #ffffff;
   --dsw-alias-bg-layer-2: #eeefec;
@@ -54,11 +64,19 @@
 body[data-ds-dark-theme] {
   color-scheme: dark;
   --dcode-paper: #17191c;
-  --dcode-panel: #1d2024ed;
-  --dcode-canvas: #17191c80;
-  --dcode-card: #25292ef5;
+  --dcode-panel: #1d2024d1;
+  --dcode-canvas: #17191cc2;
+  --dcode-card: #25292ee0;
   --dcode-line: #e6e8e52b;
-  --dcode-shadow: 0 8px 28px #00000040;
+  --dcode-shadow: 0 6px 18px #0000002e, 0 1px 3px #00000033;
+  --dcode-floating-shadow: 0 2px 8px #0000002e, 0 12px 32px #00000047;
+  --dcode-dialog-shadow: 0 18px 44px #00000057, 0 4px 12px #00000033;
+  --dcode-highlight: inset 0 1px 0 #ffffff0f;
+  --dcode-overlay: #25292ef0;
+  --dsw-shadow-lv1: var(--dcode-shadow);
+  --dsw-shadow-lv2: var(--dcode-shadow);
+  --dsw-shadow-lv3: var(--dcode-floating-shadow);
+  --dsw-specific-input-major: var(--dcode-card);
   --dsw-alias-bg-base: #17191c;
   --dsw-alias-bg-layer-1: #202328;
   --dsw-alias-bg-layer-2: #292d33;
@@ -119,8 +137,8 @@ body[data-ds-dark-theme] {
 [data-dsh-surface="composer"] {
   background: var(--dcode-card);
   border: 1px solid var(--dcode-line);
-  border-radius: 18px;
-  box-shadow: var(--dcode-shadow);
+  border-radius: 22px;
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight);
 }
 [data-dsh-surface="settings"], [data-dsh-surface="overlay"] {
   background: var(--dsw-alias-bg-overlay);
@@ -135,3 +153,74 @@ body[data-ds-dark-theme] {
   background: var(--dsw-alias-button-primary-hover);
 }
 [data-dsh-part="composer-input"] { caret-color: var(--dsw-alias-label-primary); }
+
+/* Material belongs on panels, not a full-screen filtered ancestor: that
+   would also change the containing block of fixed menus and dialogs. */
+[data-dsh-surface="sidebar"],
+[data-dsh-surface="details"],
+[data-dsh-surface="session-header"],
+[data-dsh-surface="composer"],
+[data-dsh-surface="settings"] {
+  -webkit-backdrop-filter: var(--dcode-glass);
+  backdrop-filter: var(--dcode-glass);
+}
+[data-dsh-surface="session-header"] { box-shadow: var(--dcode-highlight); }
+[data-dsh-surface="settings"] {
+  background: var(--dcode-overlay);
+  border: 1px solid var(--dcode-line);
+  border-radius: 20px;
+  box-shadow: var(--dcode-dialog-shadow), var(--dcode-highlight);
+}
+[data-dsh-surface="composer"] {
+  transition: border-color var(--dcode-motion), box-shadow var(--dcode-motion);
+}
+[data-dsh-surface="composer"]:focus-within {
+  border-color: var(--dsw-alias-button-primary-fill);
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight), 0 0 0 3px color-mix(in srgb, var(--dsw-alias-button-primary-fill) 16%, transparent);
+}
+[data-dsh-part="composer-chip"] {
+  background: var(--dcode-card);
+  border: .5px solid var(--dcode-line);
+  border-radius: 999px;
+  box-shadow: var(--dcode-highlight);
+}
+[data-dsh-part="queue-dock"] {
+  background: var(--dcode-card);
+  border: .5px solid var(--dcode-line);
+  border-radius: 14px;
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight);
+}
+/* Explicit owners keep unrelated plugin parts with the same name intact. */
+[data-dsh-plugin="task-board"] [data-dsh-part="card"],
+[data-dsh-plugin="usage"] :is([data-dsh-part="today-card"], [data-dsh-part="balance-card"], [data-dsh-part="trend-card"], [data-dsh-part="plan-card"]),
+[data-dsh-plugin="web-ui-settings"] [data-dsh-part="plugin-item"] {
+  background: var(--dcode-card);
+  border: .5px solid var(--dcode-line);
+  border-radius: 12px;
+  box-shadow: var(--dcode-shadow), var(--dcode-highlight);
+}
+[data-dsh-plugin="git-graph"] [data-dsh-part="dialog"],
+[data-dsh-plugin="session-id"] [data-dsh-part="panel"],
+[data-dsh-plugin="skill-explorer"] [data-dsh-part="card"] {
+  background: var(--dcode-overlay);
+  border: 1px solid var(--dcode-line);
+  border-radius: 20px;
+  box-shadow: var(--dcode-dialog-shadow), var(--dcode-highlight);
+  -webkit-backdrop-filter: var(--dcode-glass);
+  backdrop-filter: var(--dcode-glass);
+}
+[data-dsh-part="new-session"] {
+  transition: background-color var(--dcode-motion), box-shadow var(--dcode-motion);
+}
+[data-dsh-part="new-session"]:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-primary-fill);
+  outline-offset: 2px;
+}
+[data-dsh-part="new-session"]:disabled { opacity: .45; }
+[data-dsh-part="scrollport"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l3) transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-dsh-surface="composer"], [data-dsh-part="new-session"] { transition: none; }
+}

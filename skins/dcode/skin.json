@@ -6,15 +6,16 @@
   "nameEn": "DCode Graphite",
   "version": "0.1.0",
   "author": "wsnxxxs",
-  "tagline": "石墨与纸白 · 分层工作区 · 安静的建筑光影",
-  "description": "从 DCode 工作台提取的外观资产：纸白亮色与石墨暗色、清晰的侧栏分界、圆角输入区和原创建筑光影背景。保留宿主布局与插件功能，仅通过标准主题变量和语义属性呈现。",
+  "tagline": "石墨与纸白 · 毛玻璃面板 · 建筑光影",
+  "description": "从 DCode 工作台提取的外观资产：纸白亮色与石墨暗色、分层毛玻璃、边缘高光、浮层阴影、圆角输入区和原创建筑光影背景。保留宿主布局与插件功能，通过标准主题变量和语义属性呈现。",
   "tags": [
     "dcode",
     "graphite",
     "minimal",
     "workspace",
     "light",
-    "dark"
+    "dark",
+    "glass"
   ],
   "accent": "#25282d",
   "license": "MIT",
