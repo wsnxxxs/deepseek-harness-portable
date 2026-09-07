@@ -11,7 +11,7 @@
 .top {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--zx-space-1);
   /* Workbench.root already reserves the desktop titlebar strip. */
   padding: var(--zx-space-2) var(--zx-space-3);
   -webkit-app-region: drag;
@@ -69,13 +69,15 @@
   display: flex;
   align-items: center;
   gap: var(--zx-space-2);
-  height: var(--zx-control-xs);
+  height: 32px;
+  box-sizing: border-box;
   margin: var(--zx-space-1) var(--zx-space-1) 0;
   padding: 0 var(--zx-space-2);
   border: 1px solid transparent;
   border-radius: var(--zx-radius-md);
   background: var(--zx-bg-raised);
   color: var(--zx-label-tertiary);
+  transition: border-color var(--zx-motion-fast), box-shadow var(--zx-motion-fast);
 }
 
 .searchField:focus-within {
@@ -519,4 +521,18 @@
 .workspaceStatus {
   color: var(--zx-label-muted);
   font-size: var(--zx-text-xs);
+}
+
+/* The primary action stays distinct from navigation entries. */
+html:not([data-dsh-skin]) .action[data-dsh-part="new-session"] {
+  min-height: 34px;
+  border: 1px solid var(--zx-border);
+  background: var(--zx-bg-card);
+  box-shadow: var(--zx-shadow-inset-top);
+  font-weight: var(--zx-weight-medium);
+  transition: background var(--zx-motion-fast), border-color var(--zx-motion-fast);
+}
+html:not([data-dsh-skin]) .action[data-dsh-part="new-session"]:hover {
+  background: var(--zx-bg-hover);
+  border-color: var(--zx-border-control);
 }

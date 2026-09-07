@@ -15,7 +15,7 @@
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, var(--zx-border-control));
   border-radius: 22px;
   background: var(--dsw-specific-input-major, var(--zx-bg-card));
-  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card));
+  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card)), var(--zx-shadow-inset-top);
   transition:
     border-color var(--zx-motion-fast),
     border-radius 220ms cubic-bezier(.2, .8, .2, 1),
@@ -33,7 +33,7 @@
 
 .shellFocused {
   border-color: var(--dsw-alias-state-business-primary, var(--zx-accent));
-  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card)), 0 0 0 1px color-mix(in srgb, var(--zx-accent) 12%, transparent);
+  box-shadow: var(--dsw-shadow-lv2, var(--zx-shadow-card)), var(--zx-shadow-inset-top), var(--zx-shadow-focus);
 }
 
 .referenceActive:not(.dropActive) {

@@ -94,7 +94,8 @@
   --zx-bg-app: var(--zx-bg-surface-0);
   --zx-bg-panel: var(--zx-bg-surface-1);
   --zx-bg-card: var(--zx-bg-surface-2);
-  --zx-bg-overlay: var(--zx-bg-surface-elevated);
+  /* Floating text surfaces retain enough paint over busy glass backgrounds. */
+  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-overlay, #22222b) 94%, transparent);
   --zx-bg-raised: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 6%, transparent);
   --zx-bg-hover: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 8%, transparent);
   --zx-bg-active: color-mix(in srgb, var(--dsw-alias-label-primary, #f2f2f3) 12%, transparent);
@@ -215,6 +216,7 @@ html:not([data-dsh-skin]) [data-dcode-scope] {
   /* Crisp, refined light palette: soft neutral-tinted off-white canvas and
      white-tinted elevated surfaces with soft depth shadows. */
   --zx-bg-surface-0: var(--dsw-alias-bg-base, #f8f9fb);
+  --zx-bg-overlay: color-mix(in srgb, var(--dsw-alias-bg-overlay, #ffffff) 94%, transparent);
   --zx-bg-surface-1: color-mix(in srgb, #ffffff var(--zx-surface-1-alpha), transparent);
   --zx-bg-surface-2: color-mix(in srgb, #ffffff var(--zx-surface-2-alpha), transparent);
   --zx-bg-surface-elevated: color-mix(in srgb, #ffffff var(--zx-surface-elevated-alpha), transparent);
