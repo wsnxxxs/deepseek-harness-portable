@@ -45,7 +45,9 @@ const STATIC_WORKSPACE_ROOTS = [
 ] as const
 
 const EXTERNAL_RUNTIME_ROOTS = {
-  'dsh-plugin-marketplace': 'github:AwesomeHou/dsh-plugin-marketplace#463e6cb856272018a7f5a76e260a0d1ef5b589e3',
+  '@linxin666/dsh-web-all': '0.3.16',
+  '@linxin666/dsh-i18n': '0.3.16',
+  'dsh-better-sidebar': '0.18.0',
   'js-yaml': '^4.2.0',
   'node-addon-require-builtin': '^0.1.4',
   'pnpm': '11.21.0',

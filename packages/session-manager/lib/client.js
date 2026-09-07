@@ -4,220 +4,105 @@ window.__ModuleLoader__.load({
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		//#region src/client/archive.ts
+		//#region src/client/locales.ts
 		/**
-		* The archived-conversation fold, without a surface.
+		* Copy owned by the session-manager plugin, in the two locales this
+		* distribution ships.
 		*
-		* Both front ends manage the SAME archive set: the Workspace Controller's
-		* `archivedSessionIds`, joined against the Session Controller's list. Nothing
-		* here owns a copy of either — the rows are derived on read, and restore and
-		* delete are the Host calls the caller supplies. What this module owns is the
-		* part that is genuinely shared and genuinely easy to get wrong: joining an
-		* archived id whose summary has not loaded, ordering by recency, serializing
-		* one in-flight mutation at a time, and holding the pending delete target.
-		*
-		* Markup stays with each surface. The official settings shell and the
-		* workbench sit in different token domains and use different primitives, so a
-		* shared component would have to abstract over both; a shared hook does not.
-		* @module @dsh-portable/session-manager/client/archive
+		* The dictionary is registered as an ordinary namespace on the Host's locale
+		* runtime, so both the official settings shell and the DCode workbench render
+		* these words from one source: the workbench binds this namespace rather than
+		* translating the archive and usage vocabulary a second time.
+		* @module @dsh-portable/session-manager/client/locales
 		*/
-		/** A summary stand-in for an archived id whose real summary has not arrived. */
-		function placeholder(id) {
-			return {
-				id,
-				displayTitle: id,
-				running: false,
-				blank: false,
-				updatedAt: 0
-			};
-		}
-		/** Message text for a rejected mutation. */
-		function describe(cause) {
-			return cause instanceof Error ? cause.message : String(cause);
-		}
-		/**
-		* Derive the archive page's state from the two official snapshots.
-		* @param sessions - Session Controller list snapshot.
-		* @param workspaces - Workspace Controller snapshot carrying the archive set.
-		* @param actions - Host mutations supplied by the hosting surface.
-		* @returns the rows to render and the callbacks the controls bind to.
-		*/
-		function useArchivedChats(sessions, workspaces, actions) {
-			const [busyId, setBusyId] = (0, react.useState)();
-			const [deleteTarget, setDeleteTarget] = (0, react.useState)();
-			const [error, setError] = (0, react.useState)();
-			const rows = (0, react.useMemo)(() => workspaces.archivedSessionIds.map((id) => sessions.byId[id] ?? placeholder(id)).sort((left, right) => right.updatedAt - left.updatedAt), [sessions.byId, workspaces.archivedSessionIds]);
-			const restore = (id) => {
-				if (busyId !== void 0) return;
-				setBusyId(id);
-				setError(void 0);
-				actions.restore(id).catch((cause) => {
-					setError(describe(cause));
-				}).finally(() => {
-					setBusyId(void 0);
-				});
-			};
-			const requestDelete = (session) => {
-				setError(void 0);
-				setDeleteTarget(session);
-			};
-			const cancelDelete = () => {
-				if (busyId !== void 0) return;
-				setDeleteTarget(void 0);
-				setError(void 0);
-			};
-			const confirmDelete = () => {
-				const target = deleteTarget;
-				if (target === void 0 || busyId !== void 0) return;
-				setBusyId(target.id);
-				setError(void 0);
-				actions.remove(target.id).then(() => {
-					setDeleteTarget(void 0);
-				}).catch((cause) => {
-					setError(describe(cause));
-				}).finally(() => {
-					setBusyId(void 0);
-				});
-			};
-			return {
-				rows,
-				loading: workspaces.phase !== "ready" || sessions.phase !== "ready",
-				busyId,
-				busy: busyId !== void 0,
-				deleteTarget,
-				error,
-				restore,
-				requestDelete,
-				cancelDelete,
-				confirmDelete
-			};
-		}
-		//#endregion
-		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\packages\session-manager\src\client\ArchivedChatsSection.module.css.mjs
-		const css$2 = ".ZGK0vW_root{flex-direction:column;gap:8px;display:flex}.ZGK0vW_title{color:var(--dsw-alias-label-primary,#0b0e14);margin:0;font-size:16px;font-weight:500;line-height:24px}.ZGK0vW_lead{color:var(--dsw-alias-label-tertiary,#5b6470);margin:0 0 8px;font-size:14px;line-height:22px}.ZGK0vW_empty{border:1px solid var(--dsw-alias-border-l2,#e4e7ec);color:var(--dsw-alias-label-tertiary,#5b6470);text-align:center;border-radius:12px;padding:24px 12px;font-size:14px;line-height:22px}.ZGK0vW_list{border:1px solid var(--dsw-alias-border-l2,#e4e7ec);border-radius:12px;flex-direction:column;margin:0;padding:0;list-style:none;display:flex;overflow:hidden}.ZGK0vW_row{border-bottom:1px solid var(--dsw-alias-border-l2,#e4e7ec);align-items:center;gap:12px;padding:12px;display:flex}.ZGK0vW_row:last-child{border-bottom:none}.ZGK0vW_rowText{flex-direction:column;flex:auto;gap:2px;min-width:0;display:flex}.ZGK0vW_rowTitle{color:var(--dsw-alias-label-primary,#0b0e14);text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:22px;overflow:hidden}.ZGK0vW_rowBody{color:var(--dsw-alias-label-tertiary,#5b6470);text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;overflow:hidden}.ZGK0vW_rowActions{flex:none;align-items:center;gap:8px;display:flex}.ZGK0vW_danger{color:var(--dsw-alias-label-error,#d92d20);cursor:pointer;background:0 0;border:1px solid #0000;border-radius:8px;padding:4px 10px;font-size:13px;line-height:20px}.ZGK0vW_danger:hover:not(:disabled){background:var(--dsw-alias-fill-error-secondary,#d92d2014)}.ZGK0vW_danger:disabled{cursor:default;opacity:.5}.ZGK0vW_error{color:var(--dsw-alias-label-error,#d92d20);font-size:13px;line-height:20px}";
-		const tagId$1 = "@dsh-portable/session-manager/ArchivedChatsSection.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
-			const tag = document.createElement("style");
-			tag.dataset.plugin = "@dsh-portable/session-manager";
-			tag.dataset.pluginCss = tagId$1;
-			tag.textContent = css$2;
-			document.head.appendChild(tag);
-		}
-		var ArchivedChatsSection_module_css_default = {
-			"danger": "ZGK0vW_danger",
-			"empty": "ZGK0vW_empty",
-			"error": "ZGK0vW_error",
-			"lead": "ZGK0vW_lead",
-			"list": "ZGK0vW_list",
-			"root": "ZGK0vW_root",
-			"row": "ZGK0vW_row",
-			"rowActions": "ZGK0vW_rowActions",
-			"rowBody": "ZGK0vW_rowBody",
-			"rowText": "ZGK0vW_rowText",
-			"rowTitle": "ZGK0vW_rowTitle",
-			"title": "ZGK0vW_title"
+		/** Locale namespace owned by this package. */
+		const SESSION_MANAGER_NS = "sessionManager";
+		/** English dictionary; also the fallback for a key a locale is missing. */
+		const en = {
+			"archive.title": "Archived chats",
+			"archive.body": "Manage archived conversations. Restore one to return it to the sidebar, or delete it permanently.",
+			"archive.empty": "No archived conversations.",
+			"archive.restore": "Restore",
+			"archive.delete": "Delete permanently",
+			"archive.deleteTitle": "Delete archived conversation?",
+			"archive.deleteBody": "This permanently deletes the conversation and cannot be undone.",
+			"archive.cancel": "Cancel",
+			"archive.close": "Close",
+			"archive.working": "Working…",
+			"usage.title": "Model usage",
+			"usage.body": "Usage is aggregated from the same durable task records the workbench reads. This page does not estimate account balance.",
+			"usageCard.title": "Usage statistics",
+			"usageCard.tabOverview": "Overview",
+			"usageCard.tabModels": "Models",
+			"usageCard.rangeLabel": "Time range",
+			"usageCard.rangeToday": "Today",
+			"usageCard.range7d": "7d",
+			"usageCard.range30d": "30d",
+			"usageCard.sessions": "Sessions",
+			"usageCard.messages": "Messages",
+			"usageCard.totalTokens": "Total tokens",
+			"usageCard.activeDays": "Active days",
+			"usageCard.currentStreak": "Current streak",
+			"usageCard.longestStreak": "Longest streak",
+			"usageCard.peakHour": "Peak hour",
+			"usageCard.favoriteModel": "Favorite model",
+			"usageCard.days": "{count}d",
+			"usageCard.unknownModel": "Unattributed",
+			"usageCard.inOut": "{input} in · {output} out",
+			"usageCard.empty": "No token usage has been recorded in this range.",
+			"usageCard.activityAlt": "Activity over the last {weeks} weeks: {days} active days, {tokens} tokens.",
+			"usageCard.chartAlt": "Daily token usage over {days} days, {tokens} in total.",
+			"usageCard.dayBucketNote": "Each task is counted on the day it was last active, so a task spanning several days lands on one of them. Messages count recorded turns and steps.",
+			"usageCard.estimatedNote": "Some tasks predate per-model accounting; their tokens are credited to the model they last used and move to the exact split once the task is reopened.",
+			"usageCard.comparison": "That is about {factor}× the tokens in {reference}.",
+			"usageCard.compareMobyDick": "Moby-Dick",
+			"usageCard.compareWarAndPeace": "War and Peace",
+			"usageCard.compareWikipedia": "the English Wikipedia"
 		};
-		//#endregion
-		//#region src/client/ArchivedChatsSection.tsx
-		/** The archive page, one row per archived conversation. */
-		function ArchivedChatsSection(props) {
-			const sessions = props.useSessions((state) => state);
-			const workspaces = props.useWorkspaces((state) => state);
-			const { t, close } = props;
-			const model = useArchivedChats(sessions, workspaces, {
-				restore: async (id) => {
-					await props.restore(id);
-					if (sessions.byId[id] !== void 0) {
-						props.open(id);
-						close();
-					}
-				},
-				remove: async (id) => {
-					await props.remove(id);
-					if (sessions.current === id) props.clear();
-				}
-			});
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: ArchivedChatsSection_module_css_default.root,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
-						className: ArchivedChatsSection_module_css_default.title,
-						children: t("archive.title")
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: ArchivedChatsSection_module_css_default.lead,
-						children: t("archive.body")
-					}),
-					model.loading ? null : model.rows.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: ArchivedChatsSection_module_css_default.empty,
-						children: t("archive.empty")
-					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-						className: ArchivedChatsSection_module_css_default.list,
-						children: model.rows.map((session) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
-							className: ArchivedChatsSection_module_css_default.row,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: ArchivedChatsSection_module_css_default.rowText,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: ArchivedChatsSection_module_css_default.rowTitle,
-									children: session.displayTitle
-								}), session.cwd === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: ArchivedChatsSection_module_css_default.rowBody,
-									children: session.cwd
-								})]
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: ArchivedChatsSection_module_css_default.rowActions,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
-									size: "sm",
-									disabled: model.busy,
-									onClick: () => {
-										model.restore(session.id);
-									},
-									children: model.busyId === session.id ? t("archive.working") : t("archive.restore")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: ArchivedChatsSection_module_css_default.danger,
-									disabled: model.busy,
-									onClick: () => {
-										model.requestDelete(session);
-									},
-									children: t("archive.delete")
-								})]
-							})]
-						}, session.id))
-					}),
-					model.error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: ArchivedChatsSection_module_css_default.error,
-						role: "alert",
-						children: model.error
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
-						open: model.deleteTarget !== void 0,
-						onClose: model.cancelDelete,
-						title: t("archive.deleteTitle"),
-						closeLabel: t("archive.close"),
-						description: t("archive.deleteBody"),
-						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
-							disabled: model.busy,
-							onClick: model.cancelDelete,
-							children: t("archive.cancel")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: ArchivedChatsSection_module_css_default.danger,
-							disabled: model.busy,
-							onClick: model.confirmDelete,
-							children: model.busy ? t("archive.working") : t("archive.delete")
-						})] }),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: ArchivedChatsSection_module_css_default.rowTitle,
-							children: model.deleteTarget?.displayTitle
-						})
-					})
-				]
-			});
-		}
+		/** Simplified Chinese dictionary. */
+		const zh = {
+			"archive.title": "已归档对话",
+			"archive.body": "管理已归档的对话。恢复后会重新显示在侧边栏，也可以永久删除。",
+			"archive.empty": "暂无已归档对话。",
+			"archive.restore": "恢复",
+			"archive.delete": "永久删除",
+			"archive.deleteTitle": "删除已归档对话？",
+			"archive.deleteBody": "此操作会永久删除对话，且无法撤销。",
+			"archive.cancel": "取消",
+			"archive.close": "关闭",
+			"archive.working": "处理中…",
+			"usage.title": "模型用量",
+			"usage.body": "数据来自与工作台使用统计相同的任务持久化记录。本页面不伪造账户余额。",
+			"usageCard.title": "用量统计",
+			"usageCard.tabOverview": "总览",
+			"usageCard.tabModels": "模型",
+			"usageCard.rangeLabel": "时间范围",
+			"usageCard.rangeToday": "今日",
+			"usageCard.range7d": "7 天",
+			"usageCard.range30d": "30 天",
+			"usageCard.sessions": "任务数",
+			"usageCard.messages": "消息数",
+			"usageCard.totalTokens": "累计 Token",
+			"usageCard.activeDays": "活跃天数",
+			"usageCard.currentStreak": "当前连续",
+			"usageCard.longestStreak": "最长连续",
+			"usageCard.peakHour": "高峰时段",
+			"usageCard.favoriteModel": "常用模型",
+			"usageCard.days": "{count} 天",
+			"usageCard.unknownModel": "未归类",
+			"usageCard.inOut": "输入 {input} · 输出 {output}",
+			"usageCard.empty": "该时间范围内没有记录到 Token 用量。",
+			"usageCard.activityAlt": "最近 {weeks} 周的活跃情况：{days} 个活跃日，共 {tokens} Token。",
+			"usageCard.chartAlt": "{days} 天的每日 Token 用量，合计 {tokens}。",
+			"usageCard.dayBucketNote": "每个任务计入其最后活跃的那一天，因此跨多天的任务会整块落在其中一天。消息数统计已记录的回合与步骤。",
+			"usageCard.estimatedNote": "部分任务早于按模型计量，其 Token 暂记在最后使用的模型上；重新打开该任务后会更新为精确拆分。",
+			"usageCard.comparison": "大约是 {reference} 的 {factor} 倍 Token。",
+			"usageCard.compareMobyDick": "《白鲸》",
+			"usageCard.compareWarAndPeace": "《战争与和平》",
+			"usageCard.compareWikipedia": "英文维基百科"
+		};
 		//#endregion
 		//#region src/client/usage.ts
 		const INTEGER_FORMATTER = new Intl.NumberFormat(void 0, { maximumFractionDigits: 0 });
@@ -965,253 +850,19 @@ window.__ModuleLoader__.load({
 			] });
 		}
 		//#endregion
-		//#region \0dsh-css:C:\Users\Ryan\Desktop\deepseek-harness-portable\packages\session-manager\src\client\ModelsUsageCard.module.css.mjs
-		const css$1 = ".hyt9BG_section{flex-direction:column;gap:8px;display:flex}.hyt9BG_title{color:var(--dsw-alias-label-primary,#0b0e14);margin:0;font-size:16px;font-weight:500;line-height:24px}.hyt9BG_intro{color:var(--dsw-alias-label-tertiary,#5b6470);margin:0;font-size:14px;line-height:22px}.hyt9BG_card{background:var(--dsw-alias-bg-module-platform,#f1f3f7);color:var(--dsw-alias-label-primary,#0b0e14);--dcode-usage-series-1:var(--dsw-static-deepseek-450,#5686fe);--dcode-usage-series-2:var(--dsw-static-deepseek-300,#b7c8fe);--dcode-usage-series-3:var(--dsw-alias-state-success-primary,#1a7f37);--dcode-usage-series-4:var(--dsw-alias-state-warn-label,#9a6700);--dcode-usage-series-5:var(--dsw-alias-state-error-primary,#cf222e);--dcode-usage-series-6:var(--dsw-static-deepseek-500,#4176e6);--dcode-usage-series-7:var(--dsw-alias-label-tertiary,#8b93a1);border-radius:12px;flex-direction:column;gap:16px;margin-top:8px;padding:16px;display:flex;container:hyt9BG_dcode-usage/inline-size}.hyt9BG_head{flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;display:flex}.hyt9BG_tabs,.hyt9BG_ranges{background:var(--dsw-alias-bg-layer-1,#fff);border-radius:999px;gap:4px;padding:3px;display:flex}.hyt9BG_tab,.hyt9BG_range{min-height:26px;color:var(--dsw-alias-label-tertiary,#5b6470);font:inherit;cursor:pointer;background:0 0;border:0;border-radius:999px;padding:0 12px;font-size:13px;line-height:20px}.hyt9BG_tab:hover,.hyt9BG_range:hover{background:var(--dsw-alias-interactive-bg-hover,#2631480f);color:var(--dsw-alias-label-primary,#0b0e14)}.hyt9BG_tabActive,.hyt9BG_tabActive:hover,.hyt9BG_rangeActive,.hyt9BG_rangeActive:hover{background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-primary,#0b0e14);font-weight:500}.hyt9BG_panel{flex-direction:column;gap:16px;display:flex}.hyt9BG_panel:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#0b0e14);outline-offset:4px;border-radius:8px}.hyt9BG_statGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;display:grid}.hyt9BG_stat{background:var(--dsw-alias-bg-layer-1,#fff);border-radius:8px;flex-direction:column;gap:2px;min-width:0;padding:12px;display:flex}.hyt9BG_statLabel{color:var(--dsw-alias-label-tertiary,#5b6470);font-size:12px;line-height:18px}.hyt9BG_statValue{color:var(--dsw-alias-label-primary,#0b0e14);overflow-wrap:anywhere;font-size:18px;font-weight:600;line-height:26px}.hyt9BG_heatmap{flex-direction:column;gap:3px;padding-bottom:4px;display:flex;overflow-x:auto}.hyt9BG_heatRow{gap:3px;display:flex}.hyt9BG_heatCell{border-radius:2px;flex:none;width:11px;height:11px}.hyt9BG_level0{background:var(--dsw-alias-bg-layer-1,#fff)}.hyt9BG_level1{background:color-mix(in srgb, var(--dcode-usage-series-1) 28%, var(--dsw-alias-bg-layer-1,#fff))}.hyt9BG_level2{background:color-mix(in srgb, var(--dcode-usage-series-1) 52%, var(--dsw-alias-bg-layer-1,#fff))}.hyt9BG_level3{background:color-mix(in srgb, var(--dcode-usage-series-1) 76%, var(--dsw-alias-bg-layer-1,#fff))}.hyt9BG_level4{background:var(--dcode-usage-series-1)}.hyt9BG_chart{gap:8px;height:180px;display:flex}.hyt9BG_axis{flex-direction:column;flex:none;justify-content:space-between;align-items:flex-end;min-width:40px;display:flex}.hyt9BG_axisTick{color:var(--dsw-alias-label-tertiary,#5b6470);font-variant-numeric:tabular-nums;font-size:11px;line-height:1}.hyt9BG_plot{border-bottom:1px solid var(--dsw-alias-border-l2,#0000001a);flex:auto;align-items:flex-end;gap:1px;min-width:0;padding-top:8px;display:flex;overflow:hidden}.hyt9BG_column{flex:1 1 0;align-items:flex-end;min-width:0;height:100%;display:flex}.hyt9BG_stack{border-radius:2px 2px 0 0;flex-direction:column-reverse;width:100%;min-height:1px;display:flex;overflow:hidden}.hyt9BG_segment{flex-basis:0;width:100%;display:block}.hyt9BG_ticks{justify-content:space-between;gap:8px;padding-left:48px;display:flex}.hyt9BG_tick{color:var(--dsw-alias-label-tertiary,#5b6470);white-space:nowrap;font-size:11px}.hyt9BG_legend{flex-direction:column;gap:8px;margin:0;padding:0;list-style:none;display:flex}.hyt9BG_legendRow{grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px;display:grid}.hyt9BG_swatch{border-radius:2px;width:10px;height:10px}.hyt9BG_legendName{color:var(--dsw-alias-label-primary,#0b0e14);text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:20px;overflow:hidden}.hyt9BG_legendTokens{color:var(--dsw-alias-label-tertiary,#5b6470);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px;line-height:18px}.hyt9BG_legendShare{min-width:48px;color:var(--dsw-alias-label-primary,#0b0e14);font-variant-numeric:tabular-nums;text-align:right;font-size:13px;line-height:20px}.hyt9BG_footnote,.hyt9BG_empty{color:var(--dsw-alias-label-tertiary,#5b6470);margin:0;font-size:12px;line-height:18px}@container hyt9BG_dcode-usage (width<=560px){.hyt9BG_statGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.hyt9BG_legendRow{grid-template-columns:auto minmax(0,1fr) auto}.hyt9BG_legendTokens{grid-area:2/2/auto/-1}}";
-		const tagId = "@dsh-portable/session-manager/ModelsUsageCard.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
-			const tag = document.createElement("style");
-			tag.dataset.plugin = "@dsh-portable/session-manager";
-			tag.dataset.pluginCss = tagId;
-			tag.textContent = css$1;
-			document.head.appendChild(tag);
-		}
-		var ModelsUsageCard_module_css_default = {
-			"axis": "hyt9BG_axis",
-			"axisTick": "hyt9BG_axisTick",
-			"card": "hyt9BG_card",
-			"chart": "hyt9BG_chart",
-			"column": "hyt9BG_column",
-			"dcode-usage": "hyt9BG_dcode-usage",
-			"empty": "hyt9BG_empty",
-			"footnote": "hyt9BG_footnote",
-			"head": "hyt9BG_head",
-			"heatCell": "hyt9BG_heatCell",
-			"heatRow": "hyt9BG_heatRow",
-			"heatmap": "hyt9BG_heatmap",
-			"intro": "hyt9BG_intro",
-			"legend": "hyt9BG_legend",
-			"legendName": "hyt9BG_legendName",
-			"legendRow": "hyt9BG_legendRow",
-			"legendShare": "hyt9BG_legendShare",
-			"legendTokens": "hyt9BG_legendTokens",
-			"level0": "hyt9BG_level0",
-			"level1": "hyt9BG_level1",
-			"level2": "hyt9BG_level2",
-			"level3": "hyt9BG_level3",
-			"level4": "hyt9BG_level4",
-			"panel": "hyt9BG_panel",
-			"plot": "hyt9BG_plot",
-			"range": "hyt9BG_range",
-			"rangeActive": "hyt9BG_rangeActive",
-			"ranges": "hyt9BG_ranges",
-			"section": "hyt9BG_section",
-			"segment": "hyt9BG_segment",
-			"stack": "hyt9BG_stack",
-			"stat": "hyt9BG_stat",
-			"statGrid": "hyt9BG_statGrid",
-			"statLabel": "hyt9BG_statLabel",
-			"statValue": "hyt9BG_statValue",
-			"swatch": "hyt9BG_swatch",
-			"tab": "hyt9BG_tab",
-			"tabActive": "hyt9BG_tabActive",
-			"tabs": "hyt9BG_tabs",
-			"tick": "hyt9BG_tick",
-			"ticks": "hyt9BG_ticks",
-			"title": "hyt9BG_title"
-		};
-		//#endregion
-		//#region src/client/ModelsUsageCard.tsx
-		const css = usageCardStyles(ModelsUsageCard_module_css_default);
-		/** Render the shared statistics card in the official settings token domain. */
-		function ModelsUsageCard({ useSessions, t }) {
-			const list = useSessions((snapshot) => snapshot);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-				className: ModelsUsageCard_module_css_default.section,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
-						className: ModelsUsageCard_module_css_default.title,
-						children: t("usage.title")
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: ModelsUsageCard_module_css_default.intro,
-						children: t("usage.body")
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(UsageCards, {
-						list,
-						t,
-						styles: css
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region src/client/locales.ts
-		/**
-		* Copy owned by the session-manager plugin, in the two locales this
-		* distribution ships.
-		*
-		* The dictionary is registered as an ordinary namespace on the Host's locale
-		* runtime, so both the official settings shell and the DCode workbench render
-		* these words from one source: the workbench binds this namespace rather than
-		* translating the archive and usage vocabulary a second time.
-		* @module @dsh-portable/session-manager/client/locales
-		*/
-		/** Locale namespace owned by this package. */
-		const SESSION_MANAGER_NS = "sessionManager";
-		/** English dictionary; also the fallback for a key a locale is missing. */
-		const en = {
-			"archive.title": "Archived chats",
-			"archive.body": "Manage archived conversations. Restore one to return it to the sidebar, or delete it permanently.",
-			"archive.empty": "No archived conversations.",
-			"archive.restore": "Restore",
-			"archive.delete": "Delete permanently",
-			"archive.deleteTitle": "Delete archived conversation?",
-			"archive.deleteBody": "This permanently deletes the conversation and cannot be undone.",
-			"archive.cancel": "Cancel",
-			"archive.close": "Close",
-			"archive.working": "Working…",
-			"usage.title": "Model usage",
-			"usage.body": "Usage is aggregated from the same durable task records the workbench reads. This page does not estimate account balance.",
-			"usageCard.title": "Usage statistics",
-			"usageCard.tabOverview": "Overview",
-			"usageCard.tabModels": "Models",
-			"usageCard.rangeLabel": "Time range",
-			"usageCard.rangeToday": "Today",
-			"usageCard.range7d": "7d",
-			"usageCard.range30d": "30d",
-			"usageCard.sessions": "Sessions",
-			"usageCard.messages": "Messages",
-			"usageCard.totalTokens": "Total tokens",
-			"usageCard.activeDays": "Active days",
-			"usageCard.currentStreak": "Current streak",
-			"usageCard.longestStreak": "Longest streak",
-			"usageCard.peakHour": "Peak hour",
-			"usageCard.favoriteModel": "Favorite model",
-			"usageCard.days": "{count}d",
-			"usageCard.unknownModel": "Unattributed",
-			"usageCard.inOut": "{input} in · {output} out",
-			"usageCard.empty": "No token usage has been recorded in this range.",
-			"usageCard.activityAlt": "Activity over the last {weeks} weeks: {days} active days, {tokens} tokens.",
-			"usageCard.chartAlt": "Daily token usage over {days} days, {tokens} in total.",
-			"usageCard.dayBucketNote": "Each task is counted on the day it was last active, so a task spanning several days lands on one of them. Messages count recorded turns and steps.",
-			"usageCard.estimatedNote": "Some tasks predate per-model accounting; their tokens are credited to the model they last used and move to the exact split once the task is reopened.",
-			"usageCard.comparison": "That is about {factor}× the tokens in {reference}.",
-			"usageCard.compareMobyDick": "Moby-Dick",
-			"usageCard.compareWarAndPeace": "War and Peace",
-			"usageCard.compareWikipedia": "the English Wikipedia"
-		};
-		/** Simplified Chinese dictionary. */
-		const zh = {
-			"archive.title": "已归档对话",
-			"archive.body": "管理已归档的对话。恢复后会重新显示在侧边栏，也可以永久删除。",
-			"archive.empty": "暂无已归档对话。",
-			"archive.restore": "恢复",
-			"archive.delete": "永久删除",
-			"archive.deleteTitle": "删除已归档对话？",
-			"archive.deleteBody": "此操作会永久删除对话，且无法撤销。",
-			"archive.cancel": "取消",
-			"archive.close": "关闭",
-			"archive.working": "处理中…",
-			"usage.title": "模型用量",
-			"usage.body": "数据来自与工作台使用统计相同的任务持久化记录。本页面不伪造账户余额。",
-			"usageCard.title": "用量统计",
-			"usageCard.tabOverview": "总览",
-			"usageCard.tabModels": "模型",
-			"usageCard.rangeLabel": "时间范围",
-			"usageCard.rangeToday": "今日",
-			"usageCard.range7d": "7 天",
-			"usageCard.range30d": "30 天",
-			"usageCard.sessions": "任务数",
-			"usageCard.messages": "消息数",
-			"usageCard.totalTokens": "累计 Token",
-			"usageCard.activeDays": "活跃天数",
-			"usageCard.currentStreak": "当前连续",
-			"usageCard.longestStreak": "最长连续",
-			"usageCard.peakHour": "高峰时段",
-			"usageCard.favoriteModel": "常用模型",
-			"usageCard.days": "{count} 天",
-			"usageCard.unknownModel": "未归类",
-			"usageCard.inOut": "输入 {input} · 输出 {output}",
-			"usageCard.empty": "该时间范围内没有记录到 Token 用量。",
-			"usageCard.activityAlt": "最近 {weeks} 周的活跃情况：{days} 个活跃日，共 {tokens} Token。",
-			"usageCard.chartAlt": "{days} 天的每日 Token 用量，合计 {tokens}。",
-			"usageCard.dayBucketNote": "每个任务计入其最后活跃的那一天，因此跨多天的任务会整块落在其中一天。消息数统计已记录的回合与步骤。",
-			"usageCard.estimatedNote": "部分任务早于按模型计量，其 Token 暂记在最后使用的模型上；重新打开该任务后会更新为精确拆分。",
-			"usageCard.comparison": "大约是 {reference} 的 {factor} 倍 Token。",
-			"usageCard.compareMobyDick": "《白鲸》",
-			"usageCard.compareWarAndPeace": "《战争与和平》",
-			"usageCard.compareWikipedia": "英文维基百科"
-		};
-		//#endregion
 		//#region src/client/index.ts
-		/** Stable Cordis plugin name. */
 		const name = "session-manager-client";
-		/**
-		* Services this plugin cannot register without.
-		*
-		* `sessions` and `workspaces` are the two official controllers the archive
-		* page mutates; cordis holds the plugin body until both have published, so
-		* the inject faces below never see a half-built context. Reading the same
-		* state needs no injection at all — `useSessions` and `useWorkspaces` are
-		* global standard props delivered to every slot component.
-		*/
-		const inject = [
-			"slots",
-			"locale",
-			"sessions",
-			"workspaces"
-		];
-		/**
-		* Order of the archive page in the official settings rail.
-		*
-		* Models is 10 and the plugin pages sit further down; the archive is a page
-		* about the conversation corpus rather than about configuration, so it takes a
-		* position after the feature pages and before the diagnostics ones.
-		*/
-		const SETTINGS_ARCHIVE_ORDER = 25;
-		/** Order of the usage card inside the Models page footer seat. */
-		const SETTINGS_MODELS_FOOTER_ORDER = 0;
-		/**
-		* Client plugin body.
-		* @param ctx - client root context.
-		*/
+		const inject = ["locale"];
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(SESSION_MANAGER_NS, {
 				zh,
 				en
 			}), "session-manager: dictionaries");
-			const t = ctx.locale.bind(SESSION_MANAGER_NS);
-			const archiveOperations = () => ({
-				restore: (id) => ctx.workspaces.unarchiveSession(id),
-				remove: (id) => ctx.sessions.delete(id),
-				open: (id) => {
-					ctx.sessions.open(id);
-				},
-				clear: () => {
-					ctx.sessions.clear();
-				}
-			});
-			ctx.slots.inject("settings.section", () => ctx.slots.register({
-				name: "settings.section",
-				id: "archived-chats",
-				order: SETTINGS_ARCHIVE_ORDER,
-				label: () => t("archive.title"),
-				locale: SESSION_MANAGER_NS,
-				inject: archiveOperations
-			}, ArchivedChatsSection));
-			ctx.slots.inject("settings.models.footer", () => ctx.slots.register({
-				name: "settings.models.footer",
-				id: "portable-usage",
-				order: SETTINGS_MODELS_FOOTER_ORDER,
-				locale: SESSION_MANAGER_NS
-			}, ModelsUsageCard));
 		}
 		//#endregion
 		exports.ACTIVITY_DAYS = ACTIVITY_DAYS;
 		exports.ACTIVITY_WEEKS = ACTIVITY_WEEKS;
-		exports.ArchivedChatsSection = ArchivedChatsSection;
 		exports.DAY_MS = DAY_MS;
-		exports.ModelsUsageCard = ModelsUsageCard;
 		exports.SESSION_MANAGER_NS = SESSION_MANAGER_NS;
 		exports.USAGE_RANGES = USAGE_RANGES;
 		exports.UsageCards = UsageCards;
@@ -1244,7 +895,6 @@ window.__ModuleLoader__.load({
 		exports.tokenComparison = tokenComparison;
 		exports.totalTokensOf = totalTokensOf;
 		exports.usageCardStyles = usageCardStyles;
-		exports.useArchivedChats = useArchivedChats;
 		exports.zh = zh;
 		return module.exports;
 	}

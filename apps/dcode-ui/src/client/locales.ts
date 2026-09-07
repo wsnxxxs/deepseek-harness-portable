@@ -733,6 +733,8 @@ export const en = {
   'settings.usageTurns': 'Recorded turns',
 
   'plugins.title': 'Plugins',
+  'plugins.webAllBody': 'Plugin installation, updates and Workshop are available in the standard interface settings.',
+  'plugins.webAllOpen': 'Manage plugins in the standard interface',
   'plugins.subtitle': 'Browse the community marketplace, manage what this profile has installed, and tune the built-in plugin settings.',
   'plugins.section.market': 'Marketplace',
   'plugins.section.installed': 'Installed',
@@ -1639,6 +1641,8 @@ export const zh: Record<DcodeKey, string> = {
   'settings.usageTurns': '已记录回合',
 
   'plugins.title': '插件',
+  'plugins.webAllBody': '插件安装、更新和创意工坊已整合到标准界面的设置页。',
+  'plugins.webAllOpen': '切换到标准界面管理插件',
   'plugins.subtitle': '浏览社区插件市场、管理当前配置已安装的插件，并调整内置插件的设置。',
   'plugins.section.market': '插件市场',
   'plugins.section.installed': '已安装',

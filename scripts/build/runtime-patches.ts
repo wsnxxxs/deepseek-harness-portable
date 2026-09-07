@@ -11,16 +11,6 @@ import {
 } from './patch-manifest.js'
 
 const require = createRequire(import.meta.url)
-const { patchMarketplaceSelfUpdate } = require('../../patches/dsh-plugin-marketplace-self-update.js') as {
-  patchMarketplaceSelfUpdate(source: string): string
-}
-const {
-  patchMarketplaceLifecycleHost,
-  patchMarketplaceTransparencyClient,
-} = require('../../patches/dsh-plugin-marketplace-transparency.js') as {
-  patchMarketplaceLifecycleHost(source: string): string
-  patchMarketplaceTransparencyClient(source: string): string
-}
 const { patchAppBootProfileRuntimeFallback } = require('../../patches/dsh-app-boot-profile-runtime-fallback.js') as {
   patchAppBootProfileRuntimeFallback(source: string): string
 }
@@ -55,8 +45,6 @@ async function replaceStagedFile(path: string, content: string): Promise<void> {
 export {
   patchAppBootProfileRuntimeFallback,
   patchDshProfileStaleLinkRecovery,
-  patchMarketplaceLifecycleHost,
-  patchMarketplaceTransparencyClient,
   patchDirectoryPickerAuto,
   patchFrontendStaticCacheHeaders,
   patchAgentTeamToolScope,
@@ -189,8 +177,6 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
   const dshProfileRecovery = definitionById(definitions, 'dsh-profile-stale-link-recovery')
   const portableSession = definitionById(definitions, 'portable-session-event-metadata')
   const agentTeamToolScope = definitionById(definitions, 'agent-team-tool-scope-isolation')
-  const marketplace = definitionById(definitions, 'marketplace-self-update-fallback')
-  const marketplaceTransparency = definitionById(definitions, 'marketplace-install-transparency')
   const directoryIndex = await readFile(resolve(options.root, 'patches/dsh-host-directory-picker-native-index.js'), 'utf8')
   const frontendStatic = definitionById(definitions, 'frontend-static-hashed-cache')
   const baseAttestations = await Promise.all([
@@ -216,18 +202,8 @@ export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Prom
     applyDefinition(options, agentTeamToolScope, {
       'node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js': patchAgentTeamToolScope,
     }),
-    applyDefinition(options, marketplace, {
-      'node_modules/dsh-plugin-marketplace/lib/index.js': patchMarketplaceSelfUpdate,
-    }),
   ])
-  // Both reviewed Marketplace patches touch lib/index.js. Apply the
-  // transparency/lifecycle layer after the self-update fallback so concurrent
-  // reads cannot race and overwrite one another in the staging tree.
-  const transparencyAttestation = await applyDefinition(options, marketplaceTransparency, {
-    'node_modules/dsh-plugin-marketplace/lib/index.js': patchMarketplaceLifecycleHost,
-    'node_modules/dsh-plugin-marketplace/lib/client.js': patchMarketplaceTransparencyClient,
-  })
-  const attestations = [...baseAttestations, transparencyAttestation]
+  const attestations = baseAttestations
   const declared = new Set(definitions.map(item => item.id))
   const implemented = new Set(attestations.map(item => item.id))
   const missing = [...declared].filter(id => !implemented.has(id))

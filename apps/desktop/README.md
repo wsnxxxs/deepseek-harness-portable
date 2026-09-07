@@ -17,7 +17,7 @@ This workspace package builds the native Electron desktop shell for DeepSeek Har
 - Uses a Windows 11 Mica title-bar overlay where supported, native macOS title/menu behavior, system theme synchronization, startup splash, and persisted multi-monitor-safe window bounds.
 - Runs Minimal mode through WSL Bash on Windows and native `/bin/bash` through a POSIX PTY on Linux/macOS; Linux sandbox-capable modes retain the upstream bwrap/Landlock fail-closed chain.
 - Carries the optional Swarm (`crew`) preset when the Agent Teams runtime is present; the `@dsh-portable/cluster-ui` plugin exposes its host-owned teammates, task board, and dossier state through the Cluster orchestration panel — seated in DCode's Agent workspace, and in the official conversation header.
-- Preinstalls the pinned `dsh-plugin-marketplace` once per Web profile; users can disable or remove it without the distribution restoring it on restart.
+- Preinstalls the pinned `@linxin666/dsh-web-all@0.3.16` once per Web profile; users can disable or remove it without the distribution restoring it on restart.
 - Bundles the DSH plugin CLI and pnpm behind Electron's Node mode, so marketplace operations do not require a system Node.js toolchain.
 
 ## Build and test

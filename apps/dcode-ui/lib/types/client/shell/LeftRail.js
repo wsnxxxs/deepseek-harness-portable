@@ -58,13 +58,6 @@ function SessionRow(props) {
                         icon: _jsx(IconArchiveOutline20, { size: 16 }),
                         onSelect: props.onArchive,
                     },
-                    {
-                        id: 'delete',
-                        label: t('session.delete'),
-                        icon: _jsx(IconTrashOutline16, {}),
-                        danger: true,
-                        onSelect: props.onDelete,
-                    },
                 ] })] }));
 }
 /** One project-folder header with collapse, create, rename and remove actions. */
@@ -128,9 +121,6 @@ export function LeftRail({ navigation, onNewTask }) {
     const [removeTarget, setRemoveTarget] = useState();
     const [removing, setRemoving] = useState(false);
     const [removeError, setRemoveError] = useState();
-    const [deleteTarget, setDeleteTarget] = useState();
-    const [deleting, setDeleting] = useState(false);
-    const [deleteError, setDeleteError] = useState();
     const toggleGroup = useCallback((id) => {
         setCollapsed((previous) => {
             const next = new Set(previous);
@@ -281,33 +271,6 @@ export function LeftRail({ navigation, onNewTask }) {
         })
             .finally(() => { setRemoving(false); });
     }, [removing, removeTarget, runtime]);
-    const openDelete = useCallback((session) => {
-        setDeleteTarget(session);
-        setDeleteError(undefined);
-    }, []);
-    const closeDelete = useCallback(() => {
-        if (deleting)
-            return;
-        setDeleteTarget(undefined);
-        setDeleteError(undefined);
-    }, [deleting]);
-    const confirmDelete = useCallback(() => {
-        const target = deleteTarget;
-        if (target === undefined || deleting)
-            return;
-        setDeleting(true);
-        setDeleteError(undefined);
-        void runtime.sessions.delete(target.id)
-            .then(() => {
-            if (runtime.sessions.list.getSnapshot().current === target.id)
-                runtime.sessions.clear();
-            setDeleteTarget(undefined);
-        })
-            .catch((cause) => {
-            setDeleteError(cause instanceof Error ? cause.message : t('session.deleteFailed', { error: String(cause) }));
-        })
-            .finally(() => { setDeleting(false); });
-    }, [deleteTarget, deleting, runtime, t]);
     return (_jsxs("nav", { className: css.rail, "aria-label": t('app.title'), children: [_jsxs("div", { className: css.top, children: [_jsxs("div", { className: css.brand, children: [_jsx("span", { className: css.brandMark, "aria-hidden": true, children: _jsx(IconSparkle16, {}) }), _jsxs("span", { className: css.brandCopy, children: [_jsx("strong", { children: "DCode" }), _jsx("span", { children: t('nav.agentWorkspace') })] })] }), _jsxs("label", { className: css.searchField, children: [_jsx(IconSearchOutline16, {}), _jsx("input", { ref: searchRef, type: "search", className: css.searchInput, value: query, placeholder: t('common.search'), "aria-label": t('common.search'), onChange: event => { setQuery(event.target.value); }, onKeyDown: (event) => {
                                     if (event.key === 'Escape' && query !== '') {
                                         event.preventDefault();
@@ -327,9 +290,9 @@ export function LeftRail({ navigation, onNewTask }) {
                 }, children: [_jsxs("div", { className: css.treeActions, children: [_jsxs("button", { type: "button", className: `${css.action} ${state.view === 'plugins' ? css.actionActive : ''}`, onClick: () => { navigation.show('plugins'); }, children: [_jsx(IconCordisPluginOutline14, { size: 16 }), _jsx("span", { className: ui.grow, children: t('nav.plugins') })] }), _jsxs("button", { type: "button", className: `${css.action} ${state.view === 'learning' ? css.actionActive : ''}`, onClick: () => { navigation.show('learning'); }, children: [_jsx(IconSparkle16, {}), _jsx("span", { className: ui.grow, children: t('nav.learning') })] })] }), hasRows ? _jsx("div", { className: css.sectionLabel, children: t('nav.conversations') }) : null, hasRows ? _jsx("div", { className: css.treeDivider, "aria-hidden": true }) : null, hasRows
                         ? (_jsxs(_Fragment, { children: [filteredGroups.map(group => (_jsxs("div", { className: css.group, children: [_jsx(WorkspaceRow, { group: group, collapsed: collapsed.has(group.workspaceId), onToggle: () => { toggleGroup(group.workspaceId); }, onNewTask: () => { onNewTask(group.workspaceId); }, onRename: () => { openRename(group); }, onRemove: () => { openRemove(group); } }), collapsed.has(group.workspaceId)
                                             ? null
-                                            : group.sessions.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.workspaces.archiveSession(session.id); }, onDelete: () => { openDelete(session); } }, session.id)))] }, group.workspaceId))), filteredUngrouped.length === 0
+                                            : group.sessions.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.workspaces.archiveSession(session.id); } }, session.id)))] }, group.workspaceId))), filteredUngrouped.length === 0
                                     ? null
-                                    : (_jsxs("div", { className: css.group, children: [_jsx("div", { className: css.groupHeader, children: _jsx("span", { className: css.groupName, children: t('nav.ungrouped') }) }), filteredUngrouped.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.workspaces.archiveSession(session.id); }, onDelete: () => { openDelete(session); } }, session.id)))] }))] }))
+                                    : (_jsxs("div", { className: css.group, children: [_jsx("div", { className: css.groupHeader, children: _jsx("span", { className: css.groupName, children: t('nav.ungrouped') }) }), filteredUngrouped.map(session => (_jsx(SessionRow, { session: session, current: session.id === list.current, age: age(session.updatedAt), onOpen: () => { openSession(session); }, onRename: () => { openSessionRename(session); }, onArchive: () => { void runtime.workspaces.archiveSession(session.id); } }, session.id)))] }))] }))
                         : _jsx(EmptyState, { children: t('nav.noTasks') })] }), _jsx("div", { className: css.foot, children: _jsxs("button", { type: "button", className: `${css.settingsTrigger} ${state.view === 'settings' ? css.settingsTriggerActive : ''}`, onClick: () => { navigation.openSettings('general'); }, children: [_jsx(IconSettingsOutline16, {}), _jsx("span", { children: t('nav.settings') })] }) }), _jsxs(FocusingModal, { open: sessionRenameTarget !== undefined, onClose: () => { if (!sessionRenaming)
                     setSessionRenameTarget(undefined); }, title: t('common.edit'), closeLabel: t('common.close'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: sessionRenaming, onClick: () => { setSessionRenameTarget(undefined); }, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", disabled: sessionRenaming || sessionRenameDraft.trim() === '' || sessionRenameDraft.trim() === sessionRenameTarget?.displayTitle, onClick: confirmSessionRename, children: sessionRenaming ? t('common.saving') : t('common.save') })] })), children: [_jsx("input", { className: css.workspaceInput, value: sessionRenameDraft, "aria-label": t('common.edit'), autoFocus: true, disabled: sessionRenaming, onChange: event => { setSessionRenameDraft(event.target.value); setSessionRenameError(undefined); }, onKeyDown: (event) => {
                             if (event.key !== 'Enter')
@@ -341,6 +304,6 @@ export function LeftRail({ navigation, onNewTask }) {
                                 return;
                             event.preventDefault();
                             confirmRename();
-                        } }), renameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: renameError })] }), _jsxs(FocusingModal, { open: removeTarget !== undefined, onClose: closeRemove, title: t('workspace.removeTitle'), closeLabel: t('common.close'), description: removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title }), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: removing, onClick: closeRemove, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: removing, onClick: confirmRemove, children: t('workspace.remove') })] })), children: [removing ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('workspace.removePending') }) : null, removeError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: removeError })] }), _jsxs(FocusingModal, { open: deleteTarget !== undefined, onClose: closeDelete, title: t('session.deleteTitle'), closeLabel: t('common.close'), description: t('session.deleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: deleting, onClick: closeDelete, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: deleting, onClick: confirmDelete, children: deleting ? t('common.saving') : t('session.delete') })] })), children: [deleting ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('common.saving') }) : null, deleteError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: deleteError })] })] }));
+                        } }), renameError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: renameError })] }), _jsxs(FocusingModal, { open: removeTarget !== undefined, onClose: closeRemove, title: t('workspace.removeTitle'), closeLabel: t('common.close'), description: removeTarget === undefined ? undefined : t('workspace.removeBody', { name: removeTarget.title }), footer: (_jsxs(_Fragment, { children: [_jsx(PrimitiveButton, { variant: "outline", disabled: removing, onClick: closeRemove, children: t('common.cancel') }), _jsx(PrimitiveButton, { variant: "outline", className: css.deleteConfirm, disabled: removing, onClick: confirmRemove, children: t('workspace.remove') })] })), children: [removing ? _jsx("div", { className: css.workspaceStatus, role: "status", children: t('workspace.removePending') }) : null, removeError === undefined ? null : _jsx("div", { className: css.workspaceError, role: "alert", children: removeError })] })] }));
 }
 //# sourceMappingURL=LeftRail.js.map

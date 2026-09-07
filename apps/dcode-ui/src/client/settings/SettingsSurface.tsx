@@ -30,7 +30,7 @@ import { UiModeSwitch } from '../shell/UiModeSwitch.tsx'
 import type { DcodeKey } from '../locales.ts'
 import {
   aggregateUsage, formatPercent, formatTokenCount, summarizeUsage,
-  useArchivedChats, UsageCards, usageCardStyles,
+  UsageCards, usageCardStyles,
 } from '@dsh-portable/session-manager/client'
 import usageCardClasses from './UsageCards.module.css'
 
@@ -972,80 +972,12 @@ function CommandsSection({ sessionId }: { sessionId: SessionId | undefined }) {
 }
 
 /** Manage conversations hidden by the registry-global archive set. */
-function ArchivedChatsSection({ navigation }: { navigation: NavigationStore }) {
+function ArchivedChatsSection() {
   const runtime = useRuntime()
   const t = useT()
-  const sessions = useSessionList()
-  const workspaces = useWorkspaces()
-  // The fold is `@dsh-portable/session-manager`'s, shared with the page it
-  // registers in the official settings panel, so both front ends agree about
-  // which conversations are archived and what restore and delete do.
-  const archive = useArchivedChats(sessions, workspaces, {
-    restore: async (id) => {
-      await runtime.workspaces.unarchiveSession(id)
-      if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
-        runtime.sessions.open(id)
-        navigation.show('session')
-      }
-    },
-    remove: async (id) => {
-      await runtime.sessions.delete(id)
-      if (runtime.sessions.list.getSnapshot().current === id) runtime.sessions.clear()
-    },
-  })
-
-  return (
-    <Section title={t('settings.archivedChats')} body={t('settings.archivedChatsBody')}>
-      {archive.loading
-        ? <EmptyState><Spinner /></EmptyState>
-        : archive.rows.length === 0
-          ? <EmptyState>{t('settings.archivedChatsEmpty')}</EmptyState>
-          : (
-            <div className={css.card}>
-              {archive.rows.map(session => (
-                <Row
-                  key={session.id}
-                  title={session.displayTitle}
-                  body={session.cwd ?? t('settings.archivedChats')}
-                  control={(
-                    <div className={css.presetActions}>
-                      <Button disabled={archive.busy} onClick={() => { archive.restore(session.id) }}>
-                        {archive.busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore')}
-                      </Button>
-                      <button
-                        type="button"
-                        className={css.dangerButton}
-                        disabled={archive.busy}
-                        onClick={() => { archive.requestDelete(session) }}
-                      >
-                        {t('settings.archivedChatsDelete')}
-                      </button>
-                    </div>
-                  )}
-                />
-              ))}
-            </div>
-          )}
-      {archive.error === undefined ? null : <div className={css.inlineError} role="alert">{archive.error}</div>}
-      <FocusingModal
-        open={archive.deleteTarget !== undefined}
-        onClose={archive.cancelDelete}
-        title={t('settings.archivedChatsDeleteTitle')}
-        closeLabel={t('common.close')}
-        description={t('settings.archivedChatsDeleteBody')}
-        footer={(
-          <>
-            <Button onClick={archive.cancelDelete} disabled={archive.busy}>{t('common.cancel')}</Button>
-            <button type="button" className={css.dangerButton} disabled={archive.busy} onClick={archive.confirmDelete}>
-              {archive.busy ? t('common.saving') : t('settings.archivedChatsDelete')}
-            </button>
-          </>
-        )}
-      >
-        <div className={css.rowTitle}>{archive.deleteTarget?.displayTitle}</div>
-      </FocusingModal>
-    </Section>
-  )
+  return <Section title={t('settings.archivedChats')} body={t('plugins.webAllBody')}>
+    <Button onClick={() => { runtime.mode.set('official') }}>{t('plugins.webAllOpen')}</Button>
+  </Section>
 }
 
 /** Persist the default preset through the same settings namespace as DSH. */
@@ -1580,7 +1512,7 @@ export function SettingsSurface({ navigation, sessionId }: SettingsSurfaceProps)
       )
       case 'agentWorkflow': return <AgentWorkflowSection sessionId={sessionId} />
       case 'usage': return <UsageSection />
-      case 'archivedChats': return <ArchivedChatsSection navigation={navigation} />
+      case 'archivedChats': return <ArchivedChatsSection />
       case 'about': return <AboutSection />
       case 'memory':
         return <NamespaceSection title={t('settings.memory')} body={t('settings.memoryBody')} match={/memor|context|compaction/i} />

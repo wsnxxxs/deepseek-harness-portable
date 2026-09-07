@@ -17,7 +17,7 @@
 - Windows 11 下使用 Mica/标题栏覆盖与系统主题同步，并记忆窗口位置、尺寸和最大化状态。
 - Windows 极简模式通过 WSL Bash 运行；Linux/macOS 极简模式通过 POSIX PTY 使用原生 `/bin/bash`。Linux 沙箱模式保留上游 bwrap/Landlock 失败关闭链路。
 - 如果 Agent Teams runtime 存在，则携带可选的集群（英文界面为 Swarm mode，运行时 id 为 `crew`）预设；`@dsh-portable/cluster-ui` 插件通过集群编排面板读取宿主保存的队友、任务看板和资料档案状态，该面板同时出现在 DCode Agent 工作台和官方界面的会话标题栏。
-- 每个 Web profile 首次使用时预装固定版本的 `dsh-plugin-marketplace`；用户关闭或卸载后，分发版不会在重启时恢复它。
+- 每个 Web profile 首次使用时预装固定版本的 `@linxin666/dsh-web-all@0.3.16`；用户关闭或卸载后，分发版不会在重启时恢复它。
 - 通过 Electron 的 Node 模式内置 DSH 插件 CLI 与 pnpm，市场操作无需系统 Node.js 工具链。
 
 ## 构建与测试

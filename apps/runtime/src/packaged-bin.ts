@@ -19,7 +19,7 @@
  * @module @dsh-portable/runtime/packaged-bin
  */
 
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
@@ -43,7 +43,6 @@ import {
   readProfileManifest,
   resolveProfileDir,
   type Profile,
-  writeProfileManifest,
 } from '@deepseek-ai/dsh-app-boot'
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -59,13 +58,7 @@ import {
 } from './mode-catalog.js'
 import { openBrowser } from './open-browser.js'
 import { describePresetRosterOutcome, reconcileCrewRuntime, reconcilePresetRoster } from './preset-roster.js'
-import {
-  ensureMarketplacePreinstalled,
-  materializeMarketplaceSeed,
-  MARKETPLACE_PACKAGE,
-  type MarketplaceBootstrapDiagnostic,
-  type MarketplaceBootstrapResult,
-} from './marketplace-bootstrap.js'
+import { ensureWebAllProfile } from './web-all-profile.js'
 import type { CapabilityReport } from './mode-resolver.js'
 import { createCachedProfileFallbackHealer } from './profile-fallback-cache.js'
 import { composeAfterManagedFallback } from './profile-startup.js'
@@ -138,7 +131,6 @@ const {
   }): string
   protocolEnabled(environment?: NodeJS.ProcessEnv): boolean
 }
-const PNPM_CLI_ENTRY = join(dirname(installationRequire.resolve('pnpm')), 'bin', 'pnpm.cjs')
 
 const BOOT_STARTED_AT = Date.now()
 
@@ -183,13 +175,6 @@ function enableRuntimeCompileCache(): void {
   }
 }
 
-function marketplaceSourceDir(): string | undefined {
-  try {
-    return dirname(installationRequire.resolve(`${MARKETPLACE_PACKAGE}/package.json`))
-  } catch {
-    return undefined
-  }
-}
 /** The empty root entry list every profile tree patches over. */
 const PROFILE_ROOT_CONFIG = `# dsh profile root — an empty entry list. The tree is composed as patches:
 # each bundle in the profile's dsh.profile.bundles, then cordis.patch.yml, then any
@@ -338,6 +323,9 @@ if (process.env.DSH_HOME === undefined || process.env.DSH_HOME.trim() === '') {
     process.env.DSH_HOME = join(dirname(process.execPath), '.dsh')
   }
 }
+// Community plugins resolve their writable profile from the launcher environment.
+process.env.DSH_PROFILE = PROFILE_NAME
+process.env.DSH_DOCTOR_HOME ??= join(resolveDshHome(), 'doctor')
 enableRuntimeCompileCache()
 
 /**
@@ -368,18 +356,11 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
   bundlePatches: PatchOptions[]
   homePatches: PatchOptions[]
   overlays: PatchOptions[]
-  marketplaceDiagnostic?: MarketplaceBootstrapDiagnostic
 }> {
   const profileDir = resolveProfileDir(PROFILE_NAME)
   const template = PROFILE_TEMPLATES[PROFILE_NAME]
   if (template === undefined) throw new Error(`${NAME}: missing ${PROFILE_NAME} profile template`)
   initProfile(profileDir, template.bundles, template.patchReload)
-  const bundledMarketplace = marketplaceSourceDir()
-  const marketplaceSeed = materializeMarketplaceSeed({
-    homeDir: resolveDshHome(),
-    bundledSourceDir: bundledMarketplace,
-  })
-  let marketplace!: MarketplaceBootstrapResult
   const cachedFallbackHeal = createCachedProfileFallbackHealer({
     profileDir,
     installAnchor: INSTALL_ANCHOR,
@@ -390,69 +371,17 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
   const profile = await composeAfterManagedFallback({
     virtualRuntime,
     installAnchor: INSTALL_ANCHOR,
-    mutate: () => {
-      marketplace = ensureMarketplacePreinstalled({
-        profileDir,
-        sourceDir: marketplaceSeed.sourceDir,
-        legacySourceDirs: bundledMarketplace === undefined ? [] : [bundledMarketplace],
-        install: (sourceSpec, enabled) => {
-          const child = spawnSync(process.execPath, [
-            PNPM_CLI_ENTRY,
-            'add',
-            '-w',
-            sourceSpec,
-          ], {
-            cwd: profileDir,
-            env: {
-              ...process.env,
-              ELECTRON_RUN_AS_NODE: '1',
-            },
-            stdio: 'inherit',
-            windowsHide: true,
-          })
-          if (child.error !== undefined) {
-            console.error(`${NAME}: failed to start the embedded marketplace installer: ${child.error.message}`)
-            return 1
-          }
-          const exitCode = child.status ?? 1
-          if (exitCode !== 0) return exitCode
-          try {
-            // The public `dsh plugin` command performs this same reconciliation
-            // after pnpm exits. Run pnpm directly here because its Windows shell
-            // forwarder cannot preserve a file path containing spaces.
-            const manifest = readProfileManifest(NAME, profileDir)
-            const bundles = manifest.dsh?.profile?.bundles ?? []
-            const nextBundles = enabled
-              ? bundles.includes(MARKETPLACE_PACKAGE) ? bundles : [...bundles, MARKETPLACE_PACKAGE]
-              : bundles.filter(bundle => bundle !== MARKETPLACE_PACKAGE)
-            if (nextBundles.length !== bundles.length || nextBundles.some((bundle, index) => bundle !== bundles[index])) {
-              manifest.dsh = {
-                ...manifest.dsh,
-                profile: {
-                  ...manifest.dsh?.profile,
-                  bundles: nextBundles,
-                },
-              }
-              writeProfileManifest(profileDir, manifest)
-            }
-          } catch (cause) {
-            console.error(`${NAME}: failed to enable the preinstalled marketplace: ${cause instanceof Error ? cause.message : String(cause)}`)
-            return 1
-          }
-          return 0
-        },
-      })
-      if (marketplace.diagnostic !== undefined) {
-        const reason = marketplace.error ?? marketplaceSeed.error ?? 'unknown error'
-        console.error(`${NAME}: ${marketplace.diagnostic.message}; ${reason}`)
-      } else if (marketplace.status === 'installed' || marketplace.status === 'repaired') {
-        console.log(`${NAME}: ${marketplace.status === 'installed' ? 'preinstalled' : 'repaired'} ${MARKETPLACE_PACKAGE} in the web profile`)
-      }
-    },
+    mutate: () => ensureWebAllProfile(profileDir, virtualRuntime ? undefined
+      : dirname(installationRequire.resolve('@linxin666/dsh-web-all/package.json'))),
     heal: cachedFallbackHeal,
     compose: () => loadProfile(NAME, PROFILE_NAME, INSTALL_ANCHOR),
   })
   const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
+  for (const layer of profile.layers) {
+    if (layer.packageName === '@linxin666/dsh-web-all') {
+      layer.patches.push({ id: 'web-ui-doctor', disabled: true })
+    }
+  }
   const bundlePatches = profile.layers.flatMap(layer => layer.patches)
   const profileManifest = readProfileManifest(NAME, profileDir)
   const portablePreferences = (profileManifest.dsh?.profile as unknown as {
@@ -577,7 +506,6 @@ async function composeProfile(shippedPresetRoot: string, virtualRuntime: boolean
     bundlePatches,
     homePatches,
     overlays,
-    ...(marketplace.diagnostic === undefined ? {} : { marketplaceDiagnostic: marketplace.diagnostic }),
   }
 }
 
@@ -848,13 +776,6 @@ async function main(): Promise<void> {
     } else {
       console.error(`${NAME}: ${rosterDiagnostic.message}`)
     }
-  }
-  if (shellProtocol && composed.marketplaceDiagnostic !== undefined) {
-    console.log(encodeRuntimeEvent({
-      protocolVersion: RUNTIME_PROTOCOL_VERSION,
-      type: 'diagnostic',
-      ...composed.marketplaceDiagnostic,
-    }))
   }
   const app: { current?: Context } = {}
   const shutdown = (() => {

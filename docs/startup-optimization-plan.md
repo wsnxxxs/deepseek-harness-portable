@@ -19,7 +19,7 @@ Electron main (main.cjs)
              │    │                                (sandbox / PowerShell×3 / ConPTY / WSL×4 / dir-picker IPC)
              │    └─ preset 树 SHA-256 清单 (21+2 个文件，快)
              ├─ composeProfile()
-             │    ├─ ensureMarketplacePreinstalled()  ← warm 快；cold 走 spawnSync(pnpm add)
+             │    ├─ ensureWebAllProfile()  ← 注册内置聚合包，无启动时网络安装
              │    ├─ healProfilesModuleFallback()     ← 每次启动 BFS 读整个依赖闭包的全部 package.json
              │    └─ loadProfile() + Loader boot      ← 导入完整插件图 (dsh-base + web-app + marketplace
              │                                           + interactive-learning + vision-bridge 及闭包)
@@ -72,7 +72,7 @@ Electron main (main.cjs)
 |---|------|------|------|
 | 2.1 | 端口稳定化 | `packages/desktop-protocol`（自有包）：supervisor 先 `listen(0)` 探一个空闲端口传给 runtime，`EADDRINUSE` 时自动换端口重试（替换现在的报错分支） | renderer HTTP 缓存 + V8 code cache 跨启动复用，首帧显著提速；不动 vendor |
 | 2.2 | 能力探测并行化 | `capability-report.ts`：各 probe 相互独立（独立 PTY/进程），串行 `await` 改 `Promise.all` | 冷探测墙钟时间从 Σ 各探测 变为 ≈ max(单探测) |
-| 2.3 | marketplace 冷装去 pnpm | 复用 `repairManagedMarketplace` 的私有拷贝 + 写 manifest 逻辑，首次安装不再 `spawnSync(pnpm add)` | 首次启动/升级省 10–60s，并消除对 PATH 中 pnpm 的依赖；需评估与 patch manifest 守卫的兼容 |
+| 2.3 | 已完成：内置 dsh-web-all | `web-all-profile.ts` 注册聚合包并链接内置文件，替换 marketplace 冷装 | 首次启动无需联网安装插件 |
 | 2.4 | 探测与 Loader 并行 | 重排 `main()`：capability report promise 与 `composeProfile`/Loader boot 并行，写 preset manifest 前才 `await` | 冷启动再叠一层并行收益；改动启动结构，回归要求高 |
 
 ### P3 · 结构性 / 可选（默认不做）

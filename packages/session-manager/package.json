@@ -2,7 +2,7 @@
   "name": "@dsh-portable/session-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Archived-chat management and token-usage reporting as official settings pages, shared by every surface",
+  "description": "Shared token-usage presentation for the portable workbench",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

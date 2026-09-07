@@ -12,8 +12,6 @@ import { useAsync } from '../state/hooks.ts'
 import { useRuntime } from '../state/runtime.ts'
 import { useT } from '../state/i18n.ts'
 import { Button, EmptyState, Spinner, ui } from '../shell/ui.tsx'
-import { createMarketClient, type InstalledPlugin, type InstalledSnapshot } from '../plugins/market.ts'
-import { useOperations } from '../plugins/useJob.ts'
 import css from './SettingsSurface.module.css'
 
 type PluginFieldType = 'number' | 'text'
@@ -455,7 +453,6 @@ interface PresentedInventoryEntry {
   readonly name: string
   readonly description: string
   readonly status: string
-  readonly marketPlugin: InstalledPlugin | undefined
 }
 
 const INVENTORY_ROW_HEIGHT = 92
@@ -489,12 +486,6 @@ function packageName(moduleName: string): string {
   const parts = moduleName.replaceAll('\\', '/').split('/').filter(Boolean)
   if (parts[0]?.startsWith('@')) return parts.slice(0, 2).join('/')
   return parts[0] ?? moduleName
-}
-
-function findMarketPlugin(moduleName: string, snapshot: InstalledSnapshot | undefined): InstalledPlugin | undefined {
-  if (snapshot === undefined) return undefined
-  return snapshot.plugins.find(plugin => plugin.name === moduleName)
-    ?? snapshot.plugins.find(plugin => packageName(plugin.name) === packageName(moduleName))
 }
 
 function inventoryDescription(moduleName: string, name: string, t: ReturnType<typeof useT>): string {
@@ -572,14 +563,6 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean; on
   const t = useT()
   const [query, setQuery] = useState('')
   const [runtimeOpen, setRuntimeOpen] = useState(false)
-  const [uninstallTarget, setUninstallTarget] = useState<string | undefined>()
-  const marketClient = useMemo(() => createMarketClient(), [])
-  const market = useAsync(
-    async (signal) => props.mcpOnly ? undefined : await marketClient.installed(signal),
-    [marketClient, props.mcpOnly],
-  )
-  const { operations, start } = useOperations(marketClient)
-  const marketSnapshot = market.value?.ok === true ? market.value.value : undefined
   const entries = useMemo(() => props.data.inventory.entries
     .filter(entry => !props.mcpOnly || /mcp/i.test(entry.moduleName))
     .map(entry => {
@@ -589,51 +572,20 @@ function PluginInventory(props: { data: PluginSettingsData; mcpOnly: boolean; on
         name,
         description: inventoryDescription(entry.moduleName, name, t),
         status: inventoryStatus(entry, t),
-        marketPlugin: findMarketPlugin(entry.moduleName, marketSnapshot),
       }
-    }), [marketSnapshot, props.data.inventory.entries, props.mcpOnly, t])
+    }), [props.data.inventory.entries, props.mcpOnly, t])
   const normalizedQuery = query.trim().toLowerCase()
   const filtered = useMemo(() => entries.filter(row => `${row.name} ${row.entry.moduleName} ${row.entry.entryId} ${row.description}`
     .toLowerCase()
     .includes(normalizedQuery)), [entries, normalizedQuery])
   const extensions = filtered.filter(row => isExtensionEntry(row.entry))
   const runtimeModules = filtered.filter(row => !isExtensionEntry(row.entry))
-  const reload = (): void => {
-    props.onReload()
-    market.reload()
-  }
-  const extensionAction = (row: PresentedInventoryEntry): ReactNode => {
-    const plugin = row.marketPlugin
-    if (plugin === undefined || marketSnapshot?.self?.name === plugin.name) return null
-    const operation = operations[plugin.name]
-    const busy = operation?.status === 'running'
-    const confirm = uninstallTarget === plugin.name
-    return (
-      <Button
-        className={css.dangerButton}
-        disabled={busy}
-        onClick={() => {
-          if (!confirm) {
-            setUninstallTarget(plugin.name)
-            return
-          }
-          setUninstallTarget(undefined)
-          start(plugin.name, () => marketClient.uninstall(plugin.name), reload)
-        }}
-      >
-        {busy ? t('plugins.working') : confirm ? t('plugins.confirmUninstall') : t('plugins.uninstall')}
-      </Button>
-    )
-  }
   return (
     <div className={css.pluginInventory}>
       <input className={css.search} type="search" value={query} placeholder={t('settings.plugins.search')} aria-label={t('settings.plugins.search')} onChange={event => { const next = event.target.value; setQuery(next); if (next.trim() !== '') setRuntimeOpen(true) }} />
       <div className={css.inventoryHeading}><h3 className={css.sectionTitle}>{t('settings.plugins.extensionsTitle')}</h3><span className={css.badge}>{extensions.length}</span></div>
       <p className={css.inventoryIntro}>{t('settings.plugins.extensionsBody')}</p>
-      {!props.mcpOnly && extensions.length > 0 && market.value?.ok === false
-        ? <div className={css.notice} role="status">{t('settings.plugins.marketUnavailable')}</div>
-        : null}
-      {extensions.length === 0 ? <EmptyState>{t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory')}</EmptyState> : <VirtualInventoryList key={`extensions-${normalizedQuery}`} entries={extensions} action={extensionAction} />}
+      {extensions.length === 0 ? <EmptyState>{t(normalizedQuery === '' ? 'settings.plugins.emptyExtensions' : 'settings.plugins.emptyInventory')}</EmptyState> : <VirtualInventoryList key={`extensions-${normalizedQuery}`} entries={extensions} />}
       {!props.mcpOnly ? (
         <details className={css.runtimeModules} open={runtimeOpen} onToggle={event => { setRuntimeOpen(event.currentTarget.open) }}>
           <summary

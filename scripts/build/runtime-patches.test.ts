@@ -11,8 +11,6 @@ import {
   patchDshProfileStaleLinkRecovery,
   patchAgentTeamToolScope,
   patchFrontendStaticCacheHeaders,
-  patchMarketplaceLifecycleHost,
-  patchMarketplaceTransparencyClient,
   patchSessionPortableEventMetadata,
 } from './runtime-patches.js'
 
@@ -140,31 +138,7 @@ test('session patch persists an explicit ignorable marker', () => {
   assert.equal(patchSessionPortableEventMetadata(output), output)
 })
 
-test('marketplace client requires review before the only install confirmation', async () => {
-  const source = await readFile(resolve('apps/runtime/node_modules/dsh-plugin-marketplace/lib/client.js'), 'utf8')
-  const output = patchMarketplaceTransparencyClient(source)
-  assert.match(output, /查看安装信息/)
-  assert.match(output, /data-portable-confirm-install/)
-  assert.match(output, /Portable 未验证/)
-  assert.match(output, /DSH contract/)
-  assert.match(output, /联网 \/ 图片外发/)
-  assert.match(output, /Installed[\s\S]*Available[\s\S]*Activated[\s\S]*Exposed/)
-  assert.doesNotMatch(output, /onClick: function \(\) \{ install\(it\) \},\n\s+disabled/)
-  assert.equal(patchMarketplaceTransparencyClient(output), output)
-})
-
-test('marketplace host reports lifecycle from package, profile, and boot facts', async () => {
-  const source = await readFile(resolve('apps/runtime/node_modules/dsh-plugin-marketplace/lib/index.js'), 'utf8')
-  const output = patchMarketplaceLifecycleHost(source)
-  assert.match(output, /function pluginAvailable\(name\)/)
-  assert.match(output, /available: pluginAvailable\(name\)/)
-  assert.match(output, /activated: isBundle/)
-  assert.match(output, /MARKETPLACE_BOOT_BUNDLES\.has\(name\)/)
-  assert.match(output, /'pending-restart'/)
-  assert.equal(patchMarketplaceLifecycleHost(output), output)
-})
-
-test('runtime patch layer composes both marketplace host patches in one staging tree', async () => {
+test('runtime patch layer applies the remaining portable patches in one staging tree', async () => {
   const staging = await mkdtemp(join(tmpdir(), 'dsh-runtime-patches-'))
   const paths = [
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
@@ -176,8 +150,6 @@ test('runtime patch layer composes both marketplace host patches in one staging 
     'node_modules/@deepseek-ai/dsh/lib/bin.js',
     'node_modules/@deepseek-ai/dsh-session/lib/index.js',
     'node_modules/@deepseek-ai/dsh-experimental-tool-agent-team/lib/index.js',
-    'node_modules/dsh-plugin-marketplace/lib/index.js',
-    'node_modules/dsh-plugin-marketplace/lib/client.js',
   ]
   try {
     for (const path of paths) {
@@ -195,13 +167,8 @@ test('runtime patch layer composes both marketplace host patches in one staging 
       staging,
       targetId: 'win32-x64',
     })
-    const host = await readFile(join(staging, 'node_modules/dsh-plugin-marketplace/lib/index.js'), 'utf8')
-    const client = await readFile(join(staging, 'node_modules/dsh-plugin-marketplace/lib/client.js'), 'utf8')
     const originalFrontendStatic = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js'), 'utf8')
     assert.doesNotMatch(originalFrontendStatic, /IMMUTABLE_STATIC_CACHE/)
-    assert.match(host, /installedRepoGh = repositoryGitHubSpec/)
-    assert.match(host, /MARKETPLACE_BOOT_BUNDLES/)
-    assert.match(client, /data-portable-confirm-install/)
     assert.deepEqual(attestations.map(item => item.id), [
       'directory-picker-electron-ipc',
       'directory-picker-wsl-platform',
@@ -210,8 +177,6 @@ test('runtime patch layer composes both marketplace host patches in one staging 
       'dsh-profile-stale-link-recovery',
       'portable-session-event-metadata',
       'agent-team-tool-scope-isolation',
-      'marketplace-self-update-fallback',
-      'marketplace-install-transparency',
     ])
   } finally {
     await rm(staging, { recursive: true, force: true })

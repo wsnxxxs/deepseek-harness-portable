@@ -292,7 +292,7 @@ const ASSET_GLOBS = [
   'node_modules/**/*.txt',
 ]
 
-const MARKETPLACE_RUNTIME_FILES = [
+const WEB_ALL_RUNTIME_FILES = [
   'package.json',
   'cordis.patch.yml',
   'lib/index.js',
@@ -527,7 +527,7 @@ class DesktopExeBuild {
     const required = [
       join(this.staging, 'package.json'),
       join(this.staging, ENTRY_BIN),
-      join(this.staging, 'lib', 'marketplace-bootstrap.js'),
+      join(this.staging, 'lib', 'web-all-profile.js'),
       ...(this.cli.electron ? [
         join(this.staging, 'src', 'main.cjs'),
         join(this.staging, 'src', 'runtime-supervisor.cjs'),
@@ -535,10 +535,10 @@ class DesktopExeBuild {
       ] : []),
       join(this.staging, 'node_modules', '@deepseek-ai', 'dsh-web-app', 'package.json'),
       join(this.staging, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
-      join(this.staging, 'node_modules', 'dsh-plugin-marketplace', 'package.json'),
-      join(this.staging, 'node_modules', 'dsh-plugin-marketplace', 'lib', 'index.js'),
-      join(this.staging, 'node_modules', 'dsh-plugin-marketplace', 'lib', 'client.js'),
-      join(this.staging, 'node_modules', 'dsh-plugin-marketplace', 'cordis.patch.yml'),
+      join(this.staging, 'node_modules', '@linxin666', 'dsh-web-all', 'package.json'),
+      join(this.staging, 'node_modules', '@linxin666', 'dsh-web-all', 'lib', 'index.js'),
+      join(this.staging, 'node_modules', '@linxin666', 'dsh-web-all', 'lib', 'client.js'),
+      join(this.staging, 'node_modules', '@linxin666', 'dsh-web-all', 'cordis.patch.yml'),
       join(this.staging, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs'),
       join(this.staging, 'runtime-patch-attestations.json'),
       ...interactiveLearningAppRequiredPaths(this.staging),
@@ -547,7 +547,7 @@ class DesktopExeBuild {
     if (!this.cli.noCache && cacheLayerMatches(this.cacheState.staging, this.stagingKey, required)) {
       console.log(`build-desktop-web-exe: staging cache hit (${this.stagingKey.slice(0, 12)})`)
       this.patchAttestations = JSON.parse(await readFile(join(this.staging, 'runtime-patch-attestations.json'), 'utf8')) as PatchAttestation[]
-      await this.validateMarketplaceStaging()
+      await this.validateWebAllStaging()
       await this.validateInteractiveLearningStaging()
       return
     }
@@ -560,7 +560,7 @@ class DesktopExeBuild {
       await this.applyRuntimePatches()
       await this.pruneReleasePayload()
       await this.injectPkgConfig()
-      await this.validateMarketplaceStaging()
+      await this.validateWebAllStaging()
       await this.validateInteractiveLearningStaging()
     })
     if (!this.cli.dryRun) {
@@ -872,20 +872,20 @@ class DesktopExeBuild {
     }
   }
 
-  /** Reject a deploy/cache layer that cannot supply the bundled marketplace. */
-  private async validateMarketplaceStaging(): Promise<void> {
-    const packageRoot = join(this.staging, 'node_modules', 'dsh-plugin-marketplace')
+  /** Reject a deploy/cache layer that cannot supply the bundled dsh-web-all. */
+  private async validateWebAllStaging(): Promise<void> {
+    const packageRoot = join(this.staging, 'node_modules', '@linxin666', 'dsh-web-all')
     if (this.cli.dryRun) {
-      console.log(`build-desktop-web-exe: [dry-run] validate bundled marketplace at ${packageRoot}`)
+      console.log(`build-desktop-web-exe: [dry-run] validate bundled dsh-web-all at ${packageRoot}`)
       return
     }
-    const missing = MARKETPLACE_RUNTIME_FILES.filter(relative => !existsSync(join(packageRoot, relative)))
+    const missing = WEB_ALL_RUNTIME_FILES.filter(relative => !existsSync(join(packageRoot, relative)))
     if (missing.length > 0) {
-      throw new Error(`build-desktop-web-exe: staged marketplace is incomplete; missing: ${missing.join(', ')}`)
+      throw new Error(`build-desktop-web-exe: staged dsh-web-all is incomplete; missing: ${missing.join(', ')}`)
     }
     const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')) as { name?: unknown }
-    if (manifest.name !== 'dsh-plugin-marketplace') {
-      throw new Error(`build-desktop-web-exe: staged marketplace manifest has unexpected name: ${String(manifest.name)}`)
+    if (manifest.name !== '@linxin666/dsh-web-all') {
+      throw new Error(`build-desktop-web-exe: staged dsh-web-all manifest has unexpected name: ${String(manifest.name)}`)
     }
   }
 
@@ -1102,7 +1102,7 @@ class DesktopExeBuild {
           join(this.appResourcesDir(product), ENTRY_BIN),
           ...interactiveLearningAppRequiredPaths(this.appResourcesDir(product)),
           join(this.appResourcesDir(product), 'node_modules', '@deepseek-ai', 'dsh-web-app', 'package.json'),
-          join(this.appResourcesDir(product), 'node_modules', 'dsh-plugin-marketplace', 'package.json'),
+          join(this.appResourcesDir(product), 'node_modules', '@linxin666', 'dsh-web-all', 'package.json'),
           ...(this.cli.platform === 'win32'
             ? [
                 join(this.artifactRoot(product), WINDOWS_DESKTOP_LAUNCHER_NAME),

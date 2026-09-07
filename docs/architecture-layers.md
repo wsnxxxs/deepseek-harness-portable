@@ -27,7 +27,7 @@ row in the composed `web` profile:
 | `vision-bridge` | `@dsh-portable/vision-bridge` | hybrid image routing and the `view_image` tool |
 | `interactive-learning` | `@dsh-portable/interactive-learning` | Learning mode: the agent preset, its tools, and its conversation surfaces |
 | `ui-mode` | `@dsh-portable/ui-mode` | the front-end vocabulary, the page-wide mode store, and the interface switch |
-| `session-manager` | `@dsh-portable/session-manager` | archived-chat management and the token-usage report |
+| `session-manager` | `@dsh-portable/session-manager` | shared token-usage presentation for DCode |
 | `dcode-ui` | `@dsh-portable/dcode-ui` | the DCode workbench surface and its `/dcode` git channel |
 | `cluster-ui` | `@dsh-portable/cluster-ui` | Cluster mode: the Agent Teams roster and shared task board |
 | `agent-team` | `@deepseek-ai/dsh-experimental-agent-team` | the upstream Team host service Cluster mode reads |
@@ -47,20 +47,27 @@ own: `@dsh-portable/space-kernel` (material ingest, anchors, lexical index) and
 **A capability belongs to the plugin whose name it carries, not to whichever
 surface happened to render it first.**
 
-The concrete failure this rule prevents: `settings.models.footer` (the token
-usage card) and `settings.section` (the archive page) are seats in the
-**official** settings panel. Both were registered from `@dsh-portable/dcode-ui`
-— so disabling the workbench, a supported action offered in the plugin
-inventory, silently removed two pages from the official UI, and the official
-session row menu could archive a conversation with nothing anywhere able to
-bring it back. They are `@dsh-portable/session-manager`'s rows now. The
-workbench imports the same fold (`useArchivedChats`) and the same card
-(`UsageCards`) and renders them in its own token domain, so there is one
-implementation with two faces rather than two implementations.
+The standard archive, usage, plugin-management and Workshop pages belong to
+`@linxin666/dsh-web-all@0.3.16`. The runtime seeds this published bundle into
+new and existing Web profiles once, replacing the old marketplace bundle.
+Subsequent removal is respected. Its source is not vendored or patched.
+The two direct patch entries, `@linxin666/dsh-i18n` and `dsh-better-sidebar`,
+are also explicit runtime dependencies so packaged and development resolution agree.
 
-The same rule is why `@dsh-portable/ui-mode` owns the interface switch instead
-of each surface registering its own, and why Cluster mode stopped being mounted
-from inside the workbench's `root` registration.
+Removed: the old marketplace bootstrap, its three patches, DCode's market
+catalogue/install queue/API adapter, and the portable archive/official usage pages.
+DCode links to the standard interface for community plugin operations and archive
+management. Its usage cards remain a presentation helper in `session-manager`.
+
+Retained capabilities are not equivalent to the bundle: Vision Bridge reuses the
+model catalogue and routes image turns; Learning owns material and exercise tools;
+Cluster reads Agent Teams rather than independent scheduled tasks; DCode remains
+an alternate conversation surface. The portable plugin manager owns the
+`dsh.profile.portablePlugins` switches, which the community manager does not write.
+
+The bundle's Doctor row defaults to disabled because Electron already owns process
+supervision and recovery. User profile/home row overrides can still enable it.
+`DSH_PROFILE=web` and a portable `DSH_DOCTOR_HOME` are supplied to community plugins.
 
 ## Cordis registration, in the order that matters
 

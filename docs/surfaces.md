@@ -129,20 +129,15 @@ The Workbench deliberately does **not** reimplement the settings catalogue.
 official pages as the source of truth while the Agent workspace owns only its
 presentation and orchestration controls.
 
-### Pages that belong to both surfaces
+### Community pages
 
-A capability that folds state the Host already publishes belongs to neither
-front end. Archived-chat management and the token-usage report are the two of
-those, and they live in `@dsh-portable/session-manager`: it registers the
-archive page into `settings.section` and the usage card into the Models page's
-`settings.models.footer` seat, and exports the fold (`useArchivedChats`) and the
-card (`UsageCards`) that the Workbench renders in its own token domain.
+Plugin installation, Workshop, archive management and the standard usage page
+are provided by the bundled `@linxin666/dsh-web-all`. DCode links to the
+standard interface for these operations. Its usage cards retain their own
+presentation through `@dsh-portable/session-manager`; no portable archive
+controller or second marketplace implementation remains.
 
-Both used to be registered from the Workbench's own plugin body, which made two
-pages of the OFFICIAL panel disappear whenever an operator disabled the
-Workbench row — and left the official session menu able to archive a
-conversation with nothing able to restore or delete it. See
-[architecture-layers.md](architecture-layers.md).
+See [architecture-layers.md](architecture-layers.md) for the retained capabilities.
 
 Learning mode remains a first-class surface in the workbench rail, driving the
 existing Interactive Learning pack through the same `learning` agent preset.

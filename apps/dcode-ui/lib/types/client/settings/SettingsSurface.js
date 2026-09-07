@@ -15,14 +15,14 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { IconAgentPresetOutline16, IconArchiveOutline20, IconCloseOutline16, IconDatabaseOutline16, IconDataOutline16, IconPersonalizationOutline16, IconPlusOutline16, IconQuestionOutline14, IconSearchOutline16, IconSettingsOutline16, } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRuntime } from "../state/runtime.js";
-import { useAsync, useSessionList, useWorkspaces } from "../state/hooks.js";
+import { useAsync, useSessionList } from "../state/hooks.js";
 import { useT } from "../state/i18n.js";
 import { useNavigation } from "../state/navigation.js";
-import { Button, EmptyState, FocusingModal, Spinner, ui } from "../shell/ui.js";
+import { Button, EmptyState, Spinner, ui } from "../shell/ui.js";
 import { useModalFocus } from "../shell/use-modal-focus.js";
 import { ThemeSwitch, useAppearance } from "../shell/ThemeSwitch.js";
 import { UiModeSwitch } from "../shell/UiModeSwitch.js";
-import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage, useArchivedChats, UsageCards, usageCardStyles, } from '@dsh-portable/session-manager/client';
+import { aggregateUsage, formatPercent, formatTokenCount, summarizeUsage, UsageCards, usageCardStyles, } from '@dsh-portable/session-manager/client';
 import usageCardClasses from './UsageCards.module.css';
 import { SelectMenu } from "./SelectMenu.js";
 import { PluginSettingsSection } from "./PluginSettingsSection.js";
@@ -537,33 +537,10 @@ function CommandsSection({ sessionId }) {
             : (_jsx("div", { className: css.card, children: rows.map(command => (_jsx(Row, { title: `/${command.name}`, body: command.description }, command.name))) })) }));
 }
 /** Manage conversations hidden by the registry-global archive set. */
-function ArchivedChatsSection({ navigation }) {
+function ArchivedChatsSection() {
     const runtime = useRuntime();
     const t = useT();
-    const sessions = useSessionList();
-    const workspaces = useWorkspaces();
-    // The fold is `@dsh-portable/session-manager`'s, shared with the page it
-    // registers in the official settings panel, so both front ends agree about
-    // which conversations are archived and what restore and delete do.
-    const archive = useArchivedChats(sessions, workspaces, {
-        restore: async (id) => {
-            await runtime.workspaces.unarchiveSession(id);
-            if (runtime.sessions.list.getSnapshot().byId[id] !== undefined) {
-                runtime.sessions.open(id);
-                navigation.show('session');
-            }
-        },
-        remove: async (id) => {
-            await runtime.sessions.delete(id);
-            if (runtime.sessions.list.getSnapshot().current === id)
-                runtime.sessions.clear();
-        },
-    });
-    return (_jsxs(Section, { title: t('settings.archivedChats'), body: t('settings.archivedChatsBody'), children: [archive.loading
-                ? _jsx(EmptyState, { children: _jsx(Spinner, {}) })
-                : archive.rows.length === 0
-                    ? _jsx(EmptyState, { children: t('settings.archivedChatsEmpty') })
-                    : (_jsx("div", { className: css.card, children: archive.rows.map(session => (_jsx(Row, { title: session.displayTitle, body: session.cwd ?? t('settings.archivedChats'), control: (_jsxs("div", { className: css.presetActions, children: [_jsx(Button, { disabled: archive.busy, onClick: () => { archive.restore(session.id); }, children: archive.busyId === session.id ? t('common.saving') : t('settings.archivedChatsRestore') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: archive.busy, onClick: () => { archive.requestDelete(session); }, children: t('settings.archivedChatsDelete') })] })) }, session.id))) })), archive.error === undefined ? null : _jsx("div", { className: css.inlineError, role: "alert", children: archive.error }), _jsx(FocusingModal, { open: archive.deleteTarget !== undefined, onClose: archive.cancelDelete, title: t('settings.archivedChatsDeleteTitle'), closeLabel: t('common.close'), description: t('settings.archivedChatsDeleteBody'), footer: (_jsxs(_Fragment, { children: [_jsx(Button, { onClick: archive.cancelDelete, disabled: archive.busy, children: t('common.cancel') }), _jsx("button", { type: "button", className: css.dangerButton, disabled: archive.busy, onClick: archive.confirmDelete, children: archive.busy ? t('common.saving') : t('settings.archivedChatsDelete') })] })), children: _jsx("div", { className: css.rowTitle, children: archive.deleteTarget?.displayTitle }) })] }));
+    return _jsx(Section, { title: t('settings.archivedChats'), body: t('plugins.webAllBody'), children: _jsx(Button, { onClick: () => { runtime.mode.set('official'); }, children: t('plugins.webAllOpen') }) });
 }
 /** Persist the default preset through the same settings namespace as DSH. */
 async function saveDefaultPreset(runtime, id) {
@@ -879,7 +856,7 @@ export function SettingsSurface({ navigation, sessionId }) {
             case 'agentPresets': return (_jsxs(_Fragment, { children: [_jsx(AgentWorkflowSection, { sessionId: sessionId }), _jsx(AgentPresetsSection, {})] }));
             case 'agentWorkflow': return _jsx(AgentWorkflowSection, { sessionId: sessionId });
             case 'usage': return _jsx(UsageSection, {});
-            case 'archivedChats': return _jsx(ArchivedChatsSection, { navigation: navigation });
+            case 'archivedChats': return _jsx(ArchivedChatsSection, {});
             case 'about': return _jsx(AboutSection, {});
             case 'memory':
                 return _jsx(NamespaceSection, { title: t('settings.memory'), body: t('settings.memoryBody'), match: /memor|context|compaction/i });

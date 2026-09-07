@@ -718,6 +718,8 @@ export declare const en: {
     readonly 'settings.namespaceEmpty': "This namespace has no configurable fields.";
     readonly 'settings.usageTurns': "Recorded turns";
     readonly 'plugins.title': "Plugins";
+    readonly 'plugins.webAllBody': "Plugin installation, updates and Workshop are available in the standard interface settings.";
+    readonly 'plugins.webAllOpen': "Manage plugins in the standard interface";
     readonly 'plugins.subtitle': "Browse the community marketplace, manage what this profile has installed, and tune the built-in plugin settings.";
     readonly 'plugins.section.market': "Marketplace";
     readonly 'plugins.section.installed': "Installed";

@@ -33,7 +33,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 | --- | --- |
 | 开箱即用的桌面分发 | 安装包自带 Electron/Node.js runtime。普通用户无需准备 Node.js、pnpm 或容器环境，Windows 可选择 Setup 或便携 ZIP，Linux/macOS 也有原生安装产物。 |
 | 专门的编码工作台 | DCode 把会话和工作区放进同一个响应式界面，环境摘要和终端，以及文件变更与预览也集中于此，紧凑窗口和宽屏都能使用。 |
-| 能力可以按需扩展 | 插件市场支持安装前审核、启停和更新，也能卸载；Vision Bridge、Learning 与可选的集群（Swarm，运行时 id 为 `crew`）模式作为独立能力接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
+| 能力可以按需扩展 | 内置 dsh-web-all 插件生态支持安装、启停、更新和卸载；Vision Bridge、Learning 与可选的集群（Swarm，运行时 id 为 `crew`）模式作为独立能力接入，不会改写 Standard / Code / Minimal / Cordis 的默认行为。 |
 | 复用已有模型配置 | Vision Bridge 复用内核的附件、模型目录与调用链。文本模型需要看图时可以转交已配置的视觉模型，无需再维护一套端点和 API 密钥。 |
 | 数据与更新边界明确 | 会话与凭据，以及设置和附件都保存在应用目录之外；Web 服务只绑定回环地址，桌面外壳只提示新版本，不会自行替换或回滚应用文件。 |
 | 发布过程可检查 | 打包流程会探测目标平台的真实能力，对最终应用执行冒烟检查并记录文件清单与哈希；发布步骤只复制已经验证的产物。 |
@@ -72,7 +72,7 @@ DeepSeek Harness Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/d
 - Standard、Code、Cordis、Minimal、Swarm（集群，运行时 id 为 `crew`）和 Learning 模式各自保持清晰边界。Learning 只在用户主动选择后启用，不改变其他模式的默认工具与行为。
 - Swarm 模式通过具名队友、共享任务看板、依赖关系、写入范围和历史会话检索来协调任务。DCode 的 Agent 工作台通过集群编排面板展示同一份宿主状态，操作者附加的资料档案则为任务提供可核对的材料依据。
 - Minimal 模式在 Windows 使用 WSL Bash，在 Linux/macOS 使用原生 `/bin/bash` POSIX PTY。Linux 沙箱模式沿用上游 bwrap/Landlock 的失败关闭策略。
-- 插件市场可移除，支持 GitHub 分页搜索、安装前审核、安装进度、更新管理、启用、停用和卸载，也向 Agent 提供市场工具。
+- 内置 `@linxin666/dsh-web-all@0.3.16`，由它提供创意工坊、插件管理、会话归档、用量报表、任务看板和标准右侧栏。
 
 ### 图片、文件与学习
 

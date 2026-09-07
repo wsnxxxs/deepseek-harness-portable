@@ -9,13 +9,14 @@ This file lists **direct** dependencies declared by the workspace and the explic
 
 The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [`pnpm-lock.yaml`](pnpm-lock.yaml) — inspect it with `pnpm licenses list`. The Python closure is recorded separately in [`python/sdk/uv.lock`](python/sdk/uv.lock).
 
-## Bundled marketplace and package manager
+## Bundled plugin ecosystem and package manager
 
-The Windows distribution additionally ships the following direct runtime components. The marketplace source is pinned by commit in `apps/desktop/package.json`; its own `LICENSE` file is retained in the packaged dependency.
+The distribution ships the following runtime components, pinned in `apps/runtime/package.json`. Dependency license files are retained in the packaged distribution.
 
 | Package | Source | License |
 | --- | --- | --- |
-| `dsh-plugin-marketplace` | [AwesomeHou/dsh-plugin-marketplace@463e6cb](https://github.com/AwesomeHou/dsh-plugin-marketplace/tree/463e6cb856272018a7f5a76e260a0d1ef5b589e3) | MIT |
+| `@linxin666/dsh-web-all` 0.3.16 and its family packages | [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) | Apache-2.0 |
+| `dsh-better-sidebar` 0.18.0 | [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | MIT |
 | `pnpm` 11.21.0 | [pnpm/pnpm](https://github.com/pnpm/pnpm) | MIT |
 
 ## Vendored source (`vendor/`)

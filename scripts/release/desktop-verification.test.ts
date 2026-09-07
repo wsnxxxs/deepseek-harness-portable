@@ -16,7 +16,7 @@ test('release verification discovers desktop shell and runtime capsule files by 
   for (const required of ['runtime-supervisor.test.cjs', 'desktop-platform.test.cjs']) {
     assert.ok(desktop.nodeTests.includes(required), `${required} must run in the desktop Node test group`)
   }
-  for (const required of ['marketplace-bootstrap.test.ts', 'mode-resolver.test.ts']) {
+  for (const required of ['web-all-profile.test.ts', 'mode-resolver.test.ts']) {
     assert.ok(runtime.tsxTests.includes(required), `${required} must run in the runtime tsx test group`)
   }
   assert.ok(runtime.tsxTests.includes('minimal-preset.test.ts'))

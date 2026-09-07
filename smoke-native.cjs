@@ -23,7 +23,7 @@ function check(name, fn) {
 check('runtime identity', () => `${process.execPath} | node ${process.version} | abi ${process.versions.modules} | electron ${process.versions.electron ?? 'n/a'}`)
 
 check('marketplace and embedded plugin toolchain', () => {
-  const marketplaceRoot = join(APP, 'node_modules', 'dsh-plugin-marketplace')
+  const marketplaceRoot = join(APP, 'node_modules', '@linxin666', 'dsh-web-all')
   const manifest = JSON.parse(readFileSync(join(marketplaceRoot, 'package.json'), 'utf8'))
   const required = [
     join(marketplaceRoot, 'cordis.patch.yml'),
@@ -34,7 +34,7 @@ check('marketplace and embedded plugin toolchain', () => {
   ]
   const missing = required.filter(path => !existsSync(path))
   if (missing.length > 0) throw new Error(`missing ${missing.join(', ')}`)
-  if (manifest.name !== 'dsh-plugin-marketplace' || manifest.dsh?.bundle?.patch === undefined || manifest.dsh?.client === undefined) {
+  if (manifest.name !== '@linxin666/dsh-web-all' || manifest.dsh?.bundle?.patch === undefined || manifest.dsh?.client === undefined) {
     throw new Error('marketplace package does not declare both host bundle and web client faces')
   }
   return `${manifest.name}@${manifest.version} with embedded dsh/pnpm`

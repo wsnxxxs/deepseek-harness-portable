@@ -330,7 +330,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   ZipPath, AppDir, StageDir, TarExe, RobocopyExe, RunId: String;
-  MainExe, SafeLauncher, CompatibilityLauncher, ScriptLauncher, TransactionGate, PickerWorker, MarketplaceManifest, ReleaseManifest: String;
+  MainExe, SafeLauncher, CompatibilityLauncher, ScriptLauncher, TransactionGate, PickerWorker, WebAllManifest, ReleaseManifest: String;
   OldRuntime, NewRuntime, BackupRuntime, FailedRuntime, LockReport, OrphanRuntime, ObsoleteReport: String;
   ReportText: AnsiString;
   HadOldRuntime, RuntimeSwapped: Boolean;
@@ -378,8 +378,8 @@ begin
     ReleaseManifest := AddBackslash(StageDir) + 'release-manifest.json';
     PickerWorker := AddBackslash(StageDir) +
       'runtime\resources\app\node_modules\@deepseek-ai\dsh-host-directory-picker-native\lib\worker.cjs';
-    MarketplaceManifest := AddBackslash(StageDir) +
-      'runtime\resources\app\node_modules\dsh-plugin-marketplace\package.json';
+    WebAllManifest := AddBackslash(StageDir) +
+      'runtime\resources\app\node_modules\@linxin666\dsh-web-all\package.json';
     if not FileExists(ReleaseManifest) then
       RaiseException('Staged release is missing the release manifest.');
     if not FileExists(MainExe) then
@@ -394,8 +394,8 @@ begin
       RaiseException('Staged release is missing the update transaction launch gate.');
     if not FileExists(PickerWorker) then
       RaiseException('Staged release is missing the directory picker worker.');
-    if not FileExists(MarketplaceManifest) then
-      RaiseException('Staged release is missing the plugin marketplace manifest.');
+    if not FileExists(WebAllManifest) then
+      RaiseException('Staged release is missing the dsh-web-all manifest.');
 
     OldRuntime := AddBackslash(AppDir) + 'runtime';
     NewRuntime := AddBackslash(StageDir) + 'runtime';
