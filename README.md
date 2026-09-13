@@ -10,12 +10,12 @@ A community project that packages official [DeepSeek Harness](https://github.com
 
 | Component | Status |
 | --- | --- |
-| Desktop distribution | **v1.7.1**; see the [release notes](RELEASE_NOTES.md) |
+| Desktop distribution | **v1.7.2**; see the [release notes](RELEASE_NOTES.md) |
 | Official kernel | `dsh-v0.1.5-rc.2`, pinned in the Git submodule |
 | Windows x64 | Setup and ZIP built locally and checked with the packaged runtime |
-| macOS arm64, Linux x64 | DMG, AppImage and deb build targets remain available; v1.7.1 packages for these platforms were not produced in this run |
+| macOS arm64, Linux x64 | DMG, AppImage and deb build targets remain available; v1.7.2 packages for these platforms were not produced in this run |
 
-Source versions and GitHub Releases are managed separately. v1.7.1 packages have been generated locally; downloadable versions are those actually attached to [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases).
+Source versions and GitHub Releases are managed separately. v1.7.2 packages have been generated locally; downloadable versions are those actually attached to [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases).
 
 ## Install and launch
 
@@ -67,7 +67,9 @@ Plugins follow DSH's `dsh.bundle.patch` and `dsh.client` conventions and share t
 
 ## Upgrade from an earlier version
 
-v1.7.1 makes extensions opt-in, so the first launch can look different from the earlier default DCode workbench.
+The retired dsh-plugin-marketplace is replaced by the bundled dsh-web Workshop (latest npm version 0.3.21). Profiles that previously enabled the old market enable Workshop during migration. Fresh installations keep it optional. The updater preserves configuration backups and repairs mixed YAML left by earlier plugin toggles.
+
+v1.7.2 makes extensions opt-in, so the first launch can look different from the earlier default DCode workbench.
 
 Startup converts older Portable / Learning histories into official v3 logs in the same session directory while preserving the original files. Compatibility covers old attachment metadata and subagent descriptors; the official migration chain handles conversation events and sequence mapping. See the [upgrade notes](RELEASE_NOTES.md).
 
@@ -97,10 +99,10 @@ After pulling into an existing clone, run `git submodule update --init --recursi
 Windows x64 packaging requires a Windows build environment and Inno Setup 6:
 
 ```sh
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.1
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.2
 ```
 
-Packages are written to `dist-desktop/electron-v1.7.1/windows-artifacts/`; verified copies and records are under `verified/win32-x64/`. Packaging checks native modules, actual startup, file inventories and that Setup embeds the exact portable ZIP.
+Packages are written to `dist-desktop/electron-v1.7.2/windows-artifacts/`; verified copies and records are under `verified/win32-x64/`. Packaging checks native modules, actual startup, file inventories and that Setup embeds the exact portable ZIP.
 
 Build macOS/Linux on their respective platforms using `pnpm run desktop:package:mac` or `pnpm run desktop:package:linux`. Packaging does not upload releases. Installers, caches and local logs are not committed to Git.
 

@@ -10,12 +10,12 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| 桌面分发版本 | **v1.7.1**，见[发布说明](RELEASE_NOTES.zh.md) |
+| 桌面分发版本 | **v1.7.2**，见[发布说明](RELEASE_NOTES.zh.md) |
 | 官方内核 | `dsh-v0.1.5-rc.2`，固定在 Git 子模块中 |
 | Windows x64 | 已完成本地 Setup / ZIP 构建及打包启动验证 |
-| macOS arm64、Linux x64 | 保留 DMG、AppImage / deb 构建目标；本次未生成这些平台的 v1.7.1 产物 |
+| macOS arm64、Linux x64 | 保留 DMG、AppImage / deb 构建目标；本次未生成这些平台的 v1.7.2 产物 |
 
-源码版本与 GitHub Releases 分开管理。v1.7.1 安装包目前已在本地生成；可下载的版本以 [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases) 中实际上传的附件为准。
+源码版本与 GitHub Releases 分开管理。v1.7.2 安装包目前已在本地生成；可下载的版本以 [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases) 中实际上传的附件为准。
 
 ## 安装与启动
 
@@ -67,7 +67,9 @@ Windows 安装包自带 Electron 和 Node.js，使用者无需另装 Node.js 或
 
 ## 从旧版升级
 
-v1.7.1 将额外能力改为显式启用，首次启动的外观可能与此前默认 DCode 工作台不同。
+旧 dsh-plugin-marketplace 改由内置 dsh-web 创意工坊替代（npm 最新版 0.3.21）。原先启用旧市场的配置会迁移为启用创意工坊，新安装仍按需开启。升级保留配置备份，并修复此前插件开关生成的混合 YAML。
+
+v1.7.2 将额外能力改为显式启用，首次启动的外观可能与此前默认 DCode 工作台不同。
 
 启动时自动转换旧 Portable / Learning 历史日志，在同一会话目录生成官方 v3 日志，原始文件保持不变。转换兼容旧附件元数据和子 Agent 描述，并由官方迁移链处理会话事件及序号。详见[升级说明](RELEASE_NOTES.zh.md)。
 
@@ -97,10 +99,10 @@ pnpm run desktop:dev
 Windows x64 打包需要 Windows 构建环境和 Inno Setup 6：
 
 ```sh
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.1
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.2
 ```
 
-产物位于 `dist-desktop/electron-v1.7.1/windows-artifacts/`，验证后的副本与记录位于 `verified/win32-x64/`。打包流程检查原生模块、实际启动、文件清单，以及安装器内嵌 ZIP 与便携包的一致性。
+产物位于 `dist-desktop/electron-v1.7.2/windows-artifacts/`，验证后的副本与记录位于 `verified/win32-x64/`。打包流程检查原生模块、实际启动、文件清单，以及安装器内嵌 ZIP 与便携包的一致性。
 
 macOS/Linux 需在对应平台分别执行 `pnpm run desktop:package:mac` 或 `pnpm run desktop:package:linux`。打包不会自动上传；安装包、缓存和本地日志不提交到 Git。
 

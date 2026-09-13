@@ -1331,6 +1331,9 @@ importers:
       '@dsh-portable/connection-rpc':
         specifier: workspace:^
         version: link:../connection-rpc
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

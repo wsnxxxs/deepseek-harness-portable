@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /** Desktop process adapter for the official dsh web launcher. No feature plugins are imported here. */
-import { readFile, writeFile } from 'node:fs/promises'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { initProfile, PROFILE_TEMPLATES, resolveProfileDir, healProfilesModuleFallback } from '@deepseek-ai/dsh-app-boot'
-import { prepareOfficialProfile, linkPluginManagement } from './official-profile.js'
+import { prepareOfficialProfile, linkPluginManagement, hasLegacyMarketplace } from './official-profile.js'
+import { repairProfilePatch, updateProfilePatch } from '@dsh-portable/plugin-manager/profile-patch'
 import { migratePortableHistories } from './history-migration.js'
 
 const installAnchor = fileURLToPath(new URL('../package.json', import.meta.url))
@@ -21,8 +23,26 @@ const template = PROFILE_TEMPLATES.web!
 initProfile(profileDir, template.bundles, template.patchReload)
 const manifestPath = join(profileDir, 'package.json')
 const original = await readFile(manifestPath, 'utf8')
+const manifest = JSON.parse(original)
+const replaceMarketplace = hasLegacyMarketplace(manifest)
+const patchPath = join(profileDir, 'cordis.patch.yml')
+const originalPatch = await readFile(patchPath, 'utf8')
+const updatedPatch = replaceMarketplace
+  ? updateProfilePatch(originalPatch, manifest.dsh?.profile?.bundles?.includes('dsh-plugin-marketplace')
+    ? [{ id: 'web-ui-market', name: '@linxin666/dsh-web-all/market', disabled: false }] : [], ['plugin-market'])
+  : repairProfilePatch(originalPatch)
+async function backup(path: string): Promise<void> {
+  await copyFile(path, `${path}.before-marketplace-migration`, constants.COPYFILE_EXCL).catch(error => {
+    if (error.code !== 'EEXIST') throw error
+  })
+}
+if (updatedPatch !== originalPatch) {
+  await backup(patchPath)
+  await writeFile(patchPath, updatedPatch)
+}
+if (replaceMarketplace) await backup(manifestPath)
 const managementPath = dirname(require.resolve('@dsh-portable/web-plugins/package.json'))
-const updated = JSON.stringify(prepareOfficialProfile(JSON.parse(original), managementPath), null, 2) + '\n'
+const updated = JSON.stringify(prepareOfficialProfile(manifest, managementPath), null, 2) + '\n'
 if (updated !== original) await writeFile(manifestPath, updated)
 await healProfilesModuleFallback({ installAnchor })
 await linkPluginManagement(profileDir, managementPath)

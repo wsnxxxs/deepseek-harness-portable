@@ -123,6 +123,24 @@ test('DCode bundle explicitly activates its UI dependencies', async () => {
   })
 })
 
+test('legacy marketplace upgrade repairs mixed YAML and mounts the Workshop without the old market', async () => {
+  await withRuntime(['dsh-plugin-marketplace'], async (url, home) => {
+    const ids = await clientIds(url)
+    assert.ok(!ids.includes('dsh-plugin-marketplace'))
+    assert.ok(ids.includes('@linxin666/dsh-web-all'))
+    const login = await fetch(url, { redirect: 'manual' })
+    const cookie = readSessionCookie(login)
+    const inventory = await fetch(new URL('/api/plugin-manager/list', url), { headers: cookie ? { cookie } : {} })
+    assert.ok(inventory.ok, await inventory.clone().text())
+    const body = await inventory.json() as { plugins: Array<{ id: string; children?: Array<{ id: string; enabled: boolean }> }> }
+    const market = body.plugins.find(row => row.id === '@dsh-portable/web-plugins')?.children?.find(row => row.id === 'web-ui-market')
+    assert.equal(market?.enabled, true)
+    await pluginRpc(url, 'portable-plugins/set-enabled', { name: '@dsh-portable/cluster-ui', enabled: false })
+    assert.ok((await fetch(new URL('/api/plugin-manager/list', url), { headers: cookie ? { cookie } : {} })).ok)
+    assert.ok(await readFile(join(home, 'profiles/web/cordis.patch.yml.before-marketplace-migration')))
+  }, '# user settings\n[ { id: web-ui-market, disabled: true } ]\n# BEGIN portable-plugin-manager\n- id: cluster-ui\n  disabled: true\n# END portable-plugin-manager\n')
+})
+
 test('Learning bundle adds its preset through the official roster provider', async () => {
   await withRuntime(['@dsh-portable/interactive-learning'], async url => {
     const roster = await runtimeRpc(url, 'agentPresets.list', {}, 5_000) as { presets: Array<{ id: string; broken?: unknown }> }

@@ -1,3 +1,4 @@
+import { updateProfilePatch } from './profile-patch.js'
 /**
  * The `/portable-plugins` endpoint bodies.
  *
@@ -156,22 +157,10 @@ export function setPortablePluginEnabled(
       if (preferences[bundle] === false) bundles.delete(bundle)
     }
     const patchPath = join(deps.profileDir, 'cordis.patch.yml')
-    const start = '# BEGIN portable-plugin-manager'
-    const end = '# END portable-plugin-manager'
-    let source = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
-    const marker = source.indexOf(start)
-    if (marker >= 0) {
-      const finish = source.indexOf(end, marker)
-      if (finish < 0) throw new Error('portable plugin configuration has an unfinished managed block')
-      source = source.slice(0, marker) + source.slice(finish + end.length)
-    }
-    // Official profile templates include comments before the empty sequence.
-    if (source.replace(/^\s*#.*$/gm, '').trim() === '[]') {
-      source = source.replace(/^\s*\[\]\s*$/m, '')
-    }
-    const patches = rows.filter(item => preferences[item.name] !== undefined)
-      .map(item => `- id: ${JSON.stringify(item.id)}\n  disabled: ${!preferences[item.name]}`)
-    writeFileSync(patchPath, `${source.trimEnd()}\n${start}\n${patches.join('\n')}\n${end}\n`)
+    const source = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
+    const overrides = rows.filter(item => preferences[item.name] !== undefined)
+      .map(item => ({ id: item.id, disabled: !preferences[item.name] }))
+    writeFileSync(patchPath, updateProfilePatch(source, overrides))
     writeProfileManifest(deps.profileDir, {
       ...manifest,
       dsh: {

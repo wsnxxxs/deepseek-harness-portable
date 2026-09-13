@@ -1,10 +1,3 @@
-/**
- * The `/portable-plugins` endpoint bodies.
- *
- * Everything that touches the filesystem or the Loader lives here; the pure
- * folds it composes are in `./registry.ts`, which is what the tests exercise.
- * @module @dsh-portable/plugin-manager/host/rpc
- */
 import { type PortablePluginList, type PortablePluginResult, type PortablePluginToggle } from './contract.ts';
 import { type PackageFacts } from './registry.ts';
 /** The Loader face this module reads. */

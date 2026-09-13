@@ -1,16 +1,8 @@
-# DeepSeek Harness Desktop v1.7.1
+# DeepSeek Harness Desktop v1.7.2
 
 2026-09-13
 
-## 更新内容
+## 修复内容
 
-- 内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。
-- 整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。
-- 默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。
-- 桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。
-- 适配官方附件、反馈、RPC 与会话持久化接口。
-- Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。
-
-## 升级说明
-
-- 启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。
+- 旧 dsh-plugin-marketplace 改由内置 dsh-web 创意工坊替代（npm 最新版 0.3.21）。原先启用旧市场的配置会迁移为启用创意工坊，新安装仍按需开启。升级保留配置备份，并修复此前插件开关生成的混合 YAML。
+- 内置功能与 dsh-web 插件管理共同编辑同一份 YAML 文档，保留 Cordis 表达式、注释和其他配置。

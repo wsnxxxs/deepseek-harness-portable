@@ -4,6 +4,10 @@ import { dirname, join } from 'node:path';
 const SHELL_BUNDLE = '@dsh-portable/desktop-protocol';
 const MANAGEMENT_BUNDLE = '@dsh-portable/web-plugins';
 const AUTO_BUNDLES = new Set(['@linxin666/dsh-web-all', 'dsh-plugin-marketplace']);
+export function hasLegacyMarketplace(manifest) {
+    return manifest.dependencies?.['dsh-plugin-marketplace'] !== undefined
+        || manifest.dsh?.profile?.bundles?.includes('dsh-plugin-marketplace') === true;
+}
 /** The dsh-web inventory reads physical profile dependencies, outside Loader's fallback resolver. */
 export async function linkPluginManagement(profileDir, packageDir) {
     const target = join(profileDir, 'node_modules', '@dsh-portable', 'web-plugins');
@@ -22,7 +26,7 @@ export async function linkPluginManagement(profileDir, packageDir) {
     }
     await symlink(packageDir, target, process.platform === 'win32' ? 'junction' : 'dir');
 }
-/** Keep explicit plugin choices and add only the desktop bridge to official profiles. */
+/** Keep explicit feature choices while replacing the retired standalone marketplace. */
 export function prepareOfficialProfile(manifest, managementPath) {
     // The upstream profile manifest is JSON with extensible package-owned fields.
     const result = structuredClone(manifest);
@@ -30,6 +34,9 @@ export function prepareOfficialProfile(manifest, managementPath) {
     result.dsh.profile ??= {};
     const profile = result.dsh.profile;
     let bundles = profile.bundles ?? [];
+    bundles = bundles.filter(name => name !== 'dsh-plugin-marketplace');
+    if (result.dependencies)
+        delete result.dependencies['dsh-plugin-marketplace'];
     if (profile.portableOfficialDefaults !== 1) {
         if (profile.portableWebAllSeeded === true)
             bundles = bundles.filter(name => !AUTO_BUNDLES.has(name));

@@ -15,7 +15,11 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./profile-patch": {
+      "types": "./lib/types/host/profile-patch.d.ts",
+      "default": "./lib/types/host/profile-patch.js"
+    }
   },
   "dsh": {
     "client": {
@@ -35,7 +39,8 @@
     "lib/index.js",
     "lib/client.js",
     "lib/**/*.css",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "lib/types/host/profile-patch.js"
   ],
   "scripts": {
     "build": "tsc -b && tsdown",
@@ -46,7 +51,8 @@
   "dependencies": {
     "@deepseek-ai/dsh-app-boot": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
-    "@dsh-portable/connection-rpc": "workspace:^"
+    "@dsh-portable/connection-rpc": "workspace:^",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",

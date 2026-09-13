@@ -1,41 +1,22 @@
 {
-  "version": "1.7.1",
-  "name": "DeepSeek Harness Desktop v1.7.1",
+  "version": "1.7.2",
+  "name": "DeepSeek Harness Desktop v1.7.2",
   "publishedAt": "2026-09-13",
   "sections": [
     {
-      "key": "features",
-      "titleEn": "Changes",
-      "titleZh": "更新内容",
+      "key": "fixes",
+      "titleEn": "Fixes",
+      "titleZh": "修复内容",
       "itemsEn": [
-        "Updated the bundled official DeepSeek Harness to 0.1.5-rc.2.",
-        "Integrated dsh-web 0.3.21 plugin management and configuration. Management stays available while feature plugins start disabled.",
-        "The default experience uses official UI and presets; Portable extensions are disabled by default.",
-        "Desktop enhancements, DCode, Learning and Cluster activate explicitly through DSH bundles and share the host Cordis dependency.",
-        "Adapted attachments, feedback, RPC and session persistence to upstream APIs.",
-        "Consolidated Learning tests from 657 to 427 while retaining core behavior and integration regressions."
+        "The retired dsh-plugin-marketplace is replaced by the bundled dsh-web Workshop (latest npm version 0.3.21). Profiles that previously enabled the old market enable Workshop during migration. Fresh installations keep it optional. The updater preserves configuration backups and repairs mixed YAML left by earlier plugin toggles.",
+        "Built-in and dsh-web plugin controls now edit one YAML document, preserving Cordis expressions, comments and unrelated settings."
       ],
       "itemsZh": [
-        "内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。",
-        "整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。",
-        "默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。",
-        "桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。",
-        "适配官方附件、反馈、RPC 与会话持久化接口。",
-        "Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。"
-      ]
-    },
-    {
-      "key": "upgrade",
-      "titleEn": "Upgrade note",
-      "titleZh": "升级说明",
-      "itemsEn": [
-        "Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted."
-      ],
-      "itemsZh": [
-        "启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。"
+        "旧 dsh-plugin-marketplace 改由内置 dsh-web 创意工坊替代（npm 最新版 0.3.21）。原先启用旧市场的配置会迁移为启用创意工坊，新安装仍按需开启。升级保留配置备份，并修复此前插件开关生成的混合 YAML。",
+        "内置功能与 dsh-web 插件管理共同编辑同一份 YAML 文档，保留 Cordis 表达式、注释和其他配置。"
       ]
     }
   ],
-  "bodyEn": "## Changes\n\n- Updated the bundled official DeepSeek Harness to 0.1.5-rc.2.\n- Integrated dsh-web 0.3.21 plugin management and configuration. Management stays available while feature plugins start disabled.\n- The default experience uses official UI and presets; Portable extensions are disabled by default.\n- Desktop enhancements, DCode, Learning and Cluster activate explicitly through DSH bundles and share the host Cordis dependency.\n- Adapted attachments, feedback, RPC and session persistence to upstream APIs.\n- Consolidated Learning tests from 657 to 427 while retaining core behavior and integration regressions.\n\n## Upgrade note\n\n- Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted.",
-  "bodyZh": "## 更新内容\n\n- 内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。\n- 整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。\n- 默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。\n- 桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。\n- 适配官方附件、反馈、RPC 与会话持久化接口。\n- Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。\n\n## 升级说明\n\n- 启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。"
+  "bodyEn": "## Fixes\n\n- The retired dsh-plugin-marketplace is replaced by the bundled dsh-web Workshop (latest npm version 0.3.21). Profiles that previously enabled the old market enable Workshop during migration. Fresh installations keep it optional. The updater preserves configuration backups and repairs mixed YAML left by earlier plugin toggles.\n- Built-in and dsh-web plugin controls now edit one YAML document, preserving Cordis expressions, comments and unrelated settings.",
+  "bodyZh": "## 修复内容\n\n- 旧 dsh-plugin-marketplace 改由内置 dsh-web 创意工坊替代（npm 最新版 0.3.21）。原先启用旧市场的配置会迁移为启用创意工坊，新安装仍按需开启。升级保留配置备份，并修复此前插件开关生成的混合 YAML。\n- 内置功能与 dsh-web 插件管理共同编辑同一份 YAML 文档，保留 Cordis 表达式、注释和其他配置。"
 }

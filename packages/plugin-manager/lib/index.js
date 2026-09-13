@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { registerRpc } from "@dsh-portable/connection-rpc";
+import { isMap, isSeq, parseDocument } from "yaml";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readProfileManifest, resolveProfileDir, writeProfileManifest } from "@deepseek-ai/dsh-app-boot";
@@ -20,6 +21,49 @@ const PORTABLE_PLUGIN_ENDPOINTS = ["list", "set-enabled"];
 */
 function isPortablePluginEndpoint(value) {
 	return PORTABLE_PLUGIN_ENDPOINTS.includes(value);
+}
+//#endregion
+//#region lib/types/host/profile-patch.js
+const START = "# BEGIN portable-plugin-manager";
+const END = "# END portable-plugin-manager";
+const options = { customTags: [{
+	tag: "tag:yaml.org,2002:js",
+	resolve: (value) => value
+}] };
+function parse(text) {
+	const document = parseDocument(text.trim() ? text : "[]", options);
+	if (document.errors.length) throw new Error(document.errors[0].message);
+	if (document.contents === null) document.contents = document.createNode([]);
+	if (!isSeq(document.contents)) throw new Error("Profile patch must be a YAML array");
+	return {
+		document,
+		rows: document.contents
+	};
+}
+/** Merge the old appended block before parsing: flow arrays cannot have block rows appended. */
+function readPatch(text) {
+	const start = text.indexOf(START);
+	if (start < 0) return parse(text);
+	const end = text.indexOf(END, start);
+	if (end < 0) throw new Error("Portable plugin configuration has an unfinished managed block");
+	const base = parse(text.slice(0, start) + text.slice(end + 29));
+	const managed = parse(text.slice(start + 31, end));
+	for (const row of managed.rows.items) base.rows.add(row);
+	return base;
+}
+/** Edit one YAML document, retaining unrelated rows, comments, anchors and literal !!js expressions. */
+function updateProfilePatch(text, overrides = [], removeIds = []) {
+	const { document, rows } = readPatch(text);
+	rows.items = rows.items.filter((row) => !(isMap(row) && removeIds.includes(String(row.get("id")))));
+	for (const override of overrides) {
+		const row = rows.items.filter((row) => isMap(row) && !row.has("insert") && row.get("id") === override.id).at(-1);
+		if (isMap(row)) {
+			row.set("disabled", override.disabled);
+			if (override.name) row.set("name", override.name);
+		} else rows.add(document.createNode(override));
+	}
+	rows.flow = false;
+	return document.toString();
 }
 //#endregion
 //#region lib/types/host/registry.js
@@ -212,18 +256,10 @@ function setPortablePluginEnabled(deps, payload) {
 			if (preferences[bundle] === false) bundles.delete(bundle);
 		}
 		const patchPath = join(deps.profileDir, "cordis.patch.yml");
-		const start = "# BEGIN portable-plugin-manager";
-		const end = "# END portable-plugin-manager";
-		let source = existsSync(patchPath) ? readFileSync(patchPath, "utf8") : "";
-		const marker = source.indexOf(start);
-		if (marker >= 0) {
-			const finish = source.indexOf(end, marker);
-			if (finish < 0) throw new Error("portable plugin configuration has an unfinished managed block");
-			source = source.slice(0, marker) + source.slice(finish + 29);
-		}
-		if (source.replace(/^\s*#.*$/gm, "").trim() === "[]") source = source.replace(/^\s*\[\]\s*$/m, "");
-		const patches = rows.filter((item) => preferences[item.name] !== void 0).map((item) => `- id: ${JSON.stringify(item.id)}\n  disabled: ${!preferences[item.name]}`);
-		writeFileSync(patchPath, `${source.trimEnd()}\n${start}\n${patches.join("\n")}\n${end}\n`);
+		writeFileSync(patchPath, updateProfilePatch(existsSync(patchPath) ? readFileSync(patchPath, "utf8") : "", rows.filter((item) => preferences[item.name] !== void 0).map((item) => ({
+			id: item.id,
+			disabled: !preferences[item.name]
+		}))));
 		writeProfileManifest(deps.profileDir, {
 			...manifest,
 			dsh: {
