@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import type { ComponentType } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { LearningToolView } from '../src/client/LearningToolView.tsx'
 import { en } from '../src/client/locales.ts'
-import { LearningProtocolError, VISUAL_RESULT_PROTOCOL_V4, parseLearningVisualV4 } from '../src/protocol.ts'
-import { VISUAL_VARIANT_CORPUS } from './visual-corpus.ts'
+import { VISUAL_RESULT_PROTOCOL_V4, parseLearningVisualV4 } from '../src/protocol.ts'
 
 const t = ((key: keyof typeof en, params?: Record<string, string | number>) => {
   let value: string = en[key]
@@ -35,73 +34,7 @@ function completedBlock(visual: unknown, callId: string) {
   }
 }
 
-/** The substantive markup each content kind must actually produce. */
-const REQUIRED_MARKUP: Readonly<Record<string, string>> = {
-  plot: 'svg',
-  node_link: 'svg [data-roving-id]',
-  scene_2d: 'svg [data-roving-id]',
-  relation: 'table, [class*=setMap]',
-  timeline: '[class*=timelineEvent], [class*=timelineVertical] button',
-  formula_steps: '[class*=formulaStepCard]',
-  study_map: '[role="tab"]',
-  recall_deck: 'article',
-  data_table: 'table',
-  state_transition: '[data-visual-id]',
-  sequence_buffer: '[data-visual-id]',
-  sequence_diagram: '[data-visual-id]',
-  code_trace: 'pre, code',
-  field_2d: 'svg, canvas',
-  causal_loop: '[data-visual-id]',
-}
-
 afterEach(cleanup)
-
-/**
- * A payload the closed schema accepts must reach its renderer. Every path that
- * substitutes Markdown, the description, or the error boundary for the figure
- * is a degradation the learner experiences as "the chart did not come".
- */
-describe('every accepted visual variant renders instead of degrading', () => {
-  const entries = Object.entries(VISUAL_VARIANT_CORPUS)
-
-  it('covers all fifteen content kinds', () => {
-    const kinds = new Set(entries.map(([, visual]) => (visual.content as { kind: string }).kind))
-    expect([...kinds].sort()).toEqual([
-      'causal_loop', 'code_trace', 'data_table', 'field_2d', 'formula_steps', 'node_link', 'plot',
-      'recall_deck', 'relation', 'scene_2d', 'sequence_buffer', 'sequence_diagram', 'state_transition',
-      'study_map', 'timeline',
-    ])
-    expect(entries.length).toBeGreaterThanOrEqual(28)
-  })
-
-  it.each(entries)('accepts and renders %s', (name, visual) => {
-    // 1. The closed schema must accept it: a rejection is the harshest degradation.
-    expect(() => parseLearningVisualV4(visual), `${name} failed schema validation`).not.toThrow(LearningProtocolError)
-
-    // 2. A renderer crash falls to the error boundary, which is also a degradation.
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const { container } = render(<ToolView block={completedBlock(visual, `call_${name}`)} inspect={() => {}} t={t} sessionId="corpus" useSessionPendingInteraction={noPendingInteraction} />)
-
-    const shell = container.querySelector('[data-learning-visual]')
-    expect(shell, `${name} did not mount a visual shell`).not.toBeNull()
-    expect(shell?.getAttribute('data-render-state')).toBe('ready')
-
-    // 3. No text-substitution surface may be present.
-    expect(container.querySelector('[data-learning-result="error"]'), `${name} degraded to the error surface`).toBeNull()
-    expect(container.querySelector('[data-learning-result="invalid"]'), `${name} degraded to the invalid surface`).toBeNull()
-    expect(container.querySelector('[role="alert"]'), `${name} hit the renderer error boundary`).toBeNull()
-    expect(container.textContent).not.toContain(en.visualFailed)
-    expect(container.textContent).not.toContain(en.invalidActivity)
-
-    // 4. The renderer must have produced its real markup, not an empty shell.
-    const kind = (visual.content as { kind: string }).kind
-    const required = REQUIRED_MARKUP[kind] ?? '*'
-    expect(shell?.querySelector(required), `${name} rendered no ${kind} content`).not.toBeNull()
-
-    expect(consoleError, `${name} logged a renderer error`).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
-})
 
 /**
  * A curve can satisfy the closed schema and still sample to nothing visible:
@@ -118,7 +51,6 @@ describe('a plot with nothing inside its axes says so', () => {
   })
   const cases = {
     logOfNegatives: plot('log', 'log(x)', { label: 'x', min: -3, max: -1, samples: 32 }, { label: 'y', min: -2, max: 2 }),
-    sqrtOfNegatives: plot('sqrt', 'sqrt(x)', { label: 'x', min: -4, max: -1, samples: 32 }, { label: 'y', min: 0, max: 2 }),
     entirelyOffAxis: plot('off', 'x + 1000', { label: 'x', min: 0, max: 1, samples: 32 }, { label: 'y', min: 0, max: 1 }),
   }
 

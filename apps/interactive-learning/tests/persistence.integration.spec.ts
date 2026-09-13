@@ -99,9 +99,12 @@ describe('Learning state durable load order', () => {
       type: 'learning/state',
       data: { snapshot: { goal: 'Understand queue invariants', revision: 1 } },
     })
-    // Flush through the SessionStore-owned durability checkpoint so the
-    // persistence plugin drains the events captured from the live Session.
-    await first.sessions.flush(originalSession)
+    // Standalone sessions have no agent-loop writer; persist their log through
+    // the same handle API the agent lifecycle now owns.
+    const writer = await first.sessionPersistence.create(originalSession.header)
+    await writer.append(originalSession.snapshotEvents())
+    await writer.flush()
+    await writer.close()
     disposeOriginalAgent()
     await first.fiber.dispose()
 
@@ -111,15 +114,19 @@ describe('Learning state durable load order', () => {
     // Session is restored.
     await import('../src/preset.ts?durable-reboot-preboot')
     expect(known.has('learning/state')).toBe(true)
-    // Inspect decodes the log against the registered event vocabulary.
-    const inspection = await second.sessionPersistence.inspect(sessionId)
-    const loadedEvents = inspection.events
+    const stored = await second.sessionPersistence.open(sessionId, 'read')
+    const read = await stored.read()
+    const loadedEvents = read.events
     expect(loadedEvents.some(event => event.type === 'learning/state')).toBe(true)
-    const preparation = await second.sessionPersistence.prepare(sessionId)
-    const restoredSession = preparation.session
+    const restoredSession = second.sessions.prepare(sessionId, {
+      seed: loadedEvents,
+      meta: structuredClone(stored.header),
+      inheritedEventCount: stored.inheritedEventCount,
+      eventState: read.eventState,
+    })
     const detachSession = second.sessions.enter(restoredSession)
     second.sessions.announce(restoredSession)
-    preparation[Symbol.dispose]()
+    await stored.close()
 
     await mountLearningServices(second)
     const restoredAgent = agentFor(restoredSession)

@@ -49,17 +49,18 @@ describe('RecallDeck Host feedback', () => {
     ctx.provide('clientModules', {
       graph: () => ({ rev: 'test', entries: [{ id: '@dsh-portable/interactive-learning', url: '/client.js', rev: 'x' }] }),
     } as never)
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>) | undefined
+    let route: { fetch(request: Request): Promise<Response> } | undefined
+    ctx.provide('webServer', {} as never)
     ctx.provide('connection', {
-      rpc: {
-        handle: (_channel: string, next: typeof handler, _options: unknown) => {
-          handler = next
+      fetch: {
+        register: (next: typeof route) => {
+          route = next
           return async () => {}
         },
       },
     } as never)
     await ctx.plugin(LearningActivityBroker)
-    expect(handler).toBeDefined()
+    expect(route).toBeDefined()
 
     const agent = stubAgent('rpc-session')
     ctx.learningActivities.recordVisual(agent, 'visual-call')
@@ -70,10 +71,14 @@ describe('RecallDeck Host feedback', () => {
       cardId: 'card_rpc',
       status: 'mastered',
     })
-    const result = await handler!('recall/feedback', payload, new AbortController().signal) as {
+    const response = await route!.fetch(new Request('http://localhost/api/interactive-learning/recall/feedback', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'recall-test', method: 'interactive-learning/recall/feedback', payload }),
+    }))
+    const { result } = await response.json() as { result: {
       ok: boolean
       value?: { status?: string; observationId?: string }
-    }
+    } }
     expect(result).toMatchObject({ ok: true, value: { status: 'recorded' } })
     expect(result.value?.observationId).toContain('recall:')
     expect(ctx.learningActivities.learnerState(agent).evidence.at(-1)?.summary).toContain('card_rpc')

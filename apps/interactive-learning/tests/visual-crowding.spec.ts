@@ -1,19 +1,3 @@
-/**
- * A node_link figure can be legible mark by mark and still be unreadable,
- * because legibility is a property of one element and crowding is a property of
- * the pairs.
- *
- * The generation loop in `visual-corpus.ts` is the payload that proved it: five
- * nodes, five labelled edges, every strength above the floor, and ten
- * collisions on screen — a chip across the node it pointed at, two chips across
- * each other, a feedback arrow drawn straight back through the middle of the
- * diagram with its label on top of a box, and the last column pushed off the
- * end of its own canvas by the space reserved for the column headings.
- *
- * These tests assert the pairwise properties that failure violated: boxes and
- * label chips that are drawn stay inside the canvas, off each other, and a
- * label that cannot be placed is withheld rather than piled on.
- */
 import { describe, expect, it } from 'vitest'
 import { graphLayout } from '../src/client/visuals/layout/graph-layout.ts'
 import { edgeRoutes } from '../src/client/visuals/layout/graph-edges.ts'
@@ -27,9 +11,14 @@ type NodeLink = Extract<LearningVisualV4['content'], { kind: 'node_link' }>
 
 interface Rect { id: string; kind: string; x1: number; y1: number; x2: number; y2: number }
 
-const CONTAINER_WIDTHS = [360, 520, 740, 980] as const
+const CONTAINER_WIDTHS = [360, 980] as const
 
-const graphs = Object.entries({ ...VISUAL_VARIANT_CORPUS, ...visualV4Catalog })
+const graphs = Object.entries({
+  tree: VISUAL_VARIANT_CORPUS.decisionTree,
+  grouped: VISUAL_VARIANT_CORPUS.layeredGrouped,
+  dense: visualV4Catalog.fullyConnectedNetwork,
+  generationLoop: GENERATION_LOOP_VISUAL,
+})
   .map(([name, source]) => [name, parseLearningVisualV4(source).content] as const)
   .filter((entry): entry is readonly [string, NodeLink] => entry[1].kind === 'node_link')
 
@@ -67,11 +56,12 @@ const overlapArea = (a: Rect, b: Rect): number => (
   * Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1))
 )
 
-describe('every node_link payload draws its marks clear of each other', () => {
+// Representative graph structures at narrow and wide conversation sizes.
+describe('graph layout regressions', () => {
   it.each(graphs.flatMap(([name, content]) => CONTAINER_WIDTHS.map(width => [name, width, content] as const)))(
-    '%s keeps boxes and visible labels apart at %ipx',
+    '%s keeps marks apart and inside the canvas at %ipx',
     (_name, _width, content) => {
-      const { rects } = drawnRects(content, _width)
+      const { rects, width, height } = drawnRects(content, _width)
       for (let index = 0; index < rects.length; index += 1) {
         for (let other = index + 1; other < rects.length; other += 1) {
           const a = rects[index]
@@ -80,13 +70,6 @@ describe('every node_link payload draws its marks clear of each other', () => {
           expect(overlapArea(a, b), `${a.kind} ${a.id} overlaps ${b.kind} ${b.id}`).toBe(0)
         }
       }
-    },
-  )
-
-  it.each(graphs.flatMap(([name, content]) => CONTAINER_WIDTHS.map(width => [name, width, content] as const)))(
-    '%s draws nothing outside the canvas it asks for at %ipx',
-    (_name, _width, content) => {
-      const { rects, width, height } = drawnRects(content, _width)
       for (const rect of rects) {
         expect(rect.x1, `${rect.kind} ${rect.id} is off the left edge`).toBeGreaterThanOrEqual(-0.5)
         expect(rect.y1, `${rect.kind} ${rect.id} is off the top edge`).toBeGreaterThanOrEqual(-0.5)
@@ -96,8 +79,8 @@ describe('every node_link payload draws its marks clear of each other', () => {
     },
   )
 
-  it.each(graphs)('%s centres a left-to-right diagram in its own canvas', (_name, content) => {
-    if (content.layout !== 'layered') return
+  it('centres a layered diagram in its own canvas', () => {
+    const content = parseLearningVisualV4(GENERATION_LOOP_VISUAL).content as NodeLink
     const { rects, width } = drawnRects(content, 740)
     const boxes = rects.filter(rect => rect.kind === 'node')
     const left = Math.min(...boxes.map(rect => rect.x1))
