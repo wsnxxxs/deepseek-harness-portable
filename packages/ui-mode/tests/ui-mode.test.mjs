@@ -11,8 +11,8 @@ import {
   uiModeFromSearch, withUiModeParam,
 } from '../lib/ui-mode.js'
 
-test('the workbench is the default and the two frontends stay selectable', () => {
-  assert.equal(DEFAULT_UI_MODE, 'dcode')
+test('the official interface is the default and the two frontends stay selectable', () => {
+  assert.equal(DEFAULT_UI_MODE, 'official')
   // Presentation order, official first: it is always present, while DCode
   // shadows it when selected.
   assert.deepEqual([...UI_MODES], ['official', 'dcode'])

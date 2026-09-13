@@ -284,12 +284,10 @@ async function assertRequiredFiles(root: string, paths: readonly string[], label
 }
 
 function assertHostRow(source: string): void {
-  const id = /(?:\bid\b|["']id["'])\s*:\s*["']interactive-learning["']/g
-  for (const match of source.matchAll(id)) {
-    const neighborhood = source.slice(match.index, match.index + 512)
-    if (/(?:\bname\b|["']name["'])\s*:\s*["']@dsh-portable\/interactive-learning["']/.test(neighborhood)) return
-  }
-  throw new Error(`packaged runtime is missing the ${HOST_ROW_ID} Host row for ${PACKAGE_NAME}`)
+  const patches = yaml.load(source) as Array<{ insert?: Array<{ id?: string; name?: string; disabled?: boolean }> }>
+  const row = patches.flatMap(patch => patch.insert ?? []).find(row => row.id === HOST_ROW_ID)
+  if (row?.name === PACKAGE_NAME && row.disabled === true) return
+  throw new Error(`packaged runtime is missing the disabled ${HOST_ROW_ID} Host row for ${PACKAGE_NAME}`)
 }
 
 function publishedJavaScriptEntries(manifest: PackageManifest): string[] {
@@ -486,7 +484,7 @@ export async function inspectInteractiveLearningApp(
   appResources: string,
 ): Promise<InteractiveLearningReleaseEvidence> {
   await assertRequiredFiles(appResources, INTERACTIVE_LEARNING_APP_FILES, 'Interactive Learning app contract')
-  assertHostRow(await readFile(join(appResources, 'lib', 'packaged-bin.js'), 'utf8'))
+  assertHostRow(await readFile(join(appResources, 'node_modules', '@dsh-portable', 'desktop-protocol', 'cordis.patch.yml'), 'utf8'))
   const packageRoot = join(appResources, PACKAGE_DIRECTORY)
   const evidence = await inspectInteractiveLearningPackage(packageRoot)
   await assertInteractiveLearningPublishedPackage(packageRoot)

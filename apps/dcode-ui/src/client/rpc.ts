@@ -92,7 +92,7 @@ export function createDcodeApi(carrier: RpcCarrier | undefined): DcodeApi {
   const call = async <T>(endpoint: DcodeEndpoint, payload: Record<string, unknown>): Promise<DcodeResult<T>> => {
     if (carrier === undefined) return transportFailure('the /dcode channel is unavailable on this connection')
     try {
-      return envelope<T>(await carrier.rpc.call(CHANNEL, endpoint, payload))
+      return envelope<T>(await carrier.rpc.call('/api', `${CHANNEL.slice(1)}/${endpoint}`, payload))
     } catch (cause) {
       return transportFailure(cause instanceof Error ? cause.message : String(cause))
     }
@@ -116,7 +116,7 @@ export function createDcodeMemoryApi(carrier: RpcCarrier | undefined): DcodeMemo
   const call = async <T>(endpoint: DcodeEndpoint, payload: Record<string, unknown>): Promise<DcodeResult<T>> => {
     if (carrier === undefined) return transportFailure('the /dcode channel is unavailable on this connection')
     try {
-      return envelope<T>(await carrier.rpc.call(CHANNEL, endpoint, payload))
+      return envelope<T>(await carrier.rpc.call('/api', `${CHANNEL.slice(1)}/${endpoint}`, payload))
     } catch (cause) {
       return transportFailure(cause instanceof Error ? cause.message : String(cause))
     }

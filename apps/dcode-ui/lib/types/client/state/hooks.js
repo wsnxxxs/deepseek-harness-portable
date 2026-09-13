@@ -61,7 +61,7 @@ const EMPTY_SESSION_LIST = {
 const EMPTY_PENDING_INTERACTIONS = new Map();
 const EMPTY_INPUT_STATE = {
     draft: '',
-    imageIds: [],
+    attachmentIds: [],
     draftRev: 0,
     phase: 'plain',
     occurrences: [],

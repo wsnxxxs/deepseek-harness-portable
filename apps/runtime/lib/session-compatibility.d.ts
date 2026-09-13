@@ -17,7 +17,7 @@ declare module '@deepseek-ai/dsh-session' {
 /** Register the exact legacy portable event understood by this distribution. */
 export declare function registerPortableSessionCompatibility(): void;
 /** Register every required event understood by the packaged runtime before persistence can read. */
-export declare function registerPackagedSessionCompatibility(): void;
+export declare function registerPackagedSessionCompatibility(): Promise<void>;
 /** The projection used by the portable roster, including the retired `code` id. */
 export declare const portableAgentPresetProjectionDefinition: {
     init: (header: Parameters<typeof agentPresetProjectionDefinition.init>[0]) => string | null;

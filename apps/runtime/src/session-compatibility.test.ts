@@ -8,11 +8,11 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
-import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import { logPath } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
+import { logPath, generationLogPath } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import {
@@ -26,6 +26,7 @@ import {
 import { MockAdapter } from '../../../vendor/deepseek-harness/packages/core/agent-loop/tests/mock-adapter.ts'
 import { canonicalModeId } from './mode-catalog.js'
 import type { RuntimeModeTrace } from './mode-catalog.js'
+import { migrateHistoryFile } from './history-migration.js'
 import {
   appendPortableModeResolution,
   installPortableAgentPresetCompatibility,
@@ -44,7 +45,7 @@ async function writeFixture(root: string, id: SessionId, eventType: string): Pro
     .replaceAll(String(fixtureId), String(id))
     .replaceAll(PORTABLE_MODE_RESOLUTION_EVENT_TYPE, eventType)
     .replaceAll(JSON.stringify(fixtureStoredCwd), JSON.stringify(fixtureCwd))
-  const target = logPath(root, fixtureCwd, id, 'none')
+  const target = generationLogPath(root, fixtureCwd, id, 0, 'none')
   await mkdir(dirname(target), { recursive: true })
   await writeFile(target, source)
 }
@@ -66,11 +67,12 @@ async function writeLearningStateFixture(root: string, cwd: string, id: SessionI
   const source = [
     JSON.stringify({
       type: 'session',
-      version: 0,
+      version: SESSION_FORMAT_VERSION,
       id,
       createdAt: 0,
       cwd,
       delegationDepth: 0,
+      isSeeded: false,
     }),
     JSON.stringify({
       type: LEARNER_STATE_SESSION_EVENT_TYPE,
@@ -89,15 +91,18 @@ async function writeLearningStateFixture(root: string, cwd: string, id: SessionI
 /**
  * Read one stored session end to end.
  *
- * The persistence seam returns a validated immutable inspection, and the
- * inspection is where a format refusal surfaces.
+ * Read through the current handle API and release it after validation.
  * @param persistence - the mounted backend.
  * @param id - the stored session to read.
  * @returns every decoded event in the log.
  */
 async function readAll(persistence: Context['sessionPersistence'], id: SessionId): Promise<readonly SessionEvent[]> {
-  const inspection = await persistence.inspect(id)
-  return inspection.events
+  const handle = await persistence.open(id, 'read')
+  try {
+    return (await handle.read()).events
+  } finally {
+    await handle.close()
+  }
 }
 
 async function waitFor<T>(read: () => T | undefined, timeoutMs = 5_000): Promise<T> {
@@ -110,7 +115,7 @@ async function waitFor<T>(read: () => T | undefined, timeoutMs = 5_000): Promise
   throw new Error(`timed out after ${timeoutMs}ms`)
 }
 
-test('portable reader accepts only its registered legacy unmarked event type', async () => {
+test('Portable compatibility publishes readable history while preserving the original log', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-portable-session-compat-'))
   const ctx = new Context()
   try {
@@ -119,15 +124,20 @@ test('portable reader accepts only its registered legacy unmarked event type', a
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
 
     await writeFixture(root, fixtureId, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
-    const events = await readAll(ctx.sessionPersistence, fixtureId)
-    assert.equal(events[0]?.type, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
-    assert.equal(events[0]?.ignorable, undefined)
+    const sourcePath = generationLogPath(root, fixtureCwd, fixtureId, 0, 'none')
+    const original = await readFile(sourcePath)
+    assert.equal(await migrateHistoryFile(sourcePath), true)
+    const restored = await readAll(ctx.sessionPersistence, fixtureId)
+    assert.equal(restored[0]?.type, PORTABLE_MODE_RESOLUTION_EVENT_TYPE)
+    assert.deepEqual(await readFile(sourcePath), original)
+    assert.equal(await migrateHistoryFile(sourcePath), false)
+    assert.match(await readFile(generationLogPath(root, fixtureCwd, fixtureId, 0, 'none'), 'utf8'), /portable-runtime\/mode-resolution/)
 
     const unknownId = SessionId('session-other-unknown-v0')
     await writeFixture(root, unknownId, 'portable-runtime/future-required')
     await assert.rejects(readAll(ctx.sessionPersistence, unknownId), (error: unknown) => {
       assert.equal((error as Error).name, 'SessionFormatUnsupportedError')
-      assert.match((error as Error).message, /portable-runtime\/future-required.*unknown to this harness/)
+      assert.match((error as Error).message, /unknown historical event type "portable-runtime\/future-required"/)
       return true
     })
   } finally {
@@ -176,7 +186,7 @@ test('packaged compatibility registers required Learning state before configured
     // so this test proves the packaged runtime's explicit earliest-load seam.
     known.delete(LEARNER_STATE_SESSION_EVENT_TYPE)
     assert.equal(known.has(LEARNER_STATE_SESSION_EVENT_TYPE), false)
-    registerPackagedSessionCompatibility()
+    await registerPackagedSessionCompatibility()
     assert.equal(known.has(LEARNER_STATE_SESSION_EVENT_TYPE), true)
 
     await ctx.plugin(LlmRuntime)
@@ -242,12 +252,12 @@ async function writeLegacyPresetFixture(
     })],
     '',
   ].join('\n')
-  const target = logPath(root, cwd, id, 'none')
+  const target = generationLogPath(root, cwd, id, 0, 'none')
   await mkdir(dirname(target), { recursive: true })
   await writeFile(target, source)
 }
 
-test('cold resume maps the retired code preset to ptc without rewriting the durable log', async () => {
+test('cold resume migrates the retired code preset to ptc and preserves the original generation', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-legacy-preset-resume-'))
   const cwd = join(root, 'workspace')
   const headerId = SessionId('session-legacy-preset-header-v1')
@@ -287,8 +297,8 @@ test('cold resume maps the retired code preset to ptc without rewriting the dura
     assert.equal(selectionProjection.values.agentPreset, 'ptc')
 
     // The creation fact and the durable log keep the retired id verbatim.
-    assert.equal(headerAgent.session.header.agentPreset, 'code')
-    assert.match(await readFile(logPath(root, cwd, headerId, 'none'), 'utf8'), /"agentPreset":"code"/)
+    assert.equal(headerAgent.session.header.agentPreset, 'ptc')
+    assert.match(await readFile(generationLogPath(root, cwd, headerId, 0, 'none'), 'utf8'), /"agentPreset":"code"/)
 
     // The portable trace mapping and the kernel projection must not diverge:
     // a mode-resolution trace has to name the same preset the session runs.

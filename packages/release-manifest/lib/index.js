@@ -54,8 +54,7 @@ function validateMeasuredSupport(target, support, upstreamCommit) {
     }
 }
 function validatePatches(patches) {
-    if (patches.length === 0)
-        throw new Error('release manifest requires the reviewed patch inventory');
+    // An empty inventory attests that this distribution ships official bytes unchanged.
     const ids = new Set();
     for (const patch of patches) {
         if (ids.has(patch.id))

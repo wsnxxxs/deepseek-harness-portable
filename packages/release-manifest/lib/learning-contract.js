@@ -2,6 +2,7 @@ const INTERACTIVE_LEARNING_PACKAGE = '@dsh-portable/interactive-learning';
 /** Package-relative files that make the Interactive Learning experience usable. */
 export const INTERACTIVE_LEARNING_PACKAGE_FILES = [
     'package.json',
+    'cordis.patch.yml',
     'lib/index.js',
     'lib/bootstrap.js',
     'lib/preset.js',
@@ -18,6 +19,7 @@ export const INTERACTIVE_LEARNING_DISTRIBUTION_FILES = [
 /** App-relative runtime files that register packaged experience-pack hosts. */
 export const INTERACTIVE_LEARNING_APP_FILES = [
     'lib/packaged-bin.js',
+    'node_modules/@dsh-portable/desktop-protocol/cordis.patch.yml',
 ];
 /** Public declarations intentionally shipped by the Learning package. */
 export const INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILES = [
@@ -102,7 +104,7 @@ const PUBLIC_DECLARATIONS = new Set(INTERACTIVE_LEARNING_PUBLIC_DECLARATION_FILE
 export function assertInteractiveLearningPublishedPathPolicy(paths) {
     const pathSet = new Set(paths);
     const unexpected = paths.filter(path => {
-        if (path === 'package.json' || path === 'LICENSE' || path === 'README.md' || path === 'README.zh.md')
+        if (path === 'package.json' || path === 'cordis.patch.yml' || path === 'LICENSE' || path === 'README.md' || path === 'README.zh.md')
             return false;
         if (/^lib\/[^/]+\.js$/.test(path) || /^lib\/[^/]+\.js\.map$/.test(path))
             return false;

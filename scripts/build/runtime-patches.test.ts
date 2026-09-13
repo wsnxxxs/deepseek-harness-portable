@@ -138,7 +138,7 @@ test('session patch persists an explicit ignorable marker', () => {
   assert.equal(patchSessionPortableEventMetadata(output), output)
 })
 
-test('runtime patch layer applies the remaining portable patches in one staging tree', async () => {
+test('default runtime staging leaves official kernel bytes unchanged', async () => {
   const staging = await mkdtemp(join(tmpdir(), 'dsh-runtime-patches-'))
   const paths = [
     'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
@@ -169,15 +169,10 @@ test('runtime patch layer applies the remaining portable patches in one staging 
     })
     const originalFrontendStatic = await readFile(resolve('apps/runtime/node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js'), 'utf8')
     assert.doesNotMatch(originalFrontendStatic, /IMMUTABLE_STATIC_CACHE/)
-    assert.deepEqual(attestations.map(item => item.id), [
-      'directory-picker-electron-ipc',
-      'directory-picker-wsl-platform',
-      'frontend-static-hashed-cache',
-      'app-boot-profile-runtime-fallback',
-      'dsh-profile-stale-link-recovery',
-      'portable-session-event-metadata',
-      'agent-team-tool-scope-isolation',
-    ])
+    assert.deepEqual(attestations, [])
+    for (const path of paths) {
+      assert.deepEqual(await readFile(join(staging, path)), await readFile(resolve('apps/runtime', path)))
+    }
   } finally {
     await rm(staging, { recursive: true, force: true })
   }

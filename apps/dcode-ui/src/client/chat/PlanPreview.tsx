@@ -84,7 +84,7 @@ interface PlanPreviewCardProps {
 }
 
 async function promptSession(session: SessionFace, text: string): Promise<void> {
-  const handle = session.beginSubmission({ mode: 'queue', text, images: [] })
+  const handle = session.beginSubmission({ mode: 'queue', text, attachments: [] })
   try {
     const result = await session.prompt([{ type: 'text', text }], 'queue', undefined, handle.requestId)
     if (!result.ok) {

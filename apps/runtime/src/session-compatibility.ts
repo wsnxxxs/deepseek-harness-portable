@@ -6,7 +6,6 @@ import {
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-session-projection'
-import { registerInteractiveLearningSessionCompatibility } from '@dsh-portable/interactive-learning/bootstrap'
 import { canonicalModeId, type RuntimeModeTrace } from './mode-catalog.js'
 
 /** Exact durable discriminator used by portable mode-resolution diagnostics. */
@@ -31,9 +30,10 @@ export function registerPortableSessionCompatibility(): void {
 }
 
 /** Register every required event understood by the packaged runtime before persistence can read. */
-export function registerPackagedSessionCompatibility(): void {
+export async function registerPackagedSessionCompatibility(): Promise<void> {
   // Learning state is registered for strict validation/folding before a
   // packaged Host can restore a session.
+  const { registerInteractiveLearningSessionCompatibility } = await import('@dsh-portable/interactive-learning/bootstrap')
   registerInteractiveLearningSessionCompatibility()
   registerPortableSessionCompatibility()
 }

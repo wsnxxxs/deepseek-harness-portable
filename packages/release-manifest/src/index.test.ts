@@ -255,6 +255,7 @@ test('manifest rejects incomplete Interactive Learning semantic evidence', () =>
 
 test('manifest rejects target claims not proven by the packaged runtime', () => {
   assert.throws(() => createReleaseManifest(input({
+    target: { ...getTargetSpec('win32-x64'), requiredModeSupport: [{ mode: 'minimal', minimum: 'compatible' }] },
     measuredModeSupport: { ...windowsSupport, minimal: { level: 'unavailable', reason: 'No WSL', remediation: ['Install WSL'] } },
   })), /requires compatible/)
 })

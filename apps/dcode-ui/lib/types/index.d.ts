@@ -33,6 +33,7 @@ export interface Config {
     git: boolean;
 }
 export declare const Config: z<Config>;
+/** The minimum RPC face this plugin needs off the Connection service. */
 /**
  * Claim the `/dcode` channel on a host context.
  * @param ctx - the injecting cordis context.

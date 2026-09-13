@@ -15,7 +15,8 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "dsh": {
     "client": {
@@ -48,13 +49,17 @@
         "@dsh-portable/ui-mode/client"
       ],
       "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   },
   "files": [
     "lib/index.js",
     "lib/client.js",
     "lib/**/*.css",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
   ],
   "scripts": {
     "build": "tsc -b && tsdown",
@@ -63,10 +68,10 @@
     "test": "tsc -b && tsdown && vitest run tests/message-feedback.client.spec.tsx tests/git-panel.client.spec.ts tests/conversation-blank.client.spec.tsx && node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
     "@dsh-portable/session-manager": "workspace:^",
-    "@dsh-portable/ui-mode": "workspace:^"
+    "@dsh-portable/ui-mode": "workspace:^",
+    "@dsh-portable/connection-rpc": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-api-remotes": "workspace:^",
@@ -109,6 +114,10 @@
     "react-dom": "^18.3.1",
     "tsdown": "^0.22.2",
     "typescript": "^5.8.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

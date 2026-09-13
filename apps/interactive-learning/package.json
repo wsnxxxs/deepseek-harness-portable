@@ -45,7 +45,8 @@
       "types": "./lib/types/eval.d.ts",
       "default": "./lib/eval.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "dsh": {
     "client": {
@@ -60,6 +61,9 @@
         "@deepseek-ai/dsh-api-remotes"
       ],
       "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   },
   "files": [
@@ -140,7 +144,8 @@
     "lib/types/space/index.d.ts.map",
     "lib/types/teaching-policy.d.ts.map",
     "lib/types/teaching-route.d.ts.map",
-    "lib/types/topic-vault.d.ts.map"
+    "lib/types/topic-vault.d.ts.map",
+    "cordis.patch.yml"
   ],
   "scripts": {
     "build": "node scripts/build-package.mjs",
@@ -155,7 +160,6 @@
     "prepublishOnly": "pnpm run package:prepare"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-api-session-controller": "workspace:^",
     "@deepseek-ai/dsh-client-locale": "workspace:^",
@@ -175,7 +179,9 @@
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-user-questions": "workspace:^",
     "@dsh-portable/space-kernel": "workspace:^",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "@deepseek-ai/dsh-agent-presets": "workspace:^",
+    "@dsh-portable/connection-rpc": "workspace:^"
   },
   "optionalDependencies": {
     "unpdf": "^1.3.2"
@@ -191,6 +197,10 @@
     "react-dom": "^18.3.1",
     "tsdown": "^0.22.2",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.8"
+    "vitest": "^3.0.8",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

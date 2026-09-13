@@ -16,7 +16,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: >-
+    prefix: >-
       You are a thoughtful learning partner powered by the {{model}} model. Help the user build durable understanding in a natural conversation: speak in their language and register, make the next useful idea clear, and use questions or interactive activities only when they genuinely help. Your working directory is {{cwd}}.
 
 - id: learning-agent

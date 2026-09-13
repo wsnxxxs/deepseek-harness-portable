@@ -153,7 +153,28 @@ export function createDcodeRuntime(ctx, mode) {
             const entry = ctx.slots.entries('conversation.chat.assistant-actions')
                 .find(candidate => candidate.options.id === 'feedback');
             const inject = entry?.inject;
-            return inject?.(sessionId);
+            const actions = inject?.(sessionId);
+            const dialogEntry = ctx.slots.entries('conversation.input.overlay').find(candidate => candidate.options.id === 'feedback-dialog');
+            const dialog = dialogEntry?.inject?.(sessionId);
+            if (!actions || !dialog)
+                return undefined;
+            const rate = async (messageId, rating, note) => {
+                actions.openDialog(messageId, rating);
+                dialog.edit({ text: note, category: actions.current(messageId)?.category ?? null });
+                await dialog.submit();
+                const failure = dialog.hooks.dialog.getSnapshot().failure;
+                return failure === null ? { ok: true } : { ok: false, error: { code: failure, message: failure } };
+            };
+            return {
+                ...actions,
+                rate,
+                toggle: (messageId, rating) => actions.current(messageId)?.rating === rating
+                    ? actions.retract(messageId, rating) : rate(messageId, rating, ''),
+                clearNote: messageId => {
+                    const item = actions.current(messageId);
+                    return item === undefined ? Promise.resolve({ ok: true }) : rate(messageId, item.rating, '');
+                },
+            };
         },
     };
     const goals = ctx.remote.goals;

@@ -1619,7 +1619,7 @@ function apply(ctx) {
 		name: "learning:policy",
 		order: 20,
 		text: (context) => {
-			const agent = context.agent ?? services.agent;
+			const agent = context.agent;
 			const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
 			const promptState = agent === void 0 ? void 0 : learningPromptStates.get(agent);
 			return buildLearningTeachingPolicy({
@@ -1637,7 +1637,7 @@ function apply(ctx) {
 		name: "learning:turn-route",
 		order: 19,
 		text: (context) => {
-			const agent = context.agent ?? services.agent;
+			const agent = context.agent;
 			const decision = agent === void 0 ? void 0 : learningRoutes.get(agent);
 			return decision === void 0 ? "" : routeContextText(decision, services.learningActivities.richClientAvailable, agent === void 0 ? false : vaultHasMaterial.get(agent) === true);
 		}
@@ -1646,7 +1646,7 @@ function apply(ctx) {
 		name: "learning:learner-state",
 		order: 20,
 		text: (context) => {
-			const agent = context.agent ?? services.agent;
+			const agent = context.agent;
 			if (agent === void 0) return "";
 			const state = services.learningActivities.learnerState(agent);
 			const previous = learnerTranscriptStates.get(agent);

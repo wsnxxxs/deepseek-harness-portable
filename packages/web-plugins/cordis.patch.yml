@@ -1,0 +1,122 @@
+# DSH bundle composition derived from dsh-web 0.3.21 (Apache-2.0).
+# Management stays available; every feature row starts disabled.
+- insert:
+    - id: web-ui-compat
+      name: '@linxin666/dsh-web-all'
+      disabled: false
+- insert:
+    - id: web-ui-settings
+      name: '@linxin666/dsh-web-all/settings'
+      config:
+        plugin: '@linxin666/dsh-client-ui-web-ui-settings'
+      disabled: false
+- insert:
+    - id: web-ui-plugin-manager
+      name: '@linxin666/dsh-web-all/plugin-manager'
+      config:
+        plugin: '@linxin666/dsh-client-ui-plugin-manager'
+      disabled: false
+- insert:
+    - id: web-ui-community-plugins
+      name: '@linxin666/dsh-web-all/community-plugins'
+      config:
+        plugin: '@linxin666/dsh-client-ui-community-plugins'
+      disabled: true
+- insert:
+    - id: web-ui-market
+      name: '@linxin666/dsh-web-all/market'
+      config:
+        plugin: '@linxin666/dsh-client-ui-market'
+      disabled: true
+- insert:
+    - id: web-ui-task-board
+      name: '@linxin666/dsh-web-all/task-board'
+      config:
+        plugin: '@linxin666/dsh-client-ui-task-board'
+      disabled: true
+- insert:
+    - id: web-ui-git-graph
+      name: '@linxin666/dsh-web-all/git-graph'
+      config:
+        plugin: '@linxin666/dsh-client-ui-git-graph'
+      disabled: true
+- insert:
+    - id: web-ui-remote-web-ui
+      name: '@linxin666/dsh-web-all/remote-web-ui'
+      config:
+        plugin: '@linxin666/dsh-remote-web-ui'
+      disabled: true
+- insert:
+    - id: web-ui-pet
+      name: '@linxin666/dsh-web-all/pet'
+      config:
+        plugin: '@linxin666/dsh-pet'
+      disabled: true
+- insert:
+    - id: web-ui-ssh
+      name: '@linxin666/dsh-web-all/ssh'
+      config:
+        plugin: '@linxin666/dsh-ssh'
+      disabled: true
+- insert:
+    - id: web-ui-describe-image
+      name: '@linxin666/dsh-web-all/describe-image'
+      config:
+        plugin: '@linxin666/dsh-tool-describe-image'
+      disabled: true
+- insert:
+    - id: web-ui-liangshen
+      name: '@linxin666/dsh-web-all/liangshen'
+      config:
+        plugin: '@linxin666/dsh-liangshen'
+      disabled: true
+- insert:
+    - id: web-ui-skill-explorer
+      name: '@linxin666/dsh-web-all/skill-explorer'
+      config:
+        plugin: '@linxin666/dsh-client-ui-skill-explorer'
+      disabled: true
+- insert:
+    - id: web-ui-doctor
+      name: '@linxin666/dsh-web-all/doctor'
+      config:
+        plugin: '@linxin666/dsh-doctor'
+      disabled: true
+- insert:
+    - id: web-ui-usage
+      name: '@linxin666/dsh-web-all/usage'
+      config:
+        plugin: '@linxin666/dsh-usage'
+      disabled: true
+- insert:
+    - id: web-ui-session-archive
+      name: '@linxin666/dsh-web-all/session-archive'
+      config:
+        plugin: '@linxin666/dsh-session-archive'
+      disabled: true
+- insert:
+    - id: web-ui-model-capabilities
+      name: '@linxin666/dsh-web-all/model-capabilities'
+      config:
+        plugin: '@linxin666/dsh-client-ui-model-capabilities'
+      disabled: true
+- insert:
+    - id: web-ui-preset-center
+      name: '@linxin666/dsh-web-all/preset-center'
+      config:
+        plugin: '@linxin666/dsh-client-ui-preset-center'
+      disabled: true
+- insert:
+    - id: web-ui-skin-center
+      name: '@linxin666/dsh-web-all/skin-center'
+      config:
+        plugin: '@linxin666/dsh-client-ui-skin-center'
+      disabled: true
+- insert:
+    - id: web-ui-i18n
+      name: '@linxin666/dsh-i18n'
+      disabled: true
+- insert:
+    - id: web-ui-better-sidebar
+      name: dsh-better-sidebar
+      disabled: true

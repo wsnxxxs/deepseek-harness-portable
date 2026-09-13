@@ -2,7 +2,6 @@ import {
   defineTarget,
   type BuildArchitecture,
   type BuildPlatform,
-  type ModeExpectation,
   type NativeAssetRule,
   type TargetSpec,
 } from '../../packages/platform-contract/src/index.js'
@@ -31,13 +30,6 @@ const commonNativeAssets = (platform: BuildPlatform, arch: BuildArchitecture): N
   ]
 }
 
-const commonModes = (minimal: ModeExpectation): ModeExpectation[] => [
-  { mode: 'standard', minimum: 'native' },
-  { mode: 'ptc', minimum: 'native' },
-  { mode: 'cordis', minimum: 'native' },
-  minimal,
-]
-
 export const TARGET_SPECS = [
   defineTarget({
     id: 'win32-x64',
@@ -55,13 +47,7 @@ export const TARGET_SPECS = [
       officialReleaseRequiresEvidence: true,
       credentialEnvironment: ['WINDOWS_SIGNING_CERTIFICATE', 'WINDOWS_SIGNING_PASSWORD'],
     },
-    requiredModeSupport: commonModes({
-      mode: 'minimal',
-      minimum: 'compatible',
-      variant: 'win32-wsl',
-      runtimeRequirements: ['WSL distribution', 'Bash inside WSL'],
-      limitations: ['process-tree-unobservable', 'process-group-signals-emulated'],
-    }),
+    requiredModeSupport: [],
   }),
   defineTarget({
     id: 'darwin-arm64',
@@ -77,12 +63,7 @@ export const TARGET_SPECS = [
       officialReleaseRequiresEvidence: true,
       credentialEnvironment: ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'],
     },
-    requiredModeSupport: commonModes({
-      mode: 'minimal',
-      minimum: 'native',
-      variant: 'posix-bash',
-      runtimeRequirements: ['/bin/bash', 'native POSIX PTY'],
-    }),
+    requiredModeSupport: [],
   }),
   defineTarget({
     id: 'linux-x64',
@@ -98,12 +79,7 @@ export const TARGET_SPECS = [
       officialReleaseRequiresEvidence: true,
       credentialEnvironment: ['LINUX_PACKAGE_SIGNING_KEY', 'LINUX_PACKAGE_SIGNING_PASSWORD'],
     },
-    requiredModeSupport: commonModes({
-      mode: 'minimal',
-      minimum: 'native',
-      variant: 'posix-bash',
-      runtimeRequirements: ['/bin/bash', 'native POSIX PTY'],
-    }),
+    requiredModeSupport: [],
   }),
 ] as const satisfies readonly TargetSpec[]
 

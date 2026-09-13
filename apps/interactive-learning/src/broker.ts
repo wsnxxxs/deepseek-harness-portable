@@ -1,3 +1,4 @@
+import { registerRpc } from '@dsh-portable/connection-rpc'
 import { createHash, randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -67,15 +68,6 @@ export const DEFAULT_LEARNING_CHECKPOINT_TIMEOUT_MS = 5 * 60_000
 
 type LearningAbortReason = 'session-aborted' | 'client-response-timeout' | 'plugin-disposed'
 
-type RecallRpcConnection = {
-  rpc: {
-    handle(
-      channel: string,
-      handler: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>,
-      options: { authority: 'trusted-host' },
-    ): () => Promise<void>
-  }
-}
 
 class LearningWaitAbort extends Error {
   constructor(readonly reason: LearningAbortReason) {
@@ -455,11 +447,8 @@ export class LearningActivityBroker extends Service {
     // Generic Connection is already the Host↔Client RPC carrier. Keep the
     // recall endpoint package-private and let the broker enforce session
     // ownership before recording any learner evidence.
-    ctx.inject(['connection'], (connectionCtx) => {
-      const connection = connectionCtx.get('connection') as RecallRpcConnection | undefined
-      if (connection === undefined) return
-      connectionCtx.effect(() => connection.rpc.handle(
-        '/interactive-learning',
+    ctx.inject(['connection', 'webServer'], (connectionCtx) => {
+        connectionCtx.effect(() => registerRpc(connectionCtx, 'interactive-learning', ['recall/feedback'],
         async (endpoint: string, payload: unknown) => {
           if (endpoint !== 'recall/feedback') {
             return {
@@ -485,7 +474,6 @@ export class LearningActivityBroker extends Service {
             }
           }
         },
-        { authority: 'trusted-host' },
       ),
         'interactive-learning: recall feedback rpc',
       )

@@ -1,3 +1,4 @@
+import { registerRpc } from '@dsh-portable/connection-rpc';
 /**
  * Host-side Cordis plugin for the mission dossier.
  *
@@ -112,6 +113,7 @@ export async function handleDossierEndpoint(endpoint, payload) {
         return failed('dossier-failed', error instanceof Error ? error.message : String(error), { endpoint });
     }
 }
+/** The minimum RPC face this plugin needs off the Connection service. */
 /**
  * Mount the dossier: the operator channel, the model tools, and the re-anchor
  * pass that keeps existing citations pointing at the right place after a source
@@ -128,20 +130,13 @@ export function apply(ctx) {
     // registered anyway so that a pinned-citation feature has a seam already
     // wired, and so an operator's receipt counts this package as reporting.
     { moved: 0, unchanged: 0, stale: 0, recovered: 0 })), 'crew-dossier: reanchor hook');
-    ctx.inject(['connection'], (connectionCtx) => {
-        const connection = connectionCtx.get('connection');
-        if (connection === undefined)
-            return;
-        connectionCtx.effect(() => connection.rpc.handle(DOSSIER_CHANNEL, async (endpoint, payload) => {
+    ctx.inject(['connection', 'webServer'], (connectionCtx) => {
+        connectionCtx.effect(() => registerRpc(connectionCtx, 'crew-dossier', DOSSIER_ENDPOINTS, async (endpoint, payload) => {
             if (!isDossierEndpoint(endpoint)) {
                 return failed('bad-request', `unknown ${DOSSIER_CHANNEL} endpoint ${JSON.stringify(endpoint)}`);
             }
             return await handleDossierEndpoint(endpoint, payload);
-        }, 
-        // The same authority the rest of this distribution's private channels
-        // use: this reads and writes inside the operator's own workspace and
-        // must not be reachable from an untrusted origin.
-        { authority: 'trusted-host' }), 'crew-dossier: rpc channel');
+        }), 'crew-dossier: rpc channel');
     });
     // The tools are per-agent, so they are registered from the preset row that
     // names this package rather than here; `registerDossierTools` is exported for

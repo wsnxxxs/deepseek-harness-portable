@@ -33,6 +33,8 @@ function sourceBetween(source: string, start: string, end: string): string {
 async function appFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-learning-contract-'))
   const packageRoot = join(root, packageRelativeRoot)
+  await write(join(root, 'node_modules', '@dsh-portable', 'desktop-protocol', 'cordis.patch.yml'),
+    "- insert:\n    - id: interactive-learning\n      name: '@dsh-portable/interactive-learning'\n      disabled: true\n")
   await write(join(root, 'lib', 'packaged-bin.js'), [
     'const overlays = [{ insert: [{',
     "  id: 'interactive-learning',",
@@ -50,10 +52,11 @@ async function appFixture(): Promise<string> {
       './preset': { default: './lib/preset.js' },
     },
     bin: { 'learning-fixture': './lib/fixture-cli.js' },
-    files: ['lib/*.js', 'preset/**/*'],
+    files: ['lib/*.js', 'preset/**/*', 'cordis.patch.yml'],
     dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-ui-session'] } },
   }, null, 2)}\n`)
   await write(join(packageRoot, 'LICENSE'), 'Fixture license\n')
+  await write(join(packageRoot, 'cordis.patch.yml'), '- id: interactive-learning\n  disabled: false\n')
   await write(join(packageRoot, 'lib', 'index.js'), 'export { marker } from "./shared-fixture.js"\n')
   await write(join(packageRoot, 'lib', 'bootstrap.js'), 'export const register = true\n')
   await write(join(packageRoot, 'lib', 'agent.js'), 'export { marker } from "./shared-fixture.js"\n')
@@ -119,10 +122,11 @@ test('Interactive Learning app contract rejects semantic drift and missing gener
   const root = await appFixture()
   const packageRoot = join(root, packageRelativeRoot)
   try {
-    await writeFile(join(root, 'lib', 'packaged-bin.js'), 'export const unrelated = true\n')
-    await assert.rejects(inspectInteractiveLearningApp(root), /missing the interactive-learning Host row/)
+    const shellPatch = join(root, 'node_modules', '@dsh-portable', 'desktop-protocol', 'cordis.patch.yml')
+    await writeFile(shellPatch, '[]\n')
+    await assert.rejects(inspectInteractiveLearningApp(root), /missing the disabled interactive-learning Host row/)
 
-    await writeFile(join(root, 'lib', 'packaged-bin.js'), "const row = { id: 'interactive-learning', name: '@dsh-portable/interactive-learning' }\n")
+    await writeFile(shellPatch, "- insert:\n    - id: interactive-learning\n      name: '@dsh-portable/interactive-learning'\n      disabled: true\n")
     await writeFile(join(packageRoot, 'preset', 'learning', 'preset.yml'), 'name: Learning\ndescription: ""\n')
     await assert.rejects(inspectInteractiveLearningApp(root), /non-empty name and description/)
 

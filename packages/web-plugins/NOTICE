@@ -1,0 +1,1 @@
+Bundle row configuration derived from https://github.com/zhu1090093659/dsh-web, @linxin666/dsh-web-all 0.3.21. Upstream code is supplied by that npm dependency under Apache-2.0. Portable changes only the default disabled states.

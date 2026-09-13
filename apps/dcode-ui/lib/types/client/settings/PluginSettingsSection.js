@@ -252,7 +252,7 @@ function isExtensionEntry(entry) {
     if (moduleName.includes('mcp'))
         return true;
     // Portable feature packages are user-facing extensions even though they are
-    // shipped with the harness. Keep them in the main list so Vision Bridge,
+    // shipped with the harness. Keep them in the main list so Learning,
     // Learning, Cluster and the UI adapters are discoverable in DCode too.
     if (moduleName.startsWith('@dsh-portable/'))
         return true;

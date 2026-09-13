@@ -25,12 +25,14 @@
     "build": "tsc -b",
     "test": "tsc -b && node --test tests/*.test.mjs"
   },
-  "dependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@types/node": "^22.13.10",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

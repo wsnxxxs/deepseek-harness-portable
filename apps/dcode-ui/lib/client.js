@@ -456,7 +456,7 @@ window.__ModuleLoader__.load({
 			const call = async (endpoint, payload) => {
 				if (carrier === void 0) return transportFailure("the /dcode channel is unavailable on this connection");
 				try {
-					return envelope(await carrier.rpc.call(CHANNEL, endpoint, payload));
+					return envelope(await carrier.rpc.call("/api", `${CHANNEL.slice(1)}/${endpoint}`, payload));
 				} catch (cause) {
 					return transportFailure(cause instanceof Error ? cause.message : String(cause));
 				}
@@ -503,7 +503,7 @@ window.__ModuleLoader__.load({
 			const call = async (endpoint, payload) => {
 				if (carrier === void 0) return transportFailure("the /dcode channel is unavailable on this connection");
 				try {
-					return envelope(await carrier.rpc.call(CHANNEL, endpoint, payload));
+					return envelope(await carrier.rpc.call("/api", `${CHANNEL.slice(1)}/${endpoint}`, payload));
 				} catch (cause) {
 					return transportFailure(cause instanceof Error ? cause.message : String(cause));
 				}
@@ -795,7 +795,34 @@ window.__ModuleLoader__.load({
 			};
 			const messageFeedback = { for: (sessionId) => {
 				const inject = ctx.slots.entries("conversation.chat.assistant-actions").find((candidate) => candidate.options.id === "feedback")?.inject;
-				return inject?.(sessionId);
+				const actions = inject?.(sessionId);
+				const dialog = (ctx.slots.entries("conversation.input.overlay").find((candidate) => candidate.options.id === "feedback-dialog")?.inject)?.(sessionId);
+				if (!actions || !dialog) return void 0;
+				const rate = async (messageId, rating, note) => {
+					actions.openDialog(messageId, rating);
+					dialog.edit({
+						text: note,
+						category: actions.current(messageId)?.category ?? null
+					});
+					await dialog.submit();
+					const failure = dialog.hooks.dialog.getSnapshot().failure;
+					return failure === null ? { ok: true } : {
+						ok: false,
+						error: {
+							code: failure,
+							message: failure
+						}
+					};
+				};
+				return {
+					...actions,
+					rate,
+					toggle: (messageId, rating) => actions.current(messageId)?.rating === rating ? actions.retract(messageId, rating) : rate(messageId, rating, ""),
+					clearNote: (messageId) => {
+						const item = actions.current(messageId);
+						return item === void 0 ? Promise.resolve({ ok: true }) : rate(messageId, item.rating, "");
+					}
+				};
 			} };
 			const goals = ctx.remote.goals;
 			const feeds = /* @__PURE__ */ new Map();
@@ -2781,7 +2808,7 @@ window.__ModuleLoader__.load({
 		const EMPTY_PENDING_INTERACTIONS = /* @__PURE__ */ new Map();
 		const EMPTY_INPUT_STATE = {
 			draft: "",
-			imageIds: [],
+			attachmentIds: [],
 			draftRev: 0,
 			phase: "plain",
 			occurrences: [],
@@ -7499,7 +7526,7 @@ window.__ModuleLoader__.load({
 			const handle = session.beginSubmission({
 				mode: "queue",
 				text,
-				images: []
+				attachments: []
 			});
 			try {
 				const result = await session.prompt([{
@@ -8887,7 +8914,7 @@ window.__ModuleLoader__.load({
 				className: Transcript_module_css_default.user,
 				children: [props.submission.text === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: props.submission.text }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MessageAttachments, {
 					sessionId: props.sessionId,
-					previews: props.submission.images
+					previews: props.submission.attachments.flatMap((item) => item.type === "image" ? [item.value] : [])
 				})]
 			});
 		}
@@ -11536,7 +11563,7 @@ window.__ModuleLoader__.load({
 			const attachmentInputRef = (0, react.useRef)(null);
 			const conversation = runtime.conversation;
 			const draft = input === void 0 ? fallbackDraft : inputState.draft;
-			const attachments = (0, react.useMemo)(() => conversation?.draftImages(inputState.imageIds) ?? [], [conversation, inputState.imageIds]);
+			const attachments = (0, react.useMemo)(() => conversation?.resolveDraftAttachments(inputState.attachmentIds) ?? [], [conversation, inputState.attachmentIds]);
 			const previousSession = (0, react.useRef)(void 0);
 			const fallbackDraftRef = (0, react.useRef)(fallbackDraft);
 			const inputRefForDraft = (0, react.useRef)(input);
@@ -11780,14 +11807,14 @@ window.__ModuleLoader__.load({
 			]);
 			const addAttachments = (0, react.useCallback)((files) => {
 				if (files.length === 0) return;
-				if (input === void 0 || conversation === void 0) {
+				if (input === void 0 || conversation === void 0 || sessionId === void 0) {
 					setError(t("composer.attachmentsUnavailable"));
 					return;
 				}
 				try {
-					const created = conversation.createDraftImages(files);
-					if (!input.addImages(created.map((attachment) => attachment.id))) {
-						conversation.releaseDraftImages(created);
+					const created = conversation.createDrafts(sessionId, files);
+					if (!input.addAttachments(created.map((attachment) => attachment.id))) {
+						conversation.releaseDraftAttachments(created);
 						setError(t("composer.attachmentsBusy"));
 						return;
 					}
@@ -11798,6 +11825,7 @@ window.__ModuleLoader__.load({
 			}, [
 				conversation,
 				input,
+				sessionId,
 				t
 			]);
 			const addSelectedFiles = (0, react.useCallback)((files) => {
@@ -11876,8 +11904,8 @@ window.__ModuleLoader__.load({
 			}, [addSelectedFiles]);
 			const removeAttachment = (0, react.useCallback)((id) => {
 				if (input === void 0 || conversation === void 0) return;
-				input.removeImage(id);
-				if (!input.state.getSnapshot().imageIds.includes(id)) conversation.releaseDraftImage(id);
+				input.removeAttachment(id);
+				if (!input.state.getSnapshot().attachmentIds.includes(id)) conversation.releaseDraftAttachment(id);
 			}, [conversation, input]);
 			const permissionRows = (0, react.useMemo)(() => {
 				if (permissions === void 0 || sessionId === void 0) return [];
@@ -11957,7 +11985,7 @@ window.__ModuleLoader__.load({
 			const send = (0, react.useCallback)((mode) => {
 				if (sessionId === void 0) return;
 				const text = draft.trim();
-				if (text === "" && inputState.imageIds.length === 0) return;
+				if (text === "" && inputState.attachmentIds.length === 0) return;
 				if (!text.startsWith("/") && readiness?.model === "missing") {
 					setReadinessIssue("model");
 					return;
@@ -11988,7 +12016,7 @@ window.__ModuleLoader__.load({
 				const handle = face.beginSubmission({
 					mode,
 					text,
-					images: []
+					attachments: []
 				});
 				face.prompt([{
 					type: "text",
@@ -12002,7 +12030,7 @@ window.__ModuleLoader__.load({
 			}, [
 				draft,
 				input,
-				inputState.imageIds,
+				inputState.attachmentIds,
 				readiness,
 				runtime,
 				sessionId
@@ -12476,7 +12504,7 @@ window.__ModuleLoader__.load({
 											onClick: () => {
 												send("queue");
 											},
-											disabled: disabled || draft.trim() === "" && inputState.imageIds.length === 0,
+											disabled: disabled || draft.trim() === "" && inputState.attachmentIds.length === 0,
 											"aria-label": t("composer.send"),
 											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconSendOutline16, {})
 										})
@@ -13918,7 +13946,7 @@ window.__ModuleLoader__.load({
 							const handle = face.beginSubmission({
 								mode: "queue",
 								text: opening,
-								images: []
+								attachments: []
 							});
 							const sent = await face.prompt([{
 								type: "text",

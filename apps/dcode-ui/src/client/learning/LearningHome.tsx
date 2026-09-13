@@ -94,7 +94,7 @@ export function LearningHome({ navigation, cwd, sessionId }: LearningHomeProps) 
           : mode.id === 'problem' ? t('learning.problem') : t('learning.material')
         const face = runtime.binding(target)?.session
         if (face !== undefined) {
-          const handle = face.beginSubmission({ mode: 'queue', text: opening, images: [] })
+          const handle = face.beginSubmission({ mode: 'queue', text: opening, attachments: [] })
           const sent = await face.prompt([{ type: 'text', text: opening }], 'queue', undefined, handle.requestId)
           if (!sent.ok) {
             handle.abandon()

@@ -87,7 +87,7 @@ const EMPTY_PENDING_INTERACTIONS = new Map<SessionId, SessionPendingInteractionB
 
 const EMPTY_INPUT_STATE: InputState = {
   draft: '',
-  imageIds: [],
+  attachmentIds: [],
   draftRev: 0,
   phase: 'plain',
   occurrences: [],

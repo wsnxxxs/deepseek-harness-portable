@@ -1,0 +1,12 @@
+- id: interactive-learning
+  disabled: false
+- insert:
+    - id: learning-preset-source
+      name: '@dsh-portable/interactive-learning/preset'
+- id: agent-presets
+  inject: [learningPresetSource]
+  config:
+    default: standard
+    includeShippedRoot: true
+    includeUserRoot: true
+    roots: !!js "[ctx.learningPresetSource]"

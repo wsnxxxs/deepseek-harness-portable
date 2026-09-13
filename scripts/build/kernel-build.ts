@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { applyKernelPatches } from './kernel-patches.js'
 
 const KERNEL_PACKAGE = '@deepseek-ai/dsh-root'
 
@@ -37,7 +38,7 @@ export function kernelBuildEnvironment(environment: NodeJS.ProcessEnv): NodeJS.P
   return { ...environment, DSH_BUILD_CLIENT_PROFILE: 'official' }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const root = resolve(import.meta.dirname, '..', '..')
   const result = spawnSync(process.execPath, [...kernelBuildArguments(resolvePackageManagerEntry(root))], {
     cwd: root,
@@ -46,6 +47,12 @@ function main(): void {
   })
   if (result.error !== undefined) throw result.error
   if (result.status !== 0) process.exit(result.status ?? 1)
+  // Reviewed transforms over the freshly built kernel. They run here rather
+  // than in the packaging staging layer so a developer running out of this
+  // repository sees the same bytes a packaged artifact ships.
+  for (const attestation of await applyKernelPatches(root)) {
+    console.log(`kernel patch ${attestation.id}: ${attestation.status}`)
+  }
 }
 
-if (import.meta.main) main()
+if (import.meta.main) await main()

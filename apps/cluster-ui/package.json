@@ -19,7 +19,8 @@
       "types": "./lib/types/contract.d.ts",
       "default": "./lib/contract.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "dsh": {
     "client": {
@@ -33,6 +34,9 @@
       ],
       "external": [],
       "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   },
   "files": [
@@ -40,7 +44,8 @@
     "lib/client.js",
     "lib/contract.js",
     "lib/**/*.css",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
   ],
   "scripts": {
     "build": "tsc -b && tsdown",
@@ -49,7 +54,7 @@
     "test": "tsc -b && node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-experimental-agent-team": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-api-remotes": "workspace:^",
@@ -66,6 +71,10 @@
     "@types/react": "^18.3.18",
     "react": "^18.3.1",
     "tsdown": "^0.22.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

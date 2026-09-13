@@ -18,16 +18,7 @@ test('target specs own native assets, release formats, updater, and mode expecta
   assert.equal(windows.updaterAdapter, 'portable-directory-win32')
   assert.equal(windows.signing.adapter, 'authenticode')
   assert.equal(windows.signing.officialReleaseRequiresEvidence, true)
-  assert.deepEqual(
-    windows.requiredModeSupport.find(expectation => expectation.mode === 'minimal'),
-    {
-      mode: 'minimal',
-      minimum: 'compatible',
-      variant: 'win32-wsl',
-      runtimeRequirements: ['WSL distribution', 'Bash inside WSL'],
-      limitations: ['process-tree-unobservable', 'process-group-signals-emulated'],
-    },
-  )
+  assert.deepEqual(windows.requiredModeSupport, [])
 
   const macos = getTargetSpec('darwin-arm64')
   assert.ok(macos.nativeAssets.some(asset => asset.package === 'node-pty' && asset.source === 'prebuilds/darwin-arm64'))

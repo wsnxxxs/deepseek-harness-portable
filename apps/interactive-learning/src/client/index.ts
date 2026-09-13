@@ -55,7 +55,7 @@ export function apply(ctx: ClientContext): void {
         || event.callId === undefined
         || event.cardId === undefined
         || event.status === undefined) return
-      void connection.rpc.call('/interactive-learning', 'recall/feedback', {
+      void connection.rpc.call('/api', 'interactive-learning/recall/feedback', {
         protocol: 'dsh-learning/recall-feedback@1',
         sessionId: event.sessionId,
         callId: event.callId,

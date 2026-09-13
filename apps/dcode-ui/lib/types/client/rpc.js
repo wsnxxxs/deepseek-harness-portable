@@ -36,7 +36,7 @@ export function createDcodeApi(carrier) {
         if (carrier === undefined)
             return transportFailure('the /dcode channel is unavailable on this connection');
         try {
-            return envelope(await carrier.rpc.call(CHANNEL, endpoint, payload));
+            return envelope(await carrier.rpc.call('/api', `${CHANNEL.slice(1)}/${endpoint}`, payload));
         }
         catch (cause) {
             return transportFailure(cause instanceof Error ? cause.message : String(cause));
@@ -61,7 +61,7 @@ export function createDcodeMemoryApi(carrier) {
         if (carrier === undefined)
             return transportFailure('the /dcode channel is unavailable on this connection');
         try {
-            return envelope(await carrier.rpc.call(CHANNEL, endpoint, payload));
+            return envelope(await carrier.rpc.call('/api', `${CHANNEL.slice(1)}/${endpoint}`, payload));
         }
         catch (cause) {
             return transportFailure(cause instanceof Error ? cause.message : String(cause));

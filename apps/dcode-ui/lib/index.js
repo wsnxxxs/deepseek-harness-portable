@@ -1,3 +1,4 @@
+import { registerRpc } from "@dsh-portable/connection-rpc";
 import z from "@deepseek-ai/schemastery";
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -1224,21 +1225,6 @@ function defaultDcodeMemoryRoot() {
 }
 //#endregion
 //#region lib/types/index.js
-/**
-* Host-side Cordis plugin entrypoint for @dsh-portable/dcode-ui.
-*
-* The package ships two halves. This one is small on purpose: the modern
-* workbench reuses DSH's own Session, Workspace, Conversation, Tool, Goal,
-* Plan, Settings, Skill, MCP and Plugin services through the existing client
-* APIs, so the only host surface it needs is the version-control capability
-* DSH does not own. That surface is the `/dcode` Connection RPC channel —
-* working-tree status, per-file diffs, a commit path, per-turn undo, and
-* bounded file reads.
-*
-* The browser half lives at `./client` and is loaded by the client module
-* system through this package's `dsh.client` declaration.
-* @module @dsh-portable/dcode-ui
-*/
 /** Stable Cordis plugin name. */
 const name = "dcode-ui";
 /**
@@ -1246,8 +1232,13 @@ const name = "dcode-ui";
 * no channel to claim, and the browser half degrades to a workbench without
 * Git and durable-memory tooling rather than failing to boot.
 */
-const inject = ["connection"];
+const inject = [
+	"connection",
+	"webServer",
+	"sessionQuery"
+];
 const Config = z.object({ git: z.boolean().default(true) });
+/** The minimum RPC face this plugin needs off the Connection service. */
 /**
 * Claim the `/dcode` channel on a host context.
 * @param ctx - the injecting cordis context.
@@ -1255,15 +1246,17 @@ const Config = z.object({ git: z.boolean().default(true) });
 */
 function apply(ctx, config = {}) {
 	if (!Config(config).git) return;
-	ctx.inject(["connection"], (connectionCtx) => {
-		const connection = connectionCtx.get("connection");
-		if (connection === void 0) return;
+	ctx.inject([
+		"connection",
+		"webServer",
+		"sessionQuery"
+	], (connectionCtx) => {
 		const memory = new DcodeMemoryStore({
 			root: defaultDcodeMemoryRoot(),
-			source: () => connectionCtx.get("sessionQuery")
+			source: () => connectionCtx.sessionQuery
 		});
 		connectionCtx.effect(() => {
-			const disposeRpc = connection.rpc.handle(DCODE_CHANNEL, async (endpoint, payload) => {
+			const disposeRpc = registerRpc(connectionCtx, "dcode", DCODE_ENDPOINTS, async (endpoint, payload) => {
 				if (!isDcodeEndpoint(endpoint)) return {
 					ok: false,
 					error: {
@@ -1273,7 +1266,7 @@ function apply(ctx, config = {}) {
 					}
 				};
 				return await handleDcodeEndpoint(endpoint, payload, memory);
-			}, { authority: "trusted-host" });
+			});
 			const disposeEvents = connectionCtx.on("session/event", (session) => {
 				memory.markPending(String(session.id));
 			});

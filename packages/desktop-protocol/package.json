@@ -10,12 +10,38 @@
       "types": "./src/index.d.cts",
       "default": "./src/index.cjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./bridge": "./src/bridge.cjs",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
-    "src"
+    "src",
+    "cordis.patch.yml"
   ],
   "scripts": {
     "test": "node --test src/index.test.cjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "dependencies": {
+    "@dsh-portable/interactive-learning": "workspace:^",
+    "@dsh-portable/ui-mode": "workspace:^",
+    "@dsh-portable/session-manager": "workspace:^",
+    "@dsh-portable/composer-attach": "workspace:^",
+    "@dsh-portable/plugin-manager": "workspace:^",
+    "@dsh-portable/dcode-ui": "workspace:^",
+    "@dsh-portable/cluster-ui": "workspace:^",
+    "@deepseek-ai/dsh-experimental-agent-team": "workspace:^",
+    "@dsh-portable/desktop-enhancements": "workspace:^",
+    "@dsh-portable/web-plugins": "workspace:^"
   }
 }

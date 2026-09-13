@@ -1,20 +1,6 @@
-/**
- * Host-side Cordis plugin entrypoint for @dsh-portable/dcode-ui.
- *
- * The package ships two halves. This one is small on purpose: the modern
- * workbench reuses DSH's own Session, Workspace, Conversation, Tool, Goal,
- * Plan, Settings, Skill, MCP and Plugin services through the existing client
- * APIs, so the only host surface it needs is the version-control capability
- * DSH does not own. That surface is the `/dcode` Connection RPC channel —
- * working-tree status, per-file diffs, a commit path, per-turn undo, and
- * bounded file reads.
- *
- * The browser half lives at `./client` and is loaded by the client module
- * system through this package's `dsh.client` declaration.
- * @module @dsh-portable/dcode-ui
- */
+import { registerRpc } from '@dsh-portable/connection-rpc';
 import z from '@deepseek-ai/schemastery';
-import { DCODE_CHANNEL, handleDcodeEndpoint, isDcodeEndpoint } from "./host/rpc.js";
+import { DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint } from "./host/rpc.js";
 import { defaultDcodeMemoryRoot, DcodeMemoryStore, } from "./host/memory.js";
 export { DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint, } from "./host/rpc.js";
 export { defaultDcodeMemoryRoot, DcodeMemoryStore, } from "./host/memory.js";
@@ -31,10 +17,11 @@ export const name = 'dcode-ui';
  * no channel to claim, and the browser half degrades to a workbench without
  * Git and durable-memory tooling rather than failing to boot.
  */
-export const inject = ['connection'];
+export const inject = ['connection', 'webServer', 'sessionQuery'];
 export const Config = z.object({
     git: z.boolean().default(true),
 });
+/** The minimum RPC face this plugin needs off the Connection service. */
 /**
  * Claim the `/dcode` channel on a host context.
  * @param ctx - the injecting cordis context.
@@ -44,16 +31,13 @@ export function apply(ctx, config = {}) {
     const resolved = Config(config);
     if (!resolved.git)
         return;
-    ctx.inject(['connection'], (connectionCtx) => {
-        const connection = connectionCtx.get('connection');
-        if (connection === undefined)
-            return;
+    ctx.inject(['connection', 'webServer', 'sessionQuery'], (connectionCtx) => {
         const memory = new DcodeMemoryStore({
             root: defaultDcodeMemoryRoot(),
-            source: () => connectionCtx.get('sessionQuery'),
+            source: () => connectionCtx.sessionQuery,
         });
         connectionCtx.effect(() => {
-            const disposeRpc = connection.rpc.handle(DCODE_CHANNEL, async (endpoint, payload) => {
+            const disposeRpc = registerRpc(connectionCtx, 'dcode', DCODE_ENDPOINTS, async (endpoint, payload) => {
                 if (!isDcodeEndpoint(endpoint)) {
                     return {
                         ok: false,
@@ -61,11 +45,7 @@ export function apply(ctx, config = {}) {
                     };
                 }
                 return await handleDcodeEndpoint(endpoint, payload, memory);
-            }, 
-            // Same authority the rest of this distribution's private channels use:
-            // the surface runs local commands in the operator's own workspace and
-            // must not be reachable from an untrusted origin.
-            { authority: 'trusted-host' });
+            });
             const disposeEvents = connectionCtx.on('session/event', (session) => {
                 memory.markPending(String(session.id));
             });

@@ -23,8 +23,7 @@ export type UiMode = 'official' | 'dcode';
 /** Every selectable front end, in presentation order. */
 export declare const UI_MODES: readonly UiMode[];
 /**
- * The mode a surface without an explicit preference adopts. The workbench is
- * the default; no surface is ever removed by selecting another, only unselected.
+ * A surface without an explicit preference adopts the official interface.
  */
 export declare const DEFAULT_UI_MODE: UiMode;
 /** URL query parameter carrying an explicit mode (`?view=dcode`). */

@@ -12,7 +12,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** The official feedback plugin's Session-scoped slot face. */
 export interface MessageFeedbackProvider {
-  for(sessionId: SessionId): MessageFeedbackInjected | undefined
+  for(sessionId: SessionId): DcodeFeedbackEntry | undefined
 }
 
 const EMPTY_ITEMS: ReadonlyMap<string, MessageFeedbackItem> = new Map()
@@ -34,8 +34,14 @@ export interface MessageFeedbackState {
   clearNote(messageId: MessageId): Promise<string | undefined>
 }
 
+export interface DcodeFeedbackEntry extends MessageFeedbackInjected {
+  toggle(messageId: MessageId, rating: MessageFeedbackRating): Promise<MessageFeedbackActionResult>
+  rate(messageId: MessageId, rating: MessageFeedbackRating, note: string): Promise<MessageFeedbackActionResult>
+  clearNote(messageId: MessageId): Promise<MessageFeedbackActionResult>
+}
+
 interface PendingOwner {
-  readonly entry: MessageFeedbackInjected | undefined
+  readonly entry: DcodeFeedbackEntry | undefined
   readonly items: Set<string>
 }
 
@@ -89,7 +95,7 @@ export function useMessageFeedback(
 
   const mutate = useCallback(async (
     messageId: MessageId,
-    run: (entry: MessageFeedbackInjected) => Promise<MessageFeedbackActionResult>,
+    run: (entry: DcodeFeedbackEntry) => Promise<MessageFeedbackActionResult>,
   ): Promise<string | undefined> => {
     if (sessionEntry === undefined) return undefined
     const owner = ownerRef.current

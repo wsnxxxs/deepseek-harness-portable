@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -269,7 +270,7 @@ export async function runPackagedSmoke(options: PackagedSmokeOptions): Promise<P
   let runtimeUrl: string | undefined
   const handshake = new RuntimeHandshake()
 
-  const child = spawn(executable, [entry, ...runtimeLaunchArguments()], {
+  const child = spawn(executable, ['--expose-internals', entry, ...runtimeLaunchArguments()], {
     cwd: temporaryRoot,
     env: protocolEnvironment({
       ...process.env,
@@ -339,17 +340,31 @@ export async function runPackagedSmoke(options: PackagedSmokeOptions): Promise<P
     for (const packageName of STALE_MANAGED_FALLBACK_PACKAGES) {
       await readFile(join(dshHome, 'profiles', 'node_modules', packageName, 'package.json'), 'utf8')
     }
-    await assertMaterializedInteractiveLearningPreset(dshHome)
-    if (runtimeUrl === undefined) throw new Error('packaged Learning smoke completed without a listening URL')
+    if (runtimeUrl === undefined) throw new Error('official runtime smoke completed without a listening URL')
     const rpcTimeout = Math.min(10_000, Math.max(1_000, Math.floor(timeoutMs / 3)))
     const listValue = await runtimeRpc(runtimeUrl, 'agentPresets.list', {}, rpcTimeout)
-    const readValue = await runtimeRpc(runtimeUrl, 'agentPresets.read', { agentPreset: 'learning' }, rpcTimeout)
-    validateInteractiveLearningPresetSurface(listValue, readValue, interactiveLearning)
-    const evidencePath = join(dshHome, '.system-agent-presets', '.runtime-capabilities.json')
-    const coreEvidence = validateEvidence(JSON.parse(await readFile(evidencePath, 'utf8')) as unknown, options.target)
-    validatePortablePresetSurface(listValue, coreEvidence.modeSupport, [interactiveLearning.preset.id])
+    const list = object(listValue, 'official preset roster')
+    if (!Array.isArray(list.presets)) throw new Error('official runtime has no preset roster')
+    const ids = list.presets.map(value => object(value, 'preset').id)
+    if (!ids.includes('standard') || ids.includes('learning') || ids.includes('crew')) {
+      throw new Error('default runtime must expose official presets without Portable extras')
+    }
+    const login = await fetch(runtimeUrl, { redirect: 'manual' })
+    const cookie = readSessionCookie(login)
+    const pageUrl = new URL(runtimeUrl)
+    pageUrl.search = ''
+    const html = await (await fetch(pageUrl, { headers: cookie ? { cookie } : {} })).text()
+    if (['@dsh-portable/dcode-ui', '@dsh-portable/interactive-learning', '@dsh-portable/cluster-ui', 'dsh-better-sidebar'].some(id => html.includes(id))) {
+      throw new Error('default browser graph loaded an optional plugin')
+    }
+    const target = { platform: options.target.platform, arch: options.target.arch }
+    const snapshotHash = createHash('sha256').update(JSON.stringify({ target, presets: ids.sort() })).digest('hex')
     return {
-      ...coreEvidence,
+      schemaVersion: 1,
+      capabilityReport: { target, snapshotHash },
+      modeCatalog: { target, capabilitySnapshotHash: snapshotHash },
+      // Optional Portable variants were not activated or measured in official mode.
+      modeSupport: {},
       interactiveLearning,
     }
   } finally {

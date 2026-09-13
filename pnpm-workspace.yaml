@@ -8,19 +8,19 @@ packages:
   # sources and must never resolve as workspace projects (see
   # scripts/build/client-manifest-bridge.ts).
   - '!vendor/deepseek-harness/packages/portable/*'
-  - 'vendor/deepseek-harness/apps/cli'
-  - 'vendor/deepseek-harness/apps/web'
-  - 'vendor/deepseek-harness/examples'
+  - 'vendor/deepseek-harness/apps/*'
+  - 'vendor/deepseek-harness/benchmarks'
+  - 'vendor/deepseek-harness/python/sdk-runtime'
   - 'vendor/deepseek-harness/website'
-  - 'vendor/deepseek-harness/native/landlock-run'
-  - 'vendor/deepseek-harness/native/landlock-run/packages/*'
+  - 'vendor/deepseek-harness/native/system'
+  - 'vendor/deepseek-harness/native/system/packages/*'
   - 'apps/*'
   - 'packages/*'
 
 linkWorkspacePackages: true
 
 # Installation is an explicit CI/bootstrap step. Script execution must not
-# mutate the 245-project workspace or repair platform-incompatible vendor links.
+# mutate the workspace or repair platform-incompatible vendor links.
 verifyDepsBeforeRun: false
 
 # electron-builder pulls the pinned @electron/node-gyp Git snapshot through
@@ -35,6 +35,7 @@ overrides:
 # Keep the embedded runtime on the exact native PTY patch reviewed and shipped
 # by the pinned upstream release.
 patchedDependencies:
+  '@yao-pkg/pkg@6.21.0': vendor/deepseek-harness/patches/@yao-pkg__pkg@6.21.0.patch
   node-pty@1.2.0-beta.15: vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
 
 allowBuilds:
@@ -46,3 +47,26 @@ allowBuilds:
   protobufjs: false
   node-addon-require-builtin: false
   electron-winstaller: false
+  msgpackr-extract: false
+
+minimumReleaseAgeExclude:
+  - '@linxin666/dsh-client-ui-community-plugins@0.3.21'
+  - '@linxin666/dsh-client-ui-git-graph@0.3.21'
+  - '@linxin666/dsh-client-ui-market@0.3.21'
+  - '@linxin666/dsh-client-ui-model-capabilities@0.3.21'
+  - '@linxin666/dsh-client-ui-plugin-manager@0.3.21'
+  - '@linxin666/dsh-client-ui-preset-center@0.3.21'
+  - '@linxin666/dsh-client-ui-skill-explorer@0.3.21'
+  - '@linxin666/dsh-client-ui-skin-center@0.3.21'
+  - '@linxin666/dsh-client-ui-task-board@0.3.21'
+  - '@linxin666/dsh-client-ui-web-ui-settings@0.3.21'
+  - '@linxin666/dsh-doctor@0.3.21'
+  - '@linxin666/dsh-i18n@0.3.21'
+  - '@linxin666/dsh-liangshen@0.3.21'
+  - '@linxin666/dsh-pet@0.3.21'
+  - '@linxin666/dsh-remote-web-ui@0.3.21'
+  - '@linxin666/dsh-session-archive@0.3.21'
+  - '@linxin666/dsh-ssh@0.3.21'
+  - '@linxin666/dsh-tool-describe-image@0.3.21'
+  - '@linxin666/dsh-usage@0.3.21'
+  - '@linxin666/dsh-web-all@0.3.21'

@@ -44,22 +44,22 @@ set "ELECTRON_RUN_AS_NODE=1"
 
 if "%~1"=="" (
     set "DSH_DIRECTORY_PICKER_BACKEND=browse"
-    "%RUNTIME_EXE%" "%PACKAGED_WEB%"
+    "%RUNTIME_EXE%" --expose-internals "%PACKAGED_WEB%"
     exit /b %ERRORLEVEL%
 )
 if /I "%~1"=="web" (
     set "DSH_DIRECTORY_PICKER_BACKEND=browse"
-    "%RUNTIME_EXE%" "%PACKAGED_WEB%" %*
+    "%RUNTIME_EXE%" --expose-internals "%PACKAGED_WEB%" %*
     exit /b %ERRORLEVEL%
 )
 set "FIRST_ARG=%~1"
 if "%FIRST_ARG:~0,1%"=="-" (
-    "%RUNTIME_EXE%" "%PACKAGED_WEB%" %*
+    "%RUNTIME_EXE%" --expose-internals "%PACKAGED_WEB%" %*
     exit /b %ERRORLEVEL%
 )
 if not exist "%DSH_CLI%" (
     echo Embedded dsh CLI was not found: %DSH_CLI% 1>&2
     exit /b 1
 )
-"%RUNTIME_EXE%" "%DSH_CLI%" %*
+"%RUNTIME_EXE%" --expose-internals "%DSH_CLI%" %*
 exit /b %ERRORLEVEL%

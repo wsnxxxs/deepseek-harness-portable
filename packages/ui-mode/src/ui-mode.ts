@@ -28,8 +28,7 @@ export type UiMode = 'official' | 'dcode'
 export const UI_MODES: readonly UiMode[] = contract.UI_MODES
 
 /**
- * The mode a surface without an explicit preference adopts. The workbench is
- * the default; no surface is ever removed by selecting another, only unselected.
+ * A surface without an explicit preference adopts the official interface.
  */
 export const DEFAULT_UI_MODE: UiMode = contract.DEFAULT_UI_MODE
 

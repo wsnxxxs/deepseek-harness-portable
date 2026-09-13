@@ -503,7 +503,7 @@ function QueuedMessageRow(props) {
 }
 /** Local submission echo shown while attachment admission is still in flight. */
 function PendingSubmissionBubble(props) {
-    return (_jsxs("div", { className: css.user, children: [props.submission.text === '' ? null : _jsx("div", { children: props.submission.text }), _jsx(MessageAttachments, { sessionId: props.sessionId, previews: props.submission.images })] }));
+    return (_jsxs("div", { className: css.user, children: [props.submission.text === '' ? null : _jsx("div", { children: props.submission.text }), _jsx(MessageAttachments, { sessionId: props.sessionId, previews: props.submission.attachments.flatMap(item => item.type === 'image' ? [item.value] : []) })] }));
 }
 function dynamicGreetingKey() {
     const hour = new Date().getHours();

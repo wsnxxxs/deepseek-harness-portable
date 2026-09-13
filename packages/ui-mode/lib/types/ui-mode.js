@@ -22,8 +22,7 @@ import contract from '@dsh-portable/ui-mode/ui-mode-contract';
 /** Every selectable front end, in presentation order. */
 export const UI_MODES = contract.UI_MODES;
 /**
- * The mode a surface without an explicit preference adopts. The workbench is
- * the default; no surface is ever removed by selecting another, only unselected.
+ * A surface without an explicit preference adopts the official interface.
  */
 export const DEFAULT_UI_MODE = contract.DEFAULT_UI_MODE;
 /** URL query parameter carrying an explicit mode (`?view=dcode`). */

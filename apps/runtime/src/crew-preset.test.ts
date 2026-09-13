@@ -57,7 +57,7 @@ async function definition() {
 async function personaText(): Promise<string> {
   const rows = yaml.load(await readFile(join(directory, 'agent.cordis.yml'), 'utf8')) as
     { id?: string; config?: { text?: string } }[]
-  const text = rows.find(row => row.id === 'persona')?.config?.text
+  const text = rows.find(row => row.id === 'persona')?.config?.prefix
   assert.equal(typeof text, 'string', 'the crew composition must carry a persona row with text')
   return text as string
 }

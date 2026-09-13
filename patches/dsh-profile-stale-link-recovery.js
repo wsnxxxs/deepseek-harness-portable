@@ -6,7 +6,7 @@ const URL_IMPORT = 'import { fileURLToPath } from "node:url";'
 const URL_IMPORT_PATCHED = `${URL_IMPORT}\nimport { homedir } from "node:os";\nimport { join, resolve } from "node:path";`
 const HELPER_MARKER = 'function recoverStaleProfileLinks(profile) {'
 const SWITCH_MARKER = 'switch (invocation.mode) {'
-const PLUGIN_CASE_RE = /(\tcase "plugin": \{\n)(\t\tconst \{ runPlugin \} = await import\("\.\/plugin-[^"]+\.js"\);)/
+const PLUGIN_CASE_RE = /(\t+case "plugin": \{\n)(\t+const \{ runPlugin \} = await import\("\.\/plugin-[^"]+\.js"\);)/
 
 const HELPERS = `
 function removeStaleProfilePath(path) {

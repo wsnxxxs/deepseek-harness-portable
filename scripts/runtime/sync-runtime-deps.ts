@@ -31,6 +31,8 @@ const STATIC_WORKSPACE_ROOTS = [
   '@dsh-portable/cluster-ui',
   '@dsh-portable/ui-mode',
   '@dsh-portable/session-manager',
+  '@dsh-portable/composer-attach',
+  '@dsh-portable/plugin-manager',
   '@deepseek-ai/cordis',
   '@deepseek-ai/cordis-plugin-include',
   '@deepseek-ai/cordis-plugin-loader',
@@ -44,9 +46,9 @@ const STATIC_WORKSPACE_ROOTS = [
 ] as const
 
 const EXTERNAL_RUNTIME_ROOTS = {
-  '@linxin666/dsh-web-all': '0.3.16',
-  '@linxin666/dsh-i18n': '0.3.16',
-  'dsh-better-sidebar': '0.18.0',
+  '@linxin666/dsh-web-all': '0.3.21',
+  '@linxin666/dsh-i18n': '0.3.21',
+  'dsh-better-sidebar': '0.19.0',
   'js-yaml': '^4.2.0',
   'node-addon-require-builtin': '^0.1.4',
   'pnpm': '11.21.0',

@@ -5,6 +5,7 @@ const INTERACTIVE_LEARNING_PACKAGE = '@dsh-portable/interactive-learning'
 /** Package-relative files that make the Interactive Learning experience usable. */
 export const INTERACTIVE_LEARNING_PACKAGE_FILES = [
   'package.json',
+  'cordis.patch.yml',
   'lib/index.js',
   'lib/bootstrap.js',
   'lib/preset.js',
@@ -23,6 +24,7 @@ export const INTERACTIVE_LEARNING_DISTRIBUTION_FILES = [
 /** App-relative runtime files that register packaged experience-pack hosts. */
 export const INTERACTIVE_LEARNING_APP_FILES = [
   'lib/packaged-bin.js',
+  'node_modules/@dsh-portable/desktop-protocol/cordis.patch.yml',
 ] as const
 
 /** Public declarations intentionally shipped by the Learning package. */
@@ -155,7 +157,7 @@ const PUBLIC_DECLARATIONS = new Set<string>(INTERACTIVE_LEARNING_PUBLIC_DECLARAT
 export function assertInteractiveLearningPublishedPathPolicy(paths: readonly string[]): void {
   const pathSet = new Set(paths)
   const unexpected = paths.filter(path => {
-    if (path === 'package.json' || path === 'LICENSE' || path === 'README.md' || path === 'README.zh.md') return false
+    if (path === 'package.json' || path === 'cordis.patch.yml' || path === 'LICENSE' || path === 'README.md' || path === 'README.zh.md') return false
     if (/^lib\/[^/]+\.js$/.test(path) || /^lib\/[^/]+\.js\.map$/.test(path)) return false
     if (PUBLIC_DECLARATIONS.has(path)) return false
     if (path.endsWith('.d.ts.map') && PUBLIC_DECLARATIONS.has(path.slice(0, -'.map'.length))) return false

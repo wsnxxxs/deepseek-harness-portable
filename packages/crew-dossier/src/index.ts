@@ -1,3 +1,4 @@
+import { registerRpc } from '@dsh-portable/connection-rpc'
 /**
  * Host-side Cordis plugin for the mission dossier.
  *
@@ -159,15 +160,6 @@ export async function handleDossierEndpoint(
 }
 
 /** The minimum RPC face this plugin needs off the Connection service. */
-interface DossierRpcConnection {
-  rpc: {
-    handle(
-      channel: string,
-      handler: (endpoint: string, payload: unknown) => Promise<unknown>,
-      options: { authority: string },
-    ): () => void
-  }
-}
 
 /**
  * Mount the dossier: the operator channel, the model tools, and the re-anchor
@@ -190,11 +182,8 @@ export function apply(ctx: Context): void {
     'crew-dossier: reanchor hook',
   )
 
-  ctx.inject(['connection'], (connectionCtx) => {
-    const connection = connectionCtx.get('connection') as DossierRpcConnection | undefined
-    if (connection === undefined) return
-    connectionCtx.effect(() => connection.rpc.handle(
-      DOSSIER_CHANNEL,
+  ctx.inject(['connection', 'webServer'], (connectionCtx) => {
+    connectionCtx.effect(() => registerRpc(connectionCtx, 'crew-dossier', DOSSIER_ENDPOINTS,
       async (endpoint: string, payload: unknown) => {
         if (!isDossierEndpoint(endpoint)) {
           return failed('bad-request', `unknown ${DOSSIER_CHANNEL} endpoint ${JSON.stringify(endpoint)}`)
@@ -204,7 +193,6 @@ export function apply(ctx: Context): void {
       // The same authority the rest of this distribution's private channels
       // use: this reads and writes inside the operator's own workspace and
       // must not be reachable from an untrusted origin.
-      { authority: 'trusted-host' },
     ), 'crew-dossier: rpc channel')
   })
 

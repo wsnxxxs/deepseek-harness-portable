@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { i as uninstallLearningPreset, r as installLearningPreset } from "./installer-DTxqCWTA.js";
+import { i as uninstallLearningPreset, r as installLearningPreset } from "./installer-DQ9i8vC1.js";
 //#region lib/types/installer-cli.js
 function usage() {
 	console.error("Usage: dsh-learning-preset <install|uninstall> [--home <DSH_HOME>]");

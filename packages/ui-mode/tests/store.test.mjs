@@ -26,11 +26,11 @@ test('the Cordis context publishes one mode service for both frontends', async (
   try {
     const seen = []
     const stop = secondSurface.subscribe(mode => { seen.push(mode) })
-    workbench.set('official')
+    workbench.set('dcode')
 
-    assert.equal(owner.get(), 'official')
-    assert.equal(secondSurface.get(), 'official', 'a switch in one surface is visible in the other')
-    assert.deepEqual(seen, ['official'])
+    assert.equal(owner.get(), 'dcode')
+    assert.equal(secondSurface.get(), 'dcode', 'a switch in one surface is visible in the other')
+    assert.deepEqual(seen, ['dcode'])
     stop()
   } finally {
     await ctx.fiber.dispose()

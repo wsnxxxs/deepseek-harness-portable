@@ -22,14 +22,18 @@
     "test": "tsc -b && node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-connection": "workspace:^",
-    "@dsh-portable/space-kernel": "workspace:^"
+    "@dsh-portable/space-kernel": "workspace:^",
+    "@dsh-portable/connection-rpc": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@types/node": "^22.13.10",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

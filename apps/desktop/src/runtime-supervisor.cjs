@@ -185,6 +185,7 @@ class RuntimeSupervisor {
     this.output = ''
     this.runtimeDiagnostics = []
     const child = this.spawnProcess(options.executable, [
+      '--expose-internals',
       options.entry,
       ...runtimeLaunchArguments({ host: options.host, port: options.port, open: options.open }),
       ...(options.args || []),

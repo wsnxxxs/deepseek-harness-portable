@@ -1,0 +1,126 @@
+/* The built-in features tab, rendered inside the OFFICIAL settings shell.
+
+   It uses the Host's own theme aliases rather than any surface's token scope,
+   so it reads as one of upstream's own settings pages and follows a theme
+   switch without this package knowing the palette. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.lead {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.empty,
+.notice {
+  padding: 24px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e7ec);
+  border-radius: 12px;
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e7ec);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, #e4e7ec);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.meta,
+.description {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.description {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Two states worth calling out on the row itself: switched off right now, and
+   switched but not yet restarted into. */
+.tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--dsw-specific-selector, rgb(0 0 0 / 5%));
+  color: var(--dsw-alias-label-secondary, #3d444d);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.pending {
+  background: var(--dsw-alias-fill-warning-secondary, rgb(247 144 9 / 12%));
+  color: var(--dsw-alias-label-warning, #b54708);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.error {
+  color: var(--dsw-alias-label-error, #d92d20);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.restart {
+  color: var(--dsw-alias-label-tertiary, #5b6470);
+  font-size: 12px;
+  line-height: 18px;
+}

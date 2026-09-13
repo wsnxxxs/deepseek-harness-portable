@@ -1,0 +1,30 @@
+# Shell transport only. Optional rows contribute nothing until explicitly enabled.
+- insert:
+    - id: desktop-bridge
+      name: '@dsh-portable/desktop-protocol/bridge'
+    - id: desktop-enhancements
+      name: '@dsh-portable/desktop-enhancements'
+      disabled: true
+    - id: interactive-learning
+      name: '@dsh-portable/interactive-learning'
+      disabled: true
+    - id: ui-mode
+      name: '@dsh-portable/ui-mode'
+      disabled: true
+    - id: session-manager
+      name: '@dsh-portable/session-manager'
+      disabled: true
+    - id: composer-attach
+      name: '@dsh-portable/composer-attach'
+      disabled: true
+    - id: plugin-manager
+      name: '@dsh-portable/plugin-manager'
+    - id: dcode-ui
+      name: '@dsh-portable/dcode-ui'
+      disabled: true
+    - id: cluster-ui
+      name: '@dsh-portable/cluster-ui'
+      disabled: true
+    - id: agent-team
+      name: '@deepseek-ai/dsh-experimental-agent-team'
+      disabled: true

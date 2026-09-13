@@ -1,7 +1,6 @@
 /** Portable runtime session-event compatibility declarations. */
 import { KNOWN_SESSION_EVENT_TYPES, } from '@deepseek-ai/dsh-session';
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets';
-import { registerInteractiveLearningSessionCompatibility } from '@dsh-portable/interactive-learning/bootstrap';
 import { canonicalModeId } from './mode-catalog.js';
 /** Exact durable discriminator used by portable mode-resolution diagnostics. */
 export const PORTABLE_MODE_RESOLUTION_EVENT_TYPE = 'portable-runtime/mode-resolution';
@@ -13,9 +12,10 @@ export function registerPortableSessionCompatibility() {
     KNOWN_SESSION_EVENT_TYPES.add(PORTABLE_MODE_RESOLUTION_EVENT_TYPE);
 }
 /** Register every required event understood by the packaged runtime before persistence can read. */
-export function registerPackagedSessionCompatibility() {
+export async function registerPackagedSessionCompatibility() {
     // Learning state is registered for strict validation/folding before a
     // packaged Host can restore a session.
+    const { registerInteractiveLearningSessionCompatibility } = await import('@dsh-portable/interactive-learning/bootstrap');
     registerInteractiveLearningSessionCompatibility();
     registerPortableSessionCompatibility();
 }

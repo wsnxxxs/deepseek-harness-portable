@@ -1376,7 +1376,7 @@ export function apply(ctx: Context): void {
     name: 'learning:policy',
     order: 20,
     text: context => {
-      const agent = context.agent ?? services.agent
+      const agent = context.agent
       const decision = agent === undefined ? undefined : learningRoutes.get(agent)
       const promptState = agent === undefined ? undefined : learningPromptStates.get(agent)
       return buildLearningTeachingPolicy({
@@ -1400,7 +1400,7 @@ export function apply(ctx: Context): void {
     name: 'learning:turn-route',
     order: 19,
     text: context => {
-      const agent = context.agent ?? services.agent
+      const agent = context.agent
       const decision = agent === undefined ? undefined : learningRoutes.get(agent)
       return decision === undefined
         ? ''
@@ -1415,7 +1415,7 @@ export function apply(ctx: Context): void {
     name: 'learning:learner-state',
     order: 20,
     text: context => {
-      const agent = context.agent ?? services.agent
+      const agent = context.agent
       if (agent === undefined) return ''
       const state = services.learningActivities.learnerState(agent)
       const previous = learnerTranscriptStates.get(agent)

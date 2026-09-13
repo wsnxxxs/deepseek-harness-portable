@@ -114,6 +114,7 @@ let quitting = false
 let restarting = false
 let releaseNotesContext = { mode: 'history' }
 let rendererReady = false
+let desktopEnhancementsEnabled = false
 let rendererFirstPaint = false
 let rendererFirstPaintWaiters = []
 let lastStartupLog = ''
@@ -284,7 +285,7 @@ function applyUiMode(nextMode, { notifyRenderer = true } = {}) {
  * into a launch — greying out the whole submenu until then would make every
  * cold start look broken.
  */
-let uiModeAvailable = new Set(UI_MODES)
+let uiModeAvailable = new Set(['official'])
 
 /**
  * Adopt the renderer's report of which surfaces mounted.
@@ -336,14 +337,8 @@ function themePayload() {
 function syncNativeTheme() {
   const theme = themePayload()
   if (window !== undefined && !window.isDestroyed()) {
-    if (typeof window.setTitleBarOverlay === 'function') {
-      try { window.setTitleBarOverlay(theme.titleBar) } catch {}
-    }
     if (typeof window.setBackgroundColor === 'function') {
-      // A window wearing a backdrop material must keep its transparent
-      // background; repainting it with the theme surface would cover the
-      // material with an opaque sheet on every theme change.
-      const surface = WINDOW_MATERIAL === 'none' ? theme.surface : TRANSPARENT_SURFACE
+      const surface = theme.surface
       try { window.setBackgroundColor(surface) } catch {}
     }
     if (rendererReady) window.webContents.send('desktop:theme-changed', theme)
@@ -1527,6 +1522,11 @@ function isSplashRenderer(sender) {
 }
 
 function registerReleaseNotesIpc() {
+  ipcMain.on('desktop:enhancements', (event, payload = {}) => {
+    if (!isMainRenderer(event.sender)) return
+    desktopEnhancementsEnabled = payload.enabled === true
+    if (desktopEnhancementsEnabled) void probeShellAvailability().then(() => sendShellState(event.sender)).catch(() => {})
+  })
   ipcMain.on('desktop:renderer-ready', event => {
     if (!isMainRenderer(event.sender)) return
     rendererReady = true
@@ -1709,6 +1709,10 @@ function registerReleaseNotesIpc() {
 }
 
 function openInAppReleaseNotes(context = {}) {
+  if (!desktopEnhancementsEnabled) {
+    void shell.openExternal(`https://github.com/${PORTABLE_RELEASE_REPO}/releases`)
+    return
+  }
   showWindow()
   releaseNotesContext = { ...context }
   queueOrSendReleaseNotes(releaseNotesContext)
@@ -1794,7 +1798,7 @@ function menuItems() {
     { label: desktopText('menu.restartHarness'), accelerator: 'CmdOrCtrl+Shift+R', click: () => { void requestHarnessRestart() } },
     { label: desktopText('menu.openBrowser'), click: () => { void openWebUiInBrowser() } },
     { type: 'separator' },
-    {
+    ...(uiModeAvailable.size > 1 ? [{
       label: desktopText('menu.interface'),
       // Rendered from UI_MODES so this submenu presents the same surfaces in
       // the same order as every in-page switch, and so adding a surface never
@@ -1812,7 +1816,7 @@ function menuItems() {
         enabled: uiModeAvailable.has(id),
         click: () => { applyUiMode(id) },
       })),
-    },
+    }] : []),
     { type: 'separator' },
     { label: desktopText('menu.checkUpdates'), click: () => { void checkForUpdates(true) } },
     { label: desktopText('menu.aboutAndUpdates'), click: () => { openInAppReleaseNotes({ mode: 'history' }) } },
@@ -1843,18 +1847,8 @@ async function createApp() {
     DEFAULT_WINDOW_BOUNDS,
   )
   const { isMaximized: shouldMaximize, ...initialBounds } = restoredBounds
-  // Windows 11 backdrops. The material only composites through a fully
-  // transparent window background, so an opaque `backgroundColor` would leave
-  // mica/acrylic invisible — and a transparent one on an OS that cannot render
-  // the material would leave a see-through hole. `windowMaterial` decides
-  // which of those two states this machine is actually in.
-  const nativeWindowOptions = {
-    ...(WINDOW_MATERIAL === 'none'
-      ? {}
-      : { backgroundMaterial: WINDOW_MATERIAL, backgroundColor: TRANSPARENT_SURFACE }),
-    titleBarStyle: 'hidden',
-    titleBarOverlay: initialTheme.titleBar,
-  }
+  // Keep the official page independent of desktop layout CSS.
+  const nativeWindowOptions = { titleBarStyle: 'default' }
 
   window = new BrowserWindow({
     ...initialBounds,
@@ -1882,6 +1876,8 @@ async function createApp() {
 
   window.webContents.on('did-start-loading', () => {
     rendererReady = false
+    desktopEnhancementsEnabled = false
+    uiModeAvailable = new Set(['official'])
     rendererFirstPaint = false
   })
   window.on('close', event => {
@@ -1998,7 +1994,6 @@ if (!portableLaunchGate.allowed) {
   })
   app.whenReady()
     .then(() => {
-      void probeShellAvailability().catch(() => {})
       initializeDesktopLocale()
       // Adopt the recorded front end before the first load, so the window
       // opens straight into it rather than switching after first paint.

@@ -50,7 +50,7 @@ export function splitPlanTitle(markdown, fallback) {
     return { title, body: lines.join('\n').trim() };
 }
 async function promptSession(session, text) {
-    const handle = session.beginSubmission({ mode: 'queue', text, images: [] });
+    const handle = session.beginSubmission({ mode: 'queue', text, attachments: [] });
     try {
         const result = await session.prompt([{ type: 'text', text }], 'queue', undefined, handle.requestId);
         if (!result.ok) {

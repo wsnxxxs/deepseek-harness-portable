@@ -436,7 +436,7 @@ function DurableImage(props: { sessionId: SessionId; attachment: ImageAttachment
     : <ImageLightbox src={src} alt={props.attachment.name ?? 'image'} />
 }
 
-type PreviewImage = PendingSubmission['images'][number]
+type PreviewImage = Extract<PendingSubmission['attachments'][number], { type: 'image' }>['value']
 
 /** Render official alpha.4 image attachments without changing the DCode layout. */
 function MessageAttachments(props: {
@@ -998,7 +998,7 @@ function PendingSubmissionBubble(props: { sessionId: SessionId; submission: Pend
   return (
     <div className={css.user}>
       {props.submission.text === '' ? null : <div>{props.submission.text}</div>}
-      <MessageAttachments sessionId={props.sessionId} previews={props.submission.images} />
+      <MessageAttachments sessionId={props.sessionId} previews={props.submission.attachments.flatMap(item => item.type === 'image' ? [item.value] : [])} />
     </div>
   )
 }

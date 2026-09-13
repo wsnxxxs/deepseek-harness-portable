@@ -47,7 +47,7 @@ var import_ui_mode_contract = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJ
 	}
 	module.exports = Object.freeze({
 		UI_MODES,
-		DEFAULT_UI_MODE: "dcode",
+		DEFAULT_UI_MODE: "official",
 		UI_MODE_QUERY_PARAM: "view",
 		UI_MODE_STORAGE_KEY: "dsh.portable.uiMode",
 		UI_MODE_CONFIG_FIELD: "uiMode",
@@ -61,8 +61,7 @@ var import_ui_mode_contract = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJ
 /** Every selectable front end, in presentation order. */
 const UI_MODES = import_ui_mode_contract.default.UI_MODES;
 /**
-* The mode a surface without an explicit preference adopts. The workbench is
-* the default; no surface is ever removed by selecting another, only unselected.
+* A surface without an explicit preference adopts the official interface.
 */
 const DEFAULT_UI_MODE = import_ui_mode_contract.default.DEFAULT_UI_MODE;
 /** URL query parameter carrying an explicit mode (`?view=dcode`). */

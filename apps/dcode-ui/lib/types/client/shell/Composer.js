@@ -157,7 +157,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const attachmentInputRef = useRef(null);
     const conversation = runtime.conversation;
     const draft = input === undefined ? fallbackDraft : inputState.draft;
-    const attachments = useMemo(() => conversation?.draftImages(inputState.imageIds) ?? [], [conversation, inputState.imageIds]);
+    const attachments = useMemo(() => conversation?.resolveDraftAttachments(inputState.attachmentIds) ?? [], [conversation, inputState.attachmentIds]);
     // Restore this session's draft on a task switch, and persist the outgoing one.
     const previousSession = useRef(undefined);
     const fallbackDraftRef = useRef(fallbackDraft);
@@ -379,15 +379,15 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const addAttachments = useCallback((files) => {
         if (files.length === 0)
             return;
-        if (input === undefined || conversation === undefined) {
+        if (input === undefined || conversation === undefined || sessionId === undefined) {
             setError(t('composer.attachmentsUnavailable'));
             return;
         }
         try {
-            const created = conversation.createDraftImages(files);
-            const accepted = input.addImages(created.map(attachment => attachment.id));
+            const created = conversation.createDrafts(sessionId, files);
+            const accepted = input.addAttachments(created.map(attachment => attachment.id));
             if (!accepted) {
-                conversation.releaseDraftImages(created);
+                conversation.releaseDraftAttachments(created);
                 setError(t('composer.attachmentsBusy'));
                 return;
             }
@@ -396,7 +396,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
         }
-    }, [conversation, input, t]);
+    }, [conversation, input, sessionId, t]);
     const addSelectedFiles = useCallback((files) => {
         if (files.length === 0)
             return;
@@ -484,11 +484,11 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
     const removeAttachment = useCallback((id) => {
         if (input === undefined || conversation === undefined)
             return;
-        input.removeImage(id);
+        input.removeAttachment(id);
         // A busy input refuses removal so the preview must remain owned by the
         // conversation service. Release only after the state accepted the edit.
-        if (!input.state.getSnapshot().imageIds.includes(id))
-            conversation.releaseDraftImage(id);
+        if (!input.state.getSnapshot().attachmentIds.includes(id))
+            conversation.releaseDraftAttachment(id);
     }, [conversation, input]);
     const permissionRows = useMemo(() => {
         if (permissions === undefined || sessionId === undefined)
@@ -557,7 +557,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
         if (sessionId === undefined)
             return;
         const text = draft.trim();
-        if (text === '' && inputState.imageIds.length === 0)
+        if (text === '' && inputState.attachmentIds.length === 0)
             return;
         if (!text.startsWith('/') && readiness?.model === 'missing') {
             setReadinessIssue('model');
@@ -591,7 +591,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             });
             return;
         }
-        const handle = face.beginSubmission({ mode, text, images: [] });
+        const handle = face.beginSubmission({ mode, text, attachments: [] });
         void face.prompt([{ type: 'text', text }], mode, undefined, handle.requestId)
             .then((result) => {
             if (!result.ok)
@@ -601,7 +601,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
             handle.abandon();
             setError(cause instanceof Error ? cause.message : String(cause));
         });
-    }, [draft, input, inputState.imageIds, readiness, runtime, sessionId]);
+    }, [draft, input, inputState.attachmentIds, readiness, runtime, sessionId]);
     const stop = useCallback(() => {
         if (sessionId === undefined)
             return;
@@ -753,7 +753,7 @@ export function Composer({ sessionId, blank, cwd, onOpenWorkspace, readiness, on
                                 ? null
                                 : (_jsxs("div", { className: css.readinessIssue, role: "alert", children: [_jsx("span", { children: readinessIssue === 'model' ? t('readiness.inlineModel') : t('readiness.inlineCredential') }), _jsx("button", { type: "button", onClick: readinessIssue === 'model' ? onSelectModel : onConfigureProvider, children: readinessIssue === 'model' ? t('readiness.selectModel') : t('readiness.configureKey') })] })), error === undefined ? null : _jsx("div", { className: css.error, role: "alert", children: error }), _jsxs("div", { className: css.controls, children: [_jsxs("div", { className: css.leadingControls, children: [_jsx(Popover, { label: t('composer.add'), disabled: disabled, triggerClassName: css.addButton, popoverClassName: css.addMenu, trigger: _jsx(IconPlusOutline16, {}), rows: addRows }), _jsx(Popover, { label: confirmingFullAccess ? t('composer.permission.confirmTitle') : t('composer.permission'), disabled: permissionRows.length === 0 || confirmingFullAccess, triggerClassName: `${css.controlTrigger} ${css.securityPermission} ${permissionTriggerClass}`, popoverClassName: css.permissionMenu, trigger: _jsxs("span", { className: css.control, children: [permissionIcon(permissions?.currentValue ?? ''), _jsx("span", { className: css.controlLabel, children: currentPermissionLabel }), _jsx(IconChevronDownOutline14, { className: css.controlChevron })] }), rows: permissionRows })] }), _jsxs("div", { className: css.trailingControls, "data-dcode-model-select": "", children: [_jsx(ModelSelect, { ref: modelSelectRef, sessionId: sessionId, disabled: disabled }), _jsx(ContextMeter, { sessionId: sessionId }), running
                                                 ? (_jsx("button", { type: "button", className: `${css.send} ${css.stop}`, onClick: stop, "aria-label": t('composer.stop'), children: _jsx(IconStopFill16, {}) }))
-                                                : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.imageIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] }), _jsx(SessionStatsLine, { sessionId: sessionId })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
+                                                : (_jsx("button", { type: "button", className: css.send, onClick: () => { send('queue'); }, disabled: disabled || (draft.trim() === '' && inputState.attachmentIds.length === 0), "aria-label": t('composer.send'), children: _jsx(IconSendOutline16, {}) }))] })] })] }), _jsx(SessionStatsLine, { sessionId: sessionId })] }), _jsx(RiskConfirmation, { open: confirmingFullAccess, title: t('composer.permission.confirmTitle'), description: t('composer.permission.confirmBody'), acknowledgeLabel: t('composer.permission.confirmAcknowledge'), cancelLabel: t('common.cancel'), closeLabel: t('common.close'), confirmLabel: t('composer.permission.confirm'), acknowledged: acknowledgedFullAccess, onAcknowledgedChange: setAcknowledgedFullAccess, onCancel: () => {
                     setAcknowledgedFullAccess(false);
                     setConfirmingFullAccess(false);
                 }, onConfirm: () => {

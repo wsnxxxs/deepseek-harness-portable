@@ -99,10 +99,10 @@ test('readConfigStore recovers from .bak and preserves corrupt file when config.
   }
 })
 
-test('the interface preference defaults to the modern workbench', () => {
-  assert.equal(DEFAULT_UI_MODE, 'dcode')
-  assert.equal(DEFAULT_CONFIG.uiMode, 'dcode')
-  assert.equal(migrateConfig({}).uiMode, 'dcode')
+test('the interface preference defaults to the official interface', () => {
+  assert.equal(DEFAULT_UI_MODE, 'official')
+  assert.equal(DEFAULT_CONFIG.uiMode, 'official')
+  assert.equal(migrateConfig({}).uiMode, 'official')
 })
 
 test('a recorded interface preference survives migration', () => {
@@ -114,7 +114,7 @@ test('an unknown interface preference falls back instead of reaching a menu', ()
   // The field is also written by the renderer bridge, so a hand-edited or
   // downgraded file must not put an unrenderable value in front of the shell.
   for (const value of ['classic', '', 42, null, {}]) {
-    assert.equal(migrateConfig({ schemaVersion: 1, uiMode: value }).uiMode, 'dcode')
+    assert.equal(migrateConfig({ schemaVersion: 1, uiMode: value }).uiMode, 'official')
   }
 })
 

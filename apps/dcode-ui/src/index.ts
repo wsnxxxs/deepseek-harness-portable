@@ -1,3 +1,4 @@
+import { registerRpc } from '@dsh-portable/connection-rpc'
 /**
  * Host-side Cordis plugin entrypoint for @dsh-portable/dcode-ui.
  *
@@ -17,7 +18,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-session'
-import { DCODE_CHANNEL, handleDcodeEndpoint, isDcodeEndpoint } from './host/rpc.ts'
+import { DCODE_CHANNEL, DCODE_ENDPOINTS, handleDcodeEndpoint, isDcodeEndpoint } from './host/rpc.ts'
 import {
   defaultDcodeMemoryRoot, DcodeMemoryStore,
   type DcodeMemorySessionSource,
@@ -58,7 +59,7 @@ export const name = 'dcode-ui'
  * no channel to claim, and the browser half degrades to a workbench without
  * Git and durable-memory tooling rather than failing to boot.
  */
-export const inject = ['connection']
+export const inject = ['connection', 'webServer', 'sessionQuery']
 
 /** Plugin config. */
 export interface Config {
@@ -71,15 +72,6 @@ export const Config: z<Config> = z.object({
 })
 
 /** The minimum RPC face this plugin needs off the Connection service. */
-interface DcodeRpcConnection {
-  rpc: {
-    handle(
-      channel: string,
-      handler: (endpoint: string, payload: unknown) => Promise<unknown>,
-      options: { authority: string },
-    ): () => void
-  }
-}
 
 /**
  * Claim the `/dcode` channel on a host context.
@@ -90,16 +82,13 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
   const resolved = Config(config)
   if (!resolved.git) return
 
-  ctx.inject(['connection'], (connectionCtx) => {
-    const connection = connectionCtx.get('connection') as DcodeRpcConnection | undefined
-    if (connection === undefined) return
+  ctx.inject(['connection', 'webServer', 'sessionQuery'], (connectionCtx) => {
     const memory = new DcodeMemoryStore({
       root: defaultDcodeMemoryRoot(),
-      source: () => connectionCtx.get('sessionQuery') as DcodeMemorySessionSource | undefined,
+      source: () => (connectionCtx as unknown as { sessionQuery: DcodeMemorySessionSource }).sessionQuery,
     })
     connectionCtx.effect(() => {
-      const disposeRpc = connection.rpc.handle(
-        DCODE_CHANNEL,
+      const disposeRpc = registerRpc(connectionCtx, 'dcode', DCODE_ENDPOINTS,
         async (endpoint: string, payload: unknown) => {
           if (!isDcodeEndpoint(endpoint)) {
             return {
@@ -112,7 +101,6 @@ export function apply(ctx: Context, config: Config = {} as Config): void {
         // Same authority the rest of this distribution's private channels use:
         // the surface runs local commands in the operator's own workspace and
         // must not be reachable from an untrusted origin.
-        { authority: 'trusted-host' },
       )
       const disposeEvents = connectionCtx.on('session/event', (session) => {
         memory.markPending(String(session.id))

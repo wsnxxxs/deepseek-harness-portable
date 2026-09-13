@@ -25,7 +25,7 @@ function withUiModeParam(url, mode, base) {
 
 module.exports = Object.freeze({
   UI_MODES,
-  DEFAULT_UI_MODE: 'dcode',
+  DEFAULT_UI_MODE: 'official',
   UI_MODE_QUERY_PARAM: 'view',
   UI_MODE_STORAGE_KEY: 'dsh.portable.uiMode',
   UI_MODE_CONFIG_FIELD: 'uiMode',

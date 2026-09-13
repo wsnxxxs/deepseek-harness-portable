@@ -38,7 +38,8 @@ test('supervisor launches through the authoritative hello-to-listening protocol'
   child.stdout.write(`${hello}\n${listening.slice(0, 15)}`)
   child.stdout.write(`${listening.slice(15)}\n`)
   assert.equal(await started, 'http://127.0.0.1:4567/')
-  assert.deepEqual(spawnCall.args.slice(1), ['--host', '127.0.0.1', '--port', '0', '--no-open'])
+  assert.deepEqual(spawnCall.args.slice(2), ['--host', '127.0.0.1', '--port', '0', '--no-open'])
+  assert.deepEqual(spawnCall.args.slice(0, 2), ['--expose-internals', entry])
   assert.equal(spawnCall.options.env.DSH_RUNTIME_PROTOCOL_VERSION, '1')
   assert.equal(spawnCall.options.windowsHide, true)
 })
@@ -65,7 +66,7 @@ test('supervisor reuses the persisted desktop runtime port', async () => {
     child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'hello', pid: child.pid })}\n`)
     child.stdout.write(`${encodeRuntimeEvent({ protocolVersion: 1, type: 'listening', url: 'http://127.0.0.1:4568/' })}\n`)
     assert.equal(await started, 'http://127.0.0.1:4568/')
-    assert.deepEqual(spawnCall.args.slice(1), ['--host', '127.0.0.1', '--port', '4568', '--no-open'])
+    assert.deepEqual(spawnCall.args.slice(2), ['--host', '127.0.0.1', '--port', '4568', '--no-open'])
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

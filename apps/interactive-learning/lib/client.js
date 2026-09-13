@@ -13228,7 +13228,7 @@ window.__ModuleLoader__.load({
 				if (connection === void 0) return;
 				connectionCtx.effect(() => subscribeLearningUiLifecycle((event) => {
 					if (event.name !== "learning.recall.rated" || event.sessionId === void 0 || event.callId === void 0 || event.cardId === void 0 || event.status === void 0) return;
-					connection.rpc.call("/interactive-learning", "recall/feedback", {
+					connection.rpc.call("/api", "interactive-learning/recall/feedback", {
 						protocol: "dsh-learning/recall-feedback@1",
 						sessionId: event.sessionId,
 						callId: event.callId,

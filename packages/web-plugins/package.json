@@ -1,0 +1,19 @@
+{
+  "name": "@dsh-portable/web-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH Web plugin management with opt-in feature defaults",
+  "files": [
+    "cordis.patch.yml",
+    "NOTICE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@linxin666/dsh-web-all": "0.3.21"
+  }
+}

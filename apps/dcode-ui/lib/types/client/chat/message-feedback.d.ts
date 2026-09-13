@@ -1,11 +1,11 @@
 /** Session-scoped message feedback state for the DCode transcript. */
-import type { MessageFeedbackInjected } from '@deepseek-ai/dsh-client-ui-message-feedback/client';
+import type { MessageFeedbackActionResult, MessageFeedbackInjected } from '@deepseek-ai/dsh-client-ui-message-feedback/client';
 import type { MessageFeedbackItem, MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback/types';
 import type { MessageId } from '@deepseek-ai/dsh-client-connection/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 /** The official feedback plugin's Session-scoped slot face. */
 export interface MessageFeedbackProvider {
-    for(sessionId: SessionId): MessageFeedbackInjected | undefined;
+    for(sessionId: SessionId): DcodeFeedbackEntry | undefined;
 }
 export interface MessageFeedbackState {
     readonly enabled: boolean;
@@ -18,6 +18,11 @@ export interface MessageFeedbackState {
     saveNote(messageId: MessageId, rating: MessageFeedbackRating, note: string): Promise<string | undefined>;
     /** Drop the note while keeping the rating. */
     clearNote(messageId: MessageId): Promise<string | undefined>;
+}
+export interface DcodeFeedbackEntry extends MessageFeedbackInjected {
+    toggle(messageId: MessageId, rating: MessageFeedbackRating): Promise<MessageFeedbackActionResult>;
+    rate(messageId: MessageId, rating: MessageFeedbackRating, note: string): Promise<MessageFeedbackActionResult>;
+    clearNote(messageId: MessageId): Promise<MessageFeedbackActionResult>;
 }
 /**
  * Bind one stable official feedback slot face and Session to the transcript.

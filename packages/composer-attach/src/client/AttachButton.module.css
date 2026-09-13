@@ -1,0 +1,29 @@
+/* The attach control sits in the composer tool row beside upstream's "+".
+
+   It deliberately copies that button's chrome (28px circle, selector fill,
+   primary glyph) rather than inventing its own: the two are peers in the same
+   row, and a control that looked different would read as belonging to some
+   other product. The tokens are the Host's own theme aliases, so the button
+   follows a theme switch without this package knowing the palette. */
+
+.attach {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dsw-specific-selector, rgb(0 0 0 / 5%));
+  color: var(--dsw-alias-label-primary, #0b0e14);
+  cursor: pointer;
+}
+
+.attach:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid, rgb(0 0 0 / 8%));
+}
+
+.attach:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

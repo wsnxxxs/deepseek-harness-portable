@@ -1,0 +1,8 @@
+# Optional Portable preset provider. Add this bundle explicitly to opt in.
+- id: agent-presets
+  disabled: true
+- insert:
+    - id: portable-agent-presets
+      name: '@dsh-portable/runtime'
+      config:
+        default: standard

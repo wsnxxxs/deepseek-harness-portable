@@ -24,8 +24,10 @@ test('every out-of-tree client plugin in this repository is discovered', () => {
   const names = discoverBridgedPackages(root).map(item => item.name)
   assert.deepEqual(names, [
     '@dsh-portable/cluster-ui',
+    '@dsh-portable/composer-attach',
     '@dsh-portable/dcode-ui',
     '@dsh-portable/interactive-learning',
+    '@dsh-portable/plugin-manager',
     '@dsh-portable/session-manager',
     '@dsh-portable/ui-mode',
   ])

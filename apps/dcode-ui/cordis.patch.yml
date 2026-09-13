@@ -1,0 +1,7 @@
+# Runtime services and browser dependency order are declared by their owning packages.
+- id: ui-mode
+  disabled: false
+- id: session-manager
+  disabled: false
+- id: dcode-ui
+  disabled: false

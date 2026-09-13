@@ -4,6 +4,7 @@ import { t as registerInteractiveLearningSessionCompatibility } from "./bootstra
 import { $ as recallCardIdOf, A as RETRIEVAL_INTENTS, B as MAX_CONCEPT_CARDS, C as mentionedPaths, Ct as isLearningBoundary, D as TeachingPlanner, F as reanchorAnchorLists, G as conceptRecordFromCard, H as buildConceptStudyMap, I as reanchorVaultMemory, J as nextReviewSchedule, K as hasFreshIndependentTransfer, L as pipeline_exports, M as keyPhrases, N as planRetrieval, O as retrieve, P as describeReanchor, Q as reanchorConceptCards, R as lexical_exports, S as sectionAnchor, St as isLearnIntent, T as syncMentionedMaterial, U as conceptCardDraftFromState, V as MAX_REVIEW_INTERVAL_DAYS, W as conceptCardPathOf, X as readConceptCards, Y as readConceptCard, Z as readLearnerMemoryWithCards, _ as MATERIAL_TOOL_NAMES, _t as LEARN_INTENT, a as LEARNING_REVIEW_POLICY, at as LEARNER_MEMORY_PROTOCOL, b as MAX_SEARCH_MATCHES, bt as LEARN_INTENT_RULES, c as LEARNING_VISUAL_POLICY, ct as conceptRecordFromState, d as routeLearningTurn, dt as readLearnerMemory, et as renderConceptCard, f as CONCEPT_TOOL_NAMES, ft as renderLearnerMemory, g as validateStudyMapAgainstVault, gt as LEARNING_INTENT_ROUTING_GUIDANCE, h as formatStudyMapViolations, ht as topic_vault_exports, i as LEARNING_MATERIAL_POLICY, it as updateConceptCardSchedule, j as executeRetrievalPlan, k as DEFAULT_RETRIEVAL_BUDGET_CHARS, l as buildLearningTeachingPolicy, lt as memoryPathOf, mt as writeLearnerMemory, n as LEARNING_CONCEPT_SAVE_POLICY, nt as saveConceptCard, o as LEARNING_TEACHING_POLICY, ot as MAX_RENDERED_CONCEPTS, p as registerConceptTools, pt as upsertLearnerConcept, q as isConceptDue, r as LEARNING_GRADED_POLICY, rt as updateConceptCardAnchors, s as LEARNING_TEACHING_POLICY_CORE, st as MAX_STORED_CONCEPTS, t as LEARNING_CHINESE_TEMPLATES, tt as reviewIntervalDays, u as routeLearningRequest, ut as parseLearnerConceptRecord, v as MAX_MAP_SECTIONS, vt as LEARN_INTENT_MODEL_GUIDANCE, w as parseFileMentions, x as registerMaterialTools, xt as classifyLearnIntent, y as MAX_READ_CHARS, yt as LEARN_INTENT_NATURAL_LANGUAGE_RULES, z as INITIAL_REVIEW_INTERVAL_DAYS } from "./teaching-policy-DfQIYCoR.js";
 import { c as parseLearningCheckpointResultV1, h as CHECKPOINT_RESULT_PROTOCOL, l as parseLearningCheckpointV1, p as LearningProtocolError, t as CHECKPOINT_TRANSPORT_PROTOCOL, u as parseLearningRecallFeedbackV1 } from "./protocol-current-Cyp6-wYL.js";
 import { createHash, randomUUID } from "node:crypto";
+import { registerRpc } from "@dsh-portable/connection-rpc";
 import { Service } from "@deepseek-ai/cordis";
 import { UserQuestionError } from "@deepseek-ai/dsh-user-questions";
 //#region lib/types/host-transport.js
@@ -296,10 +297,8 @@ var LearningActivityBroker = class extends Service {
 			this.abortPendingCheckpointSession(session);
 			this.dropLearnerState(session);
 		});
-		ctx.inject(["connection"], (connectionCtx) => {
-			const connection = connectionCtx.get("connection");
-			if (connection === void 0) return;
-			connectionCtx.effect(() => connection.rpc.handle("/interactive-learning", async (endpoint, payload) => {
+		ctx.inject(["connection", "webServer"], (connectionCtx) => {
+			connectionCtx.effect(() => registerRpc(connectionCtx, "interactive-learning", ["recall/feedback"], async (endpoint, payload) => {
 				if (endpoint !== "recall/feedback") return {
 					ok: false,
 					error: {
@@ -324,7 +323,7 @@ var LearningActivityBroker = class extends Service {
 						}
 					};
 				}
-			}, { authority: "trusted-host" }), "interactive-learning: recall feedback rpc");
+			}), "interactive-learning: recall feedback rpc");
 		});
 	}
 	/** Diagnostics/test seam; no activity payloads or learner answers are exposed. */

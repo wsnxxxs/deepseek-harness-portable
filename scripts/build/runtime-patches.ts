@@ -99,7 +99,12 @@ export function patchDirectoryPickerWorker(source: string): string {
       break
     }
   }
-  if (!output.includes(safeReadUtf16)) {
+  const upstreamDecodeUtf16 = `function readUtf16(koffi, address, pointerSize) {
+\tconst pointer = Buffer.alloc(8);
+\tpointer.writeBigUInt64LE(BigInt(address));
+\treturn koffi.decode(pointer.subarray(0, pointerSize), "str16");
+}`
+  if (!output.includes(safeReadUtf16) && !output.includes(upstreamDecodeUtf16)) {
     throw new Error('directory-picker worker readUtf16 no longer matches a known koffi.view implementation; re-review the upstream source before patching')
   }
   if (output.includes(oldPost)) output = output.replace(oldPost, newPost)
@@ -171,6 +176,7 @@ async function applyDefinition(
 /** Apply the reviewed runtime patch layer and return its input/output hash attestations. */
 export async function applyRuntimePatchLayer(options: RuntimePatchOptions): Promise<readonly PatchAttestation[]> {
   const definitions = await loadPatchManifest(resolve(options.root, 'patches/manifest.yml'))
+  if (definitions.length === 0) return []
   const directoryPicker = definitionById(definitions, 'directory-picker-electron-ipc')
   const directoryPickerAuto = definitionById(definitions, 'directory-picker-wsl-platform')
   const appBoot = definitionById(definitions, 'app-boot-profile-runtime-fallback')
