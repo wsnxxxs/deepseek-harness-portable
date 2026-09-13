@@ -1,8 +1,8 @@
-# DeepSeek Harness Desktop v1.7.2
+# DeepSeek Harness Desktop v1.7.3
 
 2026-09-13
 
-## Fixes
+## Changes
 
-- The retired dsh-plugin-marketplace is replaced by the bundled dsh-web Workshop (latest npm version 0.3.21). Profiles that previously enabled the old market enable Workshop during migration. Fresh installations keep it optional. The updater preserves configuration backups and repairs mixed YAML left by earlier plugin toggles.
-- Built-in and dsh-web plugin controls now edit one YAML document, preserving Cordis expressions, comments and unrelated settings.
+- Bundled Learning, DCode, Cluster, desktop enhancements and attachment controls now use dsh-web's native Plugin management page. The separate Built-in features tab and its UI code have been removed.
+- The Cordis adapter connects when dsh-web provides its management service. Optional plugins remain disabled by default; DCode dependency changes refresh together and persist across restarts.

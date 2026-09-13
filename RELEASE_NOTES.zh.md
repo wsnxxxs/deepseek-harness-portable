@@ -1,8 +1,8 @@
-# DeepSeek Harness Desktop v1.7.2
+# DeepSeek Harness Desktop v1.7.3
 
 2026-09-13
 
-## 修复内容
+## 更新内容
 
-- 旧 dsh-plugin-marketplace 改由内置 dsh-web 创意工坊替代（npm 最新版 0.3.21）。原先启用旧市场的配置会迁移为启用创意工坊，新安装仍按需开启。升级保留配置备份，并修复此前插件开关生成的混合 YAML。
-- 内置功能与 dsh-web 插件管理共同编辑同一份 YAML 文档，保留 Cordis 表达式、注释和其他配置。
+- Learning、DCode、Cluster、桌面增强及附件入口等内置插件统一接入 dsh-web 原生「插件管理」页面，删除独立的「内置功能」标签及其界面代码。
+- Cordis 适配器在 dsh-web 管理服务就绪后连接。可选插件仍默认关闭；DCode 依赖开关同步更新，配置保存后重启生效。

@@ -14,7 +14,7 @@
 | `ui-mode` | 可选界面切换 |
 | `session-manager` | DCode 会话用量展示 |
 | `composer-attach` | 输入框文件/目录附加入口 |
-| `plugin-manager` | 常驻内置功能管理设置页 |
+| `plugin-manager` | 将内置插件接入 dsh-web 原生插件管理页的 Cordis 适配器 |
 | `dcode-ui` | DCode 工作台 |
 | `interactive-learning` | 学习工具和界面 |
 | `cluster-ui` | 团队状态与任务看板 |
@@ -45,7 +45,7 @@
   disabled: false
 ```
 
-插件管理器常驻，在设置 → 插件 → 内置功能中操作。其开关写入标准 `cordis.patch.yml` 和 profile bundle 列表，重启生效；DCode 的必需依赖会一起启用，关闭必需依赖时也关闭 DCode。它不能关闭桌面通信桥或预设基础服务。
+插件管理器常驻，在设置 → 插件 → 插件管理中操作。Portable 通过 Cordis 的 `pluginManager` 服务，将内置插件接入 dsh-web 原生页面的「内置产品」分组，不注册独立设置标签。dsh-web 异步提供服务后适配器才连接，卸载时恢复原方法，不阻塞官方启动。开关写入标准 `cordis.patch.yml` 和 profile bundle 列表，重启生效；DCode 的必需依赖会一起启用，关闭必需依赖时也关闭 DCode。它不能关闭桌面通信桥或预设基础服务。
 
 同时使用 Portable 预设和 Learning 时，在启用两者 bundle 后，给 Portable 提供者补上学习根：
 

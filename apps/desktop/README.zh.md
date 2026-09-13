@@ -1,4 +1,4 @@
-# DeepSeek Harness Desktop v1.7.2
+# DeepSeek Harness Desktop v1.7.3
 
 [English](README.md) · [项目说明](../../README.zh.md) · [插件配置](../../docs/architecture-layers.md)
 
@@ -26,7 +26,7 @@ pnpm run desktop:dev
 pnpm run desktop:test
 pnpm run official:test
 pnpm run test:platform
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.2
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.3
 ```
 
 `test:platform` 和 Windows 打包在 Windows 主机执行，安装器需要 Inno Setup 6。macOS/Linux 使用根目录对应的 `desktop:package:mac`、`desktop:package:linux` 命令，在目标系统本地构建。
