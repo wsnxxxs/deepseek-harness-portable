@@ -45,7 +45,7 @@
   disabled: false
 ```
 
-插件管理器常驻，在设置 → 插件 → 插件管理中操作。Portable 通过 Cordis 的 `pluginManager` 服务，将内置插件接入 dsh-web 原生页面的「内置产品」分组，不注册独立设置标签。dsh-web 异步提供服务后适配器才连接，卸载时恢复原方法，不阻塞官方启动。开关写入标准 `cordis.patch.yml` 和 profile bundle 列表，重启生效；DCode 的必需依赖会一起启用，关闭必需依赖时也关闭 DCode。它不能关闭桌面通信桥或预设基础服务。
+插件管理器常驻，在设置 → Web 插件中操作。Portable 通过 Cordis 的 `pluginManager` 服务，将内置插件接入 dsh-web 原生页面的「内置产品」分组，不注册独立设置标签。针对 dsh-web 0.3.21 的 pnpm 补丁仅将原生管理器注册位置从 `settings.plugins.tab` 移到 `web-ui.plugin.item`，配置卡片继续留在同一页；官方内核不打补丁。dsh-web 异步提供服务后适配器才连接，卸载时恢复原方法，不阻塞官方启动。开关写入标准 `cordis.patch.yml` 和 profile bundle 列表，重启生效；DCode 的必需依赖会一起启用，关闭必需依赖时也关闭 DCode。它不能关闭桌面通信桥或预设基础服务。
 
 同时使用 Portable 预设和 Learning 时，在启用两者 bundle 后，给 Portable 提供者补上学习根：
 

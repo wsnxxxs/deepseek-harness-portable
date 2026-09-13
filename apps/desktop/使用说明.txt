@@ -1,4 +1,4 @@
-DeepSeek Harness for Win v1.7.3
+DeepSeek Harness for Win v1.7.4
 ================================
 
 英文说明：使用说明.en.txt
@@ -9,7 +9,7 @@ start-desktop.cmd 用于控制台诊断；start-web.cmd 在浏览器中打开 We
 
 默认使用官方 DeepSeek Harness 0.1.5-rc.2 的界面与预设。
 DCode、Learning、Cluster、桌面增强等功能默认关闭。插件管理与配置入口常驻。
-打开设置 → 插件 → 插件管理，按需启用并重启。
+打开设置 → Web 插件，按需启用并重启。
 本版本不再自动预装第三方插件市场，也不会默认修改官方页面的 Logo 或菜单。
 
 启用内置 bundle：在 DSH_HOME/profiles/web/package.json 的 dsh.profile.bundles 数组中加入对应包名：

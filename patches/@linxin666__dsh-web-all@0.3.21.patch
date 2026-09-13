@@ -1,0 +1,25 @@
+diff --git a/lib/client.js b/lib/client.js
+index 1d3b4688205107a272a08016bbfb99df90eea202..fff5fdc55f6994f9aaaae10fb402cc2f22684209 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -2392,16 +2392,16 @@ window.__ModuleLoader__.load({
+ 			try {
+ 				if (!ctx.get("pluginManager")) ctx.provide(PLUGIN_MANAGER_SERVICE, face);
+ 			} catch {}
+-			ctx.slots.inject("settings.plugins.tab", () => {
++			ctx.slots.inject("web-ui.plugin.item", () => {
+ 				try {
+ 					return ctx.slots.register({
+-						name: "settings.plugins.tab",
++						name: "web-ui.plugin.item",
+ 						id: "family-plugins",
+-						order: 20,
++						order: 0,
+ 						label: () => ctx.locale.bind(NS$13)("tab"),
+ 						locale: NS$13,
+ 						inject: () => face
+-					}, PluginManagerTab);
++					}, props => (0, react_jsx_runtime.jsx)("li", { children: (0, react_jsx_runtime.jsx)(PluginManagerTab, props) }));
+ 				} catch {
+ 					return () => {};
+ 				}

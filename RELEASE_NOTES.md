@@ -1,8 +1,8 @@
-# DeepSeek Harness Desktop v1.7.3
+# DeepSeek Harness Desktop v1.7.4
 
 2026-09-13
 
 ## Changes
 
-- Bundled Learning, DCode, Cluster, desktop enhancements and attachment controls now use dsh-web's native Plugin management page. The separate Built-in features tab and its UI code have been removed.
-- The Cordis adapter connects when dsh-web provides its management service. Optional plugins remain disabled by default; DCode dependency changes refresh together and persist across restarts.
+- Plugin management now lives in Settings → Web Plugins. The page contains the native dsh-web installer, installed plugins, bundled plugin switches and update controls, followed by configuration forms from enabled Web plugins.
+- The former Plugin management tab is removed. Plugin configuration and Plugin list remain under Settings → Plugins. Existing plugin choices and the shared Cordis service are preserved.

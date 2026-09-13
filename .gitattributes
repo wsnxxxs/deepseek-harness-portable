@@ -6,3 +6,6 @@
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.sh text eol=lf
+
+# Unified diff context lines prepend a space to the original tab indentation.
+*.patch whitespace=-space-before-tab

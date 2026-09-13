@@ -32,9 +32,10 @@ overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/deepseek-harness/vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/deepseek-harness/vendor/schemastery'
 
-# Keep the embedded runtime on the exact native PTY patch reviewed and shipped
-# by the pinned upstream release.
+# The dsh-web patch moves its native manager to Web Plugins. Native/toolchain
+# patches remain those reviewed and shipped by the pinned official release.
 patchedDependencies:
+  '@linxin666/dsh-web-all@0.3.21': patches/@linxin666__dsh-web-all@0.3.21.patch
   '@yao-pkg/pkg@6.21.0': vendor/deepseek-harness/patches/@yao-pkg__pkg@6.21.0.patch
   node-pty@1.2.0-beta.15: vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
 

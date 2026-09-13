@@ -1,4 +1,4 @@
-# DeepSeek Harness Desktop v1.7.3
+# DeepSeek Harness Desktop v1.7.4
 
 [中文](README.zh.md) · [Project guide](../../README.md) · [Plugin configuration](../../docs/architecture-layers.md)
 
@@ -26,7 +26,7 @@ Desktop data defaults to `%USERPROFILE%\.dsh` on Windows or `~/.dsh` on Linux/ma
 pnpm run desktop:test
 pnpm run official:test
 pnpm run test:platform
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.3
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.4
 ```
 
 Run `test:platform` and Windows packaging on Windows. Setup requires Inno Setup 6. Build macOS/Linux natively using the root `desktop:package:mac` or `desktop:package:linux` command.

@@ -10,12 +10,12 @@ A community project that packages official [DeepSeek Harness](https://github.com
 
 | Component | Status |
 | --- | --- |
-| Desktop distribution | **v1.7.3**; see the [release notes](RELEASE_NOTES.md) |
+| Desktop distribution | **v1.7.4**; see the [release notes](RELEASE_NOTES.md) |
 | Official kernel | `dsh-v0.1.5-rc.2`, pinned in the Git submodule |
 | Windows x64 | Setup and ZIP built locally and checked with the packaged runtime |
-| macOS arm64, Linux x64 | DMG, AppImage and deb build targets remain available; v1.7.3 packages for these platforms were not produced in this run |
+| macOS arm64, Linux x64 | DMG, AppImage and deb build targets remain available; v1.7.4 packages for these platforms were not produced in this run |
 
-Source versions and GitHub Releases are managed separately. v1.7.3 packages have been generated locally; downloadable versions are those actually attached to [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases).
+Source versions and GitHub Releases are managed separately. v1.7.4 packages have been generated locally; downloadable versions are those actually attached to [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases).
 
 ## Install and launch
 
@@ -51,12 +51,12 @@ Default startup preserves the official chat UI and provides plugin management an
 | Cluster team interface | `@dsh-portable/cluster-ui` bundle |
 | Desktop page enhancements | `@dsh-portable/desktop-enhancements` bundle |
 | Portable presets and capability probes | `@dsh-portable/runtime` bundle; Crew also needs Cluster |
-| Attachment entry | Settings → Plugins → Plugin management |
+| Attachment entry | Settings → Web Plugins |
 
-Open **Settings → Plugins**:
+Open **Settings**:
 
-- **Plugin management** uses [dsh-web](https://github.com/zhu1090093659/dsh-web) 0.3.21's native page for both installed plugins and bundled Learning, DCode, Cluster, desktop enhancements and attachment controls. Bundled plugins appear in its **Built-in products** group; there is no separate Portable management tab.
-- **Plugin configuration** edits settings exposed by enabled plugins.
+- **Web Plugins** contains [dsh-web](https://github.com/zhu1090093659/dsh-web) 0.3.21's native plugin manager: installation, updates, installed plugins and bundled Learning, DCode, Cluster, desktop enhancements and attachment controls. Bundled plugins appear in **Built-in products**; enabled Web plugins can add configuration forms below the manager.
+- **Plugins → Plugin configuration / Plugin list** retains the official configuration and inventory views. The former Plugin management tab has moved to Web Plugins.
 
 Changes persist in the standard profile and Cordis patch and take effect after restart. Management, settings and compatibility components stay enabled so the controls remain reachable. Advanced users can still edit `DSH_HOME/profiles/web/package.json` and `cordis.patch.yml`.
 
@@ -98,10 +98,10 @@ After pulling into an existing clone, run `git submodule update --init --recursi
 Windows x64 packaging requires a Windows build environment and Inno Setup 6:
 
 ```sh
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.3
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.4
 ```
 
-Packages are written to `dist-desktop/electron-v1.7.3/windows-artifacts/`; verified copies and records are under `verified/win32-x64/`. Packaging checks native modules, actual startup, file inventories and that Setup embeds the exact portable ZIP.
+Packages are written to `dist-desktop/electron-v1.7.4/windows-artifacts/`; verified copies and records are under `verified/win32-x64/`. Packaging checks native modules, actual startup, file inventories and that Setup embeds the exact portable ZIP.
 
 Build macOS/Linux on their respective platforms using `pnpm run desktop:package:mac` or `pnpm run desktop:package:linux`. Packaging does not upload releases. Installers, caches and local logs are not committed to Git.
 

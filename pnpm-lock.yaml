@@ -9,6 +9,7 @@ overrides:
   '@deepseek-ai/schemastery': link:vendor/deepseek-harness/vendor/schemastery
 
 patchedDependencies:
+  '@linxin666/dsh-web-all@0.3.21': 8afbb46c9fd28dcf459c67c92aeda70acc1946ed0971b2057302efaa04c69aaa
   '@yao-pkg/pkg@6.21.0': 28edd2180c36691c481522ef81f6f6614505f45e491aad542ac4663d4e6b3ff8
   node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
 
@@ -1154,7 +1155,7 @@ importers:
         version: 0.3.21
       '@linxin666/dsh-web-all':
         specifier: 0.3.21
-        version: 0.3.21(fdbd70f8c89b0b918c4508a53f15c164)
+        version: 0.3.21(patch_hash=8afbb46c9fd28dcf459c67c92aeda70acc1946ed0971b2057302efaa04c69aaa)(fdbd70f8c89b0b918c4508a53f15c164)
       dsh-better-sidebar:
         specifier: 0.19.0
         version: 0.19.0(fdbd70f8c89b0b918c4508a53f15c164)
@@ -1493,7 +1494,7 @@ importers:
     dependencies:
       '@linxin666/dsh-web-all':
         specifier: 0.3.21
-        version: 0.3.21(fdbd70f8c89b0b918c4508a53f15c164)
+        version: 0.3.21(patch_hash=8afbb46c9fd28dcf459c67c92aeda70acc1946ed0971b2057302efaa04c69aaa)(fdbd70f8c89b0b918c4508a53f15c164)
 
   vendor/deepseek-harness:
     devDependencies:
@@ -22321,7 +22322,7 @@ snapshots:
       react: 18.3.1
       schemastery: 3.18.0
 
-  '@linxin666/dsh-web-all@0.3.21(fdbd70f8c89b0b918c4508a53f15c164)':
+  '@linxin666/dsh-web-all@0.3.21(patch_hash=8afbb46c9fd28dcf459c67c92aeda70acc1946ed0971b2057302efaa04c69aaa)(fdbd70f8c89b0b918c4508a53f15c164)':
     dependencies:
       '@linxin666/dsh-client-ui-community-plugins': 0.3.21(react@18.3.1)
       '@linxin666/dsh-client-ui-git-graph': 0.3.21(react@18.3.1)

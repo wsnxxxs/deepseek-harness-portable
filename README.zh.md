@@ -10,12 +10,12 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| 桌面分发版本 | **v1.7.3**，见[发布说明](RELEASE_NOTES.zh.md) |
+| 桌面分发版本 | **v1.7.4**，见[发布说明](RELEASE_NOTES.zh.md) |
 | 官方内核 | `dsh-v0.1.5-rc.2`，固定在 Git 子模块中 |
 | Windows x64 | 已完成本地 Setup / ZIP 构建及打包启动验证 |
-| macOS arm64、Linux x64 | 保留 DMG、AppImage / deb 构建目标；本次未生成这些平台的 v1.7.3 产物 |
+| macOS arm64、Linux x64 | 保留 DMG、AppImage / deb 构建目标；本次未生成这些平台的 v1.7.4 产物 |
 
-源码版本与 GitHub Releases 分开管理。v1.7.3 安装包目前已在本地生成；可下载的版本以 [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases) 中实际上传的附件为准。
+源码版本与 GitHub Releases 分开管理。v1.7.4 安装包目前已在本地生成；可下载的版本以 [Releases](https://github.com/wsnxxxs/deepseek-harness-portable/releases) 中实际上传的附件为准。
 
 ## 安装与启动
 
@@ -51,12 +51,12 @@ Windows 安装包自带 Electron 和 Node.js，使用者无需另装 Node.js 或
 | Cluster 团队界面 | `@dsh-portable/cluster-ui` bundle |
 | 桌面页面增强 | `@dsh-portable/desktop-enhancements` bundle |
 | Portable 预设与能力探测 | `@dsh-portable/runtime` bundle；Crew 还需 Cluster |
-| 附件入口 | 设置 → 插件 → 插件管理 |
+| 附件入口 | 设置 → Web 插件 |
 
-打开 **设置 → 插件**：
+打开 **设置**：
 
-- **插件管理**：使用 [dsh-web](https://github.com/zhu1090093659/dsh-web) 0.3.21 原生页面，统一管理已安装插件及 Learning、DCode、Cluster、桌面增强、附件入口等内置插件。内置插件列在该页的 **内置产品** 分组中，不再单设 Portable 管理标签。
-- **插件配置**：编辑已启用插件公开的配置。
+- **Web 插件**：使用 [dsh-web](https://github.com/zhu1090093659/dsh-web) 0.3.21 原生管理器，提供安装、更新、已安装插件及 Learning、DCode、Cluster、桌面增强、附件入口等内置插件的开关。内置插件列在 **内置产品** 分组中；已启用 Web 插件的配置表单显示在管理器下方。
+- **插件 → 插件配置 / 插件列表**：保留官方配置及插件清单视图，原来的「插件管理」标签已迁移至「Web 插件」。
 
 开关写入标准 profile 和 Cordis patch，重启后生效。管理器、设置入口与兼容组件保持启用，防止关闭后无法恢复。高级用户仍可编辑 `DSH_HOME/profiles/web/package.json` 的 `dsh.profile.bundles` 和同目录 `cordis.patch.yml`。
 
@@ -98,10 +98,10 @@ pnpm run desktop:dev
 Windows x64 打包需要 Windows 构建环境和 Inno Setup 6：
 
 ```sh
-pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.3
+pnpm exec tsx scripts/build-desktop-web-exe.ts --electron --target win32-x64 --output-root dist-desktop/electron-v1.7.4
 ```
 
-产物位于 `dist-desktop/electron-v1.7.3/windows-artifacts/`，验证后的副本与记录位于 `verified/win32-x64/`。打包流程检查原生模块、实际启动、文件清单，以及安装器内嵌 ZIP 与便携包的一致性。
+产物位于 `dist-desktop/electron-v1.7.4/windows-artifacts/`，验证后的副本与记录位于 `verified/win32-x64/`。打包流程检查原生模块、实际启动、文件清单，以及安装器内嵌 ZIP 与便携包的一致性。
 
 macOS/Linux 需在对应平台分别执行 `pnpm run desktop:package:mac` 或 `pnpm run desktop:package:linux`。打包不会自动上传；安装包、缓存和本地日志不提交到 Git。
 
