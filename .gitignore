@@ -13,3 +13,4 @@ apps/desktop/lib/
 .debug/
 .playwright-cli/
 .codex-*/
+.workbuddy/

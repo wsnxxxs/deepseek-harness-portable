@@ -1,310 +1,41 @@
 {
-  "version": "1.6.2",
-  "name": "DeepSeek Harness Desktop v1.6.2",
-  "publishedAt": "2026-09-03",
+  "version": "1.7.1",
+  "name": "DeepSeek Harness Desktop v1.7.1",
+  "publishedAt": "2026-09-13",
   "sections": [
     {
       "key": "features",
-      "titleEn": "Highlights",
-      "titleZh": "更新重点",
+      "titleEn": "Changes",
+      "titleZh": "更新内容",
       "itemsEn": [
-        "Refined the DCode workbench, floating composer, message navigation, change review, terminal experience, and responsive layouts.",
-        "Added the optional Swarm (crew) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.",
-        "Updated the bundled DeepSeek Harness runtime to 0.1.2-rc.1.",
-        "Unified Portable built-in feature management across DCode settings and the plugin marketplace; built-in features can be enabled or disabled and take effect after restart.",
-        "Kept DCode UI, Vision Bridge, Cluster, and Learning as default-injected but removable plugin rows; removing an optional row no longer blocks the core desktop shell.",
-        "Split Cluster mode into the standalone @dsh-portable/cluster-ui plugin so the official UI and any compatible surface can host the roster and task board.",
-        "Extracted the reusable material-space kernel so Learning and dossier-backed tasks share ingestion, anchors, re-anchoring, and lexical search behavior.",
-        "Improved plugin management, background updates, installer preflight checks, and stale update-cache cleanup.",
-        "Updated Learning Mode and local material import, retrieval, and review capabilities; these areas remain under active development.",
-        "Fixed Windows path handling, generated assets, and packaging verification issues for better stability."
+        "Updated the bundled official DeepSeek Harness to 0.1.5-rc.2.",
+        "Integrated dsh-web 0.3.21 plugin management and configuration. Management stays available while feature plugins start disabled.",
+        "The default experience uses official UI and presets; Portable extensions are disabled by default.",
+        "Desktop enhancements, DCode, Learning and Cluster activate explicitly through DSH bundles and share the host Cordis dependency.",
+        "Adapted attachments, feedback, RPC and session persistence to upstream APIs.",
+        "Consolidated Learning tests from 657 to 427 while retaining core behavior and integration regressions."
       ],
       "itemsZh": [
-        "优化 DCode 工作台、悬浮输入框、消息导航、变更审阅、终端体验与响应式布局。",
-        "新增可选的集群编排（英文界面：Swarm mode，运行时 id：crew）：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。",
-        "更新内置 DeepSeek Harness runtime 至 0.1.2-rc.1。",
-        "统一 DCode 设置与插件市场中的 Portable 内置能力管理；内置能力支持启用或停用，重启后生效。",
-        "DCode UI、Vision Bridge、Cluster 和 Learning 保持默认注入但可自行移除；移除可选插件后不再阻塞桌面核心外壳启动。",
-        "将集群模式拆为独立的 @dsh-portable/cluster-ui 插件，官方界面和兼容的其他界面都可以承载队伍名册与任务看板。",
-        "抽出可复用的资料库内核，让 Learning 与资料档案任务共享材料摄入、锚点、重锚和词法检索能力。",
-        "完善插件管理、后台更新、安装器预检和历史缓存清理。",
-        "更新学习模式与本地资料导入、检索和复习能力；相关功能仍在持续演进。",
-        "修复 Windows 路径、生成资源与打包校验问题，提升稳定性。"
+        "内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。",
+        "整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。",
+        "默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。",
+        "桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。",
+        "适配官方附件、反馈、RPC 与会话持久化接口。",
+        "Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。"
       ]
     },
     {
-      "key": "roadmap",
-      "titleEn": "Roadmap",
-      "titleZh": "后续计划",
+      "key": "upgrade",
+      "titleEn": "Upgrade note",
+      "titleZh": "升级说明",
       "itemsEn": [
-        "Learning Mode and the Library will continue to evolve in future releases; their v1.6.2 design is not final."
+        "Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted."
       ],
       "itemsZh": [
-        "学习模式和资料库将进行较大幅度调整，本版本中的相关功能不视为最终形态。"
+        "启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。"
       ]
     }
   ],
-  "bodyZh": "## 更新内容\n\n- 优化 DCode 工作台、悬浮输入框、消息导航、变更审阅、终端体验与响应式布局。\n- 新增可选的集群编排（英文界面：Swarm mode，运行时 id：crew）：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。\n- 更新内置 DeepSeek Harness runtime 至 0.1.2-rc.1。\n- 统一 DCode 设置与插件市场中的 Portable 内置能力管理；内置能力支持启用或停用，重启后生效。\n- DCode UI、Vision Bridge、Cluster 和 Learning 保持默认注入但可自行移除；移除可选插件后不再阻塞桌面核心外壳启动。\n- 将集群模式拆为独立的 @dsh-portable/cluster-ui 插件，官方界面和兼容的其他界面都可以承载队伍名册与任务看板。\n- 抽出可复用的资料库内核，让 Learning 与资料档案任务共享材料摄入、锚点、重锚和词法检索能力。\n- 完善插件管理、后台更新、安装器预检和历史缓存清理。\n- 更新学习模式与本地资料导入、检索和复习能力；相关功能仍在持续演进。\n- 修复 Windows 路径、生成资源与打包校验问题，提升稳定性。\n\n## 后续计划\n\n学习模式和资料库将进行较大幅度调整，本版本中的相关功能不视为最终形态。",
-  "bodyEn": "## Changes\n\n- Refined the DCode workbench, floating composer, message navigation, change review, terminal experience, and responsive layouts.\n- Added the optional Swarm (crew) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.\n- Updated the bundled DeepSeek Harness runtime to 0.1.2-rc.1.\n- Unified Portable built-in feature management across DCode settings and the plugin marketplace; built-in features can be enabled or disabled and take effect after restart.\n- Kept DCode UI, Vision Bridge, Cluster, and Learning as default-injected but removable plugin rows; removing an optional row no longer blocks the core desktop shell.\n- Split Cluster mode into the standalone @dsh-portable/cluster-ui plugin so the official UI and any compatible surface can host the roster and task board.\n- Extracted the reusable material-space kernel so Learning and dossier-backed tasks share ingestion, anchors, re-anchoring, and lexical search behavior.\n- Improved plugin management, background updates, installer preflight checks, and stale update-cache cleanup.\n- Updated Learning Mode and local material import, retrieval, and review capabilities; these areas remain under active development.\n- Fixed Windows path handling, generated assets, and packaging verification issues for better stability.\n\n## Roadmap\n\nLearning Mode and the Library will continue to evolve in future releases; their v1.6.2 design is not final.",
-  "history": [
-    {
-      "version": "1.3.3",
-      "name": "DeepSeek Harness Desktop v1.3.3",
-      "publishedAt": "2026-08-19",
-      "sections": [
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.3.2",
-      "name": "DeepSeek Harness Desktop v1.3.2",
-      "publishedAt": "2026-08-18",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Major Features",
-          "titleZh": "重大功能",
-          "itemsEn": [
-            "Cross-platform desktop distribution: added Linux x64 AppImage/deb and macOS Apple Silicon DMG packages.",
-            "Learning Mode and plugin marketplace: added inline teaching visuals and a bundled plugin marketplace.",
-            "Native image attachments: image-capable models can receive images directly.",
-            "No-console Windows startup: launching the desktop app no longer flashes a command window."
-          ],
-          "itemsZh": [
-            "跨平台桌面分发：新增 Linux x64 AppImage/deb 与 macOS Apple Silicon DMG 安装包。",
-            "Learning 模式与插件市场：新增对话内教学图示和内置插件市场。",
-            "原生图片附件：支持图片的模型可以直接接收图片。",
-            "Windows 无控制台启动：启动桌面应用不再闪现命令行窗口。"
-          ]
-        },
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.6",
-      "name": "DeepSeek Harness for Win v1.2.6",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.5",
-      "name": "DeepSeek Harness for Win v1.2.5",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.4",
-      "name": "DeepSeek Harness for Win v1.2.4",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.3",
-      "name": "DeepSeek Harness for Win v1.2.3",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.2",
-      "name": "DeepSeek Harness for Win v1.2.2",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Major Features",
-          "titleZh": "重大功能",
-          "itemsEn": [
-            "Vision Bridge and view_image: text-only models can now inspect images through the bundled vision plugin."
-          ],
-          "itemsZh": [
-            "Vision Bridge 与 view_image：文本模型现在可以通过内置视觉插件查看图片。"
-          ]
-        },
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.1",
-      "name": "DeepSeek Harness for Win v1.2.1",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Major Features",
-          "titleZh": "重大功能",
-          "itemsEn": [
-            "Background updates: downloads and verification run while the app remains usable, then finish on restart."
-          ],
-          "itemsZh": [
-            "后台更新：应用保持可用的同时完成下载与校验，重启后即可完成升级。"
-          ]
-        },
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.2.0",
-      "name": "DeepSeek Harness for Win v1.2.0",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Major Features",
-          "titleZh": "重大功能",
-          "itemsEn": [
-            "WSL Minimal Mode: Windows can run the Minimal Agent Preset through native WSL Linux Bash."
-          ],
-          "itemsZh": [
-            "WSL 极简模式：Windows 现在可以通过原生 WSL Linux Bash 运行极简 Agent 预设。"
-          ]
-        },
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.1.0",
-      "name": "DeepSeek Harness for Win v1.1.0",
-      "publishedAt": "2026-08-16",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Major Features",
-          "titleZh": "重大功能",
-          "itemsEn": [
-            "In-app updates and release history: added update checking, one-click downloads, and bilingual release notes."
-          ],
-          "itemsZh": [
-            "应用内更新与更新记录：新增更新检测、一键下载和双语更新日志。"
-          ]
-        },
-        {
-          "key": "fixes",
-          "titleEn": "Fixes",
-          "titleZh": "问题修复",
-          "itemsEn": [
-            "Bug fixes and stability improvements."
-          ],
-          "itemsZh": [
-            "修复问题，优化稳定性。"
-          ]
-        }
-      ]
-    },
-    {
-      "version": "1.0.0",
-      "name": "DeepSeek Harness for Win v1.0.0",
-      "publishedAt": "2026-08-15",
-      "sections": [
-        {
-          "key": "features",
-          "titleEn": "Initial Release",
-          "titleZh": "初始发布",
-          "itemsEn": [
-            "First release: a portable, ready-to-use DeepSeek Harness desktop app for Windows."
-          ],
-          "itemsZh": [
-            "首次发布：面向 Windows 的 DeepSeek Harness 便携式桌面应用，开箱即用。"
-          ]
-        }
-      ]
-    }
-  ]
+  "bodyEn": "## Changes\n\n- Updated the bundled official DeepSeek Harness to 0.1.5-rc.2.\n- Integrated dsh-web 0.3.21 plugin management and configuration. Management stays available while feature plugins start disabled.\n- The default experience uses official UI and presets; Portable extensions are disabled by default.\n- Desktop enhancements, DCode, Learning and Cluster activate explicitly through DSH bundles and share the host Cordis dependency.\n- Adapted attachments, feedback, RPC and session persistence to upstream APIs.\n- Consolidated Learning tests from 657 to 427 while retaining core behavior and integration regressions.\n\n## Upgrade note\n\n- Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted.",
+  "bodyZh": "## 更新内容\n\n- 内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。\n- 整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。\n- 默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。\n- 桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。\n- 适配官方附件、反馈、RPC 与会话持久化接口。\n- Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。\n\n## 升级说明\n\n- 启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。"
 }

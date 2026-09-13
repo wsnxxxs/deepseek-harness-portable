@@ -61,10 +61,12 @@ test('native package jobs upload the exact verified output produced by their pac
 test('CI materializes portable client manifests before building the pinned kernel', () => {
   const workflow = load(readFileSync(resolve(root, '.github', 'workflows', 'verify.yml'), 'utf8')) as Workflow
   const steps = workflow.jobs['contracts-and-static-gates']?.steps ?? []
-  const bridgeIndex = steps.findIndex(step => step.run === 'pnpm exec tsx scripts/build/client-manifest-bridge.ts')
-  const kernelBuildIndex = steps.findIndex(step => step.run === 'pnpm --filter @deepseek-ai/dsh-root run build')
-  assert.ok(bridgeIndex >= 0, 'verify must create the portable client manifest bridge')
-  assert.ok(kernelBuildIndex > bridgeIndex, 'verify must create the bridge before the pinned kernel build')
+  assert.ok(steps.some(step => step.run === 'pnpm run build'), 'verify must use the complete workspace build')
+  const { scripts } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
+  const bridgeIndex = scripts.build.indexOf('scripts/build/client-manifest-bridge.ts')
+  const kernelBuildIndex = scripts.build.indexOf('scripts/build/kernel-build.ts')
+  assert.ok(bridgeIndex >= 0, 'the workspace build must create the portable client manifest bridge')
+  assert.ok(kernelBuildIndex > bridgeIndex, 'the bridge must precede the pinned kernel build')
 })
 
 test('Windows packaging asserts a native win32-x64 runner with a working WSL distribution', () => {

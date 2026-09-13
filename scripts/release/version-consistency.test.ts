@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { packageVersions, readJson, readText } from './dependency-state.js'
 
-const approvedReleaseVersion = '1.6.2'
+const approvedReleaseVersion = '1.7.1'
 
 test('the approved product version is synchronized across release metadata and documentation', () => {
   const desktop = readJson('apps/desktop/package.json')
@@ -18,8 +18,8 @@ test('the approved product version is synchronized across release metadata and d
     `DeepSeek-Harness-Setup-${approvedReleaseVersion}-win32-x64.exe`,
   ].sort()
   const requiredText = new Map<string, readonly string[]>([
-    ['README.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`]],
-    ['README.zh.md', [`v${approvedReleaseVersion}`, `/releases/tag/v${approvedReleaseVersion}`]],
+    ['README.md', [`v${approvedReleaseVersion}`, 'RELEASE_NOTES.md']],
+    ['README.zh.md', [`v${approvedReleaseVersion}`, 'RELEASE_NOTES.zh.md']],
     ['apps/desktop/README.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
     ['apps/desktop/README.zh.md', [`DeepSeek Harness Desktop v${approvedReleaseVersion}`]],
     ['apps/desktop/使用说明.txt', [`DeepSeek Harness for Win v${approvedReleaseVersion}`]],

@@ -25,12 +25,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run runtime:deps:check
-      - run: pnpm exec tsx scripts/build/client-manifest-bridge.ts
-      - run: pnpm --filter @deepseek-ai/dsh-root run build
-      - run: pnpm --filter @dsh-portable/platform-contract run build
-      - run: pnpm --filter @dsh-portable/release-manifest run build
-      - run: pnpm --filter @dsh-portable/interactive-learning run build
-      - run: pnpm --filter @dsh-portable/runtime run build
+      - run: pnpm run build
+      - run: pnpm run official:test
       - name: Fast suite leaves the checkout untouched
         shell: bash
         run: |

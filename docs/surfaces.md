@@ -1,3 +1,5 @@
+> Current default: official DSH UI. Feature surfaces and desktop page enhancements are opt-in; plugin management stays available. See [configuration](architecture-layers.md).
+
 # Two surfaces, one page, one runtime
 
 This distribution ships two browser front ends over a single DeepSeek Harness
@@ -5,7 +7,7 @@ Runtime:
 
 - **Official** — the upstream DeepSeek Harness interface, unmodified.
 - **Workbench** (`@dsh-portable/dcode-ui`) — a compact desktop workbench.
-  Default.
+  Opt-in.
 
 Neither is a fork of the other, and selecting one never removes the other.
 
@@ -106,7 +108,7 @@ so the next cold launch opens the same surface.
 it and any of them failing to load leaves it rendering.
 
 **Workbench** is conversation-first: a session list, a transcript, and panels
-for git, goals and progress around it. It is the default because it is the right
+for git, goals and progress around it. It is an optional workbench designed as the
 shape for one person working one task.
 
 The Workbench is the DCode-native Agent workspace: a conversation rail, a
@@ -163,7 +165,7 @@ expose a separate resource or learning library.
 ## 中文摘要
 
 本发行版在同一个 DSH Runtime 之上提供两套前端：**官方版**（保持原样的上游界面）
-与默认的**工作台**（`@dsh-portable/dcode-ui`）。二者互不为分支，选择其一也不会移除另一套。
+与可选的**工作台**（`@dsh-portable/dcode-ui`）。二者互不为分支，选择其一也不会移除另一套。
 
 切换机制只有一句话：DSH 浏览器外壳只渲染一个 ctx 级插槽 `root`，官方 `ui-layout`
 以 `AppFrame` 占据它；`root` 是 `single` 插槽，后注册者以更低的 `priority` 遮蔽前者。

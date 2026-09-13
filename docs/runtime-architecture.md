@@ -1,109 +1,25 @@
-# Runtime architecture and release gates
+# Runtime architecture
 
-This distribution uses one repository, one mode contract model, and target-specific capability implementations. A target is never treated as supported merely because `process.platform` has a particular value.
+The desktop distribution now boots the unmodified official `dsh-v0.1.5-rc.2` Web profile. See [the current architecture and plugin configuration](architecture-layers.md) for the authoritative composition and activation instructions.
 
-## Runtime boundary
+## Official default
 
-`apps/runtime` owns runtime startup, capability measurement, mode compilation, mode availability, and the loopback diagnostics API. `apps/desktop` owns the Electron process boundary and supervises the stdout runtime protocol. `packages/platform-contract` owns build targets and their minimum support/signing policy. Interactive Learning remains an independent feature module. Image understanding is supplied by the bundled dsh-web-all plugin.
+The launcher initializes the profile and delegates to official `runCli()`. The desktop bridge contributes only process readiness. Optional UI, learning, team and attachment rows are disabled. Built-in management and the dsh-web 0.3.21 management/settings/compatibility components remain enabled; other community features stay disabled.
 
-The desktop/runtime protocol remains stdout-only and versioned. Packaged verification launches Electron in Node mode, decodes the real `hello`/`listening` stream, waits for the loopback readiness endpoint, and rejects malformed protocol output or early exit.
+Electron uses a native title bar. Page styling and custom desktop menus belong to the opt-in desktop-enhancements plugin. No default preload CSS or DOM replacement changes the official page.
 
-## Capability evidence
+## Optional preset provider
 
-`CapabilityReport` is effect-based and records `available`, `degraded`, or `unavailable` with `reason` and `remediation`. Its stable snapshot hash excludes timestamps and binds mode-resolution traces.
+The runtime package also exports an ordinary Cordis plugin, selected only by its explicit bundle. It measures the host, compiles supported Portable mode variants into `.system-agent-presets`, and publishes an official AgentPresets child service with that root. Unsupported modes are omitted; an unsupported requested default is replaced with the best supported mode. If no Portable mode is available, the optional plugin fails explicitly; default official startup is unaffected.
 
-The runtime performs bounded probes for:
+Capability reports and mode trace events exist only while this plugin is enabled. Learning uses its own optional source service and normally extends the official preset provider. Combining Learning and the Portable provider requires the root injection shown in the configuration guide.
 
-- a real `node-pty` interactive round trip;
-- two calls through the same persistent Bash PTY, including retained environment state;
-- PowerShell executable, command, and persistent-shell phases independently;
-- WSL executable, distribution, Bash, and persistent-Bash phases independently;
-- ConPTY round trip on Windows;
-- POSIX signal delivery through a child handler;
-- a real sandbox write inside the workspace and a denied write outside it;
-- the native Windows directory-picker worker IPC v1 health message without displaying a dialog.
+## Build and distribution
 
-An unmeasured platform or phase is `unavailable`, not inferred as available. The report tells UI/API consumers why it is unavailable and how to remediate it. The loopback endpoint is `GET /api/portable/runtime-capabilities`.
+The official submodule is pinned, built, and deployed without functional patches. Both patch inventories are empty. Runtime dependencies are generated from workspace manifests, official profile bundles, and optional plugin requirements. Native platform assets come from the upgraded official workspace, including `native/system`.
 
-## Mode contracts and variants
+Packaging validates the official UI and preset roster, verifies optional plugin files without activating them, then records source identities, dependency hashes, native assets, and file hashes. Default `modeSupport` and patch attestations are empty; this does not claim that optional capability probes ran. Platform containers and immutable release verification remain separate from source tests.
 
-Standard, PTC, Cordis, Minimal, and Crew each declare a `mode.yml` contract. Stable behavior stays in the base composition; the resolver appends one small target-capability variant. Standard, PTC, Cordis, and Crew provide `posix-bash` and `win32-powershell`; Minimal provides `posix-bash` and `win32-wsl`. Every mode ships a variant per supported target: a mode with only a `win32-*` variant compiles to `unavailable` everywhere else.
+## Session compatibility
 
-Final composition validation enforces required rows, forbidden rows, the exact enabled tool rows, and exactly one provider for the variant slot. Preset YAML contains no `process.platform` branches. A degraded capability satisfies a requirement only where the selected variant explicitly accepts that degradation. A mode whose model-facing rows fall outside the `@deepseek-ai/dsh-tool-*` families declares `contract.tools.rowNameMarkers`, so the exact-rows gate counts them; without it a correct composition is rejected for listing a row the gate cannot see.
-
-If no variant satisfies the measured report, the compiler removes that mode directory from the scanned preset root, so discovery cannot retain it as a broken selector row. It keeps `.mode-resolutions/<mode>/mode-resolution.json` with `reason`, `remediation`, and missing capability details for operators and exposes the same result through the runtime capability API.
-
-
-### The roster is the compiled catalog
-
-The runtime sets `includeShippedRoot: false` on the `agent-presets` row, so the compiled portable modes are the only ones an operator can select.
-
-This is what makes the contract real. The roster resolves roots as `[upstream shipped, ...config.roots, user]` and an **earlier root wins a duplicate id**, so leaving the upstream root on means upstream's own `standard`/`ptc`/`minimal`/`cordis` shadow the compiled ones — and the "no variant fits ⇒ mode removed ⇒ unselectable" gate silently does nothing, because upstream backfills the id the compiler just removed. Only ids upstream does not ship reached the operator from the portable root.
-
-Closing it also lets the compiler leave the roster empty on a target no variant fits, so `apps/runtime/src/preset-roster.ts` runs once the catalog is known and covers both consequences:
-
-- the configured default did not compile but others did: select the best-supported survivor so session creation still works, and report at `warning`;
-- nothing compiled: reopen the upstream root for that boot and report at `error`, because a roster whose modes were not measured here is worse than correct but far better than an application whose every new session fails.
-
-Each selectable mode records:
-
-- mode and variant IDs;
-- support level and limitations;
-- final preset SHA-256;
-- pinned upstream commit;
-- capability snapshot SHA-256.
-
-The same trace is appended to a session when the preset is selected.
-
-## Build layers and patch gate
-
-The build pipeline has explicit ordered boundaries:
-
-1. initialize and fingerprint;
-2. compile workspaces;
-3. deploy the runtime closure, native assets, and reviewed patches;
-4. create the unpacked target application;
-5. stage distribution documents;
-6. run packaged capability/protocol measurement;
-7. write the release manifest and rerun the packaged smoke against final application bytes;
-8. create platform containers;
-9. validate the final containers read-only (ZIP contents, AppImage/deb headers and deb metadata, or `hdiutil verify`);
-10. attest immutable artifacts.
-
-`patches/manifest.yml` is the patch inventory. Each declared file has reviewed content guards. The patch layer records input and output SHA-256 values; a missing guard, unexpected upstream shape, empty transform, or undeclared implementation is a conflict and stops the build.
-
-## Release manifest and immutable publishing
-
-Manifest schema 3 contains source identities, target, runtime versions, runtime-closure hash, measured mode support, mode/preset/capability trace fields, patch input/output hashes, distribution classification, and a sorted `files[]` inventory with type, size, and SHA-256. `release-manifest.json` excludes itself from `files[]` to avoid recursive hashing.
-
-The first packaged smoke supplies the measured mode support. Manifest creation rejects missing modes, support below `TargetSpec.requiredModeSupport`, or the wrong required variant. After the manifest is written, the packaged native-addon/protocol/readiness smoke runs again. Only then are ZIP/Setup, AppImage/deb, or DMG containers created and hashed into `artifact-verification.json`.
-
-Release scripts require `--input <verified-bundle>`. They re-hash every artifact and copy the exact bytes. They cannot compile, patch, test, sign, or recreate an archive. Any byte change after verification is rejected.
-
-## CI and external gates
-
-`verify.yml` runs contract builds, targeted tests, dependency closure checks, and the preset platform-branch gate. `package.yml` uses native platform jobs:
-
-- Linux x64 on a native GitHub runner;
-- Windows x64 on a self-hosted runner labelled for working WSL and Inno Setup;
-- macOS arm64 on a self-hosted Apple Silicon runner.
-
-The verification record refuses a platform/architecture mismatch, so a cross-built artifact cannot be marked verified. `release.yml` downloads verified bundles and performs no build.
-
-Current packages are explicitly `non-official-unsigned`. `TargetSpec.signing` requires evidence for Authenticode (Windows), signing plus notarization (macOS), or external package signing (Linux). Official publishing fails closed without that evidence. A manual `--allow-non-official` path may publish a clearly marked prerelease, but does not upgrade its classification.
-
-The remaining platform gates are external by design: successful native Windows/WSL/Inno, Linux, and Apple Silicon CI artifacts, plus the target signing/notarization credentials and evidence required for an official release.
-
----
-
-## 中文摘要
-
-本项目采用“单一主干 + 统一模式契约 + 多平台能力实现”。运行时通过真实副作用探测 PTY、持久 Bash/PowerShell/WSL、signals、沙箱写入和 Windows directory-picker IPC；未实测能力必须返回 `unavailable + reason + remediation`，不能按平台静态宣称支持。
-
-Standard、PTC、Cordis、Minimal、Crew 都有契约与小型 variant，且每个目标平台都必须有对应 variant——只有 `win32-*` variant 的模式在其它平台一律编译为 `unavailable`。最终组合必须通过 required/forbidden/exact-row/单一 variant slot 校验；模型面工具行落在 `@deepseek-ai/dsh-tool-*` 家族之外的模式，需自行声明 `contract.tools.rowNameMarkers`，否则正确的组合会因为门禁看不见那一行而被拒。无法满足能力的模式会从预设根中移除，只保留 UI/API 可消费的诊断 JSON。模式追踪包含 variant、preset hash、upstream commit 和 capability snapshot hash。
-
-运行时对 `agent-presets` 行设置 `includeShippedRoot: false`，编译产出的 portable 模式才是操作者唯一可选的集合。这正是让契约生效的关键：根解析顺序是 `[上游 shipped, ...config.roots, user]` 且**靠前的根赢得重复 id**，保留上游根就意味着上游自带的 `standard`/`ptc`/`minimal`/`cordis` 会遮蔽编译产物，「无可用 variant ⇒ 移除模式 ⇒ 不可选」这道门禁也就形同虚设。关上它之后，编译器有可能让 roster 为空，因此 `apps/runtime/src/preset-roster.ts` 在目录已知后运行：默认模式未编译成功但仍有其它模式时，改选支持度最高的幸存者并以 `warning` 上报；一个模式都没有时，本次启动回退上游根并以 `error` 上报。
-
-打包先实测能力，再写 manifest，随后对含 manifest 的最终应用字节再次执行 native-addon 与 `hello → listening → readiness` 冒烟。只有原生目标主机才能生成 `artifact-verification.json`。release 脚本只重新校验并复制已验证字节，不重建、不测试、不打补丁、不重新压缩。
-
-当前产物明确为 `non-official-unsigned`。没有 Windows Authenticode、macOS 签名与公证、Linux 外部包签名证据时，正式发布失败关闭。剩余门禁仅能由原生 CI runner 与外部签名凭证完成。
+Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted. The startup adapter normalizes known Portable metadata and delegates conversation migration to the unchanged official catalog, strictly validates the result, and atomically publishes a new generation.

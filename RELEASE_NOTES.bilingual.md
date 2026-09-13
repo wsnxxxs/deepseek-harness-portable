@@ -1,45 +1,44 @@
-# DeepSeek Harness Desktop v1.6.2
+# DeepSeek Harness Desktop v1.7.1
 
-跨平台桌面版 · 2026-09-03
+2026-09-13
 
 ## 更新内容
 
-- 优化 DCode 工作台、悬浮输入框、消息导航、变更审阅、终端体验与响应式布局。
-- 新增可选的集群编排（英文界面：Swarm mode，运行时 id：`crew`）：DCode Agent 工作台支持具名队友、共享任务看板、历史会话检索和由操作者附加的资料档案。
-- 更新内置 DeepSeek Harness runtime 至 0.1.2-rc.1。
-- 统一 DCode 设置与插件市场中的 Portable 内置能力管理；内置能力支持启用或停用，重启后生效。
-- DCode UI、Vision Bridge、Cluster 和 Learning 保持默认注入但可自行移除；移除可选插件后不再阻塞桌面核心外壳启动。
-- 将集群模式拆为独立的 `@dsh-portable/cluster-ui` 插件，官方界面和兼容的其他界面都可以承载队伍名册与任务看板。
-- 抽出可复用的资料库内核，让 Learning 与资料档案任务共享材料摄入、锚点、重锚和词法检索能力。
-- 完善插件管理、后台更新、安装器预检和历史缓存清理。
-- 更新学习模式与本地资料导入、检索和复习能力；相关功能仍在持续演进。
-- 修复 Windows 路径、生成资源与打包校验问题，提升稳定性。
+- 内置官方 DeepSeek Harness 更新至 0.1.5-rc.2。
+- 整合 dsh-web 0.3.21 的插件管理与配置；管理入口常驻，功能插件默认关闭。
+- 默认使用官方界面与预设，Portable 自有及内置扩展默认关闭。
+- 桌面增强、DCode、Learning、Cluster 等功能按 DSH Bundle 规范显式启用，统一使用宿主 Cordis 依赖。
+- 适配官方附件、反馈、RPC 与会话持久化接口。
+- Learning 测试从 657 项精简至 427 项，保留核心行为与集成回归。
 
-> 后续计划：学习模式和资料库将进行较大幅度调整，本版本中的相关功能不视为最终形态。
+## 升级说明
+
+- 启动时自动将旧 Portable / Learning 自定义事件历史转换为官方 v3 日志，原始文件保持不变，不删除历史对话。
 
 ---
 
-## English Release Notes
+## Changes
 
-Cross-platform desktop release · 2026-09-03
+- Updated the bundled official DeepSeek Harness to 0.1.5-rc.2.
+- Integrated dsh-web 0.3.21 plugin management and configuration. Management stays available while feature plugins start disabled.
+- The default experience uses official UI and presets; Portable extensions are disabled by default.
+- Desktop enhancements, DCode, Learning and Cluster activate explicitly through DSH bundles and share the host Cordis dependency.
+- Adapted attachments, feedback, RPC and session persistence to upstream APIs.
+- Consolidated Learning tests from 657 to 427 while retaining core behavior and integration regressions.
 
-### Changes
+## Upgrade note
 
-- Refined the DCode workbench, floating composer, message navigation, change review, terminal experience, and responsive layouts.
-- Added the optional Swarm (`crew`) mode with named teammates, a shared task board, prior-session search, and operator-attached dossier sources in the DCode Agent workspace.
-- Updated the bundled DeepSeek Harness runtime to 0.1.2-rc.1.
-- Unified Portable built-in feature management across DCode settings and the plugin marketplace; built-in features can be enabled or disabled and take effect after restart.
-- Kept DCode UI, Vision Bridge, Cluster, and Learning as default-injected but removable plugin rows; removing an optional row no longer blocks the core desktop shell.
-- Split Cluster mode into the standalone `@dsh-portable/cluster-ui` plugin so the official UI and any compatible surface can host the roster and task board.
-- Extracted the reusable material-space kernel so Learning and dossier-backed tasks share ingestion, anchors, re-anchoring, and lexical search behavior.
-- Improved plugin management, background updates, installer preflight checks, and stale update-cache cleanup.
-- Updated Learning Mode and local material import, retrieval, and review capabilities; these areas remain under active development.
-- Fixed Windows path handling, generated assets, and packaging verification issues for better stability.
+- Startup automatically migrates earlier Portable / Learning custom-event histories to official v3 logs. Original files remain unchanged; no history is deleted.
 
-> Roadmap note: Learning Mode and the Library will continue to evolve in future releases; their v1.6.2 design is not final.
+## Packaging targets / 打包目标
 
----
+Windows 本地构建 / local build:
 
-各目标安装包的 SHA-256 校验值见 `SHA256SUMS-<target>.txt`。产物包括 `DeepSeek-Harness-1.6.2-win32-x64.zip`、`DeepSeek-Harness-Setup-1.6.2-win32-x64.exe`、`DeepSeek-Harness-1.6.2-darwin-arm64.dmg`、`DeepSeek-Harness-1.6.2-linux-x64.AppImage` 与 `DeepSeek-Harness-1.6.2-linux-x64.deb`。
+- `DeepSeek-Harness-1.7.1-win32-x64.zip`
+- `DeepSeek-Harness-Setup-1.7.1-win32-x64.exe`
 
-Target-specific SHA-256 checksums are in `SHA256SUMS-<target>.txt`. Artifacts include `DeepSeek-Harness-1.6.2-win32-x64.zip`, `DeepSeek-Harness-Setup-1.6.2-win32-x64.exe`, `DeepSeek-Harness-1.6.2-darwin-arm64.dmg`, `DeepSeek-Harness-1.6.2-linux-x64.AppImage`, and `DeepSeek-Harness-1.6.2-linux-x64.deb`.
+以下目标需在对应系统另行构建，本次不提供 / Require separate native builds; not included here:
+
+- `DeepSeek-Harness-1.7.1-darwin-arm64.dmg`
+- `DeepSeek-Harness-1.7.1-linux-x64.AppImage`
+- `DeepSeek-Harness-1.7.1-linux-x64.deb`

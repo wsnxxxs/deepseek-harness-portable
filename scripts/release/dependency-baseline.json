@@ -1,6 +1,6 @@
 {
-  "dependencyManifest": "0c6c3d40f7809f6fb763aba983b1e0b34451b43b78ddcd9a357efef67e2d539c",
-  "lockfile": "b3272f19a4e5d852305dd14490e4d9fa1171e581861ba2017f9b7817fa4afa6a",
-  "approvedAt": "2026-09-03T09:51:07.810Z",
-  "approvedFor": "1.6.2"
+  "dependencyManifest": "11f311d0132eb209d8bb50fdd2b62295288cdcff1a3fb412da336b8ac6462e2b",
+  "lockfile": "fa164bdcb1ca6cc37652c780546b1cef8e9318a04c48d04f9966ea586139d1e5",
+  "approvedAt": "2026-09-13T12:06:24.286Z",
+  "approvedFor": "1.7.1"
 }

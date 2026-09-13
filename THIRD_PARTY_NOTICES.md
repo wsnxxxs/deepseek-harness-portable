@@ -15,7 +15,7 @@ The distribution ships the following runtime components, pinned in `apps/runtime
 
 | Package | Source | License |
 | --- | --- | --- |
-| `@linxin666/dsh-web-all` 0.3.16 and its family packages | [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) | Apache-2.0 |
+| `@linxin666/dsh-web-all` 0.3.21 and its family packages | [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) | Apache-2.0 |
 | `dsh-better-sidebar` 0.18.0 | [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | MIT |
 | `pnpm` 11.21.0 | [pnpm/pnpm](https://github.com/pnpm/pnpm) | MIT |
 
